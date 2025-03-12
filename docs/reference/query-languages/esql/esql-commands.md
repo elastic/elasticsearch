@@ -702,6 +702,10 @@ If multiple documents in the lookup index match a single row in your results, th
 
 **Examples**
 
+::::{tip}
+In case of name collisions, the newly created columns will override existing columns.
+::::
+
 **IP Threat correlation**: This query would allow you to see if any source IPs match known malicious addresses.
 
 ```esql
@@ -724,10 +728,18 @@ FROM app_logs
 | LOOKUP JOIN service_owners ON service_id
 ```
 
-In case of name collisions, the newly created columns will override existing columns.
+`LOOKUP JOIN` is generally faster when there are fewer rows to join with. ES|QL will try and perform any `WHERE` clause before the `LOOKUP JOIN` where possible. The first example below has the `WHERE` clause before the `LOOKUP JOIN`. This is not needed, the optimizer will move the filter before the lookup. Both examples will have the same results.
 
 ```esql
+FROM Left
+| WHERE Language IS NOT NULL
+| LOOKUP JOIN Right ON Key
+```
 
+```esql
+FROM Left
+| LOOKUP JOIN Right ON Key
+| WHERE Language IS NOT NULL 
 ```
 
 ## `MV_EXPAND` [esql-mv_expand]

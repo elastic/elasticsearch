@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -31,16 +32,25 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Handles data stream modification requests.
  */
 public class MetadataDataStreamsService {
-
+    private static final Logger LOGGER = LogManager.getLogger(MetadataDataStreamsService.class);
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
@@ -430,6 +440,71 @@ public class MetadataDataStreamsService {
             throw new IllegalArgumentException("index [" + indexName + "] not found");
         }
         return index;
+    }
+
+    /**
+     * Removes the given data streams from the Cluster State.
+     *
+     * @param clusterState The cluster state
+     * @param dataStreams  The data streams to remove
+     * @param settings     The settings
+     * @return The updated Cluster State
+     */
+    @FixForMultiProject // Once callers have Project State we can update/remove this method.
+    public static ClusterState deleteDataStreams(ClusterState clusterState, Set<DataStream> dataStreams, Settings settings) {
+        final Map<ProjectId, Set<DataStream>> byProject = new HashMap<>();
+        for (DataStream dataStream : dataStreams) {
+            final ProjectMetadata project = clusterState.metadata().projectFor(dataStream);
+            byProject.computeIfAbsent(project.id(), ignore -> new HashSet<>()).add(dataStream);
+        }
+
+        for (final Map.Entry<ProjectId, Set<DataStream>> entry : byProject.entrySet()) {
+            clusterState = deleteDataStream(clusterState.projectState(entry.getKey()), entry.getValue(), settings);
+        }
+        return clusterState;
+    }
+
+    /**
+     * Removes the given data streams from the Project State.
+     *
+     * @param projectState The project state
+     * @param dataStreams  The data streams to remove
+     * @param settings     The settings
+     * @return The updated Project State
+     */
+    public static ClusterState deleteDataStream(ProjectState projectState, Set<DataStream> dataStreams, Settings settings) {
+        if (dataStreams.isEmpty()) {
+            return projectState.cluster();
+        }
+
+        Set<String> dataStreamNames = dataStreams.stream().map(DataStream::getName).collect(Collectors.toSet());
+        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(projectState, dataStreamNames);
+        if (snapshottingDataStreams.isEmpty() == false) {
+            throw new SnapshotInProgressException(
+                "Cannot delete data streams that are being snapshotted: ["
+                    + String.join(", ", snapshottingDataStreams)
+                    + "]. Try again after snapshot finishes or cancel the currently running snapshot."
+            );
+        }
+
+        Set<Index> backingIndicesToRemove = new HashSet<>();
+        for (DataStream dataStream : dataStreams) {
+            assert dataStream != null;
+            backingIndicesToRemove.addAll(dataStream.getIndices());
+            backingIndicesToRemove.addAll(dataStream.getFailureIndices());
+        }
+
+        // first delete the data streams and then the indices:
+        // (this to avoid data stream validation from failing when deleting an index that is part of a data stream
+        // without updating the data stream)
+        // TODO: change order when "delete index api" also updates the data stream the "index to be removed" is a member of
+        ClusterState newState = projectState.updatedState(builder -> {
+            dataStreams.stream().map(DataStream::getName).forEach(ds -> {
+                LOGGER.info("removing data stream [{}]", ds);
+                builder.removeDataStream(ds);
+            });
+        });
+        return MetadataDeleteIndexService.deleteIndices(newState.projectState(projectState.projectId()), backingIndicesToRemove, settings);
     }
 
     /**

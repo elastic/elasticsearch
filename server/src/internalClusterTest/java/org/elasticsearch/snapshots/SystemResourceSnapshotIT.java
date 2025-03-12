@@ -54,7 +54,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
+public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public static final String REPO_NAME = "test-repo";
 
@@ -610,7 +610,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
      *
      * However, other feature states should be unaffected.
      */
-    // TODO: determine if we can create a datastream test for this
     public void testAllSystemIndicesAreRemovedWhenThatFeatureStateIsRestored() {
         createRepository(REPO_NAME, "fs");
         // Create a system index we'll snapshot and restore

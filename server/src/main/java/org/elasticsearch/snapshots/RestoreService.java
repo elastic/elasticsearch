@@ -35,7 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataDeleteDataStreamService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -1361,7 +1361,7 @@ public final class RestoreService implements ClusterStateApplier {
             );
 
             // Clear out all existing system data streams
-            currentState = MetadataDeleteDataStreamService.deleteDataStreams(
+            currentState = MetadataDataStreamsService.deleteDataStreams(
                 currentState,
                 resolveSystemDataStreamsToDelete(currentState, featureStatesToRestore),
                 settings

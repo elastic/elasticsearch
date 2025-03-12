@@ -21,9 +21,8 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -46,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.datastreams.DataStreamsActionUtil.getDataStreamNames;
 
@@ -164,25 +163,11 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             );
         }
 
-        Set<Index> backingIndicesToRemove = new HashSet<>();
-        for (String dataStreamName : dataStreams) {
-            DataStream dataStream = project.dataStreams().get(dataStreamName);
-            assert dataStream != null;
-            backingIndicesToRemove.addAll(dataStream.getIndices());
-            backingIndicesToRemove.addAll(dataStream.getFailureIndices());
-        }
-
-        // first delete the data streams and then the indices:
-        // (this to avoid data stream validation from failing when deleting an index that is part of a data stream
-        // without updating the data stream)
-        // TODO: change order when delete index api also updates the data stream the index to be removed is member of
-        ClusterState newState = projectState.updatedState(builder -> {
-            for (String ds : dataStreams) {
-                LOGGER.info("removing data stream [{}]", ds);
-                builder.removeDataStream(ds);
-            }
-        });
-        return MetadataDeleteIndexService.deleteIndices(newState.projectState(projectState.projectId()), backingIndicesToRemove, settings);
+        return MetadataDataStreamsService.deleteDataStream(
+            projectState,
+            dataStreams.stream().map(project.dataStreams()::get).collect(Collectors.toSet()),
+            settings
+        );
     }
 
     @Override

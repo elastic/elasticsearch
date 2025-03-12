@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Flow;
@@ -144,6 +145,13 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 recordRequestDurationMetrics(unparsedModel, timer, e);
                 listener.onFailure(e);
                 return;
+            }
+
+            // TODO: this is a temporary solution for passing around the product use case.
+            // We want to pass InferenceContext through the various infer methods in InferenceService in the long term
+            var context = request.getContext();
+            if (Objects.nonNull(context)) {
+                threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, context.productUseCase());
             }
 
             var service = serviceRegistry.getService(serviceName).get();

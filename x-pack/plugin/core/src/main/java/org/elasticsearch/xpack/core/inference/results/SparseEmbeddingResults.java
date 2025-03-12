@@ -175,17 +175,15 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
         }
 
         @Override
-        public Chunk toChunk(String text, ChunkedInference.TextOffset offset) {
-            return new Chunk(tokens, text, offset);
+        public Chunk toChunk(ChunkedInference.TextOffset offset) {
+            return new Chunk(tokens, offset);
         }
     }
 
-    public record Chunk(List<WeightedToken> weightedTokens, String matchedText, ChunkedInference.TextOffset offset)
-        implements
-            EmbeddingResults.Chunk {
+    public record Chunk(List<WeightedToken> weightedTokens, ChunkedInference.TextOffset offset) implements EmbeddingResults.Chunk {
 
         public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
-            return new ChunkedInference.Chunk(matchedText, offset, toBytesReference(xcontent, weightedTokens));
+            return new ChunkedInference.Chunk(offset, toBytesReference(xcontent, weightedTokens));
         }
 
         private static BytesReference toBytesReference(XContent xContent, List<WeightedToken> tokens) throws IOException {

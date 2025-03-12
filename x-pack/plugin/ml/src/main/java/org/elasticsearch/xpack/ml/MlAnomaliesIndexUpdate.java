@@ -148,7 +148,12 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         // what to name the new index so it must be specified in the request.
         // Otherwise leave null and rollover will calculate the new name
         String newIndexName = MlIndexAndAlias.has6DigitSuffix(index) ? null : index + MlIndexAndAlias.FIRST_INDEX_SIX_DIGIT_SUFFIX;
-        IndicesAliasesRequestBuilder aliasRequestBuilder = client.admin().indices().prepareAliases();
+        IndicesAliasesRequestBuilder aliasRequestBuilder = client.admin()
+            .indices()
+            .prepareAliases(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+            );
 
         SubscribableListener.<Boolean>newForked(
             l -> { createAliasForRollover(index, rolloverAlias, l.map(AcknowledgedResponse::isAcknowledged)); }
@@ -172,7 +177,10 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         logger.info("creating alias for rollover [{}]", aliasName);
         client.admin()
             .indices()
-            .prepareAliases()
+            .prepareAliases(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+            )
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(aliasName).isHidden(true))
             .execute(listener);
     }

@@ -18,7 +18,7 @@ By default, {{es}} {{monitor-features}} are enabled but data collection is disab
 
 Except where noted otherwise, these settings can be dynamically updated on a live cluster with the [cluster-update-settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) API.
 
-To adjust how monitoring data is displayed in the monitoring UI, configure [`xpack.monitoring` settings](kibana://docs/reference/configuration-reference/monitoring-settings.md) in `kibana.yml`. To control how monitoring data is collected from {{ls}}, configure monitoring settings in `logstash.yml`.
+To adjust how monitoring data is displayed in the monitoring UI, configure [`xpack.monitoring` settings](kibana://reference/configuration-reference/monitoring-settings.md) in `kibana.yml`. To control how monitoring data is collected from {{ls}}, configure monitoring settings in `logstash.yml`.
 
 For more information, see [Monitor a cluster](docs-content://deploy-manage/monitor.md).
 

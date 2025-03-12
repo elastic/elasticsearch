@@ -25,8 +25,8 @@ import java.util.List;
 /**
  * Profile results from a single {@link Driver}.
  *
- * @param taskDescription Description of the task this driver is running. This description should be short and meaningful
- *                        as a grouping identifier. We use the phase of the query right now: "data", "node_reduce", "final".
+ * @param description Description of the driver. This description should be short and meaningful as a grouping identifier.
+ *                    We use the phase of the query right now: "data", "node_reduce", "final".
  * @param clusterName The name of the cluster this driver is running on.
  * @param nodeName The name of the node this driver is running on.
  * @param startMillis Millis since epoch when the driver started.
@@ -37,7 +37,7 @@ import java.util.List;
  * @param operators Status of each {@link Operator} in the driver when it finished.
  */
 public record DriverProfile(
-    String taskDescription,
+    String description,
     String clusterName,
     String nodeName,
     long startMillis,
@@ -69,7 +69,7 @@ public record DriverProfile(
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
-            out.writeString(taskDescription);
+            out.writeString(description);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION)) {
             out.writeString(clusterName);
@@ -91,7 +91,7 @@ public record DriverProfile(
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
-            b.field("task_description", taskDescription);
+            b.field("description", description);
             b.field("cluster_name", clusterName);
             b.field("node_name", nodeName);
             b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);

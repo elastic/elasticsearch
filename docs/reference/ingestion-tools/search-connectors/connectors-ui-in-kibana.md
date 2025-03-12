@@ -1,13 +1,17 @@
 ---
+applies_to:
+  stack: ga
+  serverless: 
+    elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-usage.html
 ---
 
-# Connectors UI in Kibana [es-connectors-usage]
+# Connectors UI [es-connectors-usage]
 
 This document describes operations available to connectors using the UI.
 
-In the Kibana UI, navigate to **Search > Content > Connectors** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
+In the Kibana or Serverless UI, find Connectors using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects). Here, you can view a summary of all your connectors and sync jobs, and to create new connectors.
 
 ::::{tip}
 In 8.12 we introduced a set of [Connector APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector) to create and manage Elastic connectors and sync jobs, along with a [CLI tool](https://github.com/elastic/connectors/blob/main/docs/CLI.md). Use these tools if you’d like to work with connectors and sync jobs programmatically, without using the UI.

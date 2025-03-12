@@ -50,6 +50,7 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -159,7 +160,8 @@ public class BooleanFieldMapper extends FieldMapper {
                 nullValue.getValue(),
                 scriptValues(),
                 meta.getValue(),
-                dimension.getValue()
+                dimension.getValue(),
+                context.isSourceSynthetic()
             );
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
@@ -188,6 +190,7 @@ public class BooleanFieldMapper extends FieldMapper {
         private final Boolean nullValue;
         private final FieldValues<Boolean> scriptValues;
         private final boolean isDimension;
+        private final boolean isSyntheticSource;
 
         public BooleanFieldType(
             String name,
@@ -197,12 +200,14 @@ public class BooleanFieldMapper extends FieldMapper {
             Boolean nullValue,
             FieldValues<Boolean> scriptValues,
             Map<String, String> meta,
-            boolean isDimension
+            boolean isDimension,
+            boolean isSyntheticSource
         ) {
             super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
             this.isDimension = isDimension;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         public BooleanFieldType(String name) {
@@ -214,7 +219,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         public BooleanFieldType(String name, boolean isIndexed, boolean hasDocValues) {
-            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap(), false);
+            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap(), false, false);
         }
 
         @Override
@@ -251,10 +256,14 @@ public class BooleanFieldMapper extends FieldMapper {
                         return (Boolean) value;
                     } else {
                         String textValue = value.toString();
-                        return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                        return parseBoolean(textValue);
                     }
                 }
             };
+        }
+
+        private boolean parseBoolean(String text) {
+            return Booleans.parseBoolean(text.toCharArray(), 0, text.length(), false);
         }
 
         @Override
@@ -304,11 +313,60 @@ public class BooleanFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new BlockDocValuesReader.BooleansBlockLoader(name());
             }
+
+            if (isSyntheticSource) {
+                return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
+                    @Override
+                    public Builder builder(BlockFactory factory, int expectedCount) {
+                        return factory.booleans(expectedCount);
+                    }
+                };
+            }
+
             ValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
             BlockSourceReader.LeafIteratorLookup lookup = isIndexed() || isStored()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup);
+        }
+
+        private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<Boolean>(nullValue) {
+                @Override
+                public void convertValue(Object value, List<Boolean> accumulator) {
+                    try {
+                        if (value instanceof Boolean b) {
+                            accumulator.add(b);
+                        } else {
+                            String stringValue = value.toString();
+                            // Matches logic in parser invoked by `parseCreateField`
+                            accumulator.add(parseBoolean(stringValue));
+                        }
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                protected void parseNonNullValue(XContentParser parser, List<Boolean> accumulator) throws IOException {
+                    // Aligned with implementation of `parseCreateField(XContentParser)`
+                    try {
+                        var value = parser.booleanValue();
+                        accumulator.add(value);
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                public void writeToBlock(List<Boolean> values, BlockLoader.Builder blockBuilder) {
+                    var longBuilder = (BlockLoader.BooleanBuilder) blockBuilder;
+
+                    for (var value : values) {
+                        longBuilder.appendBoolean(value);
+                    }
+                }
+            };
         }
 
         @Override

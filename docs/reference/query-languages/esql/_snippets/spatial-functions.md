@@ -6,39 +6,39 @@
 :::
 
 
-:::{include} functions/st_distance.md
+:::{include} functions/layout/st_distance.md
 :::
 
-:::{include} functions/st_intersects.md
+:::{include} functions/layout/st_intersects.md
 :::
 
-:::{include} functions/st_disjoint.md
+:::{include} functions/layout/st_disjoint.md
 :::
 
-:::{include} functions/st_contains.md
+:::{include} functions/layout/st_contains.md
 :::
 
-:::{include} functions/st_within.md
+:::{include} functions/layout/st_within.md
 :::
 
-:::{include} functions/st_x.md
+:::{include} functions/layout/st_x.md
 :::
 
-:::{include} functions/st_y.md
+:::{include} functions/layout/st_y.md
 :::
 
-:::{include} functions/st_envelope.md
+:::{include} functions/layout/st_envelope.md
 :::
 
-:::{include} functions/st_xmax.md
+:::{include} functions/layout/st_xmax.md
 :::
 
-:::{include} functions/st_xmin.md
+:::{include} functions/layout/st_xmin.md
 :::
 
-:::{include} functions/st_ymax.md
+:::{include} functions/layout/st_ymax.md
 :::
 
-:::{include} functions/st_ymin.md
+:::{include} functions/layout/st_ymin.md
 :::
 

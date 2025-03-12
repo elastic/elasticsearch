@@ -106,7 +106,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             pipelineStat -> new IngestStats.PipelineStat(
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -141,7 +141,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             pipelineStat -> new IngestStats.PipelineStat(
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -214,7 +214,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             pipelineStat -> new IngestStats.PipelineStat(
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -287,7 +287,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             pipelineStat -> new IngestStats.PipelineStat(
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -360,7 +360,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             pipelineStat -> new IngestStats.PipelineStat(
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -434,7 +434,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             pipelineStat -> new IngestStats.PipelineStat(
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -508,7 +508,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             pipelineStat -> new IngestStats.PipelineStat(
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),
@@ -582,7 +582,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                             pipelineStat -> new IngestStats.PipelineStat(
                                                 pipelineStat.pipelineId(),
                                                 pipelineStat.stats(),
-                                                new IngestStats.ByteStats(0, 0)
+                                                IngestStats.ByteStats.IDENTITY
                                             )
                                         )
                                         .toList(),

@@ -70,7 +70,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
     private ClusterState createInitialClusterState(boolean startShards) {
         Metadata.Builder metaBuilder = Metadata.builder();
-        projectId = new ProjectId(randomUUID());
+        projectId = randomUniqueProjectId();
         metaBuilder.put(
             ProjectMetadata.builder(projectId)
                 .put(
@@ -308,7 +308,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
     public void testGetForcedInitialShardAllocationToNodes() {
         final int additionalProjects = randomIntBetween(0, 5);
 
-        projectId = additionalProjects == 0 ? Metadata.DEFAULT_PROJECT_ID : new ProjectId(randomUUID());
+        projectId = additionalProjects == 0 ? Metadata.DEFAULT_PROJECT_ID : randomUniqueProjectId();
         var source = IndexMetadata.builder("source")
             .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, "uuid-1"))
             .build();
@@ -367,7 +367,7 @@ public class ResizeAllocationDeciderTests extends ESAllocationTestCase {
 
     private static void includeAdditionalProjects(int projectCount, Metadata.Builder metadataBuilder) {
         for (int i = 0; i < projectCount; i++) {
-            final ProjectMetadata.Builder project = ProjectMetadata.builder(new ProjectId(randomUUID()));
+            final ProjectMetadata.Builder project = ProjectMetadata.builder(randomUniqueProjectId());
             for (String index : randomSubsetOf(List.of("source", "target", "index-" + i))) {
                 final Settings.Builder indexSettings = indexSettings(IndexVersion.current(), randomIntBetween(1, 5), randomIntBetween(0, 2))
                     .put(IndexMetadata.SETTING_INDEX_UUID, randomUUID());

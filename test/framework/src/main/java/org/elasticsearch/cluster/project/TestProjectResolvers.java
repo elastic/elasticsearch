@@ -165,7 +165,7 @@ public final class TestProjectResolvers {
             @Override
             public ProjectId getProjectId() {
                 String headerValue = threadContext.getHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER);
-                return headerValue != null ? new ProjectId(headerValue) : Metadata.DEFAULT_PROJECT_ID;
+                return headerValue != null ? ProjectId.fromId(headerValue) : Metadata.DEFAULT_PROJECT_ID;
             }
 
             @Override

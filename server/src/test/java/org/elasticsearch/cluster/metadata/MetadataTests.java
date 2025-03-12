@@ -679,10 +679,10 @@ public class MetadataTests extends ESTestCase {
 
     public void testMetadataGlobalStateChangesOnProjectChanges() {
         final Metadata metadata1 = Metadata.builder().build();
-        final Metadata metadata2 = Metadata.builder(metadata1).put(ProjectMetadata.builder(new ProjectId(randomUUID())).build()).build();
+        final Metadata metadata2 = Metadata.builder(metadata1).put(ProjectMetadata.builder(randomUniqueProjectId()).build()).build();
         final Metadata metadata3 = Metadata.builder(metadata1)
             .put(
-                ProjectMetadata.builder(new ProjectId(randomUUID()))
+                ProjectMetadata.builder(randomUniqueProjectId())
                     .put(IndexMetadata.builder("some-index").settings(indexSettings(IndexVersion.current(), 1, 1)))
                     .build()
             )
@@ -690,7 +690,7 @@ public class MetadataTests extends ESTestCase {
         // A project with a ProjectCustom.
         final Metadata metadata4 = Metadata.builder(metadata1)
             .put(
-                ProjectMetadata.builder(new ProjectId(randomUUID()))
+                ProjectMetadata.builder(randomUniqueProjectId())
                     .put("template", new ComponentTemplate(new Template(null, null, null), null, null))
                     .build()
             )
@@ -1568,8 +1568,8 @@ public class MetadataTests extends ESTestCase {
 
     public void testMultiProjectSerialization() throws IOException {
         // TODO: this whole suite needs to be updated for multiple projects
-        ProjectMetadata project1 = randomProject(new ProjectId("1"), 1);
-        ProjectMetadata project2 = randomProject(new ProjectId("2"), randomIntBetween(2, 10));
+        ProjectMetadata project1 = randomProject(ProjectId.fromId("1"), 1);
+        ProjectMetadata project2 = randomProject(ProjectId.fromId("2"), randomIntBetween(2, 10));
         Metadata metadata = randomMetadata(List.of(project1, project2));
         BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -1632,7 +1632,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testGetNonExistingProjectThrows() {
         final List<ProjectMetadata> projects = IntStream.range(0, between(1, 3))
-            .mapToObj(i -> randomProject(new ProjectId("p_" + i), between(0, 5)))
+            .mapToObj(i -> randomProject(ProjectId.fromId("p_" + i), between(0, 5)))
             .toList();
         final Metadata metadata = randomMetadata(projects);
         expectThrows(IllegalArgumentException.class, () -> metadata.getProject(randomProjectIdOrDefault()));
@@ -2587,7 +2587,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testMultiProjectXContent() throws IOException {
         final long lastAllocationId = randomNonNegativeLong();
-        final List<ProjectMetadata> projects = randomList(1, 5, () -> randomProject(new ProjectId(randomUUID()), randomIntBetween(1, 3)))
+        final List<ProjectMetadata> projects = randomList(1, 5, () -> randomProject(randomUniqueProjectId(), randomIntBetween(1, 3)))
             .stream()
             .map(
                 project -> ProjectMetadata.builder(project)
@@ -2658,7 +2658,7 @@ public class MetadataTests extends ESTestCase {
     public void testSingleNonDefaultProjectXContent() throws IOException {
         // When ClusterStateAction acts in a project scope, it returns cluster state metadata that has a single project that may
         // not have the default project-id. We need to be able to convert this to XContent in the Rest response
-        final ProjectMetadata project = ProjectMetadata.builder(new ProjectId("c8af967d644b3219"))
+        final ProjectMetadata project = ProjectMetadata.builder(ProjectId.fromId("c8af967d644b3219"))
             .put(IndexMetadata.builder("index-1").settings(indexSettings(IndexVersion.current(), 1, 1)).build(), false)
             .put(IndexMetadata.builder("index-2").settings(indexSettings(IndexVersion.current(), 2, 2)).build(), false)
             .build();
@@ -2987,14 +2987,14 @@ public class MetadataTests extends ESTestCase {
             assertNull(metadata.getSingleProjectWithCustom(type));
         }
         {
-            Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(new ProjectId(randomUUID())).build()).build();
+            Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(randomUniqueProjectId()).build()).build();
             assertNull(metadata.getSingleProjectCustom(type));
             assertNull(metadata.getSingleProjectWithCustom(type));
         }
         {
             var ingestMetadata = new IngestMetadata(Map.of());
             Metadata metadata = Metadata.builder()
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())).putCustom(type, ingestMetadata))
+                .put(ProjectMetadata.builder(randomUniqueProjectId()).putCustom(type, ingestMetadata))
                 .build();
             assertEquals(ingestMetadata, metadata.getSingleProjectCustom(type));
             assertEquals(ingestMetadata, metadata.getSingleProjectWithCustom(type).custom(type));
@@ -3002,8 +3002,8 @@ public class MetadataTests extends ESTestCase {
         {
             var ingestMetadata = new IngestMetadata(Map.of());
             Metadata metadata = Metadata.builder()
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())))
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())).putCustom(type, ingestMetadata))
+                .put(ProjectMetadata.builder(randomUniqueProjectId()))
+                .put(ProjectMetadata.builder(randomUniqueProjectId()).putCustom(type, ingestMetadata))
                 .build();
             assertEquals(ingestMetadata, metadata.getSingleProjectCustom(type));
             assertEquals(ingestMetadata, metadata.getSingleProjectWithCustom(type).custom(type));
@@ -3011,8 +3011,8 @@ public class MetadataTests extends ESTestCase {
         {
             var ingestMetadata = new IngestMetadata(Map.of());
             Metadata metadata = Metadata.builder()
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())).putCustom(type, new IngestMetadata(Map.of())))
-                .put(ProjectMetadata.builder(new ProjectId(randomUUID())).putCustom(type, ingestMetadata))
+                .put(ProjectMetadata.builder(randomUniqueProjectId()).putCustom(type, new IngestMetadata(Map.of())))
+                .put(ProjectMetadata.builder(randomUniqueProjectId()).putCustom(type, ingestMetadata))
                 .build();
             assertThrows(UnsupportedOperationException.class, () -> metadata.getSingleProjectCustom(type));
             assertThrows(UnsupportedOperationException.class, () -> metadata.getSingleProjectWithCustom(type));
@@ -3056,7 +3056,7 @@ public class MetadataTests extends ESTestCase {
         final Metadata.Builder metadataBuilder = Metadata.builder();
         final Map<ProjectId, List<IndexMetadata>> indices = Maps.newMapWithExpectedSize(numberOfProjects);
         for (int p = 1; p <= numberOfProjects; p++) {
-            final ProjectId projectId = new ProjectId(org.elasticsearch.core.Strings.format("proj_%02d", p));
+            final ProjectId projectId = ProjectId.fromId(org.elasticsearch.core.Strings.format("proj_%02d", p));
             final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
 
             final int numberOfIndices = randomIntBetween(p, 10);

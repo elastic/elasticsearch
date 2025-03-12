@@ -24,7 +24,7 @@ To learn more about the official and community-sourced plugins, refer to [{{es}}
 
 For a detailed guide with examples of using the Elasticsearch Service API to create, get information about, update, and delete extensions and plugins, check [Managing plugins and extensions through the API](/reference/elasticsearch-plugins/cloud/ec-plugins-guide.md\).
 
-Plugins are not supported for {{kib}}. To learn more, check [Restrictions for {{es}} and {{kib}} plugins](cloud://docs/release-notes/cloud-hosted/known-issues.md#ec-restrictions-plugins).
+Plugins are not supported for {{kib}}. To learn more, check [Restrictions for {{es}} and {{kib}} plugins](cloud://release-notes/cloud-hosted/known-issues.md#ec-restrictions-plugins).
 
 
 

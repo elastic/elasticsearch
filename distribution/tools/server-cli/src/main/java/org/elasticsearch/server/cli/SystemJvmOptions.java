@@ -12,7 +12,6 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
@@ -150,7 +149,6 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
         if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
             // Will become conditional on useEntitlements once entitlements can run without SM

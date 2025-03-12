@@ -39,6 +39,10 @@ public class BaseMockEISAuthServerTest extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         // Adding both settings unless one feature flag is disabled in a particular environment
         .setting("xpack.inference.elastic.url", mockEISServer::getUrl)
+        // If we don't disable this there's a very small chance that the authorization code could attempt to make two
+        // calls which would result in a test failure because the webserver is only expecting a single request
+        // So to ensure we avoid that all together, this flag indicates that we'll only perform a single authorization request
+        .setting("xpack.inference.elastic.periodic_authorization_enabled", "false")
         // This plugin is located in the inference/qa/test-service-plugin package, look for TestInferenceServicePlugin
         .plugin("inference-service-test")
         .user("x_pack_rest_user", "x-pack-test-password")

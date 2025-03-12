@@ -1,6 +1,0 @@
-pr: 118562
-summary: Update data stream deprecations warnings to new format and filter searchable
-  snapshots from response
-area: Data streams
-type: enhancement
-issues: []

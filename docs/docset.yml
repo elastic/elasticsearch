@@ -1,5 +1,6 @@
 project: 'Elasticsearch'
 exclude:
+  - README.md
   - internal/*
   - reference/esql/functions/kibana/docs/*
   - reference/esql/functions/README.md

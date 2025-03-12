@@ -34,7 +34,7 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 public class ProjectMetadataTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
-        final ProjectId projectId = new ProjectId(randomUUID());
+        final ProjectId projectId = randomUniqueProjectId();
         final ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         for (int i = 1; i <= 3; i++) {
             builder.put(

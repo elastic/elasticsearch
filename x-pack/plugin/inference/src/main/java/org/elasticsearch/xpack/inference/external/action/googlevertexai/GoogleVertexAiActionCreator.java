@@ -41,13 +41,13 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
             serviceComponents.truncator(),
             serviceComponents.threadPool()
         );
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "Google Vertex AI embeddings");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google Vertex AI embeddings");
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }
 
     @Override
     public ExecutableAction create(GoogleVertexAiRerankModel model, Map<String, Object> taskSettings) {
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "Google Vertex AI rerank");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google Vertex AI rerank");
         var requestManager = GoogleVertexAiRerankRequestManager.of(model, serviceComponents.threadPool());
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }

@@ -45,14 +45,14 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             List.of(new OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple())),
             new DriverSleeps(
                 Map.of("driver time", 1L),
-                List.of(new DriverSleeps.Sleep("driver time", 1, 1)),
-                List.of(new DriverSleeps.Sleep("driver time", 1, 1))
+                List.of(new DriverSleeps.Sleep("driver time", Thread.currentThread().getName(), 1, 1)),
+                List.of(new DriverSleeps.Sleep("driver time", Thread.currentThread().getName(), 1, 1))
             )
         );
         assertThat(Strings.toString(status, true, true), equalTo("""
             {
               "session_id" : "ABC:123",
-              "task_description" : "test",
+              "description" : "test",
               "cluster_name" : "elasticsearch",
               "node_name" : "node-1",
               "started" : "1973-11-29T09:27:00.000Z",
@@ -90,6 +90,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
                 "first" : [
                   {
                     "reason" : "driver time",
+                    "thread_name" : "$$THREAD",
                     "sleep" : "1970-01-01T00:00:00.001Z",
                     "sleep_millis" : 1,
                     "wake" : "1970-01-01T00:00:00.001Z",
@@ -99,6 +100,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
                 "last" : [
                   {
                     "reason" : "driver time",
+                    "thread_name" : "$$THREAD",
                     "sleep" : "1970-01-01T00:00:00.001Z",
                     "sleep_millis" : 1,
                     "wake" : "1970-01-01T00:00:00.001Z",
@@ -106,7 +108,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
                   }
                 ]
               }
-            }"""));
+            }""".replace("$$THREAD", Thread.currentThread().getName())));
     }
 
     @Override
@@ -153,7 +155,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
     @Override
     protected DriverStatus mutateInstance(DriverStatus instance) throws IOException {
         var sessionId = instance.sessionId();
-        var taskDescription = instance.taskDescription();
+        var description = instance.description();
         var clusterName = instance.clusterName();
         var nodeName = instance.nodeName();
         long started = instance.started();
@@ -166,7 +168,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         var sleeps = instance.sleeps();
         switch (between(0, 11)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, ESTestCase::randomIdentifier);
-            case 1 -> taskDescription = randomValueOtherThan(taskDescription, ESTestCase::randomIdentifier);
+            case 1 -> description = randomValueOtherThan(description, ESTestCase::randomIdentifier);
             case 2 -> clusterName = randomValueOtherThan(clusterName, ESTestCase::randomIdentifier);
             case 3 -> nodeName = randomValueOtherThan(nodeName, ESTestCase::randomIdentifier);
             case 4 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
@@ -181,7 +183,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         }
         return new DriverStatus(
             sessionId,
-            taskDescription,
+            description,
             clusterName,
             nodeName,
             started,

@@ -5,13 +5,11 @@ mapped_pages:
 
 # Aggregations
 
-% What needs to be done: Refine
+:::{note}
+This section provides detailed **reference information** for aggregations.
 
-% Scope notes: need to scope the page down to just reference content
-
-% Use migrated content from existing pages that map to this page:
-
-% - [ ] ./raw-migrated-files/elasticsearch/elasticsearch-reference/search-aggregations.md
+Refer to [Aggregations](docs-content://explore-analyze/query-filter/aggregations.md) in the **Explore and analyze** section for overview, getting started and conceptual information.
+:::
 
 Aggregations are a powerful framework that enables you to perform complex data analysis and summarization over indexed documents. They enable you to extract and compute statistics, trends, and patterns from large datasets.
 

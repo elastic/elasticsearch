@@ -27,7 +27,7 @@ import java.util.Locale;
  * {@link Task.Status} reported from a {@link Driver} to be reported by the tasks api.
  *
  * @param sessionId The session for this driver.
- * @param taskDescription Description of the task this driver is running.
+ * @param description Description of the driver.
  * @param clusterName The name of the cluster this driver is running on.
  * @param nodeName The name of the node this driver is running on.
  * @param started When this {@link Driver} was started.
@@ -40,7 +40,7 @@ import java.util.Locale;
  */
 public record DriverStatus(
     String sessionId,
-    String taskDescription,
+    String description,
     String clusterName,
     String nodeName,
     long started,
@@ -84,7 +84,7 @@ public record DriverStatus(
         out.writeString(sessionId);
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
-            out.writeString(taskDescription);
+            out.writeString(description);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_NODE_DESCRIPTION)) {
             out.writeString(clusterName);
@@ -115,7 +115,7 @@ public record DriverStatus(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("session_id", sessionId);
-        builder.field("task_description", taskDescription);
+        builder.field("description", description);
         builder.field("cluster_name", clusterName);
         builder.field("node_name", nodeName);
         builder.field("started", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(started));

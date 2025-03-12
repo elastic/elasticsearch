@@ -36,7 +36,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -89,7 +88,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
     // TODO multi-project: verify that usages are really expected to work on the default project only,
     // and that they are not a stop-gap solution to make the tests pass
-    public static final ProjectId DEFAULT_PROJECT_ID = new ProjectId("default");
+    public static final ProjectId DEFAULT_PROJECT_ID = ProjectId.DEFAULT;
 
     public enum XContentContext {
         /* Custom metadata should be returned as part of API call */
@@ -398,7 +397,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     reservedStateMetadata
                 );
         } else {
-            throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
         }
     }
 
@@ -1163,7 +1162,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
 
-            builder.projectMetadata(in.readMap(ProjectId::new, ProjectMetadata::readFrom));
+            builder.projectMetadata(in.readMap(ProjectId::readFrom, ProjectMetadata::readFrom));
         }
         return builder.build();
     }
@@ -1319,7 +1318,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             if (projectMetadata.isEmpty()) {
                 createDefaultProject();
             } else if (projectMetadata.size() != 1) {
-                throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+                throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
             }
             return projectMetadata.values().iterator().next();
         }
@@ -1670,19 +1669,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         public Metadata build(boolean skipNameCollisionChecks) {
-            if (projectMetadata.isEmpty()) {
-                createDefaultProject();
-            } else if (Assertions.ENABLED) {
-                projectMetadata.forEach((id, project) -> {
-                    assert project.getId().equals(id) : "project id mismatch key=[" + id + "] builder=[" + project.getId() + "]";
-                });
-            }
             return new Metadata(
                 clusterUUID,
                 clusterUUIDCommitted,
                 version,
                 coordinationMetadata,
-                Collections.unmodifiableMap(Maps.transformValues(projectMetadata, m -> m.build(skipNameCollisionChecks))),
+                buildProjectMetadata(skipNameCollisionChecks),
                 transientSettings,
                 persistentSettings,
                 Settings.builder().put(persistentSettings).put(transientSettings).build(),
@@ -1692,8 +1684,30 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             );
         }
 
+        private Map<ProjectId, ProjectMetadata> buildProjectMetadata(boolean skipNameCollisionChecks) {
+            if (projectMetadata.isEmpty()) {
+                createDefaultProject();
+            }
+            assert assertProjectIdAndProjectMetadataConsistency();
+            if (projectMetadata.size() == 1) {
+                final var entry = projectMetadata.entrySet().iterator().next();
+                // Map.of() with a single entry is highly optimized
+                // so we want take advantage of that performance boost for this common case of a single project
+                return Map.of(entry.getKey(), entry.getValue().build(skipNameCollisionChecks));
+            } else {
+                return Collections.unmodifiableMap(Maps.transformValues(projectMetadata, m -> m.build(skipNameCollisionChecks)));
+            }
+        }
+
         private ProjectMetadata.Builder createDefaultProject() {
             return projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(Map.of(), 0).id(DEFAULT_PROJECT_ID));
+        }
+
+        private boolean assertProjectIdAndProjectMetadataConsistency() {
+            projectMetadata.forEach((id, project) -> {
+                assert project.getId().equals(id) : "project id mismatch key=[" + id + "] builder=[" + project.getId() + "]";
+            });
+            return true;
         }
 
         /**

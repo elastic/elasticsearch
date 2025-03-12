@@ -884,7 +884,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             Client localClient = client(LOCAL_CLUSTER);
             IndicesAliasesResponse indicesAliasesResponse = localClient.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAlias(LOCAL_INDEX, IDX_ALIAS)
                 .addAlias(LOCAL_INDEX, FILTERED_IDX_ALIAS, filterBuilder)
                 .get();
@@ -894,7 +894,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             Client remoteClient = client(REMOTE_CLUSTER_1);
             IndicesAliasesResponse indicesAliasesResponse = remoteClient.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAlias(REMOTE_INDEX, IDX_ALIAS)
                 .addAlias(REMOTE_INDEX, FILTERED_IDX_ALIAS, filterBuilder)
                 .get();
@@ -904,7 +904,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             Client remoteClient = client(REMOTE_CLUSTER_2);
             IndicesAliasesResponse indicesAliasesResponse = remoteClient.admin()
                 .indices()
-                .prepareAliases()
+                .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAlias(REMOTE_INDEX, IDX_ALIAS)
                 .addAlias(REMOTE_INDEX, FILTERED_IDX_ALIAS, filterBuilder)
                 .get();

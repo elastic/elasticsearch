@@ -1005,3 +1005,174 @@ setup:
   - match: { hits.hits.0._source.dense_field: "another inference test" }
   - match: { hits.hits.0._source.non_inference_field: "non inference test" }
   - exists: hits.hits.0._source._inference_fields
+
+---
+"Empty semantic_text field skips embedding generation":
+  - requires:
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: ""
+        refresh: true
+
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          sparse_field: "   "
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.sparse_field: "" }
+  - match: { hits.hits.1._source.sparse_field: "   " }
+  - not_exists: hits.hits.0._source._inference_fields
+  - not_exists: hits.hits.1._source._inference_fields
+
+---
+"Reindexing with empty or whitespace semantic_text skips embedding generation":
+  - requires:
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "  "
+        refresh: true
+
+  - do:
+      indices.create:
+        index: destination-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      reindex:
+        wait_for_completion: true
+        body:
+          source:
+            index: test-index
+          dest:
+            index: destination-index
+        refresh: true
+
+  - do:
+      get:
+        index: destination-index
+        id: doc_1
+
+  - match: { _source.sparse_field: "  " }
+
+  - do:
+      search:
+        index: destination-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - not_exists: hits.hits.0._source._inference_fields
+
+---
+"Empty Multi-Field skips embedding generation":
+  - requires:
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
+
+  - do:
+      indices.create:
+        index: test-multi-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: false
+          mappings:
+            properties:
+              field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                fields:
+                  sparse:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+
+  - do:
+      bulk:
+        index: test-multi-index
+        refresh: true
+        body: |
+          {"index":{"_id": "1"}}
+          {"field": ["you know, for testing", "now with chunks"]}
+          {"index":{"_id": "2"}}
+          {"field": ["", "  "]}
+
+  - do:
+      search:
+        index: test-multi-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - exists: hits.hits.0._source._inference_fields
+  - not_exists: hits.hits.1._source._inference_fields
+
+---
+"Multi chunks skips empty input embedding generation":
+  - requires:
+      cluster_features: "semantic_text.handle_empty_input"
+      reason: Skips embedding generation when semantic_text is empty or contains only whitespace, effective from 8.19 and 9.1.0.
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: ["some test data", "    ", "now with chunks"]
+        refresh: true
+
+  - do:
+      search:
+        index: test-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 1 }
+
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field: 2 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.0.end_offset: 14 }
+  - exists: hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.embeddings
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.start_offset: 20 }
+  - match: { hits.hits.0._source._inference_fields.sparse_field.inference.chunks.sparse_field.1.end_offset: 35 }

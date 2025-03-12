@@ -40,9 +40,9 @@ public class IndexMetadataUpdaterTests extends ESTestCase {
     public void testApplyChangesAcrossMultipleProjects() {
         final IndexMetadataUpdater updater = new IndexMetadataUpdater();
 
-        final ProjectId project1 = new ProjectId(randomUUID());
-        final ProjectId project2 = new ProjectId(randomUUID());
-        final ProjectId project3 = new ProjectId(randomUUID());
+        final ProjectId project1 = randomUniqueProjectId();
+        final ProjectId project2 = randomUniqueProjectId();
+        final ProjectId project3 = randomUniqueProjectId();
 
         final DiscoveryNode node1 = DiscoveryNodeUtils.create("n1");
         final DiscoveryNode node2 = DiscoveryNodeUtils.create("n2");

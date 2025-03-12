@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors.html
   - https://www.elastic.co/guide/en/serverless/current/elasticsearch-ingest-data-through-integrations-connector-client.html
@@ -7,18 +10,18 @@ mapped_pages:
 
 # Search connectors
 
-% Internal links rely on the following IDs being on this page (e.g. as a heading ID, paragraph ID, etc):
-
 $$$es-connectors-native$$$
 
 
-:::{tip}
-This page is about Search connectors that synchronize third-party data into Elasticsearch. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
+:::{note}
+This page is about Search connectors that synchronize third-party data into {{es}}. If you’re looking for Kibana connectors to integrate with services like generative AI model providers, refer to [Kibana Connectors](docs-content://deploy-manage/manage-connectors.md).
 :::
 
-A _connector_ is a type of [Elastic integration](https://www.elastic.co/integrations/data-integrations) that syncs data from an original data source to Elasticsearch. Each connector extracts the original files, records, or objects; and transforms them into documents within Elasticsearch.
+A _connector_ is an Elastic integration that syncs data from an original data source to {{es}}. Use connectors to create searchable, read-only replicas of your data in {{es}}.
 
-_Connector clients_ are **self-managed** connectors that you run on your own infrastructure. These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/connectors/sources) repo.
+Each connector extracts the original files, records, or objects; and transforms them into documents within {{es}}.
+
+These connectors are written in Python and the source code is available in the [`elastic/connectors`](https://github.com/elastic/connectors/tree/main/connectors/sources) repo.
 
 ## Available connectors
 
@@ -28,9 +31,7 @@ As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer avai
 ::::
 
 
-Connector clients are available for the following third-party data sources:
-
-The following connectors are available as self-managed connectors:
+Connectors are available for the following third-party data sources:
 
 - [Azure Blob Storage](/reference/ingestion-tools/search-connectors/es-connectors-azure-blob.md)
 - [Box](/reference/ingestion-tools/search-connectors/es-connectors-box.md)
@@ -86,7 +87,6 @@ In order to set up, configure, and run a connector you’ll be moving between yo
 
 ### Data source prerequisites
 
-
-The first decision you need to make before deploying a connector is which third party service (data source) you want to sync to Elasticsearch. See the list of [available connectors](#available-connectors).
+The first decision you need to make before deploying a connector is which third party service (data source) you want to sync to {{es}}. See the list of [available connectors](#available-connectors).
 
 Note that each data source will have specific prerequisites you’ll need to meet to authorize the connector to access its data. For example, certain data sources may require you to create an OAuth application, or create a service account. You’ll need to check the [individual connector documentation](connector-reference.md) for these details.

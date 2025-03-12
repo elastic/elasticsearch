@@ -28,10 +28,12 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.OpenAiCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
 import org.junit.Before;
@@ -41,14 +43,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator.COMPLETION_HANDLER;
+import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator.USER_ROLE;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
-import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.external.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
@@ -171,8 +174,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[2];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -185,15 +187,14 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI chat completions request to [%s]", getUrl(webServer))));
+        assertThat(thrownException.getMessage(), is("Failed to send OpenAI chat completions request. Cause: failed"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[2];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -206,7 +207,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is("Failed to send OpenAI chat completions request"));
+        assertThat(thrownException.getMessage(), is("Failed to send OpenAI chat completions request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -220,7 +221,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI chat completions request to [%s]", getUrl(webServer))));
+        assertThat(thrownException.getMessage(), is("Failed to send OpenAI chat completions request. Cause: failed"));
     }
 
     public void testExecute_ThrowsExceptionWithNullUrl() {
@@ -234,7 +235,7 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is("Failed to send OpenAI chat completions request"));
+        assertThat(thrownException.getMessage(), is("Failed to send OpenAI chat completions request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException_WhenInputIsGreaterThanOne() throws IOException {
@@ -285,8 +286,14 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
     private ExecutableAction createAction(String url, String org, String apiKey, String modelName, @Nullable String user, Sender sender) {
         var model = createCompletionModel(url, org, apiKey, modelName, user);
-        var requestCreator = OpenAiCompletionRequestManager.of(model, threadPool);
-        var errorMessage = constructFailedToSendRequestMessage(model.getServiceSettings().uri(), "OpenAI chat completions");
-        return new SingleInputSenderExecutableAction(sender, requestCreator, errorMessage, "OpenAI chat completions");
+        var manager = new GenericRequestManager<>(
+            threadPool,
+            model,
+            COMPLETION_HANDLER,
+            (inputs) -> new OpenAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
+            ChatCompletionInput.class
+        );
+        var errorMessage = constructFailedToSendRequestMessage("OpenAI chat completions");
+        return new SingleInputSenderExecutableAction(sender, manager, errorMessage, "OpenAI chat completions");
     }
 }

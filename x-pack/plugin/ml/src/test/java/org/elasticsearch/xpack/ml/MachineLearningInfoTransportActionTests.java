@@ -200,7 +200,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.available(), is(available));
         var usageAction = newUsageAction(commonSettings, randomBoolean(), randomBoolean(), randomBoolean());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
@@ -230,7 +230,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), is(expected));
         var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(expected));
 
@@ -251,7 +251,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), true, true, true);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -409,7 +409,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), false, true, true);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -505,7 +505,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), true, false, false);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -602,7 +602,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), true, true, true);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
 
         XContentSource source;
@@ -637,7 +637,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         mlUsage.writeTo(out);
@@ -659,7 +659,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, clusterState, future);
+        usageAction.localClusterStateOperation(null, null, clusterState, future);
         XPackFeatureUsage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));
@@ -685,7 +685,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         var usageAction = newUsageAction(settings.build(), true, true, true);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
 
         assertThat(usage.available(), is(true));

@@ -69,7 +69,7 @@ public class MoveAllocationCommand implements AllocationCommand {
         fromNode = in.readString();
         toNode = in.readString();
         if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
-            projectId = new ProjectId(in);
+            projectId = ProjectId.readFrom(in);
         } else {
             projectId = Metadata.DEFAULT_PROJECT_ID;
         }

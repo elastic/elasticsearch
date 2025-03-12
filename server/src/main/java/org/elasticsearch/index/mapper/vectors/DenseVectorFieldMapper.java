@@ -346,16 +346,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void checkVectorBounds(float[] vector) {
-                checkNanAndInfinite(vector);
-
-                StringBuilder errorBuilder = null;
+            StringBuilder checkVectorErrors(float[] vector) {
+                StringBuilder errors = checkNanAndInfinite(vector);
+                if (errors != null) {
+                    return errors;
+                }
 
                 for (int index = 0; index < vector.length; ++index) {
                     float value = vector[index];
 
                     if (value % 1.0f != 0.0f) {
-                        errorBuilder = new StringBuilder(
+                        errors = new StringBuilder(
                             "element_type ["
                                 + this
                                 + "] vectors only support non-decimal values but found decimal value ["
@@ -368,7 +369,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
 
                     if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
-                        errorBuilder = new StringBuilder(
+                        errors = new StringBuilder(
                             "element_type ["
                                 + this
                                 + "] vectors only support integers between ["
@@ -385,9 +386,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-                if (errorBuilder != null) {
-                    throw new IllegalArgumentException(appendErrorElements(errorBuilder, vector).toString());
-                }
+                return errors;
             }
 
             @Override
@@ -614,8 +613,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void checkVectorBounds(float[] vector) {
-                checkNanAndInfinite(vector);
+            StringBuilder checkVectorErrors(float[] vector) {
+                return checkNanAndInfinite(vector);
             }
 
             @Override
@@ -768,16 +767,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void checkVectorBounds(float[] vector) {
-                checkNanAndInfinite(vector);
-
-                StringBuilder errorBuilder = null;
+            StringBuilder checkVectorErrors(float[] vector) {
+                StringBuilder errors = checkNanAndInfinite(vector);
+                if (errors != null) {
+                    return errors;
+                }
 
                 for (int index = 0; index < vector.length; ++index) {
                     float value = vector[index];
 
                     if (value % 1.0f != 0.0f) {
-                        errorBuilder = new StringBuilder(
+                        errors = new StringBuilder(
                             "element_type ["
                                 + this
                                 + "] vectors only support non-decimal values but found decimal value ["
@@ -790,7 +790,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
 
                     if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
-                        errorBuilder = new StringBuilder(
+                        errors = new StringBuilder(
                             "element_type ["
                                 + this
                                 + "] vectors only support integers between ["
@@ -807,9 +807,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     }
                 }
 
-                if (errorBuilder != null) {
-                    throw new IllegalArgumentException(appendErrorElements(errorBuilder, vector).toString());
-                }
+                return errors;
             }
 
             @Override
@@ -993,7 +991,44 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
 
-        public abstract void checkVectorBounds(float[] vector);
+        /**
+         * Checks the input {@code vector} is one of the {@code possibleTypes},
+         * and returns the first type that it matches
+         */
+        public static ElementType checkValidVector(float[] vector, ElementType... possibleTypes) {
+            assert possibleTypes.length != 0;
+            // we're looking for one valid allowed type
+            // assume the types are in order of specificity
+            StringBuilder[] errors = new StringBuilder[possibleTypes.length];
+            for (int i = 0; i < possibleTypes.length; i++) {
+                StringBuilder error = possibleTypes[i].checkVectorErrors(vector);
+                if (error == null) {
+                    // this one works - use it
+                    return possibleTypes[i];
+                } else {
+                    errors[i] = error;
+                }
+            }
+
+            // oh dear, none of the possible types work with this vector. Generate the error message and throw.
+            StringBuilder message = new StringBuilder();
+            for (int i = 0; i < possibleTypes.length; i++) {
+                if (i > 0) {
+                    message.append(" ");
+                }
+                message.append("Vector is not a ").append(possibleTypes[i]).append(" vector: ").append(errors[i]);
+            }
+            throw new IllegalArgumentException(appendErrorElements(message, vector).toString());
+        }
+
+        public void checkVectorBounds(float[] vector) {
+            StringBuilder errors = checkVectorErrors(vector);
+            if (errors != null) {
+                throw new IllegalArgumentException(appendErrorElements(errors, vector).toString());
+            }
+        }
+
+        abstract StringBuilder checkVectorErrors(float[] vector);
 
         abstract void checkVectorMagnitude(
             VectorSimilarity similarity,
@@ -1017,7 +1052,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return index;
         }
 
-        void checkNanAndInfinite(float[] vector) {
+        StringBuilder checkNanAndInfinite(float[] vector) {
             StringBuilder errorBuilder = null;
 
             for (int index = 0; index < vector.length; ++index) {
@@ -1044,9 +1079,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
 
-            if (errorBuilder != null) {
-                throw new IllegalArgumentException(appendErrorElements(errorBuilder, vector).toString());
-            }
+            return errorBuilder;
         }
 
         static StringBuilder appendErrorElements(StringBuilder errorBuilder, float[] vector) {

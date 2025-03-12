@@ -23,7 +23,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.RemoteClusterClient;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -150,7 +149,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         final CancellableTask fieldCapTask = (CancellableTask) task;
         // retrieve the initial timestamp in case the action is a cross cluster search
         long nowInMillis = request.nowInMillis() == null ? System.currentTimeMillis() : request.nowInMillis();
-        final ClusterState clusterState = clusterService.state();
+        final ProjectState projectState = projectResolver.getProjectState(clusterService.state());
         final Map<String, OriginalIndices> remoteClusterIndices = transportService.getRemoteClusterService()
             .groupIndices(request.indicesOptions(), request.indices());
         final OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
@@ -159,7 +158,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             // in the case we have one or more remote indices but no local we don't expand to all local indices and just do remote indices
             concreteIndices = Strings.EMPTY_ARRAY;
         } else {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, localIndices);
+            concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), localIndices);
         }
 
         if (concreteIndices.length == 0 && remoteClusterIndices.isEmpty()) {
@@ -167,7 +166,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             return;
         }
 
-        checkIndexBlocks(projectResolver.getProjectState(clusterState), concreteIndices);
+        checkIndexBlocks(projectState, concreteIndices);
         final FailureCollector indexFailures = new FailureCollector();
         final Map<String, FieldCapabilitiesIndexResponse> indexResponses = Collections.synchronizedMap(new HashMap<>());
         // This map is used to share the index response for indices which have the same index mapping hash to reduce the memory usage.

@@ -9,7 +9,7 @@ mapped_pages:
 
 Converts alphabetic, numeric, and symbolic characters that are not in the Basic Latin Unicode block (first 127 ASCII characters) to their ASCII equivalent, if one exists. For example, the filter changes `à` to `a`.
 
-This filter uses Lucene’s [ASCIIFoldingFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/ASCIIFoldingFilter.md).
+This filter uses Lucene’s [ASCIIFoldingFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/ASCIIFoldingFilter.html).
 
 ## Example [analysis-asciifolding-tokenfilter-analyze-ex]
 

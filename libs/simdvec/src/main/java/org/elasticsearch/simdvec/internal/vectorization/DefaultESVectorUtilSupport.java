@@ -39,6 +39,11 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return ipFloatBitImpl(q, d);
     }
 
+    @Override
+    public float ipFloatByte(float[] q, byte[] d) {
+        return ipFloatByteImpl(q, d);
+    }
+
     public static int ipByteBitImpl(byte[] q, byte[] d) {
         assert q.length == d.length * Byte.SIZE;
         int acc0 = 0;
@@ -98,6 +103,14 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
                 subRet += Integer.bitCount((q[i * size + r] & d[r]) & 0xFF);
             }
             ret += subRet << i;
+        }
+        return ret;
+    }
+
+    public static float ipFloatByteImpl(float[] q, byte[] d) {
+        float ret = 0;
+        for (int i = 0; i < q.length; i++) {
+            ret += q[i] * d[i];
         }
         return ret;
     }

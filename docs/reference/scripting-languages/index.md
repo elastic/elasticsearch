@@ -1,5 +1,7 @@
 # Scripting languages
 
-This section contains the Painless scripting language reference.
+:::{note}
+This section provides detailed **reference information** about the the Painless scripting language.
 
-For an overview of scripting languages in {{es}}, go to [Scripting](docs-content://explore-analyze/scripting.md).
+Refer to the [scripting languages overview](docs-content://explore-analyze/scripting.md) in the **Explore and analyze** section for an overview of available scripting languages in {{es}}.
+:::

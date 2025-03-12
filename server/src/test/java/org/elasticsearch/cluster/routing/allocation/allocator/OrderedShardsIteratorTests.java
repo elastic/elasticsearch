@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
@@ -185,9 +184,9 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
 
         // "lookup" index in project 1, data streams in project 2
         var metadata = Metadata.builder()
-            .put(ProjectMetadata.builder(new ProjectId(randomUUID())).put(lookup, false))
+            .put(ProjectMetadata.builder(randomUniqueProjectId()).put(lookup, false))
             .put(
-                ProjectMetadata.builder(new ProjectId(randomUUID()))
+                ProjectMetadata.builder(randomUniqueProjectId())
                     .put(ds1, false)
                     .put(ds2, false)
                     .put(DataStream.builder("data-stream", List.of(ds1.getIndex(), ds2.getIndex())).build())

@@ -42,7 +42,7 @@ a number of clients that have been contributed by the community for various lang
 
 ## Go [go]
 
-Also see the [official Elasticsearch Go client](go-elasticsearch://docs/reference/index.md).
+Also see the [official Elasticsearch Go client](go-elasticsearch://reference/index.md).
 
 * [elastigo](https://github.com/mattbaird/elastigo): Go client. **Last commit more than a year ago**
 
@@ -56,7 +56,7 @@ Also see the [official Elasticsearch Go client](go-elasticsearch://docs/referenc
 
 ## Java [java]
 
-Also see the [official Elasticsearch Java client](elasticsearch-java://docs/reference/index.md).
+Also see the [official Elasticsearch Java client](elasticsearch-java://reference/index.md).
 
 * [Flummi](https://github.com/otto-de/flummi): Java Rest client with comprehensive Query DSL API.
 
@@ -64,15 +64,15 @@ Also see the [official Elasticsearch Java client](elasticsearch-java://docs/refe
 
 ## JavaScript [javascript]
 
-See the [official Elasticsearch JavaScript client](elasticsearch-js://docs/reference/index.md).
+See the [official Elasticsearch JavaScript client](elasticsearch-js://reference/index.md).
 
 ## Julia [julia]
 
-* [ElasticsearchClient.jl](https://github.com/OpenSesame/ElasticsearchClient.jl): Elasticsearch client inspired by the [official Elasticsearch Ruby client](elasticsearch-ruby://docs/reference/index.md).
+* [ElasticsearchClient.jl](https://github.com/OpenSesame/ElasticsearchClient.jl): Elasticsearch client inspired by the [official Elasticsearch Ruby client](elasticsearch-ruby://reference/index.md).
 
 ## Kotlin [kotlin]
 
-* [ES Kotlin](https://github.com/mbuhot/eskotlin): Elasticsearch Query DSL for kotlin based on the [official Elasticsearch Java client](elasticsearch-java://docs/reference/index.md). **Last commit more than a year ago**
+* [ES Kotlin](https://github.com/mbuhot/eskotlin): Elasticsearch Query DSL for kotlin based on the [official Elasticsearch Java client](elasticsearch-java://reference/index.md). **Last commit more than a year ago**
 
 * [ES Kotlin Wrapper Client](https://github.com/jillesvangurp/es-kotlin-wrapper-client): Kotlin extension functions and abstractions for the [official Elasticsearch high-level client](https://www.elastic.co/guide/en/elasticsearch/client/java-api/current/index.html). Aims to reduce the amount of boilerplate needed to do searches, bulk indexing and other common things users do with the client. **No longer maintained**
 
@@ -82,7 +82,7 @@ See the [official Elasticsearch JavaScript client](elasticsearch-js://docs/refer
 
 ## .NET [dotnet]
 
-See the [official Elasticsearch .NET client](elasticsearch-net://docs/reference/index.md).
+See the [official Elasticsearch .NET client](elasticsearch-net://reference/index.md).
 
 ## Perl [perl]
 
@@ -92,7 +92,7 @@ Also see the [official Elasticsearch Perl client](https://www.elastic.co/guide/e
 
 ## PHP [php]
 
-Also see the [official Elasticsearch PHP client](elasticsearch-php://docs/reference/index.md).
+Also see the [official Elasticsearch PHP client](elasticsearch-php://reference/index.md).
 
 * [Elastica](https://github.com/ruflin/Elastica): PHP client.
 
@@ -102,7 +102,7 @@ Also see the [official Elasticsearch PHP client](elasticsearch-php://docs/refere
 
 ## Python [python]
 
-See the [official Elasticsearch Python client](elasticsearch-py://docs/reference/index.md).
+See the [official Elasticsearch Python client](elasticsearch-py://reference/index.md).
 
 ## R [r]
 
@@ -114,7 +114,7 @@ See the [official Elasticsearch Python client](elasticsearch-py://docs/reference
 
 ## Ruby [ruby]
 
-Also see the [official Elasticsearch Ruby client](elasticsearch-ruby://docs/reference/index.md).
+Also see the [official Elasticsearch Ruby client](elasticsearch-ruby://reference/index.md).
 
 * [chewy](https://github.com/toptal/chewy): An ODM and wrapper for the official Elasticsearch client.
 
@@ -128,7 +128,7 @@ Also see the [official Elasticsearch Ruby client](elasticsearch-ruby://docs/refe
 
 ## Rust [rust]
 
-Also see the [official Elasticsearch Rust client](elasticsearch-rs://docs/reference/index.md).
+Also see the [official Elasticsearch Rust client](elasticsearch-rs://reference/index.md).
 
 * [rs-es](https://github.com/benashford/rs-es): A REST API client with a strongly-typed Query DSL. **Last commit more than a year ago**
 

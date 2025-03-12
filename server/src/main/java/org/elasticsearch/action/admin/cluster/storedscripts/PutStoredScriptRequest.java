@@ -9,16 +9,17 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,27 +38,21 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     @Nullable
     private final String context;
 
-    /*
-     * [NOTE: unused fields #117566]
-     * As of #117566 (8.18) the content and xContentType fields are basically unused, except that we use content().length() for some
-     * validation. However, in earlier 8.x versions they did at least influence the output of toString(). That means in 9.x we can replace
-     * these fields with an int representing the original content length once the 9.x transport protocol can diverge from the 8.x one. For
-     * BwC with 8.18 we can simply send any BytesReference of the appropriate length.
-     */
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // see [NOTE: unused fields #117566]
-    private final BytesReference content;
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // see [NOTE: unused fields #117566]
-    private final XContentType xContentType;
+    private final int contentLength;
 
     private final StoredScriptSource source;
 
     public PutStoredScriptRequest(StreamInput in) throws IOException {
         super(in);
         id = in.readOptionalString();
-        content = in.readBytesReference();
-        xContentType = in.readEnum(XContentType.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
+            contentLength = in.readVInt();
+        } else {
+            BytesReference content = in.readBytesReference();
+            contentLength = content.length();
+
+            in.readEnum(XContentType.class);    // and drop
+        }
         context = in.readOptionalString();
         source = new StoredScriptSource(in);
     }
@@ -67,15 +62,13 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         TimeValue ackTimeout,
         @Nullable String id,
         @Nullable String context,
-        BytesReference content,
-        XContentType xContentType,
+        int contentLength,
         StoredScriptSource source
     ) {
         super(masterNodeTimeout, ackTimeout);
         this.id = id;
         this.context = context;
-        this.content = Objects.requireNonNull(content);
-        this.xContentType = Objects.requireNonNull(xContentType);
+        this.contentLength = contentLength;
         this.source = Objects.requireNonNull(source);
     }
 
@@ -100,12 +93,8 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return context;
     }
 
-    public BytesReference content() {
-        return content;
-    }
-
-    public XContentType xContentType() {
-        return xContentType;
+    public int contentLength() {
+        return contentLength;
     }
 
     public StoredScriptSource source() {
@@ -116,8 +105,13 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalString(id);
-        out.writeBytesReference(content);
-        XContentHelper.writeTo(out, xContentType);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.STORED_SCRIPT_CONTENT_LENGTH)) {
+            out.writeVInt(contentLength);
+        } else {
+            // generate a bytes reference of the correct size (the content isn't actually used in 8.18)
+            out.writeBytesReference(new BytesArray(new byte[contentLength]));
+            XContentHelper.writeTo(out, XContentType.JSON); // value not actually used by 8.18
+        }
         out.writeOptionalString(context);
         source.writeTo(out);
     }

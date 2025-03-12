@@ -18,7 +18,7 @@ One common variant of regsvr32 misuse is a [Squiblydoo attack](https://attack.mi
 
 ## Setup [eql-ex-threat-detection-setup]
 
-This tutorial uses a test dataset from [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team) that includes events imitating a Squiblydoo attack. The data has been mapped to [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://docs/reference/index.md)) fields.
+This tutorial uses a test dataset from [Atomic Red Team](https://github.com/redcanaryco/atomic-red-team) that includes events imitating a Squiblydoo attack. The data has been mapped to [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://reference/index.md)) fields.
 
 To get started:
 

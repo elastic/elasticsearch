@@ -104,11 +104,11 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             for (TaskInfo task : foundTasks) {
                 DriverStatus status = (DriverStatus) task.status();
                 assertThat(status.sessionId(), not(emptyOrNullString()));
-                String taskDescription = status.taskDescription();
+                String description = status.description();
                 for (OperatorStatus o : status.activeOperators()) {
                     logger.info("status {}", o);
                     if (o.operator().startsWith("LuceneSourceOperator[")) {
-                        assertThat(taskDescription, equalTo("data"));
+                        assertThat(description, equalTo("data"));
                         LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
                         assertThat(oStatus.processedSlices(), lessThanOrEqualTo(oStatus.totalSlices()));
                         assertThat(oStatus.processedQueries(), equalTo(Set.of("*:*")));
@@ -128,7 +128,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         continue;
                     }
                     if (o.operator().equals("ValuesSourceReaderOperator[fields = [pause_me]]")) {
-                        assertThat(taskDescription, equalTo("data"));
+                        assertThat(description, equalTo("data"));
                         ValuesSourceReaderOperator.Status oStatus = (ValuesSourceReaderOperator.Status) o.status();
                         assertMap(
                             oStatus.readersBuilt(),
@@ -139,7 +139,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         continue;
                     }
                     if (o.operator().equals("ExchangeSourceOperator")) {
-                        assertThat(taskDescription, either(equalTo("node_reduce")).or(equalTo("final")));
+                        assertThat(description, either(equalTo("node_reduce")).or(equalTo("final")));
                         ExchangeSourceOperator.Status oStatus = (ExchangeSourceOperator.Status) o.status();
                         assertThat(oStatus.pagesWaiting(), greaterThanOrEqualTo(0));
                         assertThat(oStatus.pagesEmitted(), greaterThanOrEqualTo(0));
@@ -147,7 +147,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                         continue;
                     }
                     if (o.operator().equals("ExchangeSinkOperator")) {
-                        assertThat(taskDescription, either(equalTo("data")).or(equalTo("node_reduce")));
+                        assertThat(description, either(equalTo("data")).or(equalTo("node_reduce")));
                         ExchangeSinkOperator.Status oStatus = (ExchangeSinkOperator.Status) o.status();
                         assertThat(oStatus.pagesReceived(), greaterThanOrEqualTo(0));
                         exchangeSinks++;
@@ -193,7 +193,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         ActionFuture<EsqlQueryResponse> response = startEsql();
         try {
             List<TaskInfo> infos = getTasksStarting();
-            TaskInfo running = infos.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("data")).findFirst().get();
+            TaskInfo running = infos.stream().filter(t -> ((DriverStatus) t.status()).description().equals("data")).findFirst().get();
             cancelTask(running.taskId());
             assertCancelled(response);
         } finally {
@@ -205,7 +205,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         ActionFuture<EsqlQueryResponse> response = startEsql();
         try {
             List<TaskInfo> infos = getTasksStarting();
-            TaskInfo running = infos.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("final")).findFirst().get();
+            TaskInfo running = infos.stream().filter(t -> ((DriverStatus) t.status()).description().equals("final")).findFirst().get();
             cancelTask(running.taskId());
             assertCancelled(response);
         } finally {
@@ -289,8 +289,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             for (TaskInfo task : tasks) {
                 assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
                 DriverStatus status = (DriverStatus) task.status();
-                logger.info("task {} {} {}", status.taskDescription(), task.description(), status);
-                assertThat(status.taskDescription(), anyOf(equalTo("data"), equalTo("node_reduce"), equalTo("final")));
+                logger.info("task {} {} {}", status.description(), task.description(), status);
+                assertThat(status.description(), anyOf(equalTo("data"), equalTo("node_reduce"), equalTo("final")));
                 /*
                  * Accept tasks that are either starting or have gone
                  * immediately async. The coordinating task is likely
@@ -314,8 +314,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             for (TaskInfo task : tasks) {
                 assertThat(task.action(), equalTo(DriverTaskRunner.ACTION_NAME));
                 DriverStatus status = (DriverStatus) task.status();
-                assertThat(status.taskDescription(), anyOf(equalTo("data"), equalTo("node_reduce"), equalTo("final")));
-                if (status.taskDescription().equals("data")) {
+                assertThat(status.description(), anyOf(equalTo("data"), equalTo("node_reduce"), equalTo("final")));
+                if (status.description().equals("data")) {
                     assertThat(status.status(), equalTo(DriverStatus.Status.RUNNING));
                 } else {
                     assertThat(status.status(), equalTo(DriverStatus.Status.ASYNC));
@@ -349,15 +349,15 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
     }
 
     private List<TaskInfo> dataTasks(List<TaskInfo> tasks) {
-        return tasks.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("data")).toList();
+        return tasks.stream().filter(t -> ((DriverStatus) t.status()).description().equals("data")).toList();
     }
 
     private List<TaskInfo> nodeReduceTasks(List<TaskInfo> tasks) {
-        return tasks.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("node_reduce")).toList();
+        return tasks.stream().filter(t -> ((DriverStatus) t.status()).description().equals("node_reduce")).toList();
     }
 
     private List<TaskInfo> coordinatorTasks(List<TaskInfo> tasks) {
-        return tasks.stream().filter(t -> ((DriverStatus) t.status()).taskDescription().equals("final")).toList();
+        return tasks.stream().filter(t -> ((DriverStatus) t.status()).description().equals("final")).toList();
     }
 
     private void assertCancelled(ActionFuture<EsqlQueryResponse> response) throws Exception {

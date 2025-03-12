@@ -69,7 +69,7 @@ When using this metric, there are a few guidelines to keep in mind:
 
 The following chart shows the relative error on a uniform distribution depending on the number of collected values and the requested percentile:
 
-![percentiles error](../../../../../images/percentiles_error.png "")
+![percentiles error](/images/percentiles_error.png "")
 
 It shows how precision is better for extreme percentiles. The reason why error diminishes for large number of values is that the law of large numbers makes the distribution of values more and more uniform and the t-digest tree can do a better job at summarizing it. It would not be the case on more skewed distributions.
 

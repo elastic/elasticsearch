@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-build-connector.html
 ---
@@ -10,13 +13,7 @@ Self-managed connectors were initially known as "connector clients". You might f
 
 ::::
 
-
 Self-managed [Elastic connectors](/reference/ingestion-tools/search-connectors/index.md) are run on your own infrastructure. This means they run outside of your Elastic deployment.
-
-You can run the [connectors service](#es-connectors-deploy-connector-service) from source or from a Docker container.
-
-We also have a quickstart option using **Docker Compose**, to spin up all the required services at once: Elasticsearch, Kibana, and the connectors service. Refer to [Docker Compose quickstart](/reference/ingestion-tools/search-connectors/es-connectors-docker-compose-quickstart.md) for more information.
-
 
 ## Availability and Elastic prerequisites [es-build-connector-prerequisites]
 
@@ -24,7 +21,6 @@ We also have a quickstart option using **Docker Compose**, to spin up all the re
 Self-managed connectors currently don’t support Windows. Use this [compatibility matrix](https://www.elastic.co/support/matrix#matrix_os) to check which operating systems are supported by self-managed connectors. Find this information under **self-managed connectors** on that page.
 
 ::::
-
 
 :::::{dropdown} Expand for Elastic prerequisites information
 Your Elastic deployment must include the following Elastic services:
@@ -63,17 +59,16 @@ Note the following information regarding support for self-managed connectors:
 
 :::::
 
+## Workflow
 
-::::{admonition} Data source prerequisites
-:name: es-build-connector-data-source-prerequisites
+In order to set up, configure, and run a connector you’ll be moving between your third-party service, the Elastic UI, and your terminal. At a high-level, the workflow looks like this:
 
-The first decision you need to make before deploying a connector is which third party service (data source) you want to sync to Elasticsearch. Note that each data source will have specific prerequisites you’ll need to meet to authorize the connector to access its data. For example, certain data sources may require you to create an OAuth application, or create a service account.
-
-You’ll need to check the individual connector documentation for these details.
-
-::::
-
-
+1. Satisfy any data source prerequisites (e.g., create an OAuth application).
+2. Create a connector in the UI (or via the API).
+3. Deploy the connector service:
+    - [Option 1: Run with Docker](es-connectors-run-from-docker.md) (recommended)
+    - [Option 2: Run from source](es-connectors-run-from-source.md)
+4. Enter data source configuration details in the UI.
 
 ## Deploy the connector service [es-connectors-deploy-connector-service]
 
@@ -87,7 +82,6 @@ You can run the connector service from source or use Docker:
     * Refer to our [Docker Compose quickstart](/reference/ingestion-tools/search-connectors/es-connectors-docker-compose-quickstart.md) for a quick way to spin up all the required services at once.
 
 
-
 ## Tutorials [es-build-connector-example]
 
 * Follow our [UI-based tutorial](/reference/ingestion-tools/search-connectors/es-postgresql-connector-client-tutorial.md) to learn how run the self-managed connector service and a set up a self-managed connector, **using the UI**.
@@ -95,8 +89,7 @@ You can run the connector service from source or use Docker:
 
 These examples use the PostgreSQL connector but the basic process is the same for all self-managed connectors.
 
-
-## Connector testing [es-build-connector-testing]
+## E2E testing [es-build-connector-testing]
 
 The connector framework enables you to run end-to-end (E2E) tests on your self-managed connectors, against a real data source.
 
@@ -105,7 +98,7 @@ To avoid tampering with a real Elasticsearch instance, E2E tests run an isolated
 E2E tests use **default** configuration values for the connector. Find instructions about testing in each connector’s documentation.
 
 
-## Connector framework [es-build-connector-framework]
+## Build or customize connectors [es-build-connector-framework]
 
 The Elastic connector framework enables you to:
 

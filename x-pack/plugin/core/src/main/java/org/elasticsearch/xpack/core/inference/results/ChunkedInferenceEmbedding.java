@@ -29,7 +29,6 @@ public record ChunkedInferenceEmbedding(List<? extends EmbeddingResults.Chunk> c
                     List.of(
                         new SparseEmbeddingResults.Chunk(
                             sparseEmbeddingResults.embeddings().get(i).tokens(),
-                            inputs.get(i),
                             new TextOffset(0, inputs.get(i).length())
                         )
                     )
@@ -41,7 +40,7 @@ public record ChunkedInferenceEmbedding(List<? extends EmbeddingResults.Chunk> c
     }
 
     @Override
-    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) throws IOException {
+    public Iterator<Chunk> chunksAsByteReference(XContent xcontent) throws IOException {
         var asChunk = new ArrayList<Chunk>();
         for (var chunk : chunks()) {
             asChunk.add(chunk.toChunk(xcontent));

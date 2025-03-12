@@ -23,6 +23,7 @@ import org.elasticsearch.test.jar.JarUtils;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.lang.StackWalker.StackFrame;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.net.URL;
@@ -38,7 +39,8 @@ import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -319,18 +321,21 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals(
             "Skip entitlement library and the instrumented method",
             requestingClass,
-            policyManager.findRequestingClass(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass)).orElse(null)
+            policyManager.findRequestingFrame(
+                Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass).map(MockFrame::new)
+            ).map(StackFrame::getDeclaringClass).orElse(null)
         );
         assertEquals(
             "Skip multiple library frames",
             requestingClass,
-            policyManager.findRequestingClass(Stream.of(entitlementsClass, entitlementsClass, instrumentedClass, requestingClass))
-                .orElse(null)
+            policyManager.findRequestingFrame(
+                Stream.of(entitlementsClass, entitlementsClass, instrumentedClass, requestingClass).map(MockFrame::new)
+            ).map(StackFrame::getDeclaringClass).orElse(null)
         );
         assertThrows(
             "Non-modular caller frames are not supported",
             NullPointerException.class,
-            () -> policyManager.findRequestingClass(Stream.of(entitlementsClass, null))
+            () -> policyManager.findRequestingFrame(Stream.of(entitlementsClass, null).map(MockFrame::new))
         );
     }
 
@@ -493,9 +498,11 @@ public class PolicyManagerTests extends ESTestCase {
         );
         assertThat(
             iae.getMessage(),
-            equalTo(
-                "Path [/base/test] is already exclusive to [plugin1][test.module1],"
-                    + " cannot add exclusive access for [plugin2][test.module2]"
+            allOf(
+                containsString("Path [/base/test] is already exclusive"),
+                containsString("[plugin1][test.module1]"),
+                containsString("[plugin2][test.module2]"),
+                containsString("cannot add exclusive access")
             )
         );
 
@@ -654,4 +661,47 @@ public class PolicyManagerTests extends ESTestCase {
         );
         return moduleController.layer();
     }
+
+    record MockFrame(Class<?> declaringClass) implements StackFrame {
+        @Override
+        public String getClassName() {
+            return getDeclaringClass().getName();
+        }
+
+        @Override
+        public String getMethodName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Class<?> getDeclaringClass() {
+            return declaringClass;
+        }
+
+        @Override
+        public int getByteCodeIndex() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getFileName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getLineNumber() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isNativeMethod() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StackTraceElement toStackTraceElement() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
 }

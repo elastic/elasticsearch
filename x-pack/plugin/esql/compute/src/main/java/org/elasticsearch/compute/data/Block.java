@@ -9,13 +9,16 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+
+import java.io.IOException;
 
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
@@ -35,7 +38,7 @@ import org.elasticsearch.index.mapper.BlockLoader;
  * <p> Block are immutable and can be passed between threads as long as no two threads hold a reference to
  * the same block at the same time.
  */
-public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, RefCounted, Releasable {
+public interface Block extends Accountable, BlockLoader.Block, Writeable, RefCounted, Releasable {
     /**
      * The maximum number of values that can be added to one position via lookup.
      * TODO maybe make this everywhere?
@@ -327,6 +330,30 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             }
             return blocks;
         }
+    }
+
+    /**
+     * Writes only the data of the block to a stream output.
+     * This method should be used when the type of the block is known during reading.
+     */
+    void writeTo(StreamOutput out) throws IOException;
+
+    /**
+     * Writes the type of the block followed by the block data to a stream output.
+     * This should be paired with {@link #readTypedBlock(BlockStreamInput)}
+     */
+    static void writeTypedBlock(Block block, StreamOutput out) throws IOException {
+        block.elementType().writeTo(out);
+        block.writeTo(out);
+    }
+
+    /**
+     * Reads the block type and then the block data from a stream input
+     * This should be paired with {@link #writeTypedBlock(Block, StreamOutput)}
+     */
+    static Block readTypedBlock(BlockStreamInput in) throws IOException {
+        ElementType elementType = ElementType.readFrom(in);
+        return elementType.reader.readBlock(in);
     }
 
     /**

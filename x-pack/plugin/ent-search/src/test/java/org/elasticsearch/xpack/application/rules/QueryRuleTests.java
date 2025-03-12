@@ -53,6 +53,78 @@ public class QueryRuleTests extends ESTestCase {
         }
     }
 
+    public void testNumericValidationWithValidValues() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": ["100.50", "200"] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
+        testToXContentRules(content);
+    }
+
+    public void testNumericValidationWithInvalidValues() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": ["abc"] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        assertThat(e.getMessage(), containsString("Failed to build [query_rule]"));
+    }
+
+    public void testNumericValidationWithMixedValues() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": ["100", "abc", "200"] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        assertThat(e.getMessage(), containsString("Failed to build [query_rule]"));
+    }
+
+    public void testNumericValidationWithEmptyValues() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": [] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        assertThat(e.getMessage(), containsString("failed to parse field [criteria]"));
+    }
+
     public void testToXContent() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {
@@ -85,7 +157,11 @@ public class QueryRuleTests extends ESTestCase {
               "criteria": [],
               "actions": {}
             }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON)
+        );
+        assertThat(e.getMessage(), containsString("Failed to build [query_rule]"));
     }
 
     public void testToXContentValidPinnedRulesWithIds() throws IOException {

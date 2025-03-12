@@ -329,7 +329,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 // Counters are not supported by ESQL so we load them in null
                 return BlockLoader.CONSTANT_NULLS;
             }
-            if (hasDocValues()) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
             if (isSyntheticSource) {
@@ -354,7 +354,8 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                     return unsignedToSortableSignedLong(parseUnsignedLong(value));
                 }
             };
-            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || isIndexed())
+                // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.LongsBlockLoader(valueFetcher, lookup);

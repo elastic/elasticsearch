@@ -15,8 +15,8 @@ import org.elasticsearch.logsdb.datageneration.FieldType;
 import java.util.Map;
 
 public class FloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Double> {
-    public FloatFieldBlockLoaderTests() {
-        super(FieldType.FLOAT);
+    public FloatFieldBlockLoaderTests(Params params) {
+        super(FieldType.FLOAT, params);
     }
 
     @Override

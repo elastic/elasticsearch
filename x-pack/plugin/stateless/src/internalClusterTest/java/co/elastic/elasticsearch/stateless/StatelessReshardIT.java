@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -58,7 +59,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         assertThat(
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
+                client().admin()
                     .indices()
                     .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                     .execute()
@@ -71,30 +72,27 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         indexDocs(indexName, 100);
 
-        IndicesStatsResponse statsResponse = client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet();
-        long indexCount = statsResponse.getAt(0).getStats().indexing.getTotal().getIndexCount();
-        assertThat(indexCount, equalTo(100L));
+        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
 
         client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
 
         int oldShardDocs = 0;
         while (true) {
             indexDocs(indexName, 1);
-            if (client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet().getAt(1).getStats().indexing.getTotal()
-                .getIndexCount() > 0L) {
+            if (getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 1) > 0L) {
                 break;
             }
             oldShardDocs++;
         }
 
-        IndicesStatsResponse postReshardStatsResponse = client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet();
+        IndicesStatsResponse postReshardStatsResponse = client().admin().indices().prepareStats(indexName).execute().actionGet();
         GetSettingsResponse postReshardSettingsResponse = client().admin()
             .indices()
             .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
             .get();
 
-        assertThat(postReshardStatsResponse.getAt(0).getStats().indexing.getTotal().getIndexCount(), equalTo(oldShardDocs + 100L));
-        assertThat(postReshardStatsResponse.getAt(1).getStats().indexing.getTotal().getIndexCount(), equalTo(1L));
+        assertThat(getIndexCount(postReshardStatsResponse, 0), equalTo(oldShardDocs + 100L));
+        assertThat(getIndexCount(postReshardStatsResponse, 1), equalTo(1L));
 
         indexDocs(indexName, 100);
 
@@ -123,7 +121,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         assertThat(
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
+                client().admin()
                     .indices()
                     .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                     .execute()
@@ -195,7 +193,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         assertThat(
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-                client(indexNode).admin()
+                client().admin()
                     .indices()
                     .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                     .execute()
@@ -208,9 +206,7 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         indexDocs(indexName, 100);
 
-        IndicesStatsResponse statsResponse = client(indexNode).admin().indices().prepareStats(indexName).execute().actionGet();
-        long indexCount = statsResponse.getAt(0).getStats().indexing.getTotal().getIndexCount();
-        assertThat(indexCount, equalTo(100L));
+        assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
 
         // assertAcked(indicesAdmin().prepareClose(indexName));
         assertBusy(() -> closeIndices(indexName));
@@ -225,6 +221,14 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
             equalTo(2)
         );
+    }
+
+    private static long getIndexCount(IndicesStatsResponse statsResponse, int shardId) {
+        ShardStats primaryStats = Arrays.stream(statsResponse.getShards())
+            .filter(shardStat -> shardStat.getShardRouting().primary() && shardStat.getShardRouting().id() == shardId)
+            .findAny()
+            .get();
+        return primaryStats.getStats().indexing.getTotal().getIndexCount();
     }
 
     private static void closeIndices(final String... indices) {

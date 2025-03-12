@@ -138,7 +138,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
                             )
                         )
                     );
-                    // ... and send a failure straight back to the master so it commits the state anyway
+                    // ... and send a failure straight back to the master so it applies and acks the state update anyway
                     channel.sendResponse(new ElasticsearchException("simulated"));
                 }
             });

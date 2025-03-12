@@ -26,6 +26,7 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.RemoteComputeException;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.junit.After;
 import org.junit.Before;
@@ -283,7 +284,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
 
-        Exception error = expectThrows(Exception.class, requestFuture::actionGet);
+        RemoteComputeException error = expectThrows(RemoteComputeException.class, requestFuture::actionGet);
         assertThat(error.getCause(), instanceOf(TaskCancelledException.class));
     }
 }

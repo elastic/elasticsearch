@@ -156,7 +156,11 @@ public class IndexAbstractionResolver {
         final boolean isHidden = indexAbstraction.isHidden();
         boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-            if (indexAbstraction.isSystem()) {
+            // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
+            // it's complicated to support those options with aliases pointing to multiple indices...
+            isVisible = isVisible && indicesOptions.ignoreAliases() == false;
+
+            if (isVisible && indexAbstraction.isSystem()) {
                 // check if it is net new
                 if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
                     // don't give this code any particular credit for being *correct*. it's just trying to resolve a combination of
@@ -182,9 +186,6 @@ public class IndexAbstractionResolver {
                 }
             }
 
-            // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-            // complicated to support those options with aliases pointing to multiple indices...
-            isVisible = isVisible && indicesOptions.ignoreAliases() == false;
             if (isVisible && selectorString != null) {
                 // Check if a selector was present, and if it is, check if this alias is applicable to it
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);

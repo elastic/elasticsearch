@@ -226,7 +226,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         ) {
             this.results = results;
             for (Object result : results) {
-                if (result instanceof RefCounted r) {
+                if (result instanceof QuerySearchResult r) {
                     r.incRef();
                 }
             }
@@ -275,7 +275,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         public boolean decRef() {
             if (refCounted.decRef()) {
                 for (int i = 0; i < results.length; i++) {
-                    if (results[i] instanceof RefCounted r) {
+                    if (results[i] instanceof QuerySearchResult r) {
                         r.decRef();
                     }
                     results[i] = null;

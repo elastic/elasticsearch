@@ -1051,6 +1051,19 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             {
                 "role": {
                     "cluster": ["all"],
+                    "indices": [{"names": ["test2"], "privileges": ["read_failure_store", "read"]}]
+                }
+            }""");
+
+        expectUsingApiKey(apiKey, new Search("test1::failures"), 403);
+        expectUsingApiKey(apiKey, new Search(failureIndexName), 403);
+        expectUsingApiKey(apiKey, new Search(dataIndexName), 403);
+        expectUsingApiKey(apiKey, new Search("test1"), 403);
+
+        apiKey = createApiKey(user, """
+            {
+                "role": {
+                    "cluster": ["all"],
                     "indices": [
                         {"names": ["test1"], "privileges": ["read_failure_store"]},
                         {"names": ["*"], "privileges": ["read"]}
@@ -1078,6 +1091,33 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectUsingApiKey(apiKey, new Search(failureIndexName), failuresDocId);
         expectUsingApiKey(apiKey, new Search(dataIndexName), 403);
         expectUsingApiKey(apiKey, new Search("test1"), 403);
+
+        upsertRole("""
+            {
+                "cluster": ["all"],
+                "indices": [
+                    {
+                        "names": ["*"],
+                        "privileges": ["read"]
+                    }
+                ]
+            }
+            """, role);
+        apiKey = createApiKey(user, """
+            {
+                "role": {
+                    "cluster": ["all"],
+                    "indices": [
+                        {"names": ["test1"], "privileges": ["read_failure_store"]}
+                    ]
+                }
+            }""");
+        expectUsingApiKey(apiKey, new Search("test1::failures"), 403);
+        // funky but correct: limited-by role descriptors grant direct access to failure index, assigned to failure store
+        expectUsingApiKey(apiKey, new Search(failureIndexName), failuresDocId);
+        expectUsingApiKey(apiKey, new Search(dataIndexName), 403);
+        expectUsingApiKey(apiKey, new Search("test1"), 403);
+
     }
 
     private static void expectThrows404(ThrowingRunnable runnable) {

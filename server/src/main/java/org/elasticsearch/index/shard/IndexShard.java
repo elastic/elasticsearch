@@ -596,14 +596,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             shardStateUpdated.await();
                             assert pendingPrimaryTerm == newPrimaryTerm
                                 : "shard term changed on primary. expected ["
-                                + newPrimaryTerm
-                                + "] but was ["
-                                + pendingPrimaryTerm
-                                + "]"
-                                + ", current routing: "
-                                + currentRouting
-                                + ", new routing: "
-                                + newRouting;
+                                    + newPrimaryTerm
+                                    + "] but was ["
+                                    + pendingPrimaryTerm
+                                    + "]"
+                                    + ", current routing: "
+                                    + currentRouting
+                                    + ", new routing: "
+                                    + newRouting;
                             assert getOperationPrimaryTerm() == newPrimaryTerm;
                             try {
                                 replicationTracker.activatePrimaryMode(getLocalCheckpoint());

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
@@ -25,6 +27,7 @@ import java.util.function.LongSupplier;
  */
 final class InternalIndexingStats implements IndexingOperationListener {
 
+    private static final Logger logger = LogManager.getLogger(InternalIndexingStats.class); // TODO(pete): Remove logging
     private final LongSupplier relativeTimeInNanosSupplier;
     private final StatsHolder totalStats;
 
@@ -85,9 +88,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                     totalStats.indexMetric.inc(took);
                     long asLong = relativeTimeInNanosSupplier.getAsLong();
                     totalStats.recentIndexMetric.addIncrement(took, asLong);
-                    // TODO(pete): Remove printf logging
-                    System.out.printf(
-                        "***** Increment of %g ms at %g ms - unweighted rate %g - weighted rate %g%n",
+                    logger.info(
+                        "***** Increment of {} ms at {} ms - unweighted rate {} - weighted rate {}}",
                         took * 1.0e-6,
                         (asLong - totalStats.startTimeInNanosForDebugLogging) * 1.0e-6,
                         1.0 * totalStats.indexMetric.sum() / (asLong - totalStats.startTimeInNanosForDebugLogging),
@@ -189,17 +191,16 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 currentTimeInNanos - timeSinceShardStartedInNanos,
                 recentIndexingLoadAtShardStarted
             );
-            // TODO(pete): Remove printf logging
             if (timeSinceShardStartedInNanos > 0) {
-                System.out.printf(
-                    "***** WRITE LOADS: OLD = %g / %g = %g NEW = %g%n",
+                logger.info(
+                    "***** WRITE LOADS: OLD = {} / {}} = {}} NEW = {}",
                     totalIndexingTimeInNanos * 1.0e-6,
                     timeSinceShardStartedInNanos * 1.0e-6,
                     1.0 * totalIndexingTimeSinceShardStartedInNanos / timeSinceShardStartedInNanos,
                     recentIndexingLoadSinceShardStarted
                 );
             } else {
-                System.out.printf("***** zero time!!!%n");
+                logger.info("***** zero time!!!%n");
             }
             return new IndexingStats.Stats(
                 indexMetric.count(),

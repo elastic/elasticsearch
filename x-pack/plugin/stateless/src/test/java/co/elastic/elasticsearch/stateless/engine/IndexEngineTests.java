@@ -420,7 +420,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mock(HollowShardsService.class),
                 mock(SharedBlobCacheWarmingService.class),
                 documentParsingProvider,
-                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
             )
         ) {
             Engine.Index index = randomDoc("id");
@@ -470,7 +470,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mock(HollowShardsService.class),
                 mock(SharedBlobCacheWarmingService.class),
                 documentParsingProvider,
-                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
             )
         ) {
             engine.index(randomDoc(String.valueOf(0)));
@@ -588,7 +588,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),
                 commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
                 DocumentParsingProvider.EMPTY_INSTANCE,
-                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
             ) {
                 @Override
                 public void close() throws IOException {
@@ -740,7 +740,7 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 mock(HollowShardsService.class),
                 mock(SharedBlobCacheWarmingService.class),
                 DocumentParsingProvider.EMPTY_INSTANCE,
-                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, mergeMetrics)
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, mergeMetrics, HollowShardsMetrics.NOOP)
             )
         ) {
             int numDocs = randomIntBetween(20, 100);

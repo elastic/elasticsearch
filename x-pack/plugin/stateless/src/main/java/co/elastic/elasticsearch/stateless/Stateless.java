@@ -73,6 +73,7 @@ import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitCleaner;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
+import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
@@ -315,6 +316,7 @@ public class Stateless extends Plugin
     private final SetOnce<TranslogReplicator> translogReplicator = new SetOnce<>();
     private final SetOnce<TranslogRecoveryMetrics> translogReplicatorMetrics = new SetOnce<>();
     private final SetOnce<MergeMetrics> mergeMetrics = new SetOnce<>();
+    private final SetOnce<HollowShardsMetrics> hollowShardMetrics = new SetOnce<>();
     private final SetOnce<StatelessElectionStrategy> electionStrategy = new SetOnce<>();
     private final SetOnce<StoreHeartbeatService> storeHeartbeatService = new SetOnce<>();
     private final SetOnce<RefreshThrottlingService> refreshThrottlingService = new SetOnce<>();
@@ -539,6 +541,8 @@ public class Stateless extends Plugin
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(services.telemetryProvider().getMeterRegistry()));
         setAndGet(this.mergeMetrics, new MergeMetrics(services.telemetryProvider().getMeterRegistry()));
         components.add(this.mergeMetrics.get());
+        setAndGet(hollowShardMetrics, HollowShardsMetrics.from(services.telemetryProvider().getMeterRegistry()));
+        components.add(hollowShardMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
 
         var indexShardCacheWarmer = new IndexShardCacheWarmer(
@@ -556,7 +560,7 @@ public class Stateless extends Plugin
         // available on all nodes despite being useful only on indexing nodes
         var hollowShardsService = setAndGet(
             this.hollowShardsService,
-            new HollowShardsService(settings, clusterService, indicesService, indexShardCacheWarmer, threadPool)
+            new HollowShardsService(settings, clusterService, indicesService, indexShardCacheWarmer, threadPool, hollowShardMetrics.get())
         );
         components.add(hollowShardsService);
         if (hasIndexRole) {
@@ -1277,7 +1281,7 @@ public class Stateless extends Plugin
                     sharedBlobCacheWarmingService.get(),
                     refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
                     documentParsingProvider.get(),
-                    new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), mergeMetrics.get())
+                    new IndexEngine.EngineMetrics(translogReplicatorMetrics.get(), mergeMetrics.get(), hollowShardMetrics.get())
                 );
             } else {
                 return new SearchEngine(config, getClosedShardService());

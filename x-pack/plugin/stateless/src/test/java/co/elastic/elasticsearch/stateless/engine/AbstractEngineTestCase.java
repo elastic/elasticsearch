@@ -220,7 +220,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             hollowShardsService,
             mock(SharedBlobCacheWarmingService.class),
             DocumentParsingProvider.EMPTY_INSTANCE,
-            new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
+            new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP, HollowShardsMetrics.NOOP)
         );
     }
 

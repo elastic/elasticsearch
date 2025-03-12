@@ -82,7 +82,9 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -878,6 +880,22 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .filterPlugins(pluginType)
             .findFirst()
             .orElseThrow(() -> new AssertionError("Plugin not found: " + pluginType.getName()));
+    }
+
+    protected static TestTelemetryPlugin getTelemetryPlugin(String node) {
+        return findPlugin(node, TestTelemetryPlugin.class);
+    }
+
+    protected static long getTotalLongCounterValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        return telemetryPlugin.getLongCounterMeasurement(name).stream().mapToLong(Measurement::getLong).sum();
+    }
+
+    protected static long getTotalLongUpDownCounterValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        return telemetryPlugin.getLongUpDownCounterMeasurement(name).stream().mapToLong(Measurement::getLong).sum();
+    }
+
+    protected static long getTotalLongHistogramValue(String name, TestTelemetryPlugin telemetryPlugin) {
+        return telemetryPlugin.getLongHistogramMeasurement(name).stream().mapToLong(Measurement::getLong).sum();
     }
 
     protected static Settings disableIndexingDiskAndMemoryControllersNodeSettings() {

@@ -171,6 +171,77 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }""");
     }
 
+    public void testRoleWithSelectorInIndexPattern() throws Exception {
+        apiKeys = new HashMap<>();
+
+        createUser(WRITE_ACCESS, PASSWORD, WRITE_ACCESS);
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
+            }"""), WRITE_ACCESS);
+        createAndStoreApiKey(WRITE_ACCESS, null);
+
+        createTemplates();
+        populateDataStream();
+
+        createUser("user", PASSWORD, "role");
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*::failures"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""", "role");
+        createAndStoreApiKey("user", null);
+
+        expect("user", new Search("test1::failures"), 403);
+        expect("user", new Search("*::failures"));
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1::failures"],
+                  "privileges": ["read"]
+                }
+              ]
+            }""", "role");
+
+        expect("user", new Search("test1::failures"), 403);
+        expect("user", new Search("*::failures"));
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*::failures"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""", "role");
+        expect("user", new Search("test1::failures"), 403);
+        expect("user", new Search("*::failures"));
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1::failures"],
+                  "privileges": ["read_failure_store"]
+                }
+              ]
+            }""", "role");
+        expect("user", new Search("test1::failures"), 403);
+        expect("user", new Search("*::failures"));
+    }
+
     @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws Exception {
         apiKeys = new HashMap<>();

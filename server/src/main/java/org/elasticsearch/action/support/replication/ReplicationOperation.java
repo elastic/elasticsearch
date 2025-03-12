@@ -194,20 +194,21 @@ public class ReplicationOperation<
                 pendingActionsListener
             );
         }
-        primaryResult.runPostReplicationActions(new PrimaryPostReplicationActionsListener() {
+        primaryResult.runPostReplicationActions(new ActionListener<>() {
+
             @Override
-            public void onResponse(long globalCheckpoint, long localCheckpoint) {
+            public void onResponse(Void aVoid) {
                 successfulShards.incrementAndGet();
                 updateCheckPoints(
                     primary.routingEntry(),
-                    () -> localCheckpoint,
-                    () -> globalCheckpoint,
+                    primary::localCheckpoint,
+                    primary::globalCheckpoint,
                     () -> primaryCoordinationPendingActionListener.onResponse(null)
                 );
             }
 
             @Override
-            public void onFailure(long globalCheckpoint, long localCheckpoint, Exception e) {
+            public void onFailure(Exception e) {
                 logger.trace("[{}] op [{}] post replication actions failed for [{}]", primary.routingEntry().shardId(), opType, request);
                 // TODO: fail shard? This will otherwise have the local / global checkpoint info lagging, or possibly have replicas
                 // go out of sync with the primary
@@ -216,8 +217,8 @@ public class ReplicationOperation<
                 // is appended into the translog.
                 updateCheckPoints(
                     primary.routingEntry(),
-                    () -> localCheckpoint,
-                    () -> globalCheckpoint,
+                    primary::localCheckpoint,
+                    primary::globalCheckpoint,
                     () -> primaryCoordinationPendingActionListener.onFailure(e)
                 );
             }
@@ -717,13 +718,7 @@ public class ReplicationOperation<
          * Run actions to be triggered post replication
          * @param listener callback that is invoked after post replication actions have completed
          * */
-        void runPostReplicationActions(PrimaryPostReplicationActionsListener listener);
+        void runPostReplicationActions(ActionListener<Void> listener);
     }
 
-    public interface PrimaryPostReplicationActionsListener {
-
-        void onResponse(long globalCheckpoint, long localCheckpoint);
-
-        void onFailure(long globalCheckpoint, long localCheckpoint, Exception ex);
-    }
 }

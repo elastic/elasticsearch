@@ -101,7 +101,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
             ShardRefreshReplicaRequest replicaRequest = new ShardRefreshReplicaRequest(shardRequest.shardId(), refreshResult);
             replicaRequest.setParentTask(shardRequest.getParentTask());
             logger.trace("{} refresh request executed on primary", primary.shardId());
-            return new PrimaryResult<>(primary, replicaRequest, new ReplicationResponse());
+            return new PrimaryResult<>(replicaRequest, new ReplicationResponse());
         }));
     }
 
@@ -109,7 +109,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     protected void shardOperationOnReplica(ShardRefreshReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         replica.externalRefresh(SOURCE_API, listener.safeMap(refreshResult -> {
             logger.trace("{} refresh request executed on replica", replica.shardId());
-            return new ReplicaResult(replica);
+            return new ReplicaResult();
         }));
     }
 

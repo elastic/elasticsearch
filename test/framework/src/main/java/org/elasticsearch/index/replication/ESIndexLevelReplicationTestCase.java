@@ -87,7 +87,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
@@ -811,14 +810,12 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         protected class PrimaryResult implements ReplicationOperation.PrimaryResult<ReplicaRequest> {
-            final IndexShard primary;
             final ReplicaRequest replicaRequest;
             final Response finalResponse;
 
-            public PrimaryResult(IndexShard primary, ReplicaRequest replicaRequest, Response replicationResponse) {
-                this.primary = Objects.requireNonNull(primary);
+            public PrimaryResult(ReplicaRequest replicaRequest, Response finalResponse) {
                 this.replicaRequest = replicaRequest;
-                this.finalResponse = replicationResponse;
+                this.finalResponse = finalResponse;
             }
 
             @Override
@@ -832,8 +829,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             }
 
             @Override
-            public void runPostReplicationActions(ReplicationOperation.PrimaryPostReplicationActionsListener listener) {
-                listener.onResponse(primary.getLastSyncedGlobalCheckpoint(), primary.getLocalCheckpoint());
+            public void runPostReplicationActions(ActionListener<Void> actionListener) {
+                actionListener.onResponse(null);
             }
         }
 
@@ -850,7 +847,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             executeShardBulkOnPrimary(
                 primary,
                 request,
-                listener.map(result -> new PrimaryResult(primary, result.replicaRequest(), result.replicationResponse))
+                listener.map(result -> new PrimaryResult(result.replicaRequest(), result.replicationResponse))
             );
         }
 
@@ -1006,7 +1003,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         ) {
             ActionListener.completeWith(listener, () -> {
                 primary.sync();
-                return new PrimaryResult(primary, request, new ReplicationResponse());
+                return new PrimaryResult(request, new ReplicationResponse());
             });
         }
 
@@ -1027,7 +1024,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             ActionListener.completeWith(listener, () -> {
                 final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
                     executeResyncOnPrimary(primary, request);
-                return new PrimaryResult(primary, result.replicaRequest(), result.replicationResponse);
+                return new PrimaryResult(result.replicaRequest(), result.replicationResponse);
             });
         }
 
@@ -1108,7 +1105,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         ) {
             ActionListener.completeWith(listener, () -> {
                 primary.persistRetentionLeases();
-                return new PrimaryResult(primary, request, new RetentionLeaseSyncAction.Response());
+                return new PrimaryResult(request, new RetentionLeaseSyncAction.Response());
             });
         }
 

@@ -50,7 +50,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -79,7 +78,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -503,30 +501,31 @@ public abstract class TransportReplicationAction<
                     );
                 } else {
                     setPhase(replicationTask, "primary");
+                    // Resolve the engine upfront to avoid an unsafe access if the responseListener is called by a refresh listener
+                    final var engineOrNull = syncGlobalCheckpointAfterOperation ? primaryShardReference.indexShard.getEngineOrNull() : null;
 
                     final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
                         adaptResponse(response, primaryShardReference.indexShard);
 
-                        if (syncGlobalCheckpointAfterOperation) {
+                        final var primary = primaryShardReference.indexShard;
+                        if (engineOrNull != null) {
                             try {
-                                var seqNoStats = primaryShardReference.seqNoStatsSupplier.get();
-                                primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation", seqNoStats);
+                                // TODO ensure engine is still open
+                                var seqNoStats = engineOrNull.getSeqNoStats(primary.getLastKnownGlobalCheckpoint());
+                                primary.maybeSyncGlobalCheckpoint("post-operation", seqNoStats);
                             } catch (final Exception e) {
                                 // only log non-closed exceptions
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                     // intentionally swallow, a missed global checkpoint sync should not fail this operation
                                     logger.info(
-                                        () -> format(
-                                            "%s failed to execute post-operation global checkpoint sync",
-                                            primaryShardReference.indexShard.shardId()
-                                        ),
+                                        () -> format("%s failed to execute post-operation global checkpoint sync", primary.shardId()),
                                         e
                                     );
                                 }
                             }
                         }
 
-                        assert primaryShardReference.indexShard.isPrimaryMode();
+                        assert primary.isPrimaryMode();
                         primaryShardReference.close(); // release shard operation lock before responding to caller
                         setPhase(replicationTask, "finished");
                         onCompletionListener.onResponse(response);
@@ -571,7 +570,6 @@ public abstract class TransportReplicationAction<
     public static class PrimaryResult<ReplicaRequest extends ReplicationRequest<ReplicaRequest>, Response extends ReplicationResponse>
         implements
             ReplicationOperation.PrimaryResult<ReplicaRequest> {
-        private final IndexShard primary;
         private final ReplicaRequest replicaRequest;
         public final Response replicationResponse;
 
@@ -579,8 +577,7 @@ public abstract class TransportReplicationAction<
          * Result of executing a primary operation
          * expects <code>replicationResponse</code> to be not-null
          */
-        public PrimaryResult(IndexShard primary, ReplicaRequest replicaRequest, Response replicationResponse) {
-            this.primary = Objects.requireNonNull(primary);
+        public PrimaryResult(ReplicaRequest replicaRequest, Response replicationResponse) {
             assert replicaRequest != null : "request is required";
             assert replicationResponse != null : "response is required";
             this.replicaRequest = replicaRequest;
@@ -598,38 +595,29 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void runPostReplicationActions(ReplicationOperation.PrimaryPostReplicationActionsListener listener) {
-            listener.onResponse(primary.getLastSyncedGlobalCheckpoint(), primary.getLocalCheckpoint());
+        public void runPostReplicationActions(ActionListener<Void> listener) {
+            listener.onResponse(null);
         }
     }
 
     public static class ReplicaResult {
-        protected final IndexShard replica;
-        protected final Exception finalFailure;
+        final Exception finalFailure;
 
-        public ReplicaResult(IndexShard replica, Exception finalFailure) {
-            this.replica = Objects.requireNonNull(replica);
+        public ReplicaResult(Exception finalFailure) {
             this.finalFailure = finalFailure;
         }
 
-        public ReplicaResult(IndexShard replica) {
-            this(replica, null);
+        public ReplicaResult() {
+            this(null);
         }
 
-        public void runPostReplicaActions(ReplicaPostReplicationActionsListener listener) {
+        public void runPostReplicaActions(ActionListener<Void> listener) {
             if (finalFailure != null) {
                 listener.onFailure(finalFailure);
             } else {
-                listener.onResponse(replica.getLastSyncedGlobalCheckpoint(), replica.getLocalCheckpoint());
+                listener.onResponse(null);
             }
         }
-    }
-
-    public interface ReplicaPostReplicationActionsListener {
-
-        void onResponse(long globalCheckpoint, long localCheckpoint);
-
-        void onFailure(Exception ex);
     }
 
     protected void handleReplicaRequest(
@@ -695,30 +683,26 @@ public abstract class TransportReplicationAction<
                 shardOperationOnReplica(
                     replicaRequest.getRequest(),
                     replica,
-                    ActionListener.wrap((replicaResult) -> replicaResult.runPostReplicaActions(new ReplicaPostReplicationActionsListener() {
-                        @Override
-                        public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                            final ReplicaResponse response = new ReplicaResponse(localCheckpoint, globalCheckpoint);
-                            releasable.close(); // release shard operation lock before responding to caller
-                            if (logger.isTraceEnabled()) {
-                                logger.trace(
-                                    "action [{}] completed on shard [{}] for request [{}]",
-                                    transportReplicaAction,
-                                    replicaRequest.getRequest().shardId(),
-                                    replicaRequest.getRequest()
-                                );
-                            }
-                            setPhase(task, "finished");
-                            onCompletionListener.onResponse(response);
+                    ActionListener.wrap((replicaResult) -> replicaResult.runPostReplicaActions(ActionListener.wrap(r -> {
+                        final ReplicaResponse response = new ReplicaResponse(
+                            replica.getLocalCheckpoint(),
+                            replica.getLastSyncedGlobalCheckpoint()
+                        );
+                        releasable.close(); // release shard operation lock before responding to caller
+                        if (logger.isTraceEnabled()) {
+                            logger.trace(
+                                "action [{}] completed on shard [{}] for request [{}]",
+                                transportReplicaAction,
+                                replicaRequest.getRequest().shardId(),
+                                replicaRequest.getRequest()
+                            );
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            // release shard operation lock before responding to caller
-                            Releasables.closeWhileHandlingException(releasable);
-                            responseWithFailure(e);
-                        }
-                    }), e -> {
+                        setPhase(task, "finished");
+                        onCompletionListener.onResponse(response);
+                    }, e -> {
+                        Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
+                        responseWithFailure(e);
+                    })), e -> {
                         Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
                         AsyncReplicaAction.this.onFailure(e);
                     })
@@ -1154,12 +1138,10 @@ public abstract class TransportReplicationAction<
 
         protected final IndexShard indexShard;
         private final Releasable operationLock;
-        private final Supplier<SeqNoStats> seqNoStatsSupplier;
 
         PrimaryShardReference(IndexShard indexShard, Releasable operationLock) {
             this.indexShard = indexShard;
             this.operationLock = operationLock;
-            this.seqNoStatsSupplier = indexShard.getSeqNoStatsSupplier();
         }
 
         @Override

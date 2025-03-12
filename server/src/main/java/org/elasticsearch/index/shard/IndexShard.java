@@ -1351,18 +1351,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
     }
 
-    /**
-     * Returns a supplier that supplies the {@link SeqNoStats} of the engine that is referenced at the time this method is called.
-     * Uses this method in place where the current engine reference cannot be resolved directly.
-     *
-     * @return a supplier of {@link SeqNoStats}
-     * @throws AlreadyClosedException if shard is closed
-     */
-    public Supplier<SeqNoStats> getSeqNoStatsSupplier() {
-        var engine = getEngine();
-        return () -> engine.getSeqNoStats(replicationTracker.getGlobalCheckpoint());
-    }
-
     public IndexingStats indexingStats() {
         Engine engine = getEngineOrNull();
         final boolean throttled;

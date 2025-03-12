@@ -76,6 +76,8 @@ public final class SafeEngineAccessThreadLocal {
         ensureAssertionsEnabled();
         final var accessor = getAccessorSafe();
         assert accessor != null : "current accessor not set";
+        var thread = Thread.currentThread();
+        assert accessor.thread == thread : "current accessor [" + accessor + "] was set by a different thread [" + thread + ']';
         threadLocalAccessor.remove();
     }
 

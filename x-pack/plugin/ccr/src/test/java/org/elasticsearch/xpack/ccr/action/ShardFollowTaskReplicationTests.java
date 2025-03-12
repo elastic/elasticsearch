@@ -832,7 +832,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             } catch (InterruptedException | ExecutionException | IOException e) {
                 throw new RuntimeException(e);
             }
-            listener.onResponse(new PrimaryResult(primary, ccrResult.replicaRequest(), ccrResult.replicationResponse));
+            listener.onResponse(new PrimaryResult(ccrResult.replicaRequest(), ccrResult.replicationResponse));
         }
 
         @Override

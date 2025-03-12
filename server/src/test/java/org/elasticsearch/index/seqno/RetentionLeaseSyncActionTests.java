@@ -163,17 +163,7 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         verify(indexShard).persistRetentionLeases();
         // the result should indicate success
         final AtomicBoolean success = new AtomicBoolean();
-        result.runPostReplicaActions(new TransportReplicationAction.ReplicaPostReplicationActionsListener() {
-            @Override
-            public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                success.set(true);
-            }
-
-            @Override
-            public void onFailure(Exception ex) {
-                fail(ex);
-            }
-        });
+        result.runPostReplicaActions(ActionTestUtils.assertNoFailureListener(r -> success.set(true)));
         assertTrue(success.get());
     }
 

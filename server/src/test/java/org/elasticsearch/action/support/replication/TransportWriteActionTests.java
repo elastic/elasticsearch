@@ -141,17 +141,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(new ReplicationOperation.PrimaryPostReplicationActionsListener() {
-                @Override
-                public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                    listener.onResponse(result.replicationResponse);
-                }
-
-                @Override
-                public void onFailure(long globalCheckpoint, long localCheckpoint, Exception failure) {
-                    listener.onFailure(failure);
-                }
-            });
+            result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
             assertNotNull(listener.response);
             assertNull(listener.failure);
             verify(indexShard, never()).refresh(any());
@@ -167,17 +157,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(new TransportReplicationAction.ReplicaPostReplicationActionsListener() {
-            @Override
-            public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                listener.onResponse(TransportResponse.Empty.INSTANCE);
-            }
-
-            @Override
-            public void onFailure(Exception failure) {
-                listener.onFailure(failure);
-            }
-        });
+        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard, never()).refresh(any());
@@ -190,17 +170,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(new ReplicationOperation.PrimaryPostReplicationActionsListener() {
-                @Override
-                public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                    listener.onResponse(result.replicationResponse);
-                }
-
-                @Override
-                public void onFailure(long globalCheckpoint, long localCheckpoint, Exception failure) {
-                    listener.onFailure(failure);
-                }
-            });
+            result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
 
             @SuppressWarnings({ "unchecked", "rawtypes" })
             ArgumentCaptor<ActionListener<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
@@ -226,17 +196,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(new TransportReplicationAction.ReplicaPostReplicationActionsListener() {
-            @Override
-            public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                listener.onResponse(TransportResponse.Empty.INSTANCE);
-            }
-
-            @Override
-            public void onFailure(Exception failure) {
-                listener.onFailure(failure);
-            }
-        });
+        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response); // Haven't responded yet
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<ActionListener<Engine.RefreshResult>> refreshListener = ArgumentCaptor.forClass((Class) ActionListener.class);
@@ -255,17 +215,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TestAction testAction = new TestAction();
         testAction.dispatchedShardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             CapturingActionListener<TestResponse> listener = new CapturingActionListener<>();
-            result.runPostReplicationActions(new ReplicationOperation.PrimaryPostReplicationActionsListener() {
-                @Override
-                public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                    listener.onResponse(result.replicationResponse);
-                }
-
-                @Override
-                public void onFailure(long globalCheckpoint, long localCheckpoint, Exception failure) {
-                    listener.onFailure(failure);
-                }
-            });
+            result.runPostReplicationActions(listener.map(ignore -> result.replicationResponse));
             assertNull(listener.response); // Haven't really responded yet
 
             @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -293,17 +243,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(new TransportReplicationAction.ReplicaPostReplicationActionsListener() {
-            @Override
-            public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                listener.onResponse(TransportResponse.Empty.INSTANCE);
-            }
-
-            @Override
-            public void onFailure(Exception failure) {
-                listener.onFailure(failure);
-            }
-        });
+        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response); // Haven't responded yet
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
@@ -336,17 +276,7 @@ public class TransportWriteActionTests extends ESTestCase {
         testAction.dispatchedShardOperationOnReplica(request, indexShard, future);
         final TransportReplicationAction.ReplicaResult result = future.actionGet();
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
-        result.runPostReplicaActions(new TransportReplicationAction.ReplicaPostReplicationActionsListener() {
-            @Override
-            public void onResponse(long globalCheckpoint, long localCheckpoint) {
-                listener.onResponse(TransportResponse.Empty.INSTANCE);
-            }
-
-            @Override
-            public void onFailure(Exception failure) {
-                listener.onFailure(failure);
-            }
-        });
+        result.runPostReplicaActions(listener.map(ignore -> TransportResponse.Empty.INSTANCE));
         assertNull(listener.response);
         assertNotNull(listener.failure);
     }

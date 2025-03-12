@@ -1066,7 +1066,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     if (throwException) {
                         throw new ElasticsearchException("simulated");
                     }
-                    return new ReplicaResult(replica);
+                    return new ReplicaResult();
                 });
             }
         };
@@ -1236,7 +1236,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                     if (throwException.get()) {
                         throw new RetryOnReplicaException(shardId, "simulation");
                     }
-                    return new ReplicaResult(replica);
+                    return new ReplicaResult();
                 });
             }
         };
@@ -1338,7 +1338,7 @@ public class TransportReplicationActionTests extends ESTestCase {
                         throw new RetryOnReplicaException(shardId, "simulation");
                     }
                     calledSuccessfully.set(true);
-                    return new ReplicaResult(replica);
+                    return new ReplicaResult();
                 });
             }
         };
@@ -1537,13 +1537,13 @@ public class TransportReplicationActionTests extends ESTestCase {
         ) {
             boolean executedBefore = shardRequest.processedOnPrimary.getAndSet(true);
             assert executedBefore == false : "request has already been executed on the primary";
-            listener.onResponse(new PrimaryResult<>(primary, shardRequest, new TestResponse()));
+            listener.onResponse(new PrimaryResult<>(shardRequest, new TestResponse()));
         }
 
         @Override
         protected void shardOperationOnReplica(Request request, IndexShard replica, ActionListener<ReplicaResult> listener) {
             request.processedOnReplicas.incrementAndGet();
-            listener.onResponse(new ReplicaResult(replica));
+            listener.onResponse(new ReplicaResult());
         }
     }
 
@@ -1631,6 +1631,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(indexShard.getPendingPrimaryTerm()).thenAnswer(
             i -> clusterService.state().metadata().getProject().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id())
         );
+
         ReplicationGroup replicationGroup = mock(ReplicationGroup.class);
         when(indexShard.getReplicationGroup()).thenReturn(replicationGroup);
         return indexShard;

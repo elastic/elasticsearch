@@ -31,14 +31,13 @@ public abstract class TransportWriteActionTestHelper {
     ) {
         final CountDownLatch latch = new CountDownLatch(1);
         TransportWriteAction.RespondingWriteResult writerResult = new TransportWriteAction.RespondingWriteResult() {
-
             @Override
-            public void onSuccess(long globalCheckpoint, long localCheckpoint, boolean forcedRefresh) {
+            public void onSuccess(boolean forcedRefresh) {
                 latch.countDown();
             }
 
             @Override
-            public void onFailure(long globalCheckpoint, long localCheckpoint, Exception ex) {
+            public void onFailure(Exception ex) {
                 throw new AssertionError(ex);
             }
         };

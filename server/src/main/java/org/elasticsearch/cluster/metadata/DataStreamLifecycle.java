@@ -279,33 +279,53 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            // When the data retention is not null, for bwc reasons we need an extra flag
-            if (dataRetention != null && out.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                out.writeBoolean(true);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+                out.writeOptionalTimeValue(dataRetention);
+            } else {
+                out.writeBoolean(dataRetention != null);
+                if (dataRetention != null) {
+                    out.writeOptionalTimeValue(dataRetention);
+                }
             }
-            out.writeOptionalTimeValue(dataRetention);
+
         }
         if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            // When the data retention is not null, for bwc reasons we need an extra flag
-            if (downsampling != null && out.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
-                out.writeBoolean(true);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+                out.writeOptionalCollection(downsampling);
+            } else {
+                out.writeBoolean(downsampling != null);
+                if (downsampling != null) {
+                    out.writeOptionalCollection(downsampling);
+                }
             }
-            out.writeOptionalCollection(downsampling);
             out.writeBoolean(enabled());
         }
     }
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            // When the data retention is not null, for bwc reasons we need an extra flag
-            boolean isDefined = in.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE) ? in.readBoolean() : true;
-            dataRetention = isDefined ? in.readOptionalTimeValue() : null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+                dataRetention = in.readOptionalTimeValue();
+            } else {
+                // When the data retention is not null, for bwc reasons we need an extra flag
+                boolean isDefined = in.readBoolean();
+                dataRetention = isDefined ? in.readOptionalTimeValue() : null;
+            }
         } else {
             dataRetention = null;
         }
         if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            boolean isDefined = in.getTransportVersion().before(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE) ? in.readBoolean() : true;
-            downsampling = isDefined ? in.readOptionalCollectionAsList(DownsamplingRound::read) : null;
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+                downsampling = in.readOptionalCollectionAsList(DownsamplingRound::read);
+            } else {
+                // When the data retention is not null, for bwc reasons we need an extra flag
+                boolean isDefined = in.readBoolean();
+                downsampling = isDefined ? in.readOptionalCollectionAsList(DownsamplingRound::read) : null;
+            }
             enabled = in.readBoolean();
         } else {
             downsampling = null;
@@ -604,14 +624,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         public void writeTo(StreamOutput out) throws IOException {
             // The order of the fields is like this for bwc reasons
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                    || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                     ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
                 } else {
                     writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
                 }
             }
             if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                    || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                     ResettableValue.write(out, downsampling, StreamOutput::writeCollection);
                 } else {
                     writeLegacyValue(out, downsampling, StreamOutput::writeCollection);
@@ -661,14 +683,16 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
             // The order of the fields is like this for bwc reasons
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                     dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
                 } else {
                     dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
                 }
             }
             if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
+                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
                     downsampling = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
                 } else {
                     downsampling = readLegacyValues(in, i -> i.readCollectionAsList(DownsamplingRound::read));

@@ -15,7 +15,7 @@ applies_to:
 
 Plugins extend Elasticsearch’s core functionality and can be managed differently depending on the deployment type. While {{ece}} and Elastic Cloud Hosted provide built-in plugin management, self-managed deployments require manual installation.
 
-{{ece}} and Elastic Cloud Hosted deployments simplify plugin management by offering compatible plugins for your Elasticsearch version. These plugins are automatically upgraded with your deployment, except in cases of breaking changes.
+{{ece}} and {{ech}} deployments simplify plugin management by offering compatible plugins for your Elasticsearch version. These plugins are automatically upgraded with your deployment, except in cases of breaking changes.
 
 In ECE and ECH deployments, you can add plugins by selecting them from the available list. However, plugin availability depends on the Elasticsearch version.
 

@@ -49,12 +49,7 @@ public class TransportGetServiceAccountActionTests extends ESTestCase {
         assertThat(getServiceAccountResponse1.getServiceAccountInfos().length, equalTo(5));
         assertThat(
             Arrays.stream(getServiceAccountResponse1.getServiceAccountInfos()).map(ServiceAccountInfo::getPrincipal).toList(),
-            containsInAnyOrder(
-                "elastic/auto-ops",
-                "elastic/fleet-server",
-                "elastic/fleet-server-remote",
-                "elastic/kibana"
-            )
+            containsInAnyOrder("elastic/auto-ops", "elastic/fleet-server", "elastic/fleet-server-remote", "elastic/kibana")
         );
 
         final GetServiceAccountRequest request2 = new GetServiceAccountRequest("elastic", "fleet-server");

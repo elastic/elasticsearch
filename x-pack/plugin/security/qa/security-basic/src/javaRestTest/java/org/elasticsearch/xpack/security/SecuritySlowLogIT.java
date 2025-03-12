@@ -380,10 +380,7 @@ public class SecuritySlowLogIT extends ESRestTestCase {
     }
 
     private static Map<String, Object> createServiceAccountToken() throws IOException {
-        final Request createServiceTokenRequest = new Request(
-            "POST",
-            "/_security/service/elastic/fleet-server/credential/token"
-        );
+        final Request createServiceTokenRequest = new Request("POST", "/_security/service/elastic/fleet-server/credential/token");
         final Response createServiceTokenResponse = adminClient().performRequest(createServiceTokenRequest);
         assertOK(createServiceTokenResponse);
 

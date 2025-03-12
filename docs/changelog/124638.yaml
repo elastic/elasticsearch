@@ -1,5 +1,5 @@
 pr: 124638
-summary: Provide `model_size_stats` as soon as anomaly job is opened
+summary: Provide model size statistics as soon as an anomaly detection job is opened
 area: Machine Learning
 type: bug
 issues:

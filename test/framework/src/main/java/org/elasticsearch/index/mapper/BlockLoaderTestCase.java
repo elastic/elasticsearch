@@ -71,6 +71,16 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         this.documentGenerator = new DocumentGenerator(specification);
     }
 
+    @Override
+    public void testFieldHasValue() {
+        assumeTrue("random test inherited from MapperServiceTestCase", false);
+    }
+
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        assumeTrue("random test inherited from MapperServiceTestCase", false);
+    }
+
     public void testBlockLoader() throws IOException {
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
         var syntheticSource = randomBoolean();

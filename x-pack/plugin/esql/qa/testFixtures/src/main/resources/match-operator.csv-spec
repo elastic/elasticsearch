@@ -721,3 +721,39 @@ book_no:keyword
 7140
 2714
 ;
+
+testMatchWithSemanticTextAndLookupJoin
+required_capability: match_operator_colon
+required_capability: semantic_text_field_caps
+required_capability: join_lookup_v12
+
+from semantic_text METADATA _id
+| where semantic_text_field:"something"
+| LOOKUP JOIN languages_lookup ON language_name
+| KEEP _id, language_name, language_code
+;
+
+ignoreOrder: true
+
+_id:keyword | language_name:keyword | language_code:integer
+1           | English               | 1
+2           | French                | 2
+3           | Spanish               | 3
+;
+
+testMatchWithSemanticTextKqlAndLookupJoin
+required_capability: match_operator_colon
+required_capability: semantic_text_type
+required_capability: kql_function
+required_capability: semantic_text_field_caps
+required_capability: join_lookup_v12
+
+from semantic_text
+| where kql("host:host1") AND semantic_text_field:"something"
+| LOOKUP JOIN languages_lookup ON language_name
+| KEEP host, semantic_text_field, language_name, language_code
+;
+
+host:keyword | semantic_text_field:text | language_name:keyword | language_code:integer
+"host1"      | live long and prosper    | English               | 1
+;

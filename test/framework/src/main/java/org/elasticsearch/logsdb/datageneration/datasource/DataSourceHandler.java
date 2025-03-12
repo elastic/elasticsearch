@@ -46,6 +46,14 @@ public interface DataSourceHandler {
         return null;
     }
 
+    default DataSourceResponse.BooleanGenerator handle(DataSourceRequest.BooleanGenerator request) {
+        return null;
+    }
+
+    default DataSourceResponse.InstantGenerator handle(DataSourceRequest.InstantGenerator request) {
+        return null;
+    }
+
     default DataSourceResponse.NullWrapper handle(DataSourceRequest.NullWrapper request) {
         return null;
     }
@@ -59,6 +67,10 @@ public interface DataSourceHandler {
     }
 
     default DataSourceResponse.MalformedWrapper handle(DataSourceRequest.MalformedWrapper request) {
+        return null;
+    }
+
+    default DataSourceResponse.TransformWrapper handle(DataSourceRequest.TransformWrapper request) {
         return null;
     }
 

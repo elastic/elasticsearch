@@ -35,6 +35,8 @@ import java.util.logging.FileHandler;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
+import javax.imageio.stream.FileImageInputStream;
+
 import static java.nio.charset.Charset.defaultCharset;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.WRITE;
@@ -93,15 +95,13 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileDelete() throws IOException {
-        Path toDelete = readWriteDir().resolve("to_delete");
-        EntitledActions.createFile(toDelete);
+        var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().delete();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileDeleteOnExit() throws IOException {
-        Path toDelete = readWriteDir().resolve("to_delete_on_exit");
-        EntitledActions.createFile(toDelete);
+        var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().deleteOnExit();
     }
 
@@ -174,9 +174,10 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileRenameTo() throws IOException {
-        Path toRename = readWriteDir().resolve("to_rename");
+        var dir = EntitledActions.createTempDirectoryForWrite();
+        Path toRename = dir.resolve("to_rename");
         EntitledActions.createFile(toRename);
-        toRename.toFile().renameTo(readWriteDir().resolve("renamed").toFile());
+        toRename.toFile().renameTo(dir.resolve("renamed").toFile());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -206,8 +207,7 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileSetReadOnly() throws IOException {
-        Path readOnly = readWriteDir().resolve("read_only");
-        EntitledActions.createFile(readOnly);
+        Path readOnly = EntitledActions.createTempFileForWrite();
         readOnly.toFile().setReadOnly();
     }
 
@@ -561,6 +561,14 @@ class FileCheckActions {
         // an overload distinct from ofFile with no OpenOptions, and so it needs its
         // own instrumentation and its own test.
         HttpResponse.BodySubscribers.ofFile(readFile(), CREATE, WRITE);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void javaDesktopFileAccess() throws Exception {
+        // Test file access from a java.desktop class. We explicitly exclude that module from the "system modules", so we expect
+        // any sensitive operation from java.desktop to fail.
+        var file = EntitledActions.createTempFileForRead();
+        new FileImageInputStream(file.toFile()).close();
     }
 
     private FileCheckActions() {}

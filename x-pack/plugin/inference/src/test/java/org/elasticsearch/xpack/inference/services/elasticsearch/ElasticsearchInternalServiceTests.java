@@ -902,7 +902,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 ((TextEmbeddingFloatResults.Chunk) result1.chunks().get(0)).embedding(),
                 0.0001f
             );
-            assertEquals("foo", result1.chunks().get(0).matchedText());
+            assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks(), hasSize(1));
@@ -912,7 +912,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 ((TextEmbeddingFloatResults.Chunk) result2.chunks().get(0)).embedding(),
                 0.0001f
             );
-            assertEquals("bar", result2.chunks().get(0).matchedText());
+            assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
 
             gotResults.set(true);
         }, ESTestCase::fail);
@@ -923,7 +923,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("foo", "bar"),
+            List.of("a", "bb"),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -977,7 +977,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
                 ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
             );
-            assertEquals("foo", result1.chunks().get(0).matchedText());
+            assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
@@ -985,7 +985,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
                 ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
             );
-            assertEquals("bar", result2.chunks().get(0).matchedText());
+            assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
             gotResults.set(true);
         }, ESTestCase::fail);
 
@@ -995,7 +995,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("foo", "bar"),
+            List.of("a", "bb"),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1049,7 +1049,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
                 ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
             );
-            assertEquals("foo", result1.chunks().get(0).matchedText());
+            assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
@@ -1057,7 +1057,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
                 ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
             );
-            assertEquals("bar", result2.chunks().get(0).matchedText());
+            assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
             gotResults.set(true);
         }, ESTestCase::fail);
 
@@ -1067,7 +1067,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         service.chunkedInfer(
             model,
             null,
-            List.of("foo", "bar"),
+            List.of("a", "bb"),
             Map.of(),
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,

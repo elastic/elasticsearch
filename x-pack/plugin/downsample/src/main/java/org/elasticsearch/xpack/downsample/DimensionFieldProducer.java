@@ -44,16 +44,29 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
             isEmpty = true;
         }
 
-        void collect(final Object value) {
+        void collectOnce(final Object value) {
+            assert isEmpty;
             Objects.requireNonNull(value);
-            if (isEmpty) {
-                this.value = value;
-                this.isEmpty = false;
-                return;
+            this.value = value;
+            this.isEmpty = false;
+        }
+
+        /**
+         * This is an expensive check, that slows down downsampling significantly.
+         * Given that index is sorted by tsid as primary key, this shouldn't really happen.
+         */
+        boolean validate(FormattedDocValues docValues, int docId) throws IOException {
+            if (docValues.advanceExact(docId)) {
+                int docValueCount = docValues.docValueCount();
+                for (int i = 0; i < docValueCount; i++) {
+                    var value = docValues.nextValue();
+                    if (value.equals(this.value) == false) {
+                        assert false : "Dimension value changed without tsid change [" + value + "] != [" + this.value + "]";
+                    }
+                }
             }
-            if (value.equals(this.value) == false) {
-                throw new IllegalArgumentException("Dimension value changed without tsid change [" + value + "] != [" + this.value + "]");
-            }
+
+            return true;
         }
     }
 
@@ -69,12 +82,17 @@ public class DimensionFieldProducer extends AbstractDownsampleFieldProducer {
 
     @Override
     public void collect(FormattedDocValues docValues, int docId) throws IOException {
+        if (dimension.isEmpty == false) {
+            assert dimension.validate(docValues, docId);
+            return;
+        }
+
         if (docValues.advanceExact(docId) == false) {
             return;
         }
         int docValueCount = docValues.docValueCount();
         for (int i = 0; i < docValueCount; i++) {
-            this.dimension.collect(docValues.nextValue());
+            this.dimension.collectOnce(docValues.nextValue());
         }
     }
 

@@ -275,7 +275,7 @@ public record SemanticTextField(
         boolean useLegacyFormat
     ) throws IOException {
         List<Chunk> chunks = new ArrayList<>();
-        Iterator<ChunkedInference.Chunk> it = results.chunksAsMatchedTextAndByteReference(contentType.xContent());
+        Iterator<ChunkedInference.Chunk> it = results.chunksAsByteReference(contentType.xContent());
         while (it.hasNext()) {
             chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, it.next(), useLegacyFormat));
         }

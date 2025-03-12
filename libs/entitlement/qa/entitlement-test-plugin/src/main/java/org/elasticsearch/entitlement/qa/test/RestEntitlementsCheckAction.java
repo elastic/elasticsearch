@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -55,7 +56,10 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_ALLOWED;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.deniedToPlugins;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.forPlugins;
@@ -65,20 +69,25 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
 
-    record CheckAction(CheckedRunnable<Exception> action, boolean isAlwaysDeniedToPlugins, Integer fromJavaVersion) {
+    record CheckAction(
+        CheckedRunnable<Exception> action,
+        EntitlementTest.ExpectedAccess expectedAccess,
+        Class<? extends Exception> expectedExceptionIfDenied,
+        Integer fromJavaVersion
+    ) {
         /**
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
          */
         static CheckAction deniedToPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, true, null);
+            return new CheckAction(action, SERVER_ONLY, NotEntitledException.class, null);
         }
 
         static CheckAction forPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, false, null);
+            return new CheckAction(action, PLUGINS, NotEntitledException.class, null);
         }
 
         static CheckAction alwaysDenied(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, true, null);
+            return new CheckAction(action, ALWAYS_DENIED, NotEntitledException.class, null);
         }
     }
 
@@ -125,7 +134,12 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry("responseCache_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultResponseCache)),
             entry(
                 "createInetAddressResolverProvider",
-                new CheckAction(VersionSpecificNetworkChecks::createInetAddressResolverProvider, true, 18)
+                new CheckAction(
+                    VersionSpecificNetworkChecks::createInetAddressResolverProvider,
+                    SERVER_ONLY,
+                    NotEntitledException.class,
+                    18
+                )
             ),
             entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
             entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
@@ -194,6 +208,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         getTestEntries(PathActions.class),
         getTestEntries(SpiActions.class),
         getTestEntries(SystemActions.class),
+        getTestEntries(URLConnectionFileActions.class),
         getTestEntries(URLConnectionNetworkActions.class),
         getTestEntries(VersionSpecificManageThreadsActions.class),
         getTestEntries(VersionSpecificNioFileSystemActions.class)
@@ -234,9 +249,13 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     }
                 }
             };
-            boolean deniedToPlugins = testAnnotation.expectedAccess() != PLUGINS;
             Integer fromJavaVersion = testAnnotation.fromJavaVersion() == -1 ? null : testAnnotation.fromJavaVersion();
-            entries.add(entry(method.getName(), new CheckAction(runnable, deniedToPlugins, fromJavaVersion)));
+            entries.add(
+                entry(
+                    method.getName(),
+                    new CheckAction(runnable, testAnnotation.expectedAccess(), testAnnotation.expectedExceptionIfDenied(), fromJavaVersion)
+                )
+            );
         }
         return entries.stream();
     }
@@ -399,13 +418,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     public static Set<String> getCheckActionsAllowedInPlugins() {
         return checkActions.entrySet()
             .stream()
-            .filter(kv -> kv.getValue().isAlwaysDeniedToPlugins() == false)
+            .filter(kv -> kv.getValue().expectedAccess().equals(PLUGINS) || kv.getValue().expectedAccess().equals(ALWAYS_ALLOWED))
             .map(Entry::getKey)
             .collect(Collectors.toSet());
     }
 
-    public static Set<String> getAllCheckActions() {
-        return checkActions.keySet();
+    public static Set<String> getDeniableCheckActions() {
+        return checkActions.entrySet()
+            .stream()
+            .filter(kv -> kv.getValue().expectedAccess().equals(ALWAYS_ALLOWED) == false)
+            .map(Entry::getKey)
+            .collect(Collectors.toSet());
     }
 
     @Override
@@ -432,9 +455,19 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
         return channel -> {
             logger.info("Calling check action [{}]", actionName);
-            checkAction.action().run();
-            logger.debug("Check action [{}] returned", actionName);
-            channel.sendResponse(new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName)));
+            RestResponse response;
+            try {
+                checkAction.action().run();
+                response = new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName));
+            } catch (Exception e) {
+                var statusCode = checkAction.expectedExceptionIfDenied.isInstance(e)
+                    ? RestStatus.FORBIDDEN
+                    : RestStatus.INTERNAL_SERVER_ERROR;
+                response = new RestResponse(channel, statusCode, e);
+                response.addHeader("expectedException", checkAction.expectedExceptionIfDenied.getName());
+            }
+            logger.debug("Check action [{}] returned status [{}]", actionName, response.status().getStatus());
+            channel.sendResponse(response);
         };
     }
 

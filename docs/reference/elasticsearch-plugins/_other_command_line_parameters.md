@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/_other_command_line_parameters.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # Other command line parameters [_other_command_line_parameters]

@@ -1,0 +1,5 @@
+pr: 124651
+summary: "Bug Fix: System Data Streams Should Be Restorable"
+area: Infra/Core
+type: bug
+issues: []

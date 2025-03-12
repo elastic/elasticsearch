@@ -22,18 +22,21 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.entitlement.qa.EntitlementsTestRule.ENTITLEMENT_QA_TEST_MODULE_NAME;
+import static org.elasticsearch.entitlement.qa.EntitlementsTestRule.ENTITLEMENT_TEST_PLUGIN_NAME;
+
 public class EntitlementsAllowedViaOverrideIT extends AbstractEntitlementsIT {
 
     private static void addPolicyOverrideSystemProperties(BiConsumer<String, Function<Path, String>> adder) {
-        adder.accept("es.entitlements.policy.entitlement-test-plugin", tempDir -> {
+        adder.accept("es.entitlements.policy." + ENTITLEMENT_TEST_PLUGIN_NAME, tempDir -> {
             String policyOverride = Strings.format("""
                 policy:
-                  org.elasticsearch.entitlement.qa.test:
+                  %s:
                     - load_native_libraries
                     - files:
                         - path: %s
                           mode: read
-                """, tempDir.resolve("read_dir"));
+                """, ENTITLEMENT_QA_TEST_MODULE_NAME, tempDir.resolve("read_dir"));
             return new String(Base64.getEncoder().encode(policyOverride.getBytes(StandardCharsets.UTF_8)));
         });
     }

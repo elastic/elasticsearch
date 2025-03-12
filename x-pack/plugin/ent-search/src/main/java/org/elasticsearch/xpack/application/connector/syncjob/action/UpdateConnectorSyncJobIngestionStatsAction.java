@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -54,17 +54,6 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
         private final Long totalDocumentCount;
         private final Instant lastSeen;
         private final Map<String, Object> metadata;
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorSyncJobId = in.readString();
-            this.deletedDocumentCount = in.readLong();
-            this.indexedDocumentCount = in.readLong();
-            this.indexedDocumentVolume = in.readLong();
-            this.totalDocumentCount = in.readOptionalLong();
-            this.lastSeen = in.readOptionalInstant();
-            this.metadata = in.readGenericMap();
-        }
 
         public Request(
             String connectorSyncJobId,
@@ -196,14 +185,7 @@ public class UpdateConnectorSyncJobIngestionStatsAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorSyncJobId);
-            out.writeLong(deletedDocumentCount);
-            out.writeLong(indexedDocumentCount);
-            out.writeLong(indexedDocumentVolume);
-            out.writeOptionalLong(totalDocumentCount);
-            out.writeOptionalInstant(lastSeen);
-            out.writeGenericMap(metadata);
+            TransportAction.localOnly();
         }
 
         @Override

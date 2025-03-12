@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -17,7 +17,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
-public class TransportPostConnectorSyncJobAction extends HandledTransportAction<
+public class TransportPostConnectorSyncJobAction extends TransportAction<
     PostConnectorSyncJobAction.Request,
     PostConnectorSyncJobAction.Response> {
 
@@ -25,13 +25,7 @@ public class TransportPostConnectorSyncJobAction extends HandledTransportAction<
 
     @Inject
     public TransportPostConnectorSyncJobAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(
-            PostConnectorSyncJobAction.NAME,
-            transportService,
-            actionFilters,
-            PostConnectorSyncJobAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(PostConnectorSyncJobAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.syncJobIndexService = new ConnectorSyncJobIndexService(client);
     }
 

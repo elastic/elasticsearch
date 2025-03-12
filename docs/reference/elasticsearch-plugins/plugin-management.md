@@ -9,6 +9,7 @@ applies_to:
     ess: ga
     ece: ga
     self: ga
+  serverless: unavailable
 ---
 
 # Plugin management

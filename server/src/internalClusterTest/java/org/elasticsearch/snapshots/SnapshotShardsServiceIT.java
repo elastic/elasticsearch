@@ -122,7 +122,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
                 handler.messageReceived(request, channel, task);
             });
 
-        // then delay commits on the data node until we see the log message
+        // then, after the shard snapshot update, delay cluster state update commits on the data node until we see the ConsistencyChecker log an inconsistency.
         final var logMessageSeenListener = new SubscribableListener<Void>();
         MockTransportService.getInstance(dataNode)
             .addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
@@ -155,6 +155,7 @@ public class SnapshotShardsServiceIT extends AbstractSnapshotIntegTestCase {
                 @Override
                 public boolean innerMatch(LogEvent event) {
                     if (event.getMessage().getFormattedMessage().contains("after notifying master")) {
+                        // now that the inconsistency was logged, release the cluster state commits on the data node
                         logMessageSeenListener.onResponse(null);
                     }
                     return true;

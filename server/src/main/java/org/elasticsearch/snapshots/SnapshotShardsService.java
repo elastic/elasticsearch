@@ -896,6 +896,10 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         private final AtomicInteger queuedTaskCount = new AtomicInteger(0); // atomic to ensure max one thread processing the queue
         private final Queue<CheckTask> queue = new ConcurrentLinkedQueue<>();
 
+        /**
+         * Adds a {@link CheckTask} with the snapshot info to the queue. If the queue was previously empty, then {@link #runCheck()} will be
+         * started on a GENERIC thread. 
+         */
         void ensureShardComplete(Snapshot snapshot, ShardId shardId) {
             if (CONSISTENCY_CHECKER_LOGGER.isDebugEnabled() == false) {
                 return;
@@ -912,6 +916,11 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             } // else a runCheck is already running somewhere and will pick up the task we just added
         }
 
+        /**
+         * Empties the {@link #queue} and verifies that the cluster state shows a successful shard snapshot for each {@link CheckTask}.
+         * A debug level message is logged if the cluster state does not show a completed shard snapshot: this could be a bug, or a race
+         * with a cluster state update not being applied yet.
+         */
         private void runCheck() {
             while (true) {
                 final var taskCount = queuedTaskCount.get();
@@ -922,9 +931,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     shardsBySnapshot.computeIfAbsent(task.snapshot(), ignored -> new HashSet<>()).add(task.shardId());
                 }
                 final var snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
-                for (final var shardsBySnapshotEntry : shardsBySnapshot.entrySet()) {
+                for (final var snapshotShards : shardsBySnapshot.entrySet()) {
                     final var snapshot = shardsBySnapshotEntry.getKey();
-                    final var entry = snapshotsInProgress.snapshot(snapshot);
+                    final var snapshotEntryClusterState = snapshotsInProgress.snapshot(snapshot);
                     if (entry != null) {
                         for (final var shardId : shardsBySnapshotEntry.getValue()) {
                             final var shardStatus = entry.shards().get(shardId);

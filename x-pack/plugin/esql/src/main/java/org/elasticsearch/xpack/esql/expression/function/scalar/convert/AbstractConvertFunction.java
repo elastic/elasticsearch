@@ -19,7 +19,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -66,7 +65,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         if (factory == null) {
             throw EsqlIllegalArgumentException.illegalDataType(sourceType);
         }
-        return factory.build(fieldEval, source());
+        return factory.build(source(), fieldEval);
     }
 
     @Override
@@ -101,7 +100,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
     @FunctionalInterface
     interface BuildFactory {
-        ExpressionEvaluator.Factory build(ExpressionEvaluator.Factory field, Source source);
+        ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field);
     }
 
     /**
@@ -131,12 +130,10 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         private static final Log logger = LogFactory.getLog(AbstractEvaluator.class);
 
         protected final DriverContext driverContext;
-        private final EvalOperator.ExpressionEvaluator fieldEvaluator;
         private final Warnings warnings;
 
-        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field, Source source) {
+        protected AbstractEvaluator(DriverContext driverContext, Source source) {
             this.driverContext = driverContext;
-            this.fieldEvaluator = field;
             this.warnings = Warnings.createWarnings(
                 driverContext.warningsMode(),
                 source.source().getLineNumber(),
@@ -146,6 +143,8 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         }
 
         protected abstract String name();
+
+        protected abstract ExpressionEvaluator next();
 
         /**
          * Called when evaluating a {@link Block} that contains null values.
@@ -161,7 +160,7 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
 
         @Override
         public final Block eval(Page page) {
-            try (Block block = fieldEvaluator.eval(page)) {
+            try (Block block = next().eval(page)) {
                 Vector vector = block.asVector();
                 return vector == null ? evalBlock(block) : evalVector(vector);
             }
@@ -170,17 +169,6 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         protected final void registerException(Exception exception) {
             logger.trace("conversion failure", exception);
             warnings.registerException(exception);
-        }
-
-        @Override
-        public final String toString() {
-            return name() + "Evaluator[field=" + fieldEvaluator + "]";
-        }
-
-        @Override
-        public void close() {
-            // TODO toString allocates - we should probably check breakers there too
-            Releasables.closeExpectNoException(fieldEvaluator);
         }
     }
 }

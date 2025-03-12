@@ -46,7 +46,7 @@ public class ToInteger extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(INTEGER, (fieldEval, source) -> fieldEval),
+        Map.entry(INTEGER, (source, fieldEval) -> fieldEval),
         Map.entry(BOOLEAN, ToIntegerFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToIntegerFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToIntegerFromStringEvaluator.Factory::new),
@@ -55,7 +55,7 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(DOUBLE, ToIntegerFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToIntegerFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new),
-        Map.entry(COUNTER_INTEGER, (fieldEval, source) -> fieldEval)
+        Map.entry(COUNTER_INTEGER, (source, fieldEval) -> fieldEval)
     );
 
     @FunctionInfo(

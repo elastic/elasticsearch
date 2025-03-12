@@ -48,18 +48,6 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
             .build();
     }
 
-    // To avoid conflicts with other tests
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return false;
-    }
-
-    // To avoid conflicts with other tests
-    @Override
-    protected boolean preserveDataStreamsUponCompletion() {
-        return false;
-    }
-
     public void testUpgradeSystemIndexAndDataStream() throws Exception {
         String dataStreamName = ".fleet-actions-results";
         String indexName = ".fleet-actions";

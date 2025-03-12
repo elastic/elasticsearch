@@ -201,7 +201,6 @@ final class InternalIndexingStats implements IndexingOperationListener {
             } else {
                 System.out.printf("***** zero time!!!%n");
             }
-            // TODO(pete): Put new metric into stats
             return new IndexingStats.Stats(
                 indexMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(totalIndexingTimeInNanos),
@@ -215,7 +214,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 isThrottled,
                 TimeUnit.MILLISECONDS.toMillis(currentThrottleMillis),
                 totalIndexingTimeSinceShardStartedInNanos,
-                timeSinceShardStartedInNanos
+                timeSinceShardStartedInNanos,
+                recentIndexingLoadSinceShardStarted
             );
         }
     }

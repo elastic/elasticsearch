@@ -164,9 +164,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
     }
 
     private LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {
-        var analyzed = analyzer.analyze(parser.createStatement(query));
-        var optimized = optimizer.optimize(analyzed);
-        return optimized;
+        return optimizer.optimize(analyzer.analyze(parser.createStatement(query)));
     }
 
     @Override

@@ -10,15 +10,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 public class Limit extends UnaryPlan implements TelemetryAware {
@@ -76,16 +73,6 @@ public class Limit extends UnaryPlan implements TelemetryAware {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return child().output();
-    }
-
-    @Override
-    public AttributeSet outputSet() {
-        return child().outputSet();
     }
 
     @Override

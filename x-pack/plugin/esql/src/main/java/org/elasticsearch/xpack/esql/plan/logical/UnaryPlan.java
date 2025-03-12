@@ -21,6 +21,7 @@ import java.util.Objects;
 public abstract class UnaryPlan extends LogicalPlan {
 
     private final LogicalPlan child;
+    private AttributeSet lazyOutputSet;
 
     protected UnaryPlan(Source source, LogicalPlan child) {
         super(source, Collections.singletonList(child));
@@ -43,9 +44,12 @@ public abstract class UnaryPlan extends LogicalPlan {
         return child.output();
     }
 
-    @Override
     public AttributeSet outputSet() {
-        return child().outputSet();
+        if (lazyOutputSet == null) {
+            List<Attribute> output = output();
+            lazyOutputSet = (output == child.output() ? child.outputSet() : new AttributeSet(output));
+        }
+        return lazyOutputSet;
     }
 
     @Override

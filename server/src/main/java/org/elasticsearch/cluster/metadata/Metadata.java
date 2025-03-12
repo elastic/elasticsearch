@@ -744,7 +744,26 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             // and not include it in the project xcontent output (through the lack of multi-project params)
             clusterReservedState.putAll(project.reservedStateMetadata());
 
-            @FixForMultiProject(description = "consider include cluster-scoped persistent tasks")
+            // Similarly, combine cluster and project persistent tasks and report them under a single key
+            Iterator<ToXContent> customs = Iterators.flatMap(customs().entrySet().iterator(), entry -> {
+                if (entry.getValue().context().contains(context)
+                    && ClusterPersistentTasksCustomMetadata.TYPE.equals(entry.getKey()) == false) {
+                    return ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p));
+                } else {
+                    return Collections.emptyIterator();
+                }
+            });
+            final var combinedTasks = PersistentTasksCustomMetadata.combine(
+                ClusterPersistentTasksCustomMetadata.get(this),
+                PersistentTasksCustomMetadata.get(project)
+            );
+            if (combinedTasks != null) {
+                customs = Iterators.concat(
+                    customs,
+                    ChunkedToXContentHelper.object(PersistentTasksCustomMetadata.TYPE, combinedTasks.toXContentChunked(p))
+                );
+            }
+
             final var iterators = Iterators.concat(start, Iterators.single((builder, params) -> {
                 builder.field("cluster_uuid", clusterUUID);
                 builder.field("cluster_uuid_committed", clusterUUIDCommitted);
@@ -754,12 +773,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }),
                 persistentSettings,
                 project.toXContentChunked(p),
-                Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
-                        : Collections.emptyIterator()
-                ),
+                customs,
                 ChunkedToXContentHelper.object("reserved_state", clusterReservedState.values().iterator()),
                 ChunkedToXContentHelper.endObject()
             );

@@ -58,9 +58,14 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
@@ -841,6 +846,9 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                     Strings.format("successfully sent shard snapshot state [%s] update to the master node", status.state())
                 );
                 logger.trace("[{}][{}] updated snapshot state to [{}]", shardId, snapshot, status);
+                if (status.state().completed()) {
+                    consistencyChecker.ensureShardComplete(snapshot, shardId);
+                }
             }
 
             @Override
@@ -867,5 +875,75 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 )
             )
         );
+    }
+
+    private final ConsistencyChecker consistencyChecker = new ConsistencyChecker();
+
+    /**
+     * After receiving an ack from the master confirming that it marked a shard snapshot as complete, checks the local cluster state to
+     * confirm that it was updated to reflect this and logs a message if not. Not 100% watertight because this node might be lagging behind
+     * and hasn't received the cluster state yet, or else it might have been removed from the cluster, but both of these things will also
+     * be visible in the logs.
+     */
+    // visible for testing
+    class ConsistencyChecker {
+        private static final Logger logger = LogManager.getLogger(ConsistencyChecker.class);
+
+        private record CheckTask(Snapshot snapshot, ShardId shardId) {}
+
+        private final AtomicInteger queuedTasks = new AtomicInteger(0);
+        private final Queue<CheckTask> queue = new ConcurrentLinkedQueue<>();
+
+        void ensureShardComplete(Snapshot snapshot, ShardId shardId) {
+            if (logger.isDebugEnabled() == false) {
+                return;
+            }
+
+            if (queuedTasks.get() > 1000) {
+                // racy check, we only need an approximate limit
+                return;
+            }
+
+            queue.add(new CheckTask(snapshot, shardId));
+            if (queuedTasks.getAndIncrement() == 0) {
+                threadPool.generic().execute(this::runCheck);
+            }
+        }
+
+        void runCheck() {
+            while (true) {
+                final var taskCount = queuedTasks.get();
+                final var shardsBySnapshot = new HashMap<Snapshot, Set<ShardId>>();
+                for (int i = 0; i < taskCount; i++) {
+                    final var task = queue.poll();
+                    assert task != null;
+                    shardsBySnapshot.computeIfAbsent(task.snapshot(), ignored -> new HashSet<>()).add(task.shardId());
+                }
+                final var snapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+                for (final var shardsBySnapshotEntry : shardsBySnapshot.entrySet()) {
+                    final var snapshot = shardsBySnapshotEntry.getKey();
+                    final var entry = snapshotsInProgress.snapshot(snapshot);
+                    if (entry != null) {
+                        for (final var shardId : shardsBySnapshotEntry.getValue()) {
+                            final var shardStatus = entry.shards().get(shardId);
+                            if (shardStatus == null) {
+                                logger.debug("shard [{}] in snapshot [{}] unexpectedly not found", shardId, snapshot);
+                            } else if (shardStatus.state().completed() == false) {
+                                logger.debug(
+                                    "shard [{}] in snapshot [{}] unexpectedly still in state [{}] after notifying master",
+                                    shardId,
+                                    snapshot,
+                                    shardStatus
+                                );
+                            } // else shard is marked complete as expected
+                        }
+                    } // else snapshot already completed & removed from cluster state
+                }
+
+                if (queuedTasks.addAndGet(-taskCount) == 0) {
+                    return;
+                }
+            }
+        }
     }
 }

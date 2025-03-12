@@ -838,7 +838,6 @@ public class MetadataTests extends ESTestCase {
             containsInAnyOrder("upgrade-system-indices")
         );
         assertThat(clusterTasks.getLastAllocationId(), equalTo(projectTasks.getLastAllocationId()));
-
     }
 
     private Metadata fromJsonXContentStringWithPersistentTasks(String json) throws IOException {

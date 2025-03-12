@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Collections;
@@ -40,6 +41,11 @@ public abstract class UnaryPlan extends LogicalPlan {
     @Override
     public List<Attribute> output() {
         return child.output();
+    }
+
+    @Override
+    public AttributeSet outputSet() {
+        return child().outputSet();
     }
 
     @Override

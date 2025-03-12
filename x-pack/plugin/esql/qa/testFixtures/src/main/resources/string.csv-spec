@@ -987,8 +987,8 @@ from hosts
 | keep description
 | sort description;
 
-warning:Line 2:9: evaluation of [starts_with(description, \"epsilon\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: evaluation of \[starts_with\(description, \\\"epsilon\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 description:text
 epsilon gw instance

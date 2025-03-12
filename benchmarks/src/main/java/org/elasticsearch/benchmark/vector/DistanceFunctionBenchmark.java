@@ -148,11 +148,11 @@ public class DistanceFunctionBenchmark {
 
         float[] floatDocVector = new float[dims];
         byte[] byteDocVector = new byte[dims];
-        byte[] bitDocVector = new byte[dims/8];
+        byte[] bitDocVector = new byte[dims / 8];
 
         float[] floatQueryVector = new float[dims];
         byte[] byteQueryVector = new byte[dims];
-        byte[] bitQueryVector = new byte[dims/8];
+        byte[] bitQueryVector = new byte[dims / 8];
 
         r.nextBytes(byteDocVector);
         r.nextBytes(bitDocVector);

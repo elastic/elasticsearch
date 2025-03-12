@@ -10,8 +10,10 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import jdk.incubator.vector.ByteVector;
+import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
+import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
@@ -55,6 +57,13 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float ipFloatBit(float[] q, byte[] d) {
+        if (q.length >= 16) {
+            if (VECTOR_BITSIZE >= 512) {
+                return ipFloatBit512(q, d);
+            } else if (VECTOR_BITSIZE == 256) {
+                return ipFloatBit256(q, d);
+            }
+        }
         return DefaultESVectorUtilSupport.ipFloatBitImpl(q, d);
     }
 
@@ -164,5 +173,57 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             subRet3 += Integer.bitCount((dValue & q[i + 3 * d.length]) & 0xFF);
         }
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
+    }
+
+    private static final VectorSpecies<Float> FLOAT_SPECIES_8 = FloatVector.SPECIES_256;
+    private static final VectorSpecies<Float> FLOAT_SPECIES_16 = FloatVector.SPECIES_512;
+
+    private static long reverse(byte b) {
+        // see https://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith64Bits
+        return ((((b & 0xff) * 0x80200802L) & 0x0884422110L) * 0x0101010101L >> 32) & 0xff;
+    }
+
+    static float ipFloatBit512(float[] q, byte[] d) {
+        assert q.length == d.length * Byte.SIZE;
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES_16);
+
+        int i = 0;
+        for (; i < FLOAT_SPECIES_16.loopBound(q.length); i += FLOAT_SPECIES_16.length()) {
+            FloatVector floats = FloatVector.fromArray(FLOAT_SPECIES_16, q, i);
+            // use the two bytes corresponding to the same sections
+            // of the bit vector as a mask for addition
+            long maskBits = reverse(d[i / 8]) | reverse(d[i / 8 + 1]) << 8;
+            acc = acc.add(floats, VectorMask.fromLong(FLOAT_SPECIES_16, maskBits));
+        }
+
+        float sum = acc.reduceLanes(VectorOperators.ADD);
+        if (i < q.length) {
+            // do the tail
+            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, d, i);
+        }
+
+        return sum;
+    }
+
+    static float ipFloatBit256(float[] q, byte[] d) {
+        assert q.length == d.length * Byte.SIZE;
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES_8);
+
+        int i = 0;
+        for (; i < FLOAT_SPECIES_8.loopBound(q.length); i += FLOAT_SPECIES_8.length()) {
+            FloatVector floats = FloatVector.fromArray(FLOAT_SPECIES_8, q, i);
+            // use the byte corresponding to the same section
+            // of the bit vector as a mask for addition
+            long maskBits = reverse(d[i / 8]);
+            acc = acc.add(floats, VectorMask.fromLong(FLOAT_SPECIES_8, maskBits));
+        }
+
+        float sum = acc.reduceLanes(VectorOperators.ADD);
+        if (i < q.length) {
+            // do the tail
+            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, d, i);
+        }
+
+        return sum;
     }
 }

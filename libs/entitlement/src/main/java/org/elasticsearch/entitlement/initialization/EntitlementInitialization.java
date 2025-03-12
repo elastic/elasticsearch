@@ -50,7 +50,6 @@ import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
@@ -249,7 +248,7 @@ public class EntitlementInitialization {
             String trustStore = System.getProperty("javax.net.ssl.trustStore");
             Path trustStorePath = trustStore != null
                 ? Path.of(trustStore)
-                : Paths.get(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+                : Path.of(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
 
             Collections.addAll(
                 serverScopes,

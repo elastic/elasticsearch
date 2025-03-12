@@ -18,4 +18,5 @@ module org.elasticsearch.entitlement.qa.test {
     requires java.logging;
     requires java.net.http;
     requires jdk.net;
+    requires java.desktop;
 }

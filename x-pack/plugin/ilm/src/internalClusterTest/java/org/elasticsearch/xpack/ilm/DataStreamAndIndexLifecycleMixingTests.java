@@ -307,7 +307,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(2));
             for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
                 assertThat(index.isManagedByLifecycle(), is(true));
-                assertThat(index.getLifecycle(), equalTo(customLifecycle));
+                assertThat(index.getLifecycle(), equalTo(customLifecycle.toDataStreamLifecycle()));
             }
         });
     }
@@ -709,7 +709,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
             assertThat(dataStreamLifecycleExplainResponse.getIndices().size(), is(2));
             for (ExplainIndexDataStreamLifecycle index : dataStreamLifecycleExplainResponse.getIndices()) {
                 assertThat(index.isManagedByLifecycle(), is(true));
-                assertThat(index.getLifecycle(), equalTo(customLifecycle));
+                assertThat(index.getLifecycle(), equalTo(customLifecycle.toDataStreamLifecycle()));
             }
         });
 

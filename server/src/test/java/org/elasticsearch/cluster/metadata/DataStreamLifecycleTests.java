@@ -140,31 +140,6 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
         }
     }
 
-    public void testTemp() throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.humanReadable(true);
-            DataStreamLifecycle.builder()
-                .downsampling(randomDownsampling())
-                .build()
-                .toXContent(builder, ToXContent.EMPTY_PARAMS, null, null, false);
-            String serialized = Strings.toString(builder);
-            System.out.println(serialized);
-        }
-        String lifecycleJson = """
-            {
-              "data_retention": null,
-              "downsampling": [{"after": "30d", "fixed_interval": "3h"}]
-            }
-            """;
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), lifecycleJson)) {
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            var parsed = DataStreamLifecycle.fromXContent(parser);
-            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
-            assertNull(parser.nextToken());
-            assertThat(parsed, equalTo(DataStreamLifecycle.DEFAULT));
-        }
-    }
-
     public void testDefaultClusterSetting() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         RolloverConfiguration rolloverConfiguration = clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING);

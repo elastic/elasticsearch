@@ -360,6 +360,24 @@ tests:
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
+  issue: https://github.com/elastic/elasticsearch/issues/124518
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
+  method: "testGroupingAggregate {TestCase=<<no alt geo_shape>s> #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/124571
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/150_tsdb/created the data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/124575
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/124160
+- class: org.elasticsearch.lucene.spatial.CartesianCentroidCalculatorTests
+  method: testAddDifferentDimensionalType
+  issue: https://github.com/elastic/elasticsearch/issues/124609
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobContainerStatsTests
+  method: testResumableWrite
+  issue: https://github.com/elastic/elasticsearch/issues/124648
 
 # Examples:
 #

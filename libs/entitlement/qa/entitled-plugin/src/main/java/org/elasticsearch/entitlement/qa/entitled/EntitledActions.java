@@ -63,7 +63,15 @@ public final class EntitledActions {
     }
 
     public static Path createTempSymbolicLink() throws IOException {
-        return Files.createSymbolicLink(readDir().resolve("entitlements-link-" + random.nextLong()), readWriteDir());
+        return createTempSymbolicLink(readWriteDir());
+    }
+
+    public static Path createTempSymbolicLink(Path target) throws IOException {
+        return Files.createSymbolicLink(readDir().resolve("entitlements-link-" + random.nextLong()), target);
+    }
+
+    public static Path pathToRealPath(Path path) throws IOException {
+        return path.toRealPath();
     }
 
     public static Path createK8sLikeMount() throws IOException {

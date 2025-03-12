@@ -57,11 +57,7 @@ public class MetadataDeleteDataStreamService {
      * @param settings     The settings
      * @return The updated Project State
      */
-    public static ClusterState deleteDataStream(
-        ProjectState projectState,
-        Set<DataStream> dataStreams,
-        Settings settings
-    ) {
+    public static ClusterState deleteDataStream(ProjectState projectState, Set<DataStream> dataStreams, Settings settings) {
         if (dataStreams.isEmpty()) {
             return projectState.cluster();
         }

@@ -1888,7 +1888,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      */
     public ProjectMetadata projectFor(DataStream dataStream) {
         return lookupProject(dataStream).orElseThrow(
-            () -> new IndexNotFoundException("dataStream [" + dataStream + "] does not exist in any project")  //TODO check if ds equivalent
+            () -> new IndexNotFoundException("dataStream [" + dataStream + "] does not exist in any project")  // TODO check if ds
+                                                                                                               // equivalent
         );
     }
 

@@ -773,9 +773,7 @@ public final class RestoreService implements ClusterStateApplier {
 
         return dataStreamsToRestore.stream()
             .filter(Objects::nonNull) // Features that aren't present on this node will be warned about in `getFeatureStatesToRestore`
-            .filter(dataStream ->
-                currentState.metadata().getProject().dataStreams().get(dataStream.getName()) != null
-            )
+            .filter(dataStream -> currentState.metadata().getProject().dataStreams().get(dataStream.getName()) != null)
             .collect(Collectors.toUnmodifiableSet());
     }
 

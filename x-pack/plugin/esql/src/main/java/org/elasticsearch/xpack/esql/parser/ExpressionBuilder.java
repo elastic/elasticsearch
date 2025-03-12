@@ -309,14 +309,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             return null;
         }
 
+        var qualifierPattern = ctx.qualifier;
+        // TODO: This does not take into account parameters for qualifiers at all; at least we need to validate against this, or enable it.
+        String qualifier = qualifierPattern == null? null : qualifierPattern.ID_PATTERN().getText();
+
         var src = source(ctx);
         StringBuilder patternString = new StringBuilder();
         StringBuilder nameString = new StringBuilder();
-        var patterns = ctx.name.identifierPattern();
+        var patternSegments = ctx.name.identifierPattern();
 
         // check special wildcard case
-        if (patterns.size() == 1) {
-            var idCtx = patterns.get(0);
+        if (patternSegments.size() == 1) {
+            var idCtx = patternSegments.get(0);
             boolean unresolvedStar = false;
             if (idCtx.ID_PATTERN() != null && idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
                 unresolvedStar = true;
@@ -345,8 +349,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         boolean hasPattern = false;
         // Builds a list of either strings (which map verbatim) or Automatons which match any string
-        List<Object> objects = new ArrayList<>(patterns.size());
-        for (int i = 0, s = patterns.size(); i < s; i++) {
+        List<Object> objects = new ArrayList<>(patternSegments.size());
+        for (int i = 0, s = patternSegments.size(); i < s; i++) {
             if (i > 0) {
                 patternString.append(".");
                 nameString.append(".");
@@ -354,7 +358,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             }
 
             String patternContext = "";
-            EsqlBaseParser.IdentifierPatternContext pattern = patterns.get(i);
+            EsqlBaseParser.IdentifierPatternContext pattern = patternSegments.get(i);
             if (pattern.ID_PATTERN() != null) {
                 patternContext = pattern.ID_PATTERN().getText();
             } else if (pattern.parameter() != null) {
@@ -446,6 +450,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 list.add(o instanceof Automaton a ? a : Automata.makeString(o.toString()));
             }
             // use the fast run variant
+            // TODO: Allow patterns with qualifiers here.
             result = new UnresolvedNamePattern(
                 src,
                 new CharacterRunAutomaton(Operations.determinize(Operations.concatenate(list), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)),
@@ -453,8 +458,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 nameString.toString()
             );
         } else {
-            // TODO: here for patterns a*b with qualifiers.
-            result = new UnresolvedAttribute(src, null, Strings.collectionToDelimitedString(objects, ""));
+            result = new UnresolvedAttribute(src, qualifier, Strings.collectionToDelimitedString(objects, ""));
         }
         return result;
     }

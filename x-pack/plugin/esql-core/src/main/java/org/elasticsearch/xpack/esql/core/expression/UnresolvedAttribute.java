@@ -52,7 +52,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     ) {
         super(source, qualifier, name, id);
         this.customMessage = unresolvedMessage != null;
-        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
     }
 
@@ -103,7 +103,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     protected TypeResolution resolveType() {
-        return new TypeResolution("unresolved attribute [" + name() + "]");
+        return new TypeResolution("unresolved attribute [" + qualifiedName() + "]");
     }
 
     @Override
@@ -113,7 +113,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + name();
+        return UNRESOLVED_PREFIX + qualifiedName();
     }
 
     @Override

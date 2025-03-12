@@ -53,6 +53,10 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         return name;
     }
 
+    public String qualifiedName() {
+        return qualifier == null? name : (qualifier + " " + name);
+    }
+
     public NameId id() {
         return id;
     }

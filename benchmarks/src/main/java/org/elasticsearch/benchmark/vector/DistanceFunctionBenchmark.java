@@ -13,6 +13,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.field.vectors.BinaryDenseVector;
+import org.elasticsearch.script.field.vectors.BitBinaryDenseVector;
+import org.elasticsearch.script.field.vectors.BitKnnDenseVector;
 import org.elasticsearch.script.field.vectors.ByteBinaryDenseVector;
 import org.elasticsearch.script.field.vectors.ByteKnnDenseVector;
 import org.elasticsearch.script.field.vectors.DenseVector;
@@ -60,7 +62,8 @@ public class DistanceFunctionBenchmark {
 
     public enum VectorType {
         FLOAT,
-        BYTE
+        BYTE,
+        BIT
     }
 
     public enum Function {
@@ -145,12 +148,16 @@ public class DistanceFunctionBenchmark {
 
         float[] floatDocVector = new float[dims];
         byte[] byteDocVector = new byte[dims];
+        byte[] bitDocVector = new byte[dims/8];
 
         float[] floatQueryVector = new float[dims];
         byte[] byteQueryVector = new byte[dims];
+        byte[] bitQueryVector = new byte[dims/8];
 
         r.nextBytes(byteDocVector);
+        r.nextBytes(bitDocVector);
         r.nextBytes(byteQueryVector);
+        r.nextBytes(bitQueryVector);
         for (int i = 0; i < dims; i++) {
             floatDocVector[i] = r.nextFloat();
             floatQueryVector[i] = r.nextFloat();
@@ -179,10 +186,11 @@ public class DistanceFunctionBenchmark {
             };
             case BYTE -> switch (type) {
                 case KNN -> new ByteKnnDenseVector(byteDocVector);
-                case BINARY -> {
-                    BytesRef vectorData = generateVectorData(byteDocVector);
-                    yield new ByteBinaryDenseVector(byteDocVector, vectorData, dims);
-                }
+                case BINARY -> new ByteBinaryDenseVector(byteDocVector, generateVectorData(byteDocVector), dims);
+            };
+            case BIT -> switch (type) {
+                case KNN -> new BitKnnDenseVector(bitDocVector);
+                case BINARY -> new BitBinaryDenseVector(bitDocVector, new BytesRef(bitDocVector), bitDocVector.length);
             };
         };
 
@@ -203,6 +211,13 @@ public class DistanceFunctionBenchmark {
                 case L1 -> () -> vectorImpl.l1Norm(byteQueryVector);
                 case L2 -> () -> vectorImpl.l2Norm(byteQueryVector);
                 case HAMMING -> () -> vectorImpl.hamming(byteQueryVector);
+            };
+            case BIT -> switch (function) {
+                case DOT -> () -> vectorImpl.dotProduct(bitQueryVector);
+                case COSINE -> throw new UnsupportedOperationException("Unsupported function " + function);
+                case L1 -> () -> vectorImpl.l1Norm(bitQueryVector);
+                case L2 -> () -> vectorImpl.l2Norm(bitQueryVector);
+                case HAMMING -> () -> vectorImpl.hamming(bitQueryVector);
             };
         };
     }

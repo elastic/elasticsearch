@@ -790,5 +790,9 @@ public class IndexEngine extends InternalEngine {
         return queuedOrRunningMergesCount.get() > 0;
     }
 
-    public record EngineMetrics(TranslogRecoveryMetrics translogRecoveryMetrics, MergeMetrics mergeMetrics) {}
+    public record EngineMetrics(
+        TranslogRecoveryMetrics translogRecoveryMetrics,
+        MergeMetrics mergeMetrics,
+        HollowShardsMetrics hollowShardsMetrics
+    ) {}
 }

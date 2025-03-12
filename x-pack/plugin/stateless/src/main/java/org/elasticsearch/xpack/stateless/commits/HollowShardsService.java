@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
+import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 
@@ -104,6 +105,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     private final IndicesService indicesService;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final ThreadPool threadPool;
+    private final HollowShardsMetrics metrics;
 
     private final LongSupplier relativeTimeSupplierInMillis;
     private final boolean featureEnabled;
@@ -119,7 +121,8 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         ClusterService clusterService,
         IndicesService indicesService,
         IndexShardCacheWarmer indexShardCacheWarmer,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        HollowShardsMetrics metrics
     ) {
         this(
             settings,
@@ -127,6 +130,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
             indicesService,
             indexShardCacheWarmer,
             threadPool,
+            metrics,
             clusterService.threadPool()::relativeTimeInMillis
         );
     }
@@ -137,12 +141,14 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         IndicesService indicesService,
         IndexShardCacheWarmer indexShardCacheWarmer,
         ThreadPool threadPool,
+        HollowShardsMetrics metrics,
         LongSupplier relativeTimeSupplierInMillis
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.indexShardCacheWarmer = indexShardCacheWarmer;
         this.relativeTimeSupplierInMillis = relativeTimeSupplierInMillis;
+        this.metrics = metrics;
         this.threadPool = threadPool;
         this.featureEnabled = HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(settings);
         this.ingestionDataStreamNonWriteTtl = HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.get(settings);
@@ -219,6 +225,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                 + shardId;
         var existingBlocker = hollowShards.put(shardId, new HollowShardInfo(new SubscribableListener<>(), new AtomicBoolean(false)));
         assert existingBlocker == null : "already hollow shard " + shardId;
+        metrics.incrementHollowShardCount();
     }
 
     /**
@@ -244,6 +251,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     + ")";
             logger.info("{} unhollowing shard completed", shardId);
             existingBlocker.listener.onResponse(null);
+            metrics.decrementHollowShardCount();
         }
     }
 
@@ -288,6 +296,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
+                    long startTime = relativeTimeSupplierInMillis.getAsLong();
                     var indexShard = indicesService.getShardOrNull(shardId);
                     assert indexShard != null : shardId;
                     assert indexShard.getEngineOrNull() instanceof HollowIndexEngine
@@ -313,6 +322,8 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                             newEngine.flush(true, true, ActionListener.releaseAfter(ActionListener.wrap(flushResult -> {
                                 assert flushResult.flushPerformed() : "Flush wasn't performed";
                                 removeHollowShard(indexShard);
+                                metrics.unhollowSuccessCounter().increment();
+                                metrics.unhollowTimeMs().record(relativeTimeSupplierInMillis.getAsLong() - startTime);
                                 assert newEngine.isLastCommitHollow() == false : "After a flush the last commit should not be hollow";
                             }, e -> failUnhollowing(shardId, e)), primaryPermit));
                         } catch (Exception e) {

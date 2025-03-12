@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
+import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
@@ -125,6 +126,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final ThreadPool threadPool;
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsService hollowShardsService;
+    private final HollowShardsMetrics hollowShardsMetrics;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -135,7 +137,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         PeerRecoveryTargetService peerRecoveryTargetService,
         StatelessCommitService statelessCommitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
-        HollowShardsService hollowShardsService
+        HollowShardsService hollowShardsService,
+        HollowShardsMetrics hollowShardsMetrics
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -149,6 +152,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.threadPool = transportService.getThreadPool();
         this.recoveryExecutor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
+        this.hollowShardsMetrics = hollowShardsMetrics;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
@@ -296,6 +300,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         // The block will be removed when the source shard is successfully relocated and closed,
                         // or will remain in place if the relocation fails until the shard is unhollowed.
                         logger.debug(() -> "hollowing index engine for shard " + shardId);
+                        long startTime = threadPool.relativeTimeInMillisSupplier().getAsLong();
                         try {
                             indexShard.resetEngine();
                         } catch (Exception e) {
@@ -303,6 +308,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                             throw e;
                         }
                         hollowShardsService.addHollowShard(indexShard);
+                        hollowShardsMetrics.hollowSuccessCounter().increment();
+                        hollowShardsMetrics.hollowTimeMs().record(threadPool.relativeTimeInMillisSupplier().getAsLong() - startTime);
                     } else {
                         indexEngine.flush(false, true, ActionListener.noop());
                     }

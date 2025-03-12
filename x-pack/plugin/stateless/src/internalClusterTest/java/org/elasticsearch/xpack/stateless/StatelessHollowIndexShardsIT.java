@@ -21,6 +21,7 @@ import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
+import co.elastic.elasticsearch.stateless.engine.HollowShardsMetrics;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -81,6 +82,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
@@ -150,7 +152,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         return super.nodeSettings().put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
             .put(DATA_STREAM_LIFECYCLE_POLL_INTERVAL, TimeValue.timeValueSeconds(1))
             .put(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING.getKey(), "min_docs=1,max_docs=1")
-            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+            .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+            .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0);
     }
 
     @After
@@ -453,6 +456,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false);
         }
 
+        var telemetryPluginA = getTelemetryPlugin(indexNodeA);
+        assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo(0L));
+        assertThat(getTotalLongHistogramValue(HollowShardsMetrics.HOLLOW_TIME_MILLIS, telemetryPluginA), equalTo(0L));
+        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+
         logger.info("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
@@ -470,6 +478,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             assertTrue(commitAfterRelocation.hollow());
             assertThat(commitAfterRelocation.nodeEphemeralId(), is(emptyString()));
         }
+        assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
+        assertThat(getTotalLongHistogramValue(HollowShardsMetrics.HOLLOW_TIME_MILLIS, telemetryPluginA), greaterThan(0L));
+        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+
+        var telemetryPluginB = getTelemetryPlugin(indexNodeB);
+        assertThat(
+            getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB),
+            equalTo((long) numberOfShards)
+        );
     }
 
     public void testRelocateHollowShards() throws Exception {
@@ -519,6 +536,14 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                 statelessCommitServiceB.getLatestUploadedBcc(indexShard.shardId()).lastCompoundCommit().primaryTermAndGeneration()
             );
         }
+        var telemetryPluginA = getTelemetryPlugin(indexNodeA);
+        assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
+        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA), equalTo(0L));
+        var telemetryPluginB = getTelemetryPlugin(indexNodeB);
+        assertThat(
+            getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB),
+            equalTo((long) numberOfShards)
+        );
 
         // Try to relocate back hollow shards now initialized with `HollowIndexEngine`
         logger.info("--> relocating {} shards from {} to {}", numberOfShards, indexNodeB, indexNodeA);
@@ -544,6 +569,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                 equalTo(initialHollowPrimaryTermGenerations.get(indexShard.shardId()))
             );
         }
+        assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
+        assertThat(
+            getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginA),
+            equalTo((long) numberOfShards)
+        );
+        assertThat(getTotalLongUpDownCounterValue(HollowShardsMetrics.HOLLOW_SHARDS_TOTAL, telemetryPluginB), equalTo(0L));
     }
 
     public void testRelocateHollowableShardWithConnectionFailure() throws Exception {
@@ -579,17 +610,20 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeB)));
 
         final var engine = indexShard.getEngineOrNull();
+        var telemetryPlugin = getTelemetryPlugin(indexNodeA);
         if (failStartElseHandoff) {
             // If a primary relocation fails before the hollow flush, e.g., due to node disconnection during the start message exchange, the
             // engine on the source node will be left to IndexEngine.
             assertThat(engine, instanceOf(IndexEngine.class));
             assertFalse(((IndexEngine) engine).isLastCommitHollow());
             hollowShardsService.ensureHollowShard(indexShard.shardId(), false);
+            assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPlugin), equalTo(0L));
         } else {
             // If a primary relocation fails after the hollow flush, e.g., due to node disconnection during the handoff exchange, the
             // engine on the source node will have been reset to HollowIndexEngine and stay like that.
             assertThat(engine, instanceOf(HollowIndexEngine.class));
             hollowShardsService.ensureHollowShard(indexShard.shardId(), true);
+            assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPlugin), equalTo(1L));
         }
 
         indexDocsAndRefresh(indexName, numDocs);
@@ -910,6 +944,11 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
             hollowShardsServiceB.ensureHollowShard(indexShard.shardId(), true);
         }
+        var telemetryPluginA = getTelemetryPlugin(indexNodeA);
+        assertThat(getTotalLongCounterValue(HollowShardsMetrics.HOLLOW_SUCCESS_TOTAL, telemetryPluginA), equalTo((long) numberOfShards));
+        var telemetryPluginB = getTelemetryPlugin(indexNodeB);
+        assertThat(getTotalLongCounterValue(HollowShardsMetrics.UNHOLLOW_SUCCESS_TOTAL, telemetryPluginB), equalTo(0L));
+        assertThat(getTotalLongHistogramValue(HollowShardsMetrics.UNHOLLOW_TIME_MILLIS, telemetryPluginB), equalTo(0L));
 
         // Try to inject documents from background threads, the shards should unhollow on first ingestion
         int ingestingThreads = randomIntBetween(1, 8);
@@ -989,6 +1028,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             assertFalse(indexEngine.isLastCommitHollow());
             checkLastCommitIsNotHollow(indexNodeB, indexShard.shardId());
         }
+        assertThat(getTotalLongCounterValue(HollowShardsMetrics.UNHOLLOW_SUCCESS_TOTAL, telemetryPluginB), equalTo((long) numberOfShards));
+        assertThat(getTotalLongHistogramValue(HollowShardsMetrics.UNHOLLOW_TIME_MILLIS, telemetryPluginB), greaterThan(0L));
 
         // We can continue inject new documents
         int docs = randomIntBetween(16, 64);

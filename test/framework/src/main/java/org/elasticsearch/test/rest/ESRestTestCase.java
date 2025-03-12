@@ -48,6 +48,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -74,6 +75,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MapMatcher;
@@ -142,7 +144,9 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -2079,6 +2083,20 @@ public abstract class ESRestTestCase extends ESTestCase {
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 
+    /**
+     * Returns a list of the data stream's backing index names.
+     */
+    @SuppressWarnings("unchecked")
+    protected static List<String> getDataStreamBackingIndexNames(String dataStreamName) throws IOException {
+        Map<String, Object> response = getAsMap(client(), "/_data_stream/" + dataStreamName);
+        List<?> dataStreams = (List<?>) response.get("data_streams");
+        assertThat(dataStreams.size(), equalTo(1));
+        Map<?, ?> dataStream = (Map<?, ?>) dataStreams.getFirst();
+        assertThat(dataStream.get("name"), equalTo(dataStreamName));
+        List<?> indices = (List<?>) dataStream.get("indices");
+        return indices.stream().map(index -> ((Map<String, String>) index).get("index_name")).toList();
+    }
+
     @SuppressWarnings("unchecked")
     protected static Map<String, Object> getAlias(final String index, final String alias) throws IOException {
         String endpoint = "/_alias";
@@ -2687,5 +2705,138 @@ public abstract class ESRestTestCase extends ESTestCase {
         Matcher<?> valuesMatcher
     ) {
         assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    protected void createProject(String project) throws IOException {
+        assert multiProjectEnabled;
+        RestClient client = adminClient();
+        final Request request = new Request("PUT", "/_project/" + project);
+        try {
+            final Response response = client.performRequest(request);
+            logger.info("Created project {} : {}", project, response.getStatusLine());
+        } catch (ResponseException e) {
+            logger.error("Failed to create project: {}", project);
+            throw e;
+        }
+    }
+
+    protected void assertProjectIds(RestClient client, List<String> expectedProjects) throws IOException {
+        assert multiProjectEnabled;
+        final Collection<String> actualProjects = getProjectIds(client);
+        assertThat(
+            "Cluster returned project ids: " + actualProjects,
+            actualProjects,
+            containsInAnyOrder(expectedProjects.toArray(String[]::new))
+        );
+    }
+
+    private Collection<String> getProjectIds(RestClient client) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("GET", "/_cluster/state/routing_table?multi_project=true");
+        try {
+            final ObjectPath response = ObjectPath.createFromResponse(client.performRequest(request));
+            final List<Map<String, Object>> projectRouting = response.evaluate("routing_table.projects");
+            return projectRouting.stream().map(obj -> (String) obj.get("id")).toList();
+        } catch (ResponseException e) {
+            logger.error("Failed to retrieve cluster state");
+            throw e;
+        }
+    }
+
+    protected void assertEmptyProject(String projectId) throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("GET", "_cluster/state/metadata,routing_table,customs");
+        request.setOptions(request.getOptions().toBuilder().addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId).build());
+
+        var response = responseAsMap(adminClient().performRequest(request));
+        ObjectPath state = new ObjectPath(response);
+
+        final var indexNames = ((Map<?, ?>) state.evaluate("metadata.indices")).keySet();
+        final var routingTableEntries = ((Map<?, ?>) state.evaluate("routing_table.indices")).keySet();
+        if (indexNames.isEmpty() == false || routingTableEntries.isEmpty() == false) {
+            // Only the default project is allowed to have the security index after tests complete.
+            // The security index could show up in the indices, routing table, or both.
+            // If that happens, we need to check that it hasn't been modified by any leaking API calls.
+            if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())
+                && (indexNames.isEmpty() || (indexNames.size() == 1 && indexNames.contains(".security-7")))
+                && (routingTableEntries.isEmpty() || (routingTableEntries.size() == 1 && routingTableEntries.contains(".security-7")))) {
+                checkSecurityIndex();
+            } else {
+                // If there are any other indices or if this is for a non-default project, we fail the test.
+                assertThat("Project [" + projectId + "] should not have indices", indexNames, empty());
+                assertThat("Project [" + projectId + "] should not have routing entries", routingTableEntries, empty());
+            }
+        }
+        assertThat(
+            "Project [" + projectId + "] should not have graveyard entries",
+            state.evaluate("metadata.index-graveyard.tombstones"),
+            empty()
+        );
+
+        final Map<String, ?> legacyTemplates = state.evaluate("metadata.templates");
+        if (legacyTemplates != null) {
+            var templateNames = legacyTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have legacy templates", templateNames, empty());
+        }
+
+        final Map<String, Object> indexTemplates = state.evaluate("metadata.index_template.index_template");
+        if (indexTemplates != null) {
+            var templateNames = indexTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have index templates", templateNames, empty());
+        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
+            fail("Expected default project to have standard templates, but was null");
+        }
+
+        final Map<String, Object> componentTemplates = state.evaluate("metadata.component_template.component_template");
+        if (componentTemplates != null) {
+            var templateNames = componentTemplates.keySet().stream().filter(name -> isXPackTemplate(name) == false).toList();
+            assertThat("Project [" + projectId + "] should not have component templates", templateNames, empty());
+        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
+            fail("Expected default project to have standard component templates, but was null");
+        }
+
+        final List<Map<String, ?>> pipelines = state.evaluate("metadata.ingest.pipeline");
+        if (pipelines != null) {
+            var pipelineNames = pipelines.stream()
+                .map(pipeline -> String.valueOf(pipeline.get("id")))
+                .filter(id -> isXPackIngestPipeline(id) == false)
+                .toList();
+            assertThat("Project [" + projectId + "] should not have ingest pipelines", pipelineNames, empty());
+        } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
+            fail("Expected default project to have standard ingest pipelines, but was null");
+        }
+
+        if (has(ProductFeature.ILM)) {
+            final Map<String, Object> ilmPolicies = state.evaluate("metadata.index_lifecycle.policies");
+            if (ilmPolicies != null) {
+                var policyNames = new HashSet<>(ilmPolicies.keySet());
+                policyNames.removeAll(preserveILMPolicyIds());
+                assertThat("Project [" + projectId + "] should not have ILM Policies", policyNames, empty());
+            } else if (projectId.equals(Metadata.DEFAULT_PROJECT_ID.id())) {
+                fail("Expected default project to have standard ILM policies, but was null");
+            }
+        }
+    }
+
+    private void checkSecurityIndex() throws IOException {
+        assert multiProjectEnabled;
+        final Request request = new Request("GET", "/_security/_query/role");
+        request.setJsonEntity("""
+            {
+              "query": {
+                "bool": {
+                  "must_not": {
+                    "term": {
+                      "metadata._reserved": true
+                    }
+                  }
+                }
+              }
+            }""");
+        request.setOptions(
+            request.getOptions().toBuilder().addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, Metadata.DEFAULT_PROJECT_ID.id()).build()
+        );
+        final var response = responseAsMap(adminClient().performRequest(request));
+        assertThat("Security index should not contain any non-reserved roles", (Collection<?>) response.get("roles"), empty());
     }
 }

@@ -23,6 +23,7 @@ import fixture.gcs.TestUtils;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -31,14 +32,11 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin;
 
 import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
-
-import static org.hamcrest.Matchers.greaterThan;
 
 public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
-
-    private static final Set<String> EXPECTED_REQUEST_NAMES = Set.of("GetObject", "ListObjects", "InsertObject");
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -83,14 +81,42 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
     }
 
     @Override
-    protected void assertRepositoryStats(RepositoryStats repositoryStats) {
-        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.actionStats.keySet());
-        repositoryStats.actionStats.values().forEach(count -> assertThat(count.operations(), greaterThan(0L)));
+    protected void assertRepositoryStats(RepositoryStats repositoryStats, boolean withRandomCrud, OperationPurpose randomPurpose) {
+        var expectedMetrics = new HashSet<>(
+            List.of(
+                "ClusterState_GetObject",
+                "ClusterState_InsertObject",
+                "ClusterState_ListObjects",
+                "Indices_ListObjects",
+                "Translog_ListObjects"
+            )
+        );
+        if (withRandomCrud) {
+            for (var op : List.of("GetObject", "ListObjects", "InsertObject")) {
+                expectedMetrics.add(randomPurpose.getKey() + "_" + op);
+            }
+        }
+        for (var metric : expectedMetrics) {
+            var stats = repositoryStats.actionStats.get(metric);
+            assertNotNull(metric, stats);
+            assertTrue(metric, stats.operations() > 0);
+        }
     }
 
     @Override
     protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
-        assertEquals(EXPECTED_REQUEST_NAMES, repositoryStats.actionStats.keySet());
-        repositoryStats.actionStats.values().forEach(count -> assertThat(count.operations(), greaterThan(0L)));
+        var expectedMetrics = new HashSet<>(
+            List.of(
+                "SnapshotMetadata_GetObject",
+                "SnapshotMetadata_ListObjects",
+                "SnapshotMetadata_InsertObject",
+                "SnapshotData_ListObjects"
+            )
+        );
+        for (var metric : expectedMetrics) {
+            var stats = repositoryStats.actionStats.get(metric);
+            assertNotNull(metric, stats);
+            assertTrue(metric, stats.operations() > 0);
+        }
     }
 }

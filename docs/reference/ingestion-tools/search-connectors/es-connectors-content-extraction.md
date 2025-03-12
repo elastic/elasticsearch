@@ -100,7 +100,7 @@ Local content extraction is available for the following self-managed connectors:
 
 Self-hosted content extraction is handled by a **separate** extraction service.
 
-The versions for the extraction service do not align with the Elastic stack. For versions after `8.11.x` (including 9.0.0-beta1), you should use extraction service version `0.3.x`.
+The versions for the extraction service do not align with the Elastic stack. For versions after `8.11.x` (including 9.0.0), you should use extraction service version `0.3.x`.
 
 You can run the service with the following command:
 

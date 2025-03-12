@@ -319,6 +319,7 @@ public final class IndicesPermission {
             combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex)
         );
         for (String forIndexPattern : checkForIndexPatterns) {
+            IndexNameExpressionResolver.assertExpressionHasDefaultOrDataSelector(forIndexPattern);
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
                 checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
@@ -811,6 +812,11 @@ public final class IndicesPermission {
         // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
         Map<Automaton, Automaton> allAutomatons = new HashMap<>();
         for (Group group : groups) {
+            // TODO support failure store privileges
+            // we also check that the group does not support data access to avoid erroneously filtering out `all` privilege groups
+            if (group.checkSelector(IndexComponentSelector.FAILURES) && false == group.checkSelector(IndexComponentSelector.DATA)) {
+                continue;
+            }
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();
             allAutomatons.compute(
                 group.privilege().getAutomaton(),

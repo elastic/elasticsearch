@@ -33,10 +33,12 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -95,6 +97,58 @@ public class PolicyParser {
         this.policyName = policyName;
         this.isExternalPlugin = isExternalPlugin;
         this.externalEntitlements = externalEntitlements;
+    }
+
+    public VersionedPolicy parseVersionedPolicy() {
+        Set<String> versions = Set.of();
+        Policy policy = emptyPolicy();
+        try {
+            if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw newPolicyParserException("expected object <versioned policy>");
+            }
+
+            while (policyParser.nextToken() != XContentParser.Token.END_OBJECT) {
+                if (policyParser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                    if (policyParser.currentName().equals("versions")) {
+                        versions = parseVersions();
+                    } else if (policyParser.currentName().equals("policy")) {
+                        policy = parsePolicy();
+                    } else {
+                        throw newPolicyParserException("expected either <version> or <policy> field");
+                    }
+                } else {
+                    throw newPolicyParserException("expected either <version> or <policy> field");
+                }
+            }
+
+            return new VersionedPolicy(policy, versions);
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
+    }
+
+    private Policy emptyPolicy() {
+        return new Policy(policyName, List.of());
+    }
+
+    private Set<String> parseVersions() throws IOException {
+        try {
+            if (policyParser.nextToken() != XContentParser.Token.START_ARRAY) {
+                throw newPolicyParserException("expected array of <versions>");
+            }
+            Set<String> versions = new HashSet<>();
+            while (policyParser.nextToken() != XContentParser.Token.END_ARRAY) {
+                if (policyParser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    String version = policyParser.text();
+                    versions.add(version);
+                } else {
+                    throw newPolicyParserException("expected <version>");
+                }
+            }
+            return versions;
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
     }
 
     public Policy parsePolicy() {

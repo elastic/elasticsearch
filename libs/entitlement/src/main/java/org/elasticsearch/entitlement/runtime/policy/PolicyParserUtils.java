@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -45,7 +46,7 @@ public class PolicyParserUtils {
 
     public static final String POLICY_OVERRIDE_PREFIX = "es.entitlements.policy.";
 
-    public static Map<String, Policy> createPluginPolicies(Collection<PluginData> pluginData, Map<String, String> overrides)
+    public static Map<String, Policy> createPluginPolicies(Collection<PluginData> pluginData, Map<String, String> overrides, String version)
         throws IOException {
         Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
         for (var entry : pluginData) {
@@ -53,25 +54,62 @@ public class PolicyParserUtils {
             String pluginName = pluginRoot.getFileName().toString();
             final Set<String> moduleNames = getModuleNames(pluginRoot, entry.isModular());
 
-            final Policy policy;
-            var policyOverride = overrides.get(pluginName);
-            if (policyOverride != null) {
-                logger.info("Using policy override for plugin [{}]", pluginName);
-                policy = decodeOverriddenPluginPolicy(policyOverride, pluginName, entry.isExternalPlugin());
-                validatePolicyScopes(pluginName, policy, moduleNames, "<override>");
+            var overriddenPolicy = parsePolicyOverrideIfExists(overrides, version, entry.isExternalPlugin(), pluginName, moduleNames);
+            if (overriddenPolicy.isPresent()) {
+                pluginPolicies.put(pluginName, overriddenPolicy.get());
             } else {
                 Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
-                policy = parsePolicyIfExists(pluginName, policyFile, entry.isExternalPlugin());
+                var policy = parsePolicyIfExists(pluginName, policyFile, entry.isExternalPlugin());
                 validatePolicyScopes(pluginName, policy, moduleNames, policyFile.toString());
+                pluginPolicies.put(pluginName, policy);
             }
-            pluginPolicies.put(pluginName, policy);
         }
         return pluginPolicies;
     }
 
-    static Policy decodeOverriddenPluginPolicy(String base64String, String pluginName, boolean isExternalPlugin) throws IOException {
+    static Optional<Policy> parsePolicyOverrideIfExists(
+        Map<String, String> overrides,
+        String version,
+        boolean externalPlugin,
+        String pluginName,
+        Set<String> moduleNames
+    ) {
+        var policyOverride = overrides.get(pluginName);
+        if (policyOverride != null) {
+            try {
+                var versionedPolicy = decodeOverriddenPluginPolicy(policyOverride, pluginName, externalPlugin);
+                validatePolicyScopes(pluginName, versionedPolicy.policy(), moduleNames, "<override>");
+
+                // Empty versions defaults to "any"
+                if (versionedPolicy.versions().isEmpty() || versionedPolicy.versions().contains(version)) {
+                    logger.info("Using policy override for plugin [{}]", pluginName);
+                    return Optional.of(versionedPolicy.policy());
+                } else {
+                    logger.warn(
+                        "Found a policy override with version mismatch. The override will not be applied. "
+                            + "Plugin [{}]; policy versions [{}]; current version [{}]",
+                        pluginName,
+                        String.join(",", versionedPolicy.versions()),
+                        version
+                    );
+                }
+            } catch (Exception ex) {
+                logger.warn(
+                    Strings.format(
+                        "Found a policy override with invalid content. The override will not be applied. Plugin [%s]",
+                        pluginName
+                    ),
+                    ex
+                );
+            }
+        }
+        return Optional.empty();
+    }
+
+    static VersionedPolicy decodeOverriddenPluginPolicy(String base64String, String pluginName, boolean isExternalPlugin)
+        throws IOException {
         byte[] policyDefinition = Base64.getDecoder().decode(base64String);
-        return new PolicyParser(new ByteArrayInputStream(policyDefinition), pluginName, isExternalPlugin).parsePolicy();
+        return new PolicyParser(new ByteArrayInputStream(policyDefinition), pluginName, isExternalPlugin).parseVersionedPolicy();
     }
 
     private static void validatePolicyScopes(String pluginName, Policy policy, Set<String> moduleNames, String policyLocation) {

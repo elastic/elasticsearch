@@ -245,7 +245,7 @@ class Elasticsearch {
             ).toList();
 
             var policyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
-            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData, policyOverrides);
+            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData, policyOverrides, Build.current().version());
 
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 

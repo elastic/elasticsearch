@@ -300,6 +300,9 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.indexing.index_time", "default:false;text-align:right;desc:time spent in indexing");
 
+        table.addCell("indexing.recent_index_load", "sibling:pri;default:false;text-align:right;desc:indexing load, weighted for recency");
+        table.addCell("pri.indexing.recent_index_load", "default:false;text-align:right;desc:indexing load, weighted for recency");
+
         table.addCell(
             "indexing.index_total",
             "sibling:pri;alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops"
@@ -687,6 +690,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexTime());
             table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexTime());
+
+            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getRecentWriteLoad());
+            table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getRecentWriteLoad());
 
             table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexCount());
             table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexCount());

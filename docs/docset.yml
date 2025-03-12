@@ -2,7 +2,7 @@ project: 'Elasticsearch'
 exclude:
   - README.md
   - internal/*
-  - reference/query-languages/esql/kibana/docs/*
+  - reference/query-languages/esql/kibana/docs/**
   - reference/query-languages/esql/README.md
 cross_links:
   - beats

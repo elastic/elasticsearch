@@ -168,6 +168,7 @@ subs:
   ess:   "Elasticsearch Service"
   ece:   "Elastic Cloud Enterprise"
   eck:   "Elastic Cloud on Kubernetes"
+  ech:   "Elastic Cloud Hosted"
   serverless-full:   "Elastic Cloud Serverless"
   serverless-short:   "Serverless"
   es-serverless:   "Elasticsearch Serverless"

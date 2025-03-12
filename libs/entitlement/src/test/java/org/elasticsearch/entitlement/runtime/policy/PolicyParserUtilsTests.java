@@ -37,7 +37,10 @@ public class PolicyParserUtilsTests extends ESTestCase {
               entitlement-module-name-2:
                 - set_https_connection_properties
             """;
-        var base64EncodedPolicy = new String(Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)));
+        var base64EncodedPolicy = new String(
+            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.UTF_8
+        );
         var overrides = Map.of("test-plugin", base64EncodedPolicy);
 
         final Policy expectedPolicy = new Policy(
@@ -68,7 +71,10 @@ public class PolicyParserUtilsTests extends ESTestCase {
               entitlement-module-name-2:
                 - set_https_connection_properties
             """;
-        var base64EncodedPolicy = new String(Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)));
+        var base64EncodedPolicy = new String(
+            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.UTF_8
+        );
         var overrides = Map.of("test-plugin", base64EncodedPolicy);
 
         final Policy expectedPolicy = new Policy(
@@ -102,7 +108,10 @@ public class PolicyParserUtilsTests extends ESTestCase {
               entitlement-module-name-2:
                 - set_https_connection_properties
             """;
-        var base64EncodedPolicy = new String(Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)));
+        var base64EncodedPolicy = new String(
+            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.UTF_8
+        );
         var overrides = Map.of("test-plugin", base64EncodedPolicy);
 
         var policy = PolicyParserUtils.parsePolicyOverrideIfExists(
@@ -128,7 +137,10 @@ public class PolicyParserUtilsTests extends ESTestCase {
               entitlement-module-name-2:
                 - set_https_connection_properties
             """;
-        var base64EncodedPolicy = new String(Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)));
+        var base64EncodedPolicy = new String(
+            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.UTF_8
+        );
         var overrides = Map.of("test-plugin", base64EncodedPolicy);
 
         var policy = PolicyParserUtils.parsePolicyOverrideIfExists(overrides, "9.0.0", true, "test-plugin", Set.of());
@@ -144,7 +156,10 @@ public class PolicyParserUtilsTests extends ESTestCase {
             entitlement-module-name-2:
               - set_https_connection_properties
             """;
-        var base64EncodedPolicy = new String(Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)));
+        var base64EncodedPolicy = new String(
+            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            StandardCharsets.UTF_8
+        );
         var overrides = Map.of("test-plugin", base64EncodedPolicy);
 
         var policy = PolicyParserUtils.parsePolicyOverrideIfExists(overrides, "9.0.0", true, "test-plugin", Set.of());

@@ -725,7 +725,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // And make sure they both have aliases
         final String systemDataStreamAlias = SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME + "-alias";
         assertAcked(
-            indicesAdmin().prepareAliases()
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                 .addAlias(regularIndex, regularAlias)
                 .addAlias(SystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME, systemDataStreamAlias, true)
                 .get()

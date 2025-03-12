@@ -89,7 +89,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                     long asLong = relativeTimeInNanosSupplier.getAsLong();
                     totalStats.recentIndexMetric.addIncrement(took, asLong);
                     logger.info(
-                        "***** Increment of {} ms at {} ms - unweighted rate {} - weighted rate {}}",
+                        "***** Increment of {} ms at {} ms - unweighted rate {} - weighted rate {}",
                         took * 1.0e-6,
                         (asLong - totalStats.startTimeInNanosForDebugLogging) * 1.0e-6,
                         1.0 * totalStats.indexMetric.sum() / (asLong - totalStats.startTimeInNanosForDebugLogging),
@@ -193,8 +193,8 @@ final class InternalIndexingStats implements IndexingOperationListener {
             );
             if (timeSinceShardStartedInNanos > 0) {
                 logger.info(
-                    "***** WRITE LOADS: OLD = {} / {}} = {}} NEW = {}",
-                    totalIndexingTimeInNanos * 1.0e-6,
+                    "***** WRITE LOADS: OLD = {} / {} = {}} NEW = {}",
+                    totalIndexingTimeSinceShardStartedInNanos * 1.0e-6,
                     timeSinceShardStartedInNanos * 1.0e-6,
                     1.0 * totalIndexingTimeSinceShardStartedInNanos / timeSinceShardStartedInNanos,
                     recentIndexingLoadSinceShardStarted

@@ -891,7 +891,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
         private record CheckTask(Snapshot snapshot, ShardId shardId) {}
 
-        private final AtomicInteger queuedTasks = new AtomicInteger(0);
+        private final AtomicInteger queuedTasks = new AtomicInteger(0); // atomic so we can ensure max one thread processing the queue
         private final Queue<CheckTask> queue = new ConcurrentLinkedQueue<>();
 
         void ensureShardComplete(Snapshot snapshot, ShardId shardId) {
@@ -907,10 +907,10 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             queue.add(new CheckTask(snapshot, shardId));
             if (queuedTasks.getAndIncrement() == 0) {
                 threadPool.generic().execute(this::runCheck);
-            }
+            } // else a runCheck is already running somewhere and will pick up the task we just added
         }
 
-        void runCheck() {
+        private void runCheck() {
             while (true) {
                 final var taskCount = queuedTasks.get();
                 final var shardsBySnapshot = new HashMap<Snapshot, Set<ShardId>>();
@@ -942,7 +942,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
                 if (queuedTasks.addAndGet(-taskCount) == 0) {
                     return;
-                }
+                } // else someone added some more tasks, so keep trying
             }
         }
     }

@@ -71,7 +71,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         }, RETRIEVERS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
-        RetrieverBuilder.declareBaseParserFields(NAME, PARSER);
+        RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
     public static RRFRetrieverBuilder fromXContent(XContentParser parser, RetrieverParserContext context) throws IOException {

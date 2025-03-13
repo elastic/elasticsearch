@@ -1,0 +1,5 @@
+pr: 122885
+summary: Run `TransportExplainLifecycleAction` on local node
+area: ILM+SLM
+type: enhancement
+issues: []

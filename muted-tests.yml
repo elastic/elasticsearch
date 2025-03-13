@@ -272,9 +272,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testEnrichExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/122913
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
-  method: testClientsAreNotSharedAcrossRepositories
-  issue: https://github.com/elastic/elasticsearch/issues/123090
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/troubleshooting/common-issues/disk-usage-exceeded/line_65}
   issue: https://github.com/elastic/elasticsearch/issues/123094
@@ -330,15 +327,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120814
-- class: org.elasticsearch.search.query.QueryPhaseTimeoutTests
-  method: testScorerTimeoutPoints
-  issue: https://github.com/elastic/elasticsearch/issues/124140
-- class: org.elasticsearch.search.query.QueryPhaseTimeoutTests
-  method: testScorerTimeoutTerms
-  issue: https://github.com/elastic/elasticsearch/issues/124141
-- class: org.elasticsearch.compute.data.BlockMultiValuedTests
-  method: testToMask {elementType=BOOLEAN nullAllowed=true}
-  issue: https://github.com/elastic/elasticsearch/issues/124165
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable is missing}
   issue: https://github.com/elastic/elasticsearch/issues/124168
@@ -360,6 +348,33 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testIndexCompatibilityChecks
   issue: https://github.com/elastic/elasticsearch/issues/124388
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
+  method: testFilesEntitlementsWithExclusive
+  issue: https://github.com/elastic/elasticsearch/issues/124420
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/124159
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFilterCacheStats
+  issue: https://github.com/elastic/elasticsearch/issues/124447
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
+  issue: https://github.com/elastic/elasticsearch/issues/124518
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
+  method: "testGroupingAggregate {TestCase=<<no alt geo_shape>s> #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/124571
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/150_tsdb/created the data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/124575
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/124160
+- class: org.elasticsearch.lucene.spatial.CartesianCentroidCalculatorTests
+  method: testAddDifferentDimensionalType
+  issue: https://github.com/elastic/elasticsearch/issues/124609
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_byte_quantized/kNN search plus query}
+  issue: https://github.com/elastic/elasticsearch/issues/124687
 
 # Examples:
 #

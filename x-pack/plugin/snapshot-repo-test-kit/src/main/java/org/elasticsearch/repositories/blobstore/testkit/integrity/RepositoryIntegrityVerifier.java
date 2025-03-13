@@ -798,7 +798,7 @@ class RepositoryIntegrityVerifier {
                     })));
                 } else {
                     blobBytesVerified.addAndGet(fileInfo.length());
-                    return SubscribableListener.newSucceeded(null);
+                    return SubscribableListener.nullSuccess();
                 }
             });
         }

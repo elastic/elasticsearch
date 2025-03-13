@@ -2744,10 +2744,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
      * parallel collection.
      */
     public void testSlicingBehaviourForParallelCollection() throws Exception {
-        IndexService indexService = createIndex("index", Settings.EMPTY);
-        ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+        // We set the executor pool size explicitly to be independent of CPU cores.
         final int configuredMaxPoolSize = 10;
-        executor.setMaximumPoolSize(configuredMaxPoolSize); // We set this explicitly to be independent of CPU cores.
+        IndexService indexService = createIndex("index", Settings.builder().put("thread_pool.search.size", configuredMaxPoolSize).build());
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+
         int numDocs = randomIntBetween(50, 100);
         for (int i = 0; i < numDocs; i++) {
             prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();

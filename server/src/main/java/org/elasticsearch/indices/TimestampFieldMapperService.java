@@ -69,11 +69,9 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         final String threadName = "TimestampFieldMapperService#updateTask";
-        executor = EsExecutors.newScaling(
+        executor = EsExecutors.newSingleScalingToZero(
             nodeName + "/" + threadName,
-            0,
             1,
-            0,
             TimeUnit.MILLISECONDS,
             true,
             daemonThreadFactory(nodeName, threadName),

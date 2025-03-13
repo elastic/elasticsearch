@@ -170,10 +170,8 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     protected ExecutorService createThreadPoolExecutor() {
-        return EsExecutors.newScaling(
+        return EsExecutors.newSingleScalingToZero(
             nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
-            0,
-            1,
             60,
             TimeUnit.SECONDS,
             true,

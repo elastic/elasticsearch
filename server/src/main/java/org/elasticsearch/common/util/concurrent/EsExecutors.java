@@ -107,10 +107,9 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
-        ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor;
+        LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
         if (config.trackExecutionTime()) {
-            executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
                 min,
                 max,
@@ -124,7 +123,7 @@ public class EsExecutors {
                 config
             );
         } else {
-            executor = new EsThreadPoolExecutor(
+            return new EsThreadPoolExecutor(
                 name,
                 min,
                 max,
@@ -136,8 +135,6 @@ public class EsExecutors {
                 contextHolder
             );
         }
-        queue.executor = executor;
-        return executor;
     }
 
     public static EsThreadPoolExecutor newScaling(
@@ -154,6 +151,57 @@ public class EsExecutors {
             name,
             min,
             max,
+            keepAliveTime,
+            unit,
+            rejectAfterShutdown,
+            threadFactory,
+            contextHolder,
+            TaskTrackingConfig.DO_NOT_TRACK
+        );
+    }
+
+    /**
+     * A single threaded executor that can safely scale down to 0 threads when idle.
+     * @throws IllegalArgumentException if keepAliveTime is 0
+     */
+    public static EsThreadPoolExecutor newSingleScalingToZero(
+        String name,
+        long keepAliveTime,
+        TimeUnit unit,
+        boolean rejectAfterShutdown,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        TaskTrackingConfig config
+    ) {
+        EsThreadPoolExecutor executor = newScaling(
+            name,
+            1,
+            1,
+            keepAliveTime,
+            unit,
+            rejectAfterShutdown,
+            threadFactory,
+            contextHolder,
+            config
+        );
+        executor.allowCoreThreadTimeOut(true);
+        return executor;
+    }
+
+    /**
+     * A single threaded executor that can safely scale down to 0 threads when idle.
+     * @throws IllegalArgumentException if keepAliveTime is 0
+     */
+    public static EsThreadPoolExecutor newSingleScalingToZero(
+        String name,
+        long keepAliveTime,
+        TimeUnit unit,
+        boolean rejectAfterShutdown,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
+        return newSingleScalingToZero(
+            name,
             keepAliveTime,
             unit,
             rejectAfterShutdown,
@@ -389,32 +437,23 @@ public class EsExecutors {
      */
     private EsExecutors() {}
 
-    static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
+    private static <E> LinkedTransferQueue<E> newUnboundedScalingLTQueue(int corePoolSize, int maxPoolSize) {
+        // scaling beyond core pool size using an unbounded queue requires ExecutorScalingQueue
+        // note, reconfiguration of core / max pool size not supported in EsThreadPoolExecutor
+        return maxPoolSize > corePoolSize ? new ExecutorScalingQueue<>() : new LinkedTransferQueue<>();
+    }
 
-        ThreadPoolExecutor executor;
+    static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
         ExecutorScalingQueue() {}
 
         @Override
         public boolean offer(E e) {
-            // first try to transfer to a waiting worker thread
-            if (tryTransfer(e) == false) {
-                // check if there might be spare capacity in the thread
-                // pool executor
-                int left = executor.getMaximumPoolSize() - executor.getCorePoolSize();
-                if (left > 0) {
-                    // reject queuing the task to force the thread pool
-                    // executor to add a worker if it can; combined
-                    // with ForceQueuePolicy, this causes the thread
-                    // pool to always scale up to max pool size and we
-                    // only queue when there is no spare capacity
-                    return false;
-                } else {
-                    return super.offer(e);
-                }
-            } else {
-                return true;
-            }
+            // try to transfer to a waiting worker thread
+            // otherwise reject queuing the task to force the thread pool executor to add a worker if it can;
+            // combined with ForceQueuePolicy, this causes the thread pool to always scale up to max pool size
+            // so that we only queue when there is no spare capacity
+            return tryTransfer(e);
         }
 
         // Overridden to workaround a JDK bug introduced in JDK 21.0.2
@@ -483,12 +522,9 @@ public class EsExecutors {
 
         private static void put(ThreadPoolExecutor executor, Runnable task) {
             final BlockingQueue<Runnable> queue = executor.getQueue();
-            // force queue policy should only be used with a scaling queue
-            assert queue instanceof ExecutorScalingQueue;
+            // force queue policy should only be used with a scaling queue (ExecutorScalingQueue / LinkedTransferQueue)
+            assert queue instanceof LinkedTransferQueue;
             try {
-                // If core size is 0, we risk adding the task onto the queue despite the only remaining worker timing out
-                // before the task can be worked on.
-                // Why not use allowCoreThreadTimeOut with core/max size 1 instead?
                 queue.put(task);
             } catch (final InterruptedException e) {
                 assert false : "a scaling queue never blocks so a put to it can never be interrupted";

@@ -67,6 +67,16 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
+    public void setCorePoolSize(int corePoolSize) {
+        throw new UnsupportedOperationException("reconfiguration at runtime is not supported");
+    }
+
+    @Override
+    public void setMaximumPoolSize(int maximumPoolSize) {
+        throw new UnsupportedOperationException("reconfiguration at runtime is not supported");
+    }
+
+    @Override
     public void execute(Runnable command) {
         final Runnable wrappedRunnable = wrapRunnable(command);
         try {

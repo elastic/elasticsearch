@@ -176,7 +176,7 @@ public final class AnalyzerTestUtils {
         return enrichResolution;
     }
 
-    private static InferenceResolution defaultInferenceResolution() {
+    public static InferenceResolution defaultInferenceResolution() {
         return InferenceResolution.builder()
             .withResolvedInference(new ResolvedInference("reranking-inference-id", TaskType.RERANK))
             .withResolvedInference(new ResolvedInference("completion-inference-id", TaskType.COMPLETION))

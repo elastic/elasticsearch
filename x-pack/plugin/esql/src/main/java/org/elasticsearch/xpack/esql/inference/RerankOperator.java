@@ -92,6 +92,9 @@ public class RerankOperator extends AsyncOperator<Page> {
         int scoreChannel
     ) {
         super(driverContext, inferenceService.getThreadContext(), MAX_INFERENCE_WORKER);
+
+        assert inferenceService.getThreadContext() != null;
+
         this.blockFactory = driverContext.blockFactory();
         this.inferenceService = inferenceService;
         this.inferenceId = inferenceId;
@@ -104,18 +107,19 @@ public class RerankOperator extends AsyncOperator<Page> {
     @Override
     protected void performAsync(Page inputPage, ActionListener<Page> listener) {
         // Ensure input page blocks are released when the listener is called.
-        ActionListener<Page> outputListener = ActionListener.runAfter(listener, inputPage::releaseBlocks);
-        try {
-            inferenceService.doInference(
-                buildInferenceRequest(inputPage),
-                ActionListener.wrap(
-                    inferenceResponse -> buildOutput(inputPage, inferenceResponse, outputListener),
-                    outputListener::onFailure
-                )
-            );
-        } catch (Exception e) {
-            outputListener.onFailure(e);
-        }
+        final ActionListener<Page> outputListener = ActionListener.runAfter(listener, inputPage::releaseBlocks);
+
+        final ActionListener<InferenceAction.Response> inferenceResonseListener = ActionListener.wrap(
+            inferenceResponse -> buildOutput(inputPage, inferenceResponse, outputListener),
+            outputListener::onFailure
+        );
+
+        final ActionListener<InferenceAction.Request> buildInferenceRequestListener = ActionListener.wrap(
+            (inferenceRequest) -> inferenceService.doInference(inferenceRequest, inferenceResonseListener),
+            outputListener::onFailure
+        );
+
+        buildInferenceRequest(inputPage, buildInferenceRequestListener);
     }
 
     @Override
@@ -179,7 +183,7 @@ public class RerankOperator extends AsyncOperator<Page> {
 
             for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
                 if (sortedRankedDocsScores[pos] != null) {
-                    scoreBlockFactory.beginPositionEntry().appendDouble(sortedRankedDocsScores[pos]).endPositionEntry();
+                    scoreBlockFactory.appendDouble(sortedRankedDocsScores[pos]);
                 } else {
                     scoreBlockFactory.appendNull();
                 }
@@ -189,7 +193,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         }
     }
 
-    private InferenceAction.Request buildInferenceRequest(Page inputPage) throws IOException {
+    private void buildInferenceRequest(Page inputPage, ActionListener<InferenceAction.Request> listener) {
         Block[] inputBlocks = inputBlocks(inputPage);
 
         try {
@@ -197,8 +201,9 @@ public class RerankOperator extends AsyncOperator<Page> {
             if (inputBlocks.length > 0) for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
                 inputs[pos] = toYaml(inputBlocks, pos);
             }
-
-            return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build();
+            listener.onResponse(InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build());
+        } catch(IOException e) {
+            listener.onFailure(e);
         } finally {
             Releasables.closeExpectNoException(inputBlocks);
         }

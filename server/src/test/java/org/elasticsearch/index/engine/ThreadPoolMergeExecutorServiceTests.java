@@ -136,7 +136,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         // shutdown prevents new merge tasks to be enqueued but existing ones should be allowed to continue
         testThreadPool.shutdown();
         for (int i = 0; i < mergesToSubmit; i++) {
-            // closing the thread pool fails because there are running and/or enqueued merge tasks
+            // closing the thread pool is delayed because there are running and/or enqueued merge tasks
             assertFalse(testThreadPool.awaitTermination(1, TimeUnit.NANOSECONDS));
             // let merges run one by one and check thread pool
             runMergeSemaphore.release();

@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -28,6 +29,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -39,13 +41,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.rank.linear.normalizer.IdentityScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.normalizer.MinMaxScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.normalizer.ScoreNormalizer;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 import org.junit.Before;
-import org.elasticsearch.xpack.rank.linear.normalizer.IdentityScoreNormalizer;
-import org.elasticsearch.xpack.rank.linear.normalizer.ScoreNormalizer;
-import org.elasticsearch.xpack.rank.linear.normalizer.MinMaxScoreNormalizer;
-import org.elasticsearch.search.retriever.RetrieverBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1013,12 +1013,9 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         );
 
         try {
-            RetrieverBuilder rewrittenRetriever = linearRetriever.rewrite(new QueryRewriteContext(
-                xContentRegistry(),
-                writableRegistry(),
-                null,
-                () -> System.currentTimeMillis()
-            ));
+            RetrieverBuilder rewrittenRetriever = linearRetriever.rewrite(
+                new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> System.currentTimeMillis())
+            );
             rewrittenRetriever.extractToSearchSourceBuilder(searchSourceBuilder, false);
             searchRequestBuilder.setSource(searchSourceBuilder);
 
@@ -1034,14 +1031,10 @@ public class LinearRetrieverIT extends ESIntegTestCase {
         }
     }
 
-
     private void createTestDocuments(int count) {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < count; i++) {
-            builders.add(
-                client().prepareIndex(INDEX)
-                    .setSource(DOC_FIELD, "doc" + i, TEXT_FIELD, "text" + i)
-            );
+            builders.add(client().prepareIndex(INDEX).setSource(DOC_FIELD, "doc" + i, TEXT_FIELD, "text" + i));
         }
         indexRandom(true, builders);
         ensureSearchable(INDEX);

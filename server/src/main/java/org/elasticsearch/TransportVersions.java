@@ -187,7 +187,6 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_DEEPSEEK = def(9_029_00_0);
     public static final TransportVersion RANK_DOCS_MIN_SCORE = def(9_030_0_00);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

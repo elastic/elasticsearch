@@ -151,7 +151,7 @@ as the same type in Elasticsearch's type system
 ** Numeric types follow these compatibility rules:
 *** `short` and `byte` are compatible with `integer` (all represented as
 `int`)
-*** `float`, `half++_++float`, and `scaled++_++float` are compatible
+*** `float`, `half_float`, and `scaled_float` are compatible
 with `double` (all represented as `double`)
 ** For text fields: You can use text fields on the left-hand side of the
 join only if they have a `.keyword` subfield

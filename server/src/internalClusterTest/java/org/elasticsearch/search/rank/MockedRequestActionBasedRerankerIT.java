@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
@@ -389,7 +390,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         }
 
         @Override
-        public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+        public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
             return new RerankingRankFeaturePhaseRankShardContext(field);
         }
 
@@ -532,7 +533,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
         }
 
         @Override
-        public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+        public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
             if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
                 return new RankFeaturePhaseRankShardContext(field) {
                     @Override

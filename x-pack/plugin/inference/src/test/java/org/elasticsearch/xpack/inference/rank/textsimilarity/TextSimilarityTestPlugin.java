@@ -24,6 +24,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
@@ -193,7 +194,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+        public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
             if (this.throwingRankBuilderType == AbstractRerankerIT.ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_SHARD_CONTEXT)
                 return new RankFeaturePhaseRankShardContext(field()) {
                     @Override
@@ -202,7 +203,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                     }
                 };
             else {
-                return super.buildRankFeaturePhaseShardContext();
+                return super.buildRankFeaturePhaseShardContext(searchContext);
             }
         }
 

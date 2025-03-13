@@ -14,8 +14,10 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
@@ -165,7 +167,14 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     }
 
     @Override
-    public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+    public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
+
+        // check field in mapping
+        Mapper mapper = searchContext.indexShard().mapperService().mappingLookup().getMapper(field);
+        if (mapper == null) {
+            throw new IllegalArgumentException("field [" + field + "] does not exist in mapping");
+        }
+
         return new RerankingRankFeaturePhaseRankShardContext(field);
     }
 

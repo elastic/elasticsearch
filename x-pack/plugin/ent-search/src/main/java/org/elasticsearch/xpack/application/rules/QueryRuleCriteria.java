@@ -55,7 +55,6 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     public QueryRuleCriteria(QueryRuleCriteriaType criteriaType, @Nullable String criteriaMetadata, @Nullable List<Object> criteriaValues) {
 
         Objects.requireNonNull(criteriaType);
-        this.criteriaType = criteriaType;
 
         if (criteriaType != ALWAYS) {
             if (Strings.isNullOrEmpty(criteriaMetadata)) {
@@ -64,35 +63,22 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
             if (criteriaValues == null || criteriaValues.isEmpty()) {
                 throw new IllegalArgumentException("criteriaValues cannot be null or empty");
             }
-            this.criteriaMetadata = criteriaMetadata;
-            this.criteriaValues = criteriaValues;
-        } else {
-            this.criteriaMetadata = "";
-            this.criteriaValues = List.of();
         }
+
+        this.criteriaMetadata = criteriaMetadata;
+        this.criteriaValues = criteriaValues;
+        this.criteriaType = criteriaType;
+
     }
 
     public QueryRuleCriteria(StreamInput in) throws IOException {
         this.criteriaType = in.readEnum(QueryRuleCriteriaType.class);
-        if (this.criteriaType == QueryRuleCriteriaType.ALWAYS) {
-            this.criteriaMetadata = "";
-            if (in.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
-                in.readOptionalString();
-                in.readOptionalCollectionAsList(StreamInput::readGenericValue);
-            } else {
-                in.readString();
-                in.readGenericValue();
-            }
-            this.criteriaValues = List.of();
+        if (in.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
+            this.criteriaMetadata = in.readOptionalString();
+            this.criteriaValues = in.readOptionalCollectionAsList(StreamInput::readGenericValue);
         } else {
-            if (in.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
-                this.criteriaMetadata = in.readOptionalString();
-                this.criteriaValues = in.readOptionalCollectionAsList(StreamInput::readGenericValue);
-            } else {
-                this.criteriaMetadata = in.readString();
-                Object value = in.readGenericValue();
-                this.criteriaValues = value != null ? List.of(value) : List.of();
-            }
+            this.criteriaMetadata = in.readString();
+            this.criteriaValues = List.of(in.readGenericValue());
         }
     }
 
@@ -100,22 +86,11 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(criteriaType);
         if (out.getTransportVersion().onOrAfter(CRITERIA_METADATA_VALUES_TRANSPORT_VERSION)) {
-            if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
-                out.writeOptionalString("");
-                out.writeOptionalCollection(List.of(), StreamOutput::writeGenericValue);
-            } else {
-                out.writeOptionalString(criteriaMetadata);
-                out.writeOptionalCollection(criteriaValues, StreamOutput::writeGenericValue);
-            }
+            out.writeOptionalString(criteriaMetadata);
+            out.writeOptionalCollection(criteriaValues, StreamOutput::writeGenericValue);
         } else {
-            if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
-                out.writeString("");
-                out.writeGenericValue("");
-            } else {
-                out.writeString(criteriaMetadata != null ? criteriaMetadata : "");
-                Object valueToWrite = criteriaValues != null && criteriaValues.isEmpty() == false ? criteriaValues.get(0) : "";
-                out.writeGenericValue(valueToWrite);
-            }
+            out.writeString(criteriaMetadata);
+            out.writeGenericValue(criteriaValues().get(0));
         }
     }
 
@@ -172,16 +147,11 @@ public class QueryRuleCriteria implements Writeable, ToXContentObject {
         builder.startObject();
         {
             builder.field(TYPE_FIELD.getPreferredName(), criteriaType);
-            if (criteriaType == ALWAYS) {
-                builder.field(METADATA_FIELD.getPreferredName(), "");
-                builder.startArray(VALUES_FIELD.getPreferredName()).endArray();
-            } else {
-                if (criteriaMetadata != null) {
-                    builder.field(METADATA_FIELD.getPreferredName(), criteriaMetadata);
-                }
-                if (criteriaValues != null) {
-                    builder.array(VALUES_FIELD.getPreferredName(), criteriaValues.toArray());
-                }
+            if (criteriaMetadata != null) {
+                builder.field(METADATA_FIELD.getPreferredName(), criteriaMetadata);
+            }
+            if (criteriaValues != null) {
+                builder.array(VALUES_FIELD.getPreferredName(), criteriaValues.toArray());
             }
         }
         builder.endObject();

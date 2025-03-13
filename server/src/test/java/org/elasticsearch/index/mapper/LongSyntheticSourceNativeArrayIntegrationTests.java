@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -22,6 +24,11 @@ public class LongSyntheticSourceNativeArrayIntegrationTests extends NativeArrayI
     @Override
     public Long getRandomValue() {
         return randomLong();
+    }
+
+    @Override
+    public String getMalformedValue() {
+        return RandomStrings.randomAsciiOfLength(random(), 8);
     }
 
     public void testSynthesizeArray() throws Exception {

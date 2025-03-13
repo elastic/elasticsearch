@@ -15,6 +15,8 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -66,9 +68,99 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         verifySyntheticArrayInObject(documents);
     }
 
+    public void testSynthesizeArrayRandomIgnoresMalformed() throws Exception {
+        assumeTrue("supports ignore_malformed", getMalformedValue() != null);
+        int numDocs = 1; // randomIntBetween(8, 256);
+        List<List<Object>> documents = new ArrayList<>(numDocs);
+        List<List<Object>> shuffledDocuments = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            Object[] values = new Object[randomInt(64)];
+            Object[] malformed = new Object[randomInt(64)];
+            for (int j = 0; j < values.length; j++) {
+                values[j] = getRandomValue();
+            }
+            for (int j = 0; j < malformed.length; j++) {
+                malformed[j] = getMalformedValue();
+            }
+
+            var document = new ArrayList<>(values.length + malformed.length);
+            var shuffledDocument = new ArrayList<>(values.length + malformed.length);
+            int valuesIdx = 0;
+            int malformedIdx = 0;
+            for (int j = 0; j < values.length + malformed.length; j++) {
+                if (j < values.length) {
+                    document.add(values[j]);
+                } else {
+                    document.add(malformed[j - values.length]);
+                }
+
+                if (valuesIdx == values.length) {
+                    shuffledDocument.add(malformed[malformedIdx++]);
+                } else if (malformedIdx == malformed.length) {
+                    shuffledDocument.add(values[valuesIdx++]);
+                } else {
+                    if (randomBoolean()) {
+                        shuffledDocument.add(values[valuesIdx++]);
+                    } else {
+                        shuffledDocument.add(malformed[malformedIdx++]);
+                    }
+                }
+            }
+
+            documents.add(document);
+            shuffledDocuments.add(shuffledDocument);
+        }
+
+        var mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", getFieldTypeName())
+            .field("ignore_malformed", true)
+            .endObject()
+            .endObject()
+            .endObject();
+        var indexService = createIndex(
+            "test-index",
+            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            mapping
+        );
+        for (int i = 0; i < shuffledDocuments.size(); i++) {
+            var document = shuffledDocuments.get(i);
+            var indexRequest = new IndexRequest("test-index");
+            indexRequest.id("my-id-" + i);
+
+            var source = jsonBuilder().startObject().field("field", document).endObject();
+            indexRequest.source(source);
+            client().index(indexRequest).actionGet();
+        }
+
+        var refreshRequest = new RefreshRequest("test-index");
+        client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
+
+        for (int i = 0; i < documents.size(); i++) {
+            var document = documents.get(i);
+            var searchRequest = new SearchRequest("test-index");
+            searchRequest.source().query(new IdsQueryBuilder().addIds("my-id-" + i));
+            var searchResponse = client().search(searchRequest).actionGet();
+            try {
+                var hit = searchResponse.getHits().getHits()[0];
+                assertThat(hit.getId(), equalTo("my-id-" + i));
+                var sourceAsMap = hit.getSourceAsMap();
+                assertThat(sourceAsMap, hasKey("field"));
+                var actualArray = (List<?>) sourceAsMap.get("field");
+                assertThat(actualArray, equalTo(document));
+            } finally {
+                searchResponse.decRef();
+            }
+        }
+
+    }
+
     protected abstract String getFieldTypeName();
 
     protected abstract Object getRandomValue();
+
+    protected abstract Object getMalformedValue();
 
     protected void verifySyntheticArray(Object[][] arrays) throws IOException {
         var mapping = jsonBuilder().startObject()

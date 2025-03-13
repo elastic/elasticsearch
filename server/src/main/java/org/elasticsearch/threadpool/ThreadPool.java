@@ -11,6 +11,7 @@ package org.elasticsearch.threadpool;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -71,7 +72,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
     /**
-     * List of names that identify Java thread pools that are created in {@link ThreadPool#ThreadPool}.
+     * List of names that identify Java thread pools that are created in {@link ThreadPool#ThreadPool}. The pools themselves are constructed
+     * and configured using {@link DefaultBuiltInExecutorBuilders}.
      */
     public static class Names {
         /**
@@ -86,14 +88,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
          * performance (especially if using spinning disks).
          * <p>
          * Blocking on a future on this pool risks deadlock if there's a chance that the completion of the future depends on work being done
-         * on this pool. Unfortunately that's pretty likely in most cases because of how often this pool is used; it's really rare because
-         * of the high limit on the pool size, but when it happens it is extremely harmful to the node.
+         * on this pool. Unfortunately that's pretty likely in most cases because of how often this pool is used; it's really rare to hit
+         * such a deadlock because of the high limit on the pool size, but when it happens it is extremely harmful to the node. For more
+         * information, see e.g. {@code UnsafePlainActionFuture}.
          * <p>
-         * This pool is for instance used for recovery-related work, which is a mix of CPU-bound and IO-bound work. The recovery subsystem
-         * bounds its own concurrency, and therefore the amount of recovery work done on the {@code #GENERIC} pool, via {@code
-         * cluster.routing.allocation.node_concurrent_recoveries} and related settings. This pool is a good choice for recovery work because
-         * the threads used by recovery will be used by other {@code #GENERIC} work too rather than mostly sitting idle until cleaned up.
-         * Idle threads are surprisingly costly sometimes.
+         * This pool is for instance used for recovery-related work, which is a mix of CPU-bound and IO-bound work and does not block on
+         * futures. The recovery subsystem bounds its own concurrency, and therefore the amount of recovery work done on the {@code
+         * #GENERIC} pool, via {@code cluster.routing.allocation.node_concurrent_recoveries} and related settings. This pool is a good
+         * choice for recovery work because the threads used by recovery will be used by other {@code #GENERIC} work too rather than mostly
+         * sitting idle until cleaned up. Idle threads are surprisingly costly sometimes.
          * <p>
          * This pool does not reject any task. Tasks you submit to this executor after the pool starts to shut down may simply never run.
          */
@@ -123,6 +126,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
          * from production-critical work such as indexing and search. You may run long-running (CPU-bound or IO-bound) tasks on this pool,
          * but if the work relates to a REST API call then it must be cancellable in order to prevent an overexcited client from blocking or
          * delaying other management work.
+         * <p>
+         * Note that a cluster with overloaded {@code MANAGEMENT} pools will typically struggle to respond to stats APIs and may be hard to
+         * troubleshoot.
          */
         public static final String MANAGEMENT = "management";
 

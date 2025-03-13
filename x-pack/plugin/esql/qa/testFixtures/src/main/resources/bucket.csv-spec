@@ -130,8 +130,8 @@ bucketMonthInAgg#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS AVG(salary) BY bucket = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| SORT bucket
 // end::bucket_in_agg[]
+| SORT bucket
 ;
 
 // tag::bucket_in_agg-result[]
@@ -150,9 +150,9 @@ bucketWithOffset#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | STATS dates = MV_SORT(VALUES(birth_date)) BY b = BUCKET(birth_date + 1 HOUR, 1 YEAR) - 1 HOUR
 | EVAL d_count = MV_COUNT(dates)
+// end::bucketWithOffset[]
 | SORT d_count, b
 | LIMIT 3
-// end::bucketWithOffset[]
 ;
 
 // tag::bucketWithOffset-result[]
@@ -168,8 +168,8 @@ docsBucketMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS hire_date = MV_SORT(VALUES(hire_date)) BY month = BUCKET(hire_date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| SORT hire_date
 //end::docsBucketMonth[]
+| SORT hire_date
 ;
 
 //tag::docsBucketMonth-result[]
@@ -208,8 +208,8 @@ docsBucketWeeklyHistogram#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
 | STATS hires_per_week = COUNT(*) BY week = BUCKET(hire_date, 100, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")
-| SORT week
 //end::docsBucketWeeklyHistogram[]
+| SORT week
 ;
 
 //tag::docsBucketWeeklyHistogram-result[]

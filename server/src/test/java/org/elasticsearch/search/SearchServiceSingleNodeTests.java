@@ -265,7 +265,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put("search.default_search_timeout", "5s").build();
+        Settings.Builder builder = Settings.builder().put("search.default_search_timeout", "5s");
+        if (getTestName().equals("testSlicingBehaviourForParallelCollection")) {
+            builder.put("thread_pool.search.size", 10); // customize search pool size, reconfiguring at runtime is unsupported
+        }
+        return builder.build();
     }
 
     public void testClearOnClose() {
@@ -2744,10 +2748,13 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
      * parallel collection.
      */
     public void testSlicingBehaviourForParallelCollection() throws Exception {
-        // We set the executor pool size explicitly to be independent of CPU cores.
-        final int configuredMaxPoolSize = 10;
-        IndexService indexService = createIndex("index", Settings.builder().put("thread_pool.search.size", configuredMaxPoolSize).build());
+        IndexService indexService = createIndex("index", Settings.EMPTY);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+
+        // We configure the executor pool size explicitly in nodeSettings to be independent of CPU cores.
+        final int configuredMaxPoolSize = 10;
+        assert String.valueOf(configuredMaxPoolSize).equals(nodeSettings().get("thread_pool.search.size"))
+            : "Unexpected thread_pool.search.size";
 
         int numDocs = randomIntBetween(50, 100);
         for (int i = 0; i < numDocs; i++) {

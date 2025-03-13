@@ -133,6 +133,41 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
         }
     }
 
+    public void testScalingExecutorTypeKeepAliveValidator() {
+        IllegalArgumentException illegalArgument = expectThrows(IllegalArgumentException.class, () -> {
+            ThreadPool tp = null;
+            try {
+                tp = new ThreadPool(
+                    Settings.builder()
+                        .put("node.name", "testScalingExecutorTypeKeepAliveValidator")
+                        .put("thread_pool." + Names.GENERIC + ".core", 0)
+                        .put("thread_pool." + Names.GENERIC + ".max", 1)
+                        .put("thread_pool." + Names.GENERIC + ".keep_alive", "0s")
+                        .build(),
+                    MeterRegistry.NOOP,
+                    new DefaultBuiltInExecutorBuilders()
+                );
+            } finally {
+                terminateThreadPoolIfNeeded(tp);
+            }
+        });
+
+        assertThat(
+            illegalArgument,
+            hasToString(
+                containsString(
+                    "[thread_pool."
+                        + Names.GENERIC
+                        + ".keep_alive] must be greater than 0 when [thread_pool."
+                        + Names.GENERIC
+                        + ".core] is [0] and [thread_pool."
+                        + Names.GENERIC
+                        + ".core] is [1]"
+                )
+            )
+        );
+    }
+
     public void testShutdownNowInterrupts() throws Exception {
         String threadPoolName = randomThreadPool(ThreadPool.ThreadPoolType.FIXED);
         ThreadPool threadPool = null;

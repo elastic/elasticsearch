@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,7 +77,9 @@ public class EsqlCCSUtils {
         public void onFailure(Exception e) {
             if (returnSuccessWithEmptyResult(executionInfo, e)) {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
-                listener.onResponse(new Result(Analyzer.NO_FIELDS, Collections.emptyList(), Collections.emptyList(), executionInfo));
+                listener.onResponse(
+                    new Result(Analyzer.NO_FIELDS, Collections.emptyList(), Collections.emptyList(), PlannerProfile.EMPTY, executionInfo)
+                );
             } else {
                 listener.onFailure(e);
             }

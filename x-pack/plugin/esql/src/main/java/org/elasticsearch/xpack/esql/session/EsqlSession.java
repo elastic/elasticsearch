@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -119,6 +120,7 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
+    private final PlannerProfile plannerProfile;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
 
     public EsqlSession(
@@ -146,6 +148,7 @@ public class EsqlSession {
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
+        this.plannerProfile = new PlannerProfile();
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.preMapper = new PreMapper(services);
     }
@@ -295,9 +298,12 @@ public class EsqlSession {
                 });
 
                 if (subPlanIterator.hasNext() == false) {
+                    // In the production path, this is runner.run calls ComputeService.execute
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.addAll(finalResult.profiles());
-                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo));
+                        finalListener.onResponse(
+                            new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, plannerProfile, executionInfo)
+                        );
                     }));
                 } else {
                     // continue executing the subplans

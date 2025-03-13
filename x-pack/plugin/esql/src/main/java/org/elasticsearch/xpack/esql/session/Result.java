@@ -14,19 +14,29 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.util.List;
 
 /**
  * Results from running a chunk of ESQL.
- * @param schema "Schema" of the {@link Attribute}s that are produced by the {@link LogicalPlan}
- *               that was run. Each {@link Page} contains a {@link Block} of values for each
- *               attribute in this list.
- * @param pages Actual values produced by running the ESQL.
- * @param profiles {@link DriverProfile}s from all drivers that ran to produce the output. These
- *                 are quite cheap to build, so we build them for all ESQL runs, regardless of if
- *                 users have asked for them. But we only include them in the results if users ask
- *                 for them.
+ *
+ * @param schema        "Schema" of the {@link Attribute}s that are produced by the {@link LogicalPlan}
+ *                      that was run. Each {@link Page} contains a {@link Block} of values for each
+ *                      attribute in this list.
+ * @param pages         Actual values produced by running the ESQL.
+ * @param profiles      {@link DriverProfile}s from all drivers that ran to produce the output. These
+ *                      are quite cheap to build, so we build them for all ESQL runs, regardless of if
+ *                      users have asked for them. But we only include them in the results if users ask
+ *                      for them.
+ * @param plannerProfile {@link PlannerProfile} for this query.  Like the driver profile, this is only
+ *                                             included if the user asks for it.
  * @param executionInfo Metadata about the execution of this query. Used for cross cluster queries.
  */
-public record Result(List<Attribute> schema, List<Page> pages, List<DriverProfile> profiles, @Nullable EsqlExecutionInfo executionInfo) {}
+public record Result(
+    List<Attribute> schema,
+    List<Page> pages,
+    List<DriverProfile> profiles,
+    PlannerProfile plannerProfile,
+    @Nullable EsqlExecutionInfo executionInfo
+) {}

@@ -27,6 +27,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -348,13 +349,21 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public static class Profile implements Writeable, ChunkedToXContentObject {
         private final List<DriverProfile> drivers;
+        private final PlannerProfile plannerProfile;
 
-        public Profile(List<DriverProfile> drivers) {
+        public Profile(List<DriverProfile> drivers, PlannerProfile plannerProfile) {
             this.drivers = drivers;
+            this.plannerProfile = plannerProfile;
         }
 
         public Profile(StreamInput in) throws IOException {
             this.drivers = in.readCollectionAsImmutableList(DriverProfile::readFrom);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                this.plannerProfile = in.readNamedWriteable(PlannerProfile.class);
+            } else {
+                this.plannerProfile = PlannerProfile.EMPTY;
+            }
+
         }
 
         @Override

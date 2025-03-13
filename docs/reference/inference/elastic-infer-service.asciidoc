@@ -104,7 +104,7 @@ PUT /_inference/chat_completion/chat-completion-endpoint
 {
     "service": "elastic",
     "service_settings": {
-        "model_id": ".rainbow-sprinkles-elastic"
+        "model_id": ".rainbow-sprinkles"
     }
 }
 ------------------------------------------------------------

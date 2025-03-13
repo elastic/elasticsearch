@@ -345,6 +345,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
+    private final String PROCESS_NAME = "process_name";
+    private final String THREAD_NAME = "thread_name";
+
     @SuppressWarnings("unchecked")
     public void testProfileParsing() throws IOException {
         indexTimestampData(1);
@@ -367,65 +370,89 @@ public class RestEsqlIT extends RestEsqlTestCase {
         ByteArrayInputStream profileJson = new ByteArrayInputStream(os.toByteArray());
         Map<String, Object> parsedProfile = XContentHelper.convertToMap(JsonXContent.jsonXContent, profileJson, true);
 
-        assertEquals(parsedProfile.get("displayTimeUnit"), "ns");
+        assertEquals("ns", parsedProfile.get("displayTimeUnit"));
         List<Map<String, Object>> events = (List<Map<String, Object>>) parsedProfile.get("traceEvents");
         // At least 1 metadata event to declare the node, and 2 events each for the data, node_reduce and final drivers, resp.
         assertThat(events.size(), greaterThanOrEqualTo(7));
 
-        // Declaration of each node as a "process" via a metadata event (phase `ph` is `M`)
-        Map<String, Object> nodeMetadata = events.get(0);
-        assertEquals(nodeMetadata.get("ph"), "M");
-        assertEquals(nodeMetadata.get("name"), "process_name");
-        int nodeIndex = 0;
-        assertEquals(nodeMetadata.get("pid"), nodeIndex);
-
-        Map<String, Object> nodeMetadataArgs = (Map<String, Object>) nodeMetadata.get("args");
         String clusterName = "test-cluster";
         Set<String> expectedProcessNames = new HashSet<>();
         for (int i = 0; i < cluster.getNumNodes(); i++) {
             expectedProcessNames.add(clusterName + ":" + cluster.getName(i));
         }
-        assertTrue(expectedProcessNames.contains((String) nodeMetadataArgs.get("name")));
+
+        int seenNodes = 0;
+        int seenDrivers = 0;
+        // Declaration of each node as a "process" via a metadata event (phase `ph` is `M`)
+        // First event has to declare the first seen node.
+        Map<String, Object> nodeMetadata = events.get(0);
+        assertProcessMetadataForNextNode(nodeMetadata, expectedProcessNames, seenNodes++);
 
         // The rest should be pairs of 2 events: first, a metadata event, declaring 1 "thread" per driver in the profile, then
         // a "complete" event (phase `ph` is `X`) with a timestamp, duration `dur`, thread duration `tdur` (cpu time) and additional
         // arguments obtained from the driver.
-        for (int i = 1; i < events.size() - 1; i = i + 2) {
-            Map<String, Object> driverMetadata = events.get(i);
-
-            assertEquals(driverMetadata.get("ph"), "M");
-            assertEquals(driverMetadata.get("name"), "thread_name");
-            assertEquals(driverMetadata.get("pid"), nodeIndex);
-            int driverIndex = i / 2;
-            assertEquals(driverMetadata.get("tid"), driverIndex);
-            Map<String, Object> driverMetadataArgs = (Map<String, Object>) driverMetadata.get("args");
-            String driverType = (String) driverMetadataArgs.get("name");
-            assertThat(driverType, oneOf("data", "node_reduce", "final"));
-
-            Map<String, Object> driverSlice = events.get(i + 1);
-            assertEquals(driverSlice.get("ph"), "X");
-            assertThat((String) driverSlice.get("name"), startsWith(driverType));
-            // Category used to implicitly colour-code and group drivers
-            assertEquals(driverSlice.get("cat"), driverType);
-            assertEquals(driverSlice.get("pid"), nodeIndex);
-            assertEquals(driverSlice.get("tid"), driverIndex);
-            long timestampMillis = (long) driverSlice.get("ts");
-            double durationMicros = (double) driverSlice.get("dur");
-            double cpuDurationMicros = (double) driverSlice.get("tdur");
-            assertTrue(timestampMillis >= 0);
-            assertTrue(durationMicros >= 0);
-            assertTrue(cpuDurationMicros >= 0);
-            assertTrue(durationMicros >= cpuDurationMicros);
-
-            // This should contain the essential information from a driver, like its operators, and will be just attached to the slice/
-            // visible when clicking on it.
-            Map<String, Object> driverSliceArgs = (Map<String, Object>) driverSlice.get("args");
-            assertNotNull(driverSliceArgs.get("cpu_nanos"));
-            assertNotNull(driverSliceArgs.get("took_nanos"));
-            assertNotNull(driverSliceArgs.get("iterations"));
-            assertNotNull(driverSliceArgs.get("sleeps"));
-            assertThat(((List<String>) driverSliceArgs.get("operators")), not(empty()));
+        // Except when run as part of the Serverless tests, which can involve more than 1 node - in which case, there will be more node
+        // metadata events.
+        for (int i = 1; i < events.size() - 1;) {
+            String eventName = (String) events.get(i).get("name");
+            assertTrue(Set.of(THREAD_NAME, PROCESS_NAME).contains(eventName));
+            if (eventName.equals(THREAD_NAME)) {
+                Map<String, Object> metadataEventForDriver = events.get(i);
+                Map<String, Object> eventForDriver = events.get(i + 1);
+                assertDriverData(metadataEventForDriver, eventForDriver, seenNodes, seenDrivers);
+                i = i + 2;
+                seenDrivers++;
+            } else if (eventName.equals(PROCESS_NAME)) {
+                Map<String, Object> metadataEventForNode = events.get(i);
+                assertProcessMetadataForNextNode(metadataEventForNode, expectedProcessNames, seenNodes);
+                i++;
+                seenNodes++;
+            }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void assertProcessMetadataForNextNode(Map<String, Object> nodeMetadata, Set<String> expectedNamesForNodes, int seenNodes) {
+        assertEquals("M", nodeMetadata.get("ph"));
+        assertEquals(PROCESS_NAME, nodeMetadata.get("name"));
+        assertEquals(seenNodes, nodeMetadata.get("pid"));
+
+        Map<String, Object> nodeMetadataArgs = (Map<String, Object>) nodeMetadata.get("args");
+        assertTrue(expectedNamesForNodes.contains((String) nodeMetadataArgs.get("name")));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void assertDriverData(Map<String, Object> driverMetadata, Map<String, Object> driverEvent, int seenNodes, int seenDrivers) {
+        assertEquals("M", driverMetadata.get("ph"));
+        assertEquals(THREAD_NAME, driverMetadata.get("name"));
+        assertTrue((int) driverMetadata.get("pid") < seenNodes);
+        assertEquals(seenDrivers, driverMetadata.get("tid"));
+        Map<String, Object> driverMetadataArgs = (Map<String, Object>) driverMetadata.get("args");
+        String driverType = (String) driverMetadataArgs.get("name");
+        assertThat(driverType, oneOf("data", "node_reduce", "final"));
+
+        assertEquals("X", driverEvent.get("ph"));
+        assertThat((String) driverEvent.get("name"), startsWith(driverType));
+        // Category used to implicitly colour-code and group drivers
+        assertEquals(driverType, driverEvent.get("cat"));
+        assertTrue((int) driverEvent.get("pid") < seenNodes);
+        assertEquals(seenDrivers, driverEvent.get("tid"));
+        long timestampMillis = (long) driverEvent.get("ts");
+        double durationMicros = (double) driverEvent.get("dur");
+        double cpuDurationMicros = (double) driverEvent.get("tdur");
+        assertTrue(timestampMillis >= 0);
+        assertTrue(durationMicros >= 0);
+        assertTrue(cpuDurationMicros >= 0);
+        assertTrue(durationMicros >= cpuDurationMicros);
+
+        // This should contain the essential information from a driver, like its operators, and will be just attached to the slice/
+        // visible when clicking on it.
+        Map<String, Object> driverSliceArgs = (Map<String, Object>) driverEvent.get("args");
+        assertNotNull(driverSliceArgs.get("cpu_nanos"));
+        assertNotNull(driverSliceArgs.get("took_nanos"));
+        assertNotNull(driverSliceArgs.get("iterations"));
+        assertNotNull(driverSliceArgs.get("sleeps"));
+        assertThat(((List<String>) driverSliceArgs.get("operators")), not(empty()));
     }
 
     public void testProfileOrdinalsGroupingOperator() throws IOException {

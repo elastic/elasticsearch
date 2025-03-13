@@ -838,7 +838,12 @@ public class EsqlCapabilities {
          * During resolution (pre-analysis) we have to consider that joins or enriches can override EVALuated values
          * https://github.com/elastic/elasticsearch/issues/126419
          */
-        FIX_JOIN_MASKING_EVAL;
+        FIX_JOIN_MASKING_EVAL,
+
+        /**
+         * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
+         */
+        TO_LOWER_MV;
 
         private final boolean enabled;
 

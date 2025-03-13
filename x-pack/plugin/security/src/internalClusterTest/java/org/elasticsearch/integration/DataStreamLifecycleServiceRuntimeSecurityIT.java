@@ -276,6 +276,7 @@ public class DataStreamLifecycleServiceRuntimeSecurityIT extends SecurityIntegTe
                         .build(),
                     Map.of(),
                     Collections.singletonList("test"),
+                    "test",
                     new ExecutorNames(ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE)
                 )
             );

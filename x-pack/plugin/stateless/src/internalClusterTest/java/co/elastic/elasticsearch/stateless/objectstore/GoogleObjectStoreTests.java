@@ -23,6 +23,7 @@ import fixture.gcs.TestUtils;
 
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +36,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
@@ -80,8 +82,16 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
             .build();
     }
 
+    void assertMetricStats(Set<String> expectedMetrics, Map<String, BlobStoreActionStats> actualMetrics) {
+        for (var expectedMetric : expectedMetrics) {
+            var actualStats = actualMetrics.get(expectedMetric);
+            assertNotNull(expectedMetric + " not found in " + actualMetrics, actualMetrics);
+            assertTrue(expectedMetric + " value should be not zero", actualStats.operations() > 0);
+        }
+    }
+
     @Override
-    protected void assertRepositoryStats(RepositoryStats repositoryStats, boolean withRandomCrud, OperationPurpose randomPurpose) {
+    protected void assertRepositoryStats(RepositoryStats actualStats, boolean withRandomCrud, OperationPurpose randomPurpose) {
         var expectedMetrics = new HashSet<>(
             List.of(
                 "ClusterState_GetObject",
@@ -96,15 +106,11 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
                 expectedMetrics.add(randomPurpose.getKey() + "_" + op);
             }
         }
-        for (var metric : expectedMetrics) {
-            var stats = repositoryStats.actionStats.get(metric);
-            assertNotNull(metric, stats);
-            assertTrue(metric, stats.operations() > 0);
-        }
+        assertMetricStats(expectedMetrics, actualStats.actionStats);
     }
 
     @Override
-    protected void assertObsRepositoryStatsSnapshots(RepositoryStats repositoryStats) {
+    protected void assertObsRepositoryStatsSnapshots(RepositoryStats actualStats) {
         var expectedMetrics = new HashSet<>(
             List.of(
                 "SnapshotMetadata_GetObject",
@@ -113,10 +119,6 @@ public class GoogleObjectStoreTests extends AbstractMockObjectStoreIntegTestCase
                 "SnapshotData_ListObjects"
             )
         );
-        for (var metric : expectedMetrics) {
-            var stats = repositoryStats.actionStats.get(metric);
-            assertNotNull(metric, stats);
-            assertTrue(metric, stats.operations() > 0);
-        }
+        assertMetricStats(expectedMetrics, actualStats.actionStats);
     }
 }

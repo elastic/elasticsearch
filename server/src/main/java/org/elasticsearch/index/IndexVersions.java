@@ -151,6 +151,7 @@ public class IndexVersions {
     public static final IndexVersion TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX = def(9_012_0_00, Version.LUCENE_10_1_0);
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD = def(9_013_0_00, Version.LUCENE_10_1_0);
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP = def(9_014_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS = def(9_015_0_00, Version.LUCENE_10_1_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

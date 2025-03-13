@@ -6,11 +6,11 @@ kqlWithField
 required_capability: kql_function
 
 // tag::kql-with-field[]
-FROM books 
+FROM books
 | WHERE KQL("author: Faulkner")
 // end::kql-with-field[]
-| KEEP book_no, author 
-| SORT book_no 
+| KEEP book_no, author
+| SORT book_no
 | LIMIT 5
 ;
 

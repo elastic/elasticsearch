@@ -893,7 +893,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * @return updated instance with incremented primary term
      */
     public IndexMetadata withIncrementedPrimaryTerm(int shardId) {
-        // TODO: Modify to set SPLIT target primary terms to source + 1. Need the reshard object in the IndexMetadata to address the source.
         return withSetPrimaryTerm(shardId, this.primaryTerms[shardId] + 1);
     }
 
@@ -1982,14 +1981,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         public Builder reshardAddShards(int shardCount) {
             // Assert routingNumShards is null ?
             // Assert numberOfShards > 0
-            int oldShardCount = numberOfShards();
-            if (shardCount % oldShardCount != 0) {
+            if (shardCount % numberOfShards() != 0) {
                 throw new IllegalArgumentException(
                     "New shard count ["
                         + shardCount
                         + "] should be a multiple"
                         + " of current shard count ["
-                        + oldShardCount
+                        + numberOfShards()
                         + "] for ["
                         + index
                         + "]"
@@ -1998,10 +1996,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             IndexVersion indexVersionCreated = indexCreatedVersion(settings);
             settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, shardCount).build();
             var newPrimaryTerms = new long[shardCount];
+            Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
-            for (int i = this.primaryTerms.length; i < newPrimaryTerms.length; i++) {
-                newPrimaryTerms[i] = this.primaryTerms[i % oldShardCount];
-            }
             primaryTerms = newPrimaryTerms;
             routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
             return this;

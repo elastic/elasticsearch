@@ -719,7 +719,8 @@ public class ShardStateAction {
                             tasksToBeApplied.add(taskContext);
                         } else if (invalidShardSplit(startedShardEntry, projectId, initialState)) {
                             logger.debug("{} failing shard started task because split validation failed", startedShardEntry.shardId);
-
+                            // TODO: Determine correct behavior
+                            taskContext.success(task::onSuccess);
                         } else {
                             logger.debug(
                                 "{} starting shard {} (shard started task: [{}])",
@@ -826,12 +827,11 @@ public class ShardStateAction {
             IndexRoutingTable routingTable = clusterState.routingTable(projectId).index(startedShardEntry.shardId.getIndex());
             // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadatata indicate the
             // split specifics
-            int preSplitSize = routingTable.size() / 2;
-            int sourceShardId = startedShardEntry.shardId.getId() % preSplitSize;
+            int sourceShardId = startedShardEntry.shardId.getId() % (routingTable.size() / 2);
             final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index(startedShardEntry.shardId.getIndex());
             assert indexMetadata != null;
-            final long currentPrimaryTerm = indexMetadata.primaryTerm(sourceShardId);
-            if (currentPrimaryTerm != shardSplit.sourcePrimaryTerm() || routingTable.shard(sourceShardId).primaryShard().relocating()) {
+            long primaryTermDiff = startedShardEntry.primaryTerm - indexMetadata.primaryTerm(sourceShardId);
+            if (primaryTermDiff != 1 || routingTable.shard(sourceShardId).primaryShard().relocating()) {
                 return true;
             } else {
                 return false;

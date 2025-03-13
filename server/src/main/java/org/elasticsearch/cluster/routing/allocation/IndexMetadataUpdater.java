@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -127,15 +128,20 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                 for (Map.Entry<ShardId, Updates> shardEntry : indexChanges) {
                     ShardId shardId = shardEntry.getKey();
                     Updates updates = shardEntry.getValue();
-                    updatedIndexMetadata = updateInSyncAllocations(
-                        newRoutingTable.routingTable(projectMetadata.id()),
-                        oldIndexMetadata,
-                        updatedIndexMetadata,
-                        shardId,
-                        updates
-                    );
+                    RoutingTable routingTable = newRoutingTable.routingTable(projectMetadata.id());
+                    updatedIndexMetadata = updateInSyncAllocations(routingTable, oldIndexMetadata, updatedIndexMetadata, shardId, updates);
+                    IndexRoutingTable indexRoutingTable = routingTable.index(shardEntry.getKey().getIndex());
+                    RecoverySource recoverySource = indexRoutingTable.shard(shardEntry.getKey().id()).primaryShard().recoverySource();
+                    // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadatata indicate the
+                    // split specifics
+                    boolean split = recoverySource != null && recoverySource.getType() == RecoverySource.Type.SPLIT;
                     updatedIndexMetadata = updates.increaseTerm
-                        ? updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
+                        ? split
+                            ? updatedIndexMetadata.withSetPrimaryTerm(
+                                shardId.id(),
+                                updatedIndexMetadata.primaryTerm(sourcePrimaryTerm(shardId, indexRoutingTable)) + 1
+                            )
+                            : updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
                         : updatedIndexMetadata;
                 }
                 if (updatedIndexMetadata != oldIndexMetadata) {
@@ -145,6 +151,10 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
             updatedMetadata.put(projectMetadata.withAllocationAndTermUpdatesOnly(updatedIndices));
         });
         return updatedMetadata.build();
+    }
+
+    private static int sourcePrimaryTerm(ShardId shardId, IndexRoutingTable shardRoutingTable) {
+        return shardId.getId() % (shardRoutingTable.size() / 2);
     }
 
     /**

@@ -2,7 +2,7 @@ pr: 124732
 summary: Prevent starvation bug if using scaling `EsThreadPoolExecutor` if core pool
   size = 0 / max pool size = 1
 area: Infra/Core
-type: "breaking, bug"
+type: bug
 issues: []
 breaking:
   title: Prevent starvation bug if using scaling `EsThreadPoolExecutor` if core pool

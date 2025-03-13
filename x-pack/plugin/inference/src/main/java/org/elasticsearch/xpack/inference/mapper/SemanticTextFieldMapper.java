@@ -546,13 +546,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         ChunkingSettings fieldTypeChunkingSettings = fieldType.getChunkingSettings();
         Map<String, Object> asMap = fieldTypeChunkingSettings != null ? fieldTypeChunkingSettings.asMap() : null;
 
-        return new InferenceFieldMetadata(
-            fullPath(),
-            fieldType().getInferenceId(),
-            fieldType().getSearchInferenceId(),
-            copyFields,
-            fieldType().getChunkingSettings() != null ? fieldType().getChunkingSettings().asMap() : null
-        );
+        return new InferenceFieldMetadata(fullPath(), fieldType().getInferenceId(), fieldType().getSearchInferenceId(), copyFields, asMap);
     }
 
     @Override

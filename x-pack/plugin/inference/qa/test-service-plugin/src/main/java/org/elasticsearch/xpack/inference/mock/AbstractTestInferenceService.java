@@ -114,7 +114,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
     protected List<String> chunkInputs(String input, ChunkingSettings chunkingSettings) {
         if (chunkingSettings == null) {
-            return Collections.singletonList(input);
+            return List.of(input);
         }
         List<String> chunkedInputs = new ArrayList<>();
         ChunkingStrategy chunkingStrategy = chunkingSettings.getChunkingStrategy();

@@ -695,17 +695,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         client.execute(InferModelAction.INSTANCE, request, maybeDeployListener);
     }
 
-    public void chunkedInfer(
-        Model model,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<List<ChunkedInference>> listener
-    ) {
-        chunkedInfer(model, null, input, taskSettings, null, inputType, timeout, listener);
-    }
-
     @Override
     public void chunkedInfer(
         Model model,

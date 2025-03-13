@@ -134,7 +134,7 @@ setup:
       indices.get_mapping:
         index: default-chunking-sparse
 
-  - is_false: default-chunking-sparse.mappings.properties.inference_field.chunking_settings
+  - not_exists: default-chunking-sparse.mappings.properties.inference_field.chunking_settings
 
   - do:
       indices.get_mapping:
@@ -148,7 +148,7 @@ setup:
       indices.get_mapping:
         index: default-chunking-dense
 
-  - is_false: default-chunking-dense.mappings.properties.inference_field.chunking_settings
+  - not_exists: default-chunking-dense.mappings.properties.inference_field.chunking_settings
 
   - do:
       indices.get_mapping:
@@ -280,12 +280,10 @@ setup:
           query:
             bool:
               should:
-                - semantic:
-                    field: "default_chunked_inference_field"
-                    query: "What is Elasticsearch?"
-                - semantic:
-                    field: "customized_chunked_inference_field"
-                    query: "What is Elasticsearch?"
+                - match:
+                    default_chunked_inference_field: "What is Elasticsearch?"
+                - match:
+                    customized_chunked_inference_field: "What is Elasticsearch?"
           highlight:
             fields:
               default_chunked_inference_field:

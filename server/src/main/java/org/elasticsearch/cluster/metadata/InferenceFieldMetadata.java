@@ -22,6 +22,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -40,7 +42,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
-    private final int EXPECTED_CHUNKING_SETTINGS_SIZE = 3;
 
     private final String name;
     private final String inferenceId;
@@ -63,7 +64,7 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         this.inferenceId = Objects.requireNonNull(inferenceId);
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
-        this.chunkingSettings = chunkingSettings;
+        this.chunkingSettings = chunkingSettings != null ? Map.copyOf(chunkingSettings) : null;
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {

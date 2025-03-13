@@ -168,16 +168,15 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         private List<ChunkedInference> makeChunkedResults(List<String> inputs, ChunkingSettings chunkingSettings) {
             List<ChunkedInference> results = new ArrayList<>();
-            for (int i = 0; i < inputs.size(); i++) {
-                String input = inputs.get(i);
-                var tokens = new ArrayList<WeightedToken>();
-                for (int j = 0; j < 5; j++) {
-                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input, j)));
-                }
+            for (String input : inputs) {
                 List<String> chunkedInput = chunkInputs(input, chunkingSettings);
                 List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>();
                 int offset = 0;
                 for (String c : chunkedInput) {
+                    var tokens = new ArrayList<WeightedToken>();
+                    for (int i = 0; i < 5; i++) {
+                        tokens.add(new WeightedToken("feature_" + i, generateEmbedding(input, i)));
+                    }
                     offset = input.indexOf(c, offset);
                     int endOffset = offset + c.length();
                     chunks.add(new SparseEmbeddingResults.Chunk(tokens, new ChunkedInference.TextOffset(offset, endOffset)));

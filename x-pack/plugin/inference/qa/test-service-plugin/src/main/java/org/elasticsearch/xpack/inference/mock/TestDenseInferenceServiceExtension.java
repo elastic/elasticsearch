@@ -180,7 +180,6 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             ServiceSettings serviceSettings,
             ChunkingSettings chunkingSettings
         ) {
-            TextEmbeddingFloatResults nonChunkedResults = makeResults(inputs, serviceSettings);
             var results = new ArrayList<ChunkedInference>();
             for (int i = 0; i < inputs.size(); i++) {
                 String input = inputs.get(i);
@@ -192,7 +191,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                     int endOffset = offset + c.length();
                     chunks.add(
                         new TextEmbeddingFloatResults.Chunk(
-                            nonChunkedResults.embeddings().get(i).values(),
+                            makeResults(List.of(c), serviceSettings).embeddings().getFirst().values(),
                             new ChunkedInference.TextOffset(offset, endOffset)
                         )
                     );

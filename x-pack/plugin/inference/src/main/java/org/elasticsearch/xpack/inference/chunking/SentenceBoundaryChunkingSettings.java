@@ -56,6 +56,7 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
         }
     }
 
+    @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new HashMap<>();
         map.put(ChunkingSettingsOptions.STRATEGY.toString(), STRATEGY.toString().toLowerCase(Locale.ROOT));

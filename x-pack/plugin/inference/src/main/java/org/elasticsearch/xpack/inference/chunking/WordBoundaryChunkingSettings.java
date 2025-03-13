@@ -50,6 +50,7 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
         overlap = in.readInt();
     }
 
+    @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new HashMap<>();
         map.put(ChunkingSettingsOptions.STRATEGY.toString(), STRATEGY.toString().toLowerCase(Locale.ROOT));

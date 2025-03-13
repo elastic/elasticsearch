@@ -16,7 +16,9 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.cluster.metadata.InferenceFieldMetadata.CHUNKING_SETTINGS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InferenceFieldMetadataTests extends AbstractXContentTestCase<InferenceFieldMetadata> {
@@ -50,7 +52,12 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
+    }
+
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.equals(CHUNKING_SETTINGS_FIELD) || field.startsWith(CHUNKING_SETTINGS_FIELD + ".");
     }
 
     private static InferenceFieldMetadata createTestItem() {

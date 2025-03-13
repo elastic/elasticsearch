@@ -30,9 +30,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.MAX_IO_RATE;
 import static org.elasticsearch.index.engine.ThreadPoolMergeExecutorService.MIN_IO_RATE;
@@ -371,7 +371,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         assertNotNull(threadPoolMergeExecutorService);
         final AtomicInteger currentlySubmittedMergeTaskCount = new AtomicInteger();
         final AtomicLong targetIORateLimit = new AtomicLong(ThreadPoolMergeExecutorService.START_IO_RATE.getBytes());
-        final AtomicBoolean setIORateForTaskInvoked = new AtomicBoolean();
+        final AtomicReference<MergeTask> lastRunTask = new AtomicReference<>();
         int initialTasksCounter = Math.min(initialTasksToSubmit, totalTasksToSubmit);
         while (totalTasksToSubmit > 0 || mergeExecutorTaskQueue.hasAnyTasks()) {
             if (mergeExecutorTaskQueue.hasAnyTasks() == false // always submit if there are no outstanding merge tasks
@@ -384,18 +384,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 // always run the task
                 when(mergeTask.schedule()).thenReturn(RUN);
                 doAnswer(mock -> {
-                    long taskIORateLimit = (Long) mock.getArguments()[0];
-                    // assert the IO rate for the task is set
-                    assertThat(taskIORateLimit, equalTo(targetIORateLimit.get()));
-                    assertFalse(setIORateForTaskInvoked.get());
-                    setIORateForTaskInvoked.set(true);
+                    lastRunTask.set(mergeTask);
                     return null;
-                }).when(mergeTask).setIORateLimit(anyLong());
-                doAnswer(mock -> {
-                    // IO rate limit always set while running
-                    assertTrue(setIORateForTaskInvoked.get());
-                    // always run the tasks
-                    return true;
                 }).when(mergeTask).run();
                 currentlySubmittedMergeTaskCount.incrementAndGet();
                 totalTasksToSubmit--;
@@ -415,12 +405,16 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                     }
                 targetIORateLimit.set(newTargetIORateLimit);
             } else {
-                setIORateForTaskInvoked.set(false);
                 // execute already submitted merge task
                 if (runOneTask(mergeExecutorTaskQueue)) {
-                    assertTrue(setIORateForTaskInvoked.get());
                     // task is done, no longer just submitted
                     currentlySubmittedMergeTaskCount.decrementAndGet();
+                    // assert IO rate is invoked on the merge task that just ran
+                    assertNotNull(lastRunTask.get());
+                    var ioRateCaptor = ArgumentCaptor.forClass(Long.class);
+                    verify(lastRunTask.get(), times(1)).setIORateLimit(ioRateCaptor.capture());
+                    assertThat(ioRateCaptor.getValue(), is(targetIORateLimit.get()));
+                    lastRunTask.set(null);
                 }
             }
         }

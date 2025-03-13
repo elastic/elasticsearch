@@ -121,6 +121,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")

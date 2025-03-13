@@ -730,7 +730,7 @@ FROM app_logs
 
 `LOOKUP JOIN` is generally faster when there are fewer rows to join with. {{esql}} will try and perform any `WHERE` clause before the `LOOKUP JOIN` where possible.
 
-The two following examples will have the same results. The two examples have the `WHERE` clause before and after the `LOOKUP JOIN`. It does not matter how you write your query, our optimizer will move the filter before the lookup when ran.
+The two following examples will have the same results. The two examples have the `WHERE` clause before and after the `LOOKUP JOIN`. It does not matter how you write your query, our optimizer will move the filter before the lookup when possible.
 
 ```esql
 FROM Left

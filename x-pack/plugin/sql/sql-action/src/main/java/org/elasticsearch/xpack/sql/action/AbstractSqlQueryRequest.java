@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
@@ -429,9 +428,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         query = in.readString();
         params = in.readCollectionAsList(AbstractSqlQueryRequest::readSqlTypedParamValue);
         zoneId = in.readZoneId();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            catalog = in.readOptionalString();
-        }
+        catalog = in.readOptionalString();
         fetchSize = in.readVInt();
         requestTimeout = in.readTimeValue();
         pageTimeout = in.readTimeValue();
@@ -455,9 +452,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         out.writeString(query);
         out.writeCollection(params, AbstractSqlQueryRequest::writeSqlTypedParamValue);
         out.writeZoneId(zoneId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_16_0)) {
-            out.writeOptionalString(catalog);
-        }
+        out.writeOptionalString(catalog);
         out.writeVInt(fetchSize);
         out.writeTimeValue(requestTimeout);
         out.writeTimeValue(pageTimeout);

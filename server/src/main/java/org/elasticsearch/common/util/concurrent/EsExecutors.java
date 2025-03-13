@@ -393,7 +393,7 @@ public class EsExecutors {
         }
         // scaling beyond core pool size with an unbounded queue requires ExecutorScalingQueue
         // note, reconfiguration of core / max pool size not supported in EsThreadPoolExecutor
-        return new ExecutorScalingQueue();
+        return new ExecutorScalingQueue<>();
     }
 
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {

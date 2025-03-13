@@ -23,7 +23,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
@@ -73,6 +72,7 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -879,17 +879,29 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         String searchInferenceId,
         MinimalServiceSettings modelSettings
     ) throws IOException {
-        String mappingParams = "type=semantic_text,inference_id=" + inferenceId;
+        return mapperServiceForFieldWithModelSettingsAndIndexOptions(fieldName, inferenceId, searchInferenceId, modelSettings, null);
+    }
+
+    private MapperService mapperServiceForFieldWithModelSettingsAndIndexOptions(
+        String fieldName,
+        String inferenceId,
+        String searchInferenceId,
+        MinimalServiceSettings modelSettings,
+        DenseVectorFieldMapper.IndexOptions indexOptions
+    ) throws IOException {
+        XContentBuilder mappingBuilder = JsonXContent.contentBuilder().startObject();
+        mappingBuilder.startObject("properties").startObject(fieldName).field("type", "semantic_text").field("inference_id", inferenceId);
         if (searchInferenceId != null) {
-            mappingParams += ",search_inference_id=" + searchInferenceId;
+            mappingBuilder.field("search_inference_id", searchInferenceId);
+        }
+        if (indexOptions != null) {
+            mappingBuilder.field("index_options", indexOptions);
         }
 
+        mappingBuilder.endObject().endObject().endObject();
+
         MapperService mapperService = createMapperService(mapping(b -> {}), useLegacyFormat);
-        mapperService.merge(
-            "_doc",
-            new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(fieldName, mappingParams))),
-            MapperService.MergeReason.MAPPING_UPDATE
-        );
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(mappingBuilder)), MapperService.MergeReason.MAPPING_UPDATE);
 
         SemanticTextField semanticTextField = new SemanticTextField(
             useLegacyFormat,
@@ -949,6 +961,105 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
         Query existsQuery = ((SemanticTextFieldMapper) mapper).fieldType().existsQuery(searchExecutionContext);
         assertThat(existsQuery, instanceOf(ESToParentBlockJoinQuery.class));
+    }
+
+    public void testDenseVectorIndexOptions() throws IOException {
+        final String fieldName = "field";
+        final String inferenceId = "test_service";
+
+        List<DenseVectorFieldMapper.IndexOptions> indexOptionsList = List.of(
+            DenseVectorFieldMapper.parseIndexOptions(fieldName, new HashMap<>(Map.of("type", "hnsw"))),
+            DenseVectorFieldMapper.parseIndexOptions(fieldName, new HashMap<>(Map.of("type", "int8_hnsw"))),
+            DenseVectorFieldMapper.parseIndexOptions(fieldName, new HashMap<>(Map.of("type", "int4_hnsw"))),
+            DenseVectorFieldMapper.parseIndexOptions(fieldName, new HashMap<>(Map.of("type", "bbq_hnsw"))),
+            DenseVectorFieldMapper.parseIndexOptions(fieldName, new HashMap<>(Map.of("type", "flat"))),
+            DenseVectorFieldMapper.parseIndexOptions(fieldName, new HashMap<>(Map.of("type", "int8_flat"))),
+            DenseVectorFieldMapper.parseIndexOptions(fieldName, new HashMap<>(Map.of("type", "int4_flat"))),
+            DenseVectorFieldMapper.parseIndexOptions(fieldName, new HashMap<>(Map.of("type", "bbq_flat"))),
+            DenseVectorFieldMapper.parseIndexOptions(fieldName, new HashMap<>(Map.of("type", "hnsw", "m", 32, "ef_construction", 200)))
+        );
+
+        for (DenseVectorFieldMapper.IndexOptions indexOptions : indexOptionsList) {
+            BiConsumer<MapperService, DenseVectorFieldMapper.IndexOptions> assertMapperService = (m, e) -> {
+                Mapper mapper = m.mappingLookup().getMapper(fieldName);
+                assertThat(mapper, instanceOf(SemanticTextFieldMapper.class));
+                SemanticTextFieldMapper semanticTextFieldMapper = (SemanticTextFieldMapper) mapper;
+
+                FieldMapper fieldMapper = semanticTextFieldMapper.fieldType().getEmbeddingsField();
+                assertThat(fieldMapper, instanceOf(DenseVectorFieldMapper.class));
+                DenseVectorFieldMapper denseVectorFieldMapper = (DenseVectorFieldMapper) fieldMapper;
+
+                assertThat(denseVectorFieldMapper.indexOptions(), equalTo(e));
+            };
+
+            MapperService floatMapperService = mapperServiceForFieldWithModelSettingsAndIndexOptions(
+                fieldName,
+                inferenceId,
+                inferenceId,
+                new MinimalServiceSettings(
+                    TaskType.TEXT_EMBEDDING,
+                    1024,
+                    SimilarityMeasure.COSINE,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                ),
+                indexOptions
+            );
+            assertMapperService.accept(floatMapperService, indexOptions);
+        }
+    }
+
+    public void testDenseVectorIndexOptionsVaild() {
+        final String fieldName = "field";
+        final String inferenceId = "test_service";
+
+        {
+            DenseVectorFieldMapper.IndexOptions indexOptions = DenseVectorFieldMapper.parseIndexOptions(
+                fieldName,
+                new HashMap<>(Map.of("type", "int8_hnsw"))
+            );
+            MinimalServiceSettings invalidSettings = new MinimalServiceSettings(
+                TaskType.TEXT_EMBEDDING,
+                1024,
+                SimilarityMeasure.L2_NORM,
+                DenseVectorFieldMapper.ElementType.BYTE
+            );
+
+            Exception e = expectThrows(
+                DocumentParsingException.class,
+                () -> mapperServiceForFieldWithModelSettingsAndIndexOptions(
+                    fieldName,
+                    inferenceId,
+                    inferenceId,
+                    invalidSettings,
+                    indexOptions
+                )
+            );
+            assertThat(e.getCause().getMessage(), containsString("cannot be [byte] when using index type [int8_hnsw]"));
+        }
+
+        {
+            DenseVectorFieldMapper.IndexOptions indexOptions = DenseVectorFieldMapper.parseIndexOptions(
+                fieldName,
+                new HashMap<>(Map.of("type", "bbq_hnsw"))
+            );
+            MinimalServiceSettings invalidSettings = new MinimalServiceSettings(
+                TaskType.TEXT_EMBEDDING,
+                10,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.BYTE
+            );
+            Exception e = expectThrows(
+                DocumentParsingException.class,
+                () -> mapperServiceForFieldWithModelSettingsAndIndexOptions(
+                    fieldName,
+                    inferenceId,
+                    inferenceId,
+                    invalidSettings,
+                    indexOptions
+                )
+            );
+            assertThat(e.getCause().getMessage(), containsString("bbq_hnsw does not support dimensions fewer than 64"));
+        }
     }
 
     @Override

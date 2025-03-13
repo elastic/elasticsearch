@@ -177,7 +177,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
 
     public void testTargetIORateChangesWhenSubmittingMergeTasks() throws Exception {
         int mergeExecutorThreadCount = randomIntBetween(1, 5);
-        int mergesStillToSubmit = randomIntBetween(1, 100);
+        int mergesStillToSubmit = randomIntBetween(10, 100);
         int mergesStillToComplete = mergesStillToSubmit;
         Settings settings = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)

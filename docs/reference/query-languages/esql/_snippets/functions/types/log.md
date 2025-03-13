@@ -8,20 +8,20 @@
 | double | integer | double |
 | double | long | double |
 | double | unsigned_long | double |
-| double |  | double |
+| double | | double |
 | integer | double | double |
 | integer | integer | double |
 | integer | long | double |
 | integer | unsigned_long | double |
-| integer |  | double |
+| integer | | double |
 | long | double | double |
 | long | integer | double |
 | long | long | double |
 | long | unsigned_long | double |
-| long |  | double |
+| long | | double |
 | unsigned_long | double | double |
 | unsigned_long | integer | double |
 | unsigned_long | long | double |
 | unsigned_long | unsigned_long | double |
-| unsigned_long |  | double |
+| unsigned_long | | double |
 

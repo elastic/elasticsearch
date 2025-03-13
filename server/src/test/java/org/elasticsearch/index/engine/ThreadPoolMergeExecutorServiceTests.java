@@ -242,7 +242,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                                 assertThat(newIORate, equalTo(currentIORate));
                             }
                     } else {
-                        // assert the IO rate does change, when the merge task doesn't support IO throttling
+                        // assert the IO rate does not change, when the merge task doesn't support IO throttling
                         assertThat(newIORate, equalTo(currentIORate));
                     }
                     mergesStillToSubmit--;

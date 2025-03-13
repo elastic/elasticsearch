@@ -651,7 +651,6 @@ public class ShardStateAction {
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(batchExecutionContext.taskContexts().size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
             final Map<Index, ClusterStateTimeRanges> updatedTimestampRanges = new HashMap<>();
-            final Map<ShardId, Long> updatedPrimaryTerms = new HashMap<>();
             final ClusterState initialState = batchExecutionContext.initialState();
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
@@ -732,12 +731,6 @@ public class ShardStateAction {
                             shardRoutingsToBeApplied.add(matched);
                             seenShardRoutings.add(matched);
 
-                            // Synchronize a split shard's primary term with the source shard if the source has a greater primary term
-                            if (startedShardEntry.shardSplit != null
-                                && startedShardEntry.shardSplit.sourcePrimaryTerm() > startedShardEntry.primaryTerm) {
-                                updatedPrimaryTerms.put(startedShardEntry.shardId, startedShardEntry.shardSplit.sourcePrimaryTerm());
-                            }
-
                             // expand the timestamp range(s) recorded in the index metadata if needed
                             final Index index = startedShardEntry.shardId.getIndex();
                             ClusterStateTimeRanges clusterStateTimeRanges = updatedTimestampRanges.get(index);
@@ -805,18 +798,6 @@ public class ShardStateAction {
                                 .timestampRange(timeRanges.timestampRange())
                                 .eventIngestedRange(timeRanges.eventIngestedRange())
                         );
-                    }
-                    maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
-                }
-                if (updatedPrimaryTerms.isEmpty() == false) {
-                    final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
-                    for (Map.Entry<ShardId, Long> updatedPrimaryTerm : updatedPrimaryTerms.entrySet()) {
-                        var projectId = maybeUpdatedState.metadata().projectFor(updatedPrimaryTerm.getKey().getIndex()).id();
-                        var projectMetadataBuilder = metadataBuilder.getProject(projectId);
-                        IndexMetadata indexMetadata = projectMetadataBuilder.getSafe(updatedPrimaryTerm.getKey().getIndex())
-                            .withSetPrimaryTerm(updatedPrimaryTerm.getKey().id(), updatedPrimaryTerm.getValue());
-                        // TODO: Increment version?
-                        projectMetadataBuilder.put(indexMetadata, true);
                     }
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
                 }

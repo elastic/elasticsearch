@@ -588,56 +588,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         replicationTracker.activatePrimaryMode(getLocalCheckpoint());
                         ensurePeerRecoveryRetentionLeasesExist();
                     }
-                } else if (recoveryState != null && recoveryState.getRecoverySource().getType() == RecoverySource.Type.SPLIT) {
-                    // TODO: What about other branch?
-                    if (currentRouting.initializing() && newRouting.active()) {
-                        assert newRouting.initializing() == false;
-                        bumpPrimaryTerm(newPrimaryTerm, () -> {
-                            shardStateUpdated.await();
-                            assert pendingPrimaryTerm == newPrimaryTerm
-                                : "shard term changed on primary. expected ["
-                                    + newPrimaryTerm
-                                    + "] but was ["
-                                    + pendingPrimaryTerm
-                                    + "]"
-                                    + ", current routing: "
-                                    + currentRouting
-                                    + ", new routing: "
-                                    + newRouting;
-                            assert getOperationPrimaryTerm() == newPrimaryTerm;
-                            try {
-                                replicationTracker.activatePrimaryMode(getLocalCheckpoint());
-                                ensurePeerRecoveryRetentionLeasesExist();
-                                /*
-                                 * If this shard was serving as a replica shard when another shard was promoted to primary then
-                                 * its Lucene index was reset during the primary term transition. In particular, the Lucene index
-                                 * on this shard was reset to the global checkpoint and the operations above the local checkpoint
-                                 * were reverted. If the other shard that was promoted to primary subsequently fails before the
-                                 * primary/replica re-sync completes successfully and we are now being promoted, we have to restore
-                                 * the reverted operations on this shard by replaying the translog to avoid losing acknowledged writes.
-                                 */
-                                final Engine engine = getEngine();
-                                engine.restoreLocalHistoryFromTranslog(
-                                    (resettingEngine, snapshot) -> runTranslogRecovery(
-                                        resettingEngine,
-                                        snapshot,
-                                        Engine.Operation.Origin.LOCAL_RESET,
-                                        () -> {}
-                                    )
-                                );
-                                /* Rolling the translog generation is not strictly needed here (as we will never have collisions between
-                                 * sequence numbers in a translog generation in a new primary as it takes the last known sequence number
-                                 * as a starting point), but it simplifies reasoning about the relationship between primary terms and
-                                 * translog generations.
-                                 */
-                                engine.rollTranslogGeneration();
-                                engine.fillSeqNoGaps(newPrimaryTerm);
-                                replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
-                            } catch (final AlreadyClosedException e) {
-                                // okay, the index was deleted
-                            }
-                        }, null);
-                    }
                 } else {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
                     /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned

@@ -25,6 +25,10 @@ public class Clusters {
         if (supportRetryOnShardFailures(oldVersion) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
+        if (oldVersion.before(Version.fromString("9.1.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
         return cluster.build();
     }
 

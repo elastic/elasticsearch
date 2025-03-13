@@ -311,7 +311,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             id = in.readString();
             // TODO: make this pooled?
             source = in.readBytesReference();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0) && in.readBoolean()) {
+            if (in.readBoolean()) {
                 fetchFields = in.readMap(DocumentField::new);
             } else {
                 fetchFields = null;
@@ -333,11 +333,9 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             out.writeString(index);
             out.writeString(id);
             out.writeBytesReference(source);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                out.writeBoolean(fetchFields != null);
-                if (fetchFields != null) {
-                    out.writeMap(fetchFields, StreamOutput::writeWriteable);
-                }
+            out.writeBoolean(fetchFields != null);
+            if (fetchFields != null) {
+                out.writeMap(fetchFields, StreamOutput::writeWriteable);
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 // for BWC, 8.9.1+ does not have "missing" attribute, but it considers events with an empty index "" as missing events

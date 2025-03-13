@@ -18,7 +18,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.InfrastructureFeatures;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -41,6 +42,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
     public static final ActionType<NodesCapabilitiesResponse> TYPE = new ActionType<>("cluster:monitor/nodes/capabilities");
 
     private final RestController restController;
+    private final FeatureService featureService;
 
     @Inject
     public TransportNodesCapabilitiesAction(
@@ -48,7 +50,8 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
-        RestController restController
+        RestController restController,
+        FeatureService featureService
     ) {
         super(
             TYPE.name(),
@@ -59,6 +62,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.restController = restController;
+        this.featureService = featureService;
     }
 
     @Override
@@ -72,13 +76,21 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
 
     @Override
     protected NodeCapabilitiesRequest newNodeRequest(NodesCapabilitiesRequest request) {
-        return new NodeCapabilitiesRequest(
-            request.method(),
-            request.path(),
-            request.parameters(),
-            request.capabilities(),
-            request.restApiVersion()
-        );
+        RestApiVersion restVersion;
+        if (request.restApiVersion().isPresent()) {
+            // explicit version - just use it, and see what happens
+            restVersion = request.restApiVersion().get();
+        } else if (featureService.clusterHasFeature(clusterService.state(), InfrastructureFeatures.CURRENT_VERSION)) {
+            restVersion = RestApiVersion.current(); // every node is at least this major version, so use that
+        } else {
+            // not all nodes are the current version. previous major version nodes do not understand
+            // the new REST API version, so query using the previous version.
+            // Capabilities can come and go, so it's ok for the response to change
+            // when the nodes change
+            restVersion = RestApiVersion.previous();
+        }
+
+        return new NodeCapabilitiesRequest(request.method(), request.path(), request.parameters(), request.capabilities(), restVersion);
     }
 
     @Override
@@ -129,10 +141,6 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             this.restApiVersion = restApiVersion;
         }
 
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // 8.x blows up in a mixed cluster when trying to read RestApiVersion.forMajor(9)
-        // ./gradlew ":qa:mixed-cluster:v8.16.0#mixedClusterTest"
-        // -Dtests.class="org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
-        // -Dtests.method="test {p0=capabilities/10_basic/Capabilities API}"
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -141,9 +149,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             out.writeString(path);
             out.writeCollection(parameters, StreamOutput::writeString);
             out.writeCollection(capabilities, StreamOutput::writeString);
-            // Fixme: lies! all lies!
-            out.writeVInt(8);
-            // out.writeVInt(restApiVersion.major);
+            out.writeVInt(restApiVersion.major);
         }
     }
 }

@@ -128,7 +128,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         }).when(mockEngine)
             .validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(), anyActionListener());
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
-            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
             plainActionFuture.actionGet();
         });
         assertEquals(expectedErrorMessage, securityException.getMessage());
@@ -184,7 +184,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                     anyActionListener()
                 );
             ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
-                interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+                interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
                 plainActionFuture.actionGet();
             });
             assertEquals(
@@ -217,7 +217,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                     any(Map.class),
                     anyActionListener()
                 );
-            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
             plainActionFuture.actionGet();
         }
     }

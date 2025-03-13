@@ -16,6 +16,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -40,9 +41,11 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -61,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
@@ -655,10 +659,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             // align _fork id across all fork branches
             Alias alias = null;
             if (firstForkNameId == null) {
-                alias = new Alias(source(ctx), "_fork", literal);
+                alias = new Alias(source(ctx), Fork.FORK_FIELD, literal);
                 firstForkNameId = alias.id();
             } else {
-                alias = new Alias(source(ctx), "_fork", literal, firstForkNameId);
+                alias = new Alias(source(ctx), Fork.FORK_FIELD, literal, firstForkNameId);
             }
 
             var finalAlias = alias;
@@ -685,5 +689,30 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         PlanFactory lowerPlan = ParserUtils.typedParsing(this, ctx.forkSubQueryCommand(), PlanFactory.class);
         PlanFactory makePlan = typedParsing(this, ctx.forkSubQueryProcessingCommand(), PlanFactory.class);
         return input -> makePlan.apply(lowerPlan.apply(input));
+    }
+
+    @Override
+    public PlanFactory visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) {
+        return input -> {
+            Source source = source(ctx);
+            Attribute scoreAttr = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
+            Attribute forkAttr = new UnresolvedAttribute(source, Fork.FORK_FIELD);
+            Attribute idAttr = new UnresolvedAttribute(source, IdFieldMapper.NAME);
+            Attribute indexAttr = new UnresolvedAttribute(source, MetadataAttribute.INDEX);
+            List<NamedExpression> aggregates = List.of(
+                new Alias(source, MetadataAttribute.SCORE, new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN)))
+            );
+            List<Attribute> groupings = List.of(idAttr, indexAttr);
+
+            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
+
+            List<Order> order = List.of(
+                new Order(source, scoreAttr, Order.OrderDirection.DESC, Order.NullsPosition.LAST),
+                new Order(source, idAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(source, indexAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
+            );
+
+            return new OrderBy(source, dedup, order);
+        };
     }
 }

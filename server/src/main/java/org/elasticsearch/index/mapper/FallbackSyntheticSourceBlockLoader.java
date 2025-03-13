@@ -275,9 +275,9 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     }
 
     public abstract static class ReaderWithNullValueSupport<T> implements Reader<T> {
-        private final T nullValue;
+        private final Object nullValue;
 
-        public ReaderWithNullValueSupport(T nullValue) {
+        public ReaderWithNullValueSupport(Object nullValue) {
             this.nullValue = nullValue;
         }
 

@@ -159,7 +159,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
                 if (indexService != null) {
                     customDataPath = indexService.getIndexSettings().customDataPath();
                 } else {
-                    IndexMetadata metadata = clusterService.state().metadata().getProject().index(shardId.getIndex());
+                    IndexMetadata metadata = clusterService.state().metadata().findIndex(shardId.getIndex()).orElse(null);
                     if (metadata != null) {
                         customDataPath = new IndexSettings(metadata, settings).customDataPath();
                     } else {
@@ -221,9 +221,6 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
             if (out.getTransportVersion().before(TransportVersions.V_8_2_0)) {
                 // no compatible version cares about the shard ID, we can just make one up
                 FAKE_SHARD_ID.writeTo(out);
-
-                // NB only checked this for versions back to 7.17.0, we are assuming that we don't use this with earlier versions:
-                assert out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) : out.getTransportVersion();
             }
             metadataSnapshot.writeTo(out);
             out.writeCollection(peerRecoveryRetentionLeases);

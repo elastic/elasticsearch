@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
@@ -40,6 +41,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
@@ -53,6 +57,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -68,6 +73,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
     private final ClusterSettings clusterSettings;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private final DataStreamFailureStoreSettings dataStreamFailureStoreSettings;
+    private final IndexSettingProviders indexSettingProviders;
     private final Client client;
 
     @Inject
@@ -81,6 +87,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
         SystemIndices systemIndices,
         DataStreamGlobalRetentionSettings globalRetentionSettings,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        IndexSettingProviders indexSettingProviders,
         Client client
     ) {
         super(
@@ -99,6 +106,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
         this.globalRetentionSettings = globalRetentionSettings;
         clusterSettings = clusterService.getClusterSettings();
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
+        this.indexSettingProviders = indexSettingProviders;
         this.client = new OriginSettingClient(client, "stack");
     }
 
@@ -131,6 +139,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
                             clusterSettings,
                             globalRetentionSettings,
                             dataStreamFailureStoreSettings,
+                            indexSettingProviders,
                             maxTimestamps
                         )
                     );
@@ -151,10 +160,41 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
                     clusterSettings,
                     globalRetentionSettings,
                     dataStreamFailureStoreSettings,
+                    indexSettingProviders,
                     null
                 )
             );
         }
+    }
+
+    /**
+     * Resolves the index mode ("index.mode" setting) for the given data stream, from the template or additional setting providers
+     */
+    @Nullable
+    static IndexMode resolveMode(
+        ProjectState state,
+        IndexSettingProviders indexSettingProviders,
+        DataStream dataStream,
+        Settings settings,
+        ComposableIndexTemplate indexTemplate
+    ) {
+        IndexMode indexMode = state.metadata().retrieveIndexModeFromTemplate(indexTemplate);
+        for (IndexSettingProvider provider : indexSettingProviders.getIndexSettingProviders()) {
+            Settings addlSettinsg = provider.getAdditionalIndexSettings(
+                MetadataIndexTemplateService.VALIDATE_INDEX_NAME,
+                dataStream.getName(),
+                indexMode,
+                state.metadata(),
+                Instant.now(),
+                settings,
+                List.of()
+            );
+            var rawMode = addlSettinsg.get(IndexSettings.MODE.getKey());
+            if (rawMode != null) {
+                indexMode = Enum.valueOf(IndexMode.class, rawMode.toUpperCase(Locale.ROOT));
+            }
+        }
+        return indexMode;
     }
 
     static GetDataStreamAction.Response innerOperation(
@@ -165,6 +205,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
         ClusterSettings clusterSettings,
         DataStreamGlobalRetentionSettings globalRetentionSettings,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings,
+        IndexSettingProviders indexSettingProviders,
         @Nullable Map<String, Long> maxTimestamps
     ) {
         List<DataStream> dataStreams = getDataStreams(state.metadata(), indexNameExpressionResolver, request);
@@ -177,6 +218,7 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
             final String indexTemplate;
             boolean indexTemplatePreferIlmValue = true;
             String ilmPolicyName = null;
+            IndexMode indexMode = dataStream.getIndexMode();
             if (dataStream.isSystem()) {
                 SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStream.getName());
                 indexTemplate = dataStreamDescriptor != null ? dataStreamDescriptor.getDataStreamName() : null;
@@ -186,6 +228,15 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
                         dataStreamDescriptor.getComponentTemplates()
                     );
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                    if (indexMode == null) {
+                        indexMode = resolveMode(
+                            state,
+                            indexSettingProviders,
+                            dataStream,
+                            settings,
+                            dataStreamDescriptor.getComposableIndexTemplate()
+                        );
+                    }
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 }
             } else {
@@ -193,6 +244,15 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
                 if (indexTemplate != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
                     ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                    if (indexMode == null && state.metadata().templatesV2().get(indexTemplate) != null) {
+                        indexMode = resolveMode(
+                            state,
+                            indexSettingProviders,
+                            dataStream,
+                            settings,
+                            state.metadata().templatesV2().get(indexTemplate)
+                        );
+                    }
                     indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {
                     LOGGER.warn(
@@ -285,7 +345,9 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
                     timeSeries,
                     backingIndicesSettingsValues,
                     indexTemplatePreferIlmValue,
-                    maxTimestamps == null ? null : maxTimestamps.get(dataStream.getName())
+                    maxTimestamps == null ? null : maxTimestamps.get(dataStream.getName()),
+                    // Default to standard mode if not specified; should we set this to "unset" or "unspecified" instead?
+                    indexMode == null ? IndexMode.STANDARD.getName() : indexMode.getName()
                 )
             );
         }
@@ -314,7 +376,11 @@ public class TransportGetDataStreamsAction extends TransportMasterNodeReadProjec
             } else {
                 managedBy = ManagedBy.UNMANAGED;
             }
-            backingIndicesSettingsValues.put(index, new IndexProperties(preferIlm, indexMetadata.getLifecyclePolicyName(), managedBy));
+            String indexMode = IndexSettings.MODE.get(indexMetadata.getSettings()).getName();
+            backingIndicesSettingsValues.put(
+                index,
+                new IndexProperties(preferIlm, indexMetadata.getLifecyclePolicyName(), managedBy, indexMode)
+            );
         }
     }
 

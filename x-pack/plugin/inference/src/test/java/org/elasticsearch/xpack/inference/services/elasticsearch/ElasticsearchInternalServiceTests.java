@@ -951,6 +951,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of("a", "bb"),
             Map.of(),
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
@@ -1023,6 +1024,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of("a", "bb"),
             Map.of(),
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
@@ -1095,6 +1097,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of("a", "bb"),
             Map.of(),
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
@@ -1138,8 +1141,10 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         expectedWindowSize.set(null);
         service.chunkedInfer(
             model,
+            null,
             List.of("foo", "bar"),
             Map.of(),
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
@@ -1149,8 +1154,10 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         expectedWindowSize.set(256);
         service.chunkedInfer(
             model,
+            null,
             List.of("foo", "bar"),
             Map.of(),
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
@@ -1203,6 +1210,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of("foo", "bar", "baz"),
             Map.of(),
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener
@@ -1275,6 +1283,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             null,
             List.of(input),
             Map.of(),
+            null,
             InputType.SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             latchedListener

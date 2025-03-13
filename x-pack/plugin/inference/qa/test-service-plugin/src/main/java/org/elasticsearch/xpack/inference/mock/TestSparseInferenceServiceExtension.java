@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -33,7 +34,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TestSparseInferenceServiceExtension implements InferenceServiceExtension {
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
@@ -137,12 +138,13 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
+            ChunkingSettings chunkingSettings,
             InputType inputType,
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
+                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input, chunkingSettings));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -164,23 +166,24 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private List<ChunkedInference> makeChunkedResults(List<String> input) {
+        private List<ChunkedInference> makeChunkedResults(List<String> inputs, ChunkingSettings chunkingSettings) {
             List<ChunkedInference> results = new ArrayList<>();
-            for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<WeightedToken>();
-                for (int j = 0; j < 5; j++) {
-                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
+            for (String input : inputs) {
+                List<String> chunkedInput = chunkInputs(input, chunkingSettings);
+                List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>();
+                int offset = 0;
+                for (String c : chunkedInput) {
+                    var tokens = new ArrayList<WeightedToken>();
+                    for (int i = 0; i < 5; i++) {
+                        tokens.add(new WeightedToken("feature_" + i, generateEmbedding(input, i)));
+                    }
+                    offset = input.indexOf(c, offset);
+                    int endOffset = offset + c.length();
+                    var embeddings = new SparseEmbeddingResults.Embedding(tokens, false);
+                    chunks.add(new SparseEmbeddingResults.Chunk(embeddings, new ChunkedInference.TextOffset(offset, endOffset)));
                 }
-                results.add(
-                    new ChunkedInferenceEmbedding(
-                        List.of(
-                            new EmbeddingResults.Chunk(
-                                new SparseEmbeddingResults.Embedding(tokens, false),
-                                new ChunkedInference.TextOffset(0, input.get(i).length())
-                            )
-                        )
-                    )
-                );
+                ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
+                results.add(chunkedInferenceEmbedding);
             }
             return results;
         }

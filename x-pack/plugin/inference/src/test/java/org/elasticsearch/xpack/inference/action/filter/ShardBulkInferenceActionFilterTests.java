@@ -135,7 +135,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             new BulkItemRequest[0]
         );
         request.setInferenceFieldMap(
-            Map.of("foo", new InferenceFieldMetadata("foo", "bar", "baz", generateRandomStringArray(5, 10, false, false)))
+            Map.of("foo", new InferenceFieldMetadata("foo", "bar", "baz", generateRandomStringArray(5, 10, false, false), null))
         );
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
@@ -168,7 +168,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
             "obj.field1",
-            new InferenceFieldMetadata("obj.field1", model.getInferenceEntityId(), new String[] { "obj.field1" })
+            new InferenceFieldMetadata("obj.field1", model.getInferenceEntityId(), new String[] { "obj.field1" }, null)
         );
         BulkItemRequest[] items = new BulkItemRequest[1];
         items[0] = new BulkItemRequest(0, new IndexRequest("test").source("obj.field1", "Test"));
@@ -209,11 +209,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
             "field1",
-            new InferenceFieldMetadata("field1", model.getInferenceEntityId(), new String[] { "field1" }),
+            new InferenceFieldMetadata("field1", model.getInferenceEntityId(), new String[] { "field1" }, null),
             "field2",
-            new InferenceFieldMetadata("field2", "inference_0", new String[] { "field2" }),
+            new InferenceFieldMetadata("field2", "inference_0", new String[] { "field2" }, null),
             "field3",
-            new InferenceFieldMetadata("field3", "inference_0", new String[] { "field3" })
+            new InferenceFieldMetadata("field3", "inference_0", new String[] { "field3" }, null)
         );
         BulkItemRequest[] items = new BulkItemRequest[10];
         for (int i = 0; i < items.length; i++) {
@@ -282,7 +282,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
             "field1",
-            new InferenceFieldMetadata("field1", model.getInferenceEntityId(), new String[] { "field1" })
+            new InferenceFieldMetadata("field1", model.getInferenceEntityId(), new String[] { "field1" }, null)
         );
         BulkItemRequest[] items = new BulkItemRequest[3];
         items[0] = new BulkItemRequest(0, new IndexRequest("index").source("field1", "I am a failure"));
@@ -351,7 +351,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
             "obj.field1",
-            new InferenceFieldMetadata("obj.field1", model.getInferenceEntityId(), new String[] { "obj.field1" })
+            new InferenceFieldMetadata("obj.field1", model.getInferenceEntityId(), new String[] { "obj.field1" }, null)
         );
         Map<String, Object> sourceWithNull = new HashMap<>();
         sourceWithNull.put("field1", null);
@@ -408,7 +408,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Task task = mock(Task.class);
         Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
             "semantic_text_field",
-            new InferenceFieldMetadata("semantic_text_field", model.getInferenceEntityId(), new String[] { "semantic_text_field" })
+            new InferenceFieldMetadata("semantic_text_field", model.getInferenceEntityId(), new String[] { "semantic_text_field" }, null)
         );
 
         BulkItemRequest[] items = new BulkItemRequest[3];
@@ -435,7 +435,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         for (int i = 0; i < numInferenceFields; i++) {
             String field = randomAlphaOfLengthBetween(5, 10);
             String inferenceId = randomFrom(inferenceModelMap.keySet());
-            inferenceFieldMap.put(field, new InferenceFieldMetadata(field, inferenceId, new String[] { field }));
+            inferenceFieldMap.put(field, new InferenceFieldMetadata(field, inferenceId, new String[] { field }, null));
         }
 
         int numRequests = atLeast(100);
@@ -517,7 +517,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
             List<String> inputs = (List<String>) invocationOnMock.getArguments()[2];
-            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[6];
+            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[7];
             Runnable runnable = () -> {
                 List<ChunkedInference> results = new ArrayList<>();
                 for (String input : inputs) {
@@ -536,7 +536,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
             return null;
         };
-        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
+        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any(), any());
 
         Answer<Model> modelAnswer = invocationOnMock -> {
             String inferenceId = (String) invocationOnMock.getArguments()[0];
@@ -612,13 +612,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                     useLegacyFormat,
                     field,
                     model,
+                    null,
                     List.of(inputText),
                     results,
                     requestContentType
                 );
             } else {
                 Map<String, List<String>> inputTextMap = Map.of(field, List.of(inputText));
-                semanticTextField = randomSemanticText(useLegacyFormat, field, model, List.of(inputText), requestContentType);
+                semanticTextField = randomSemanticText(useLegacyFormat, field, model, null, List.of(inputText), requestContentType);
                 model.putResult(inputText, toChunkedResult(useLegacyFormat, inputTextMap, semanticTextField));
             }
 

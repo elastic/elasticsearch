@@ -32,6 +32,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
@@ -46,6 +47,7 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.InferenceException;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -60,6 +62,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
@@ -154,8 +157,17 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
      * @param input The input to run inference on.
      * @param inputOrder The original order of the input.
      * @param offsetAdjustment The adjustment to apply to the chunk text offsets.
+     * @param chunkingSettings Additional explicitly specified chunking settings, or null to use model defaults
      */
-    private record FieldInferenceRequest(int index, String field, String sourceField, String input, int inputOrder, int offsetAdjustment) {}
+    private record FieldInferenceRequest(
+        int index,
+        String field,
+        String sourceField,
+        String input,
+        int inputOrder,
+        int offsetAdjustment,
+        ChunkingSettings chunkingSettings
+    ) {}
 
     /**
      * The field inference response.
@@ -305,10 +317,23 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
                 return;
             }
+
+            // Create a batch of requests that come in. The number of requests in the batch must be <= the configured batch size,
+            // and they must all have the same configured chunking settings. As requests must be processed in order, this means
+            // that some batches with several different chunking settings may result in more, smaller batches.
             int currentBatchSize = Math.min(requests.size(), batchSize);
-            final List<FieldInferenceRequest> currentBatch = requests.subList(0, currentBatchSize);
-            final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatchSize, requests.size());
+            final ChunkingSettings chunkingSettings = requests.isEmpty() == false ? requests.getFirst().chunkingSettings : null;
+            final List<FieldInferenceRequest> currentBatch = new ArrayList<>();
+            for (FieldInferenceRequest request : requests) {
+                if (Objects.equals(request.chunkingSettings, chunkingSettings) == false || currentBatch.size() >= currentBatchSize) {
+                    break;
+                }
+                currentBatch.add(request);
+            }
+
+            final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatch.size(), requests.size());
             final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
+
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
                 public void onResponse(List<ChunkedInference> results) {
@@ -373,7 +398,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             };
             inferenceProvider.service()
-                .chunkedInfer(inferenceProvider.model(), null, inputs, Map.of(), InputType.INGEST, TimeValue.MAX_VALUE, completionListener);
+                .chunkedInfer(
+                    inferenceProvider.model(),
+                    null,
+                    inputs,
+                    Map.of(),
+                    chunkingSettings,
+                    InputType.INGEST,
+                    TimeValue.MAX_VALUE,
+                    completionListener
+                );
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {
@@ -453,7 +487,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         model != null ? new MinimalServiceSettings(model) : null,
                         chunkMap
                     ),
-                    indexRequest.getContentType()
+                    indexRequest.getContentType(),
+                    ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings(), false)
                 );
 
                 if (useLegacyFormat) {
@@ -512,6 +547,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
+                    ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(entry.getChunkingSettings(), false);
 
                     if (useLegacyFormat) {
                         var originalFieldValue = XContentMapValues.extractValue(field, docMap);
@@ -585,7 +621,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                                 );
                             } else {
-                                fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                                fieldRequests.add(
+                                    new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings)
+                                );
                             }
 
                             // When using the inference metadata fields format, all the input values are concatenated so that the

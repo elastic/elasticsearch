@@ -166,6 +166,8 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
                         case min -> min = Math.min(value, min);
                         case max -> max = Math.max(value, max);
                         case sum -> sum.add(value);
+                        // This is the reason why we can't use GaugeMetricFieldProducer
+                        // For downsampled indices aggregate metric double's value count field needs to be summed.
                         case value_count -> count += Math.round(value);
                     }
                 }

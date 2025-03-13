@@ -173,7 +173,7 @@ public class DeepSeekChatCompletionModel extends Model {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ML_INFERENCE_DEEPSEEK;
+            return TransportVersions.ML_INFERENCE_DEEPSEEK_8_19;
         }
 
         @Override

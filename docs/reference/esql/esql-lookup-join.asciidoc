@@ -51,7 +51,7 @@ The name of the lookup index. This must
 be a specific index name - wildcards, aliases, and remote cluster
 references are not supported.
 
-[[esql-lookup-join-lookup-index]]
+[[esql-lookup-join-field-name]]
 field_name::
 The field to join on. This field must exist
 in both your current query results and in the lookup index. If the field

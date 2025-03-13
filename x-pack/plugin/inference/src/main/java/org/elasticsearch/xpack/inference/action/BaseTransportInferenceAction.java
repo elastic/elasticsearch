@@ -393,7 +393,6 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         }
     }
 
-
     private record NodeRoutingDecision(boolean currentNodeShouldHandleRequest, DiscoveryNode targetNode) {
         static NodeRoutingDecision handleLocally() {
             return new NodeRoutingDecision(true, null);

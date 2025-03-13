@@ -108,19 +108,19 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             }).when(mergeTask).schedule();
             doAnswer(mock -> {
                 // wait to be signalled before completing
-                runMergeSemaphore.acquireUninterruptibly();
                 if (runOrAbort == ABORT) {
                     fail("merge task ran but it should've aborted instead");
                 }
+                runMergeSemaphore.acquireUninterruptibly();
                 doneMergesCount.incrementAndGet();
                 return null;
             }).when(mergeTask).run();
             doAnswer(mock -> {
                 // wait to be signalled before completing
-                runMergeSemaphore.acquireUninterruptibly();
                 if (runOrAbort == RUN) {
                     fail("merge task aborted but it should've ran instead");
                 }
+                runMergeSemaphore.acquireUninterruptibly();
                 doneMergesCount.incrementAndGet();
                 return null;
             }).when(mergeTask).abort();

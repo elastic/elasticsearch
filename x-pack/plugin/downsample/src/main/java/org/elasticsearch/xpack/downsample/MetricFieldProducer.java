@@ -100,7 +100,9 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
      * Metric implementation that computes the maximum of all values of a field
      */
     static final class Max extends Metric {
-        private double max = -Double.MAX_VALUE;
+        private static final double NO_VALUE = -Double.MAX_VALUE;
+
+        private double max = NO_VALUE;
 
         Max() {
             super("max");
@@ -118,7 +120,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
 
         @Override
         void reset() {
-            max = -Double.MAX_VALUE;
+            max = NO_VALUE;
         }
     }
 
@@ -126,7 +128,9 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
      * Metric implementation that computes the minimum of all values of a field
      */
     static final class Min extends Metric {
-        private double min = Double.MAX_VALUE;
+        private static final double NO_VALUE = Double.MAX_VALUE;
+
+        private double min = NO_VALUE;
 
         Min() {
             super("min");
@@ -144,7 +148,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
 
         @Override
         void reset() {
-            min = Double.MAX_VALUE;
+            min = NO_VALUE;
         }
     }
 
@@ -212,7 +216,9 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
      * ignoring everything else.
      */
     static final class LastValue extends Metric {
-        private double lastValue = Double.MIN_VALUE;
+        private static final double NO_VALUE = Double.MIN_VALUE;
+
+        private double lastValue = NO_VALUE;
 
         LastValue() {
             super("last_value");
@@ -232,7 +238,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
 
         @Override
         void reset() {
-            lastValue = Double.MIN_VALUE;
+            lastValue = NO_VALUE;
         }
     }
 

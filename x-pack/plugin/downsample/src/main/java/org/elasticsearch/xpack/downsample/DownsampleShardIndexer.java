@@ -421,6 +421,9 @@ class DownsampleShardIndexer {
                 MetricFieldProducer[] metricProducers,
                 SortedNumericDoubleValues[] numericDocValues
             ) {
+                assert nonMetricProducers.length == formattedDocValues.length;
+                assert metricProducers.length == numericDocValues.length;
+
                 this.aggCtx = aggCtx;
                 this.docCountProvider = docCountProvider;
                 this.nonMetricProducers = nonMetricProducers;

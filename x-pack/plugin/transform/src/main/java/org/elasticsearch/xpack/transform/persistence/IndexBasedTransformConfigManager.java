@@ -170,7 +170,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             listener.onFailure(conflictStatusException("Cannot update Transform while the Transform feature is upgrading."));
             return;
         }
-        if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+        if (isLatestTransformIndex(seqNoPrimaryTermAndIndex.getIndex())) {
             // update the config in the same, current index using optimistic concurrency control
             putTransformConfiguration(transformConfig, DocWriteRequest.OpType.INDEX, seqNoPrimaryTermAndIndex, listener);
         } else {
@@ -178,6 +178,21 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // this leaves a dup behind in the old index, see dup handling on the top
             putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, null, listener);
         }
+    }
+
+    @Override
+    public boolean isLatestTransformIndex(String indexName) {
+        if (TransformInternalIndexConstants.LATEST_INDEX_NAME.equals(indexName)) {
+            return true;
+        }
+
+        // in some cases, the System Index gets reindexed and LATEST_INDEX_NAME is now an alias pointing to that reindexed index
+        // this mostly likely happens after the SystemIndexMigrator ran
+        // we need to check if the LATEST_INDEX_NAME is now an alias and points to the indexName
+        var metadata = clusterService.state().projectState().metadata();
+        var indicesForAlias = metadata.aliasedIndices(TransformInternalIndexConstants.LATEST_INDEX_NAME);
+        var index = metadata.index(indexName);
+        return index != null && indicesForAlias.contains(index.getIndex());
     }
 
     @Override
@@ -697,7 +712,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 // could have been called, see gh#80073
                 indexRequest.opType(DocWriteRequest.OpType.INDEX);
                 // if on the latest index use optimistic concurrency control in addition
-                if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+                if (isLatestTransformIndex(seqNoPrimaryTermAndIndex.getIndex())) {
                     indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
                         .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
                 }

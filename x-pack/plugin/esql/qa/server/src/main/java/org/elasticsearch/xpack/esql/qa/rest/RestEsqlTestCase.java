@@ -1345,6 +1345,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     }
 
+    public void testListApi_noRunningQueries_returnsAnEmptyArray() throws Exception {
+        Request request = prepareListQueriesRequest();
+        Response response = performRequest(request);
+        assertThat(entityToMap(response.getEntity(), XContentType.JSON), is(Map.of("queries", Map.of())));
+    }
+
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
         requestObject.build();
         Request request = prepareRequest(mode);
@@ -1515,21 +1521,22 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     private static Request prepareRequest(Mode mode) {
-        Request request = new Request("POST", "/_query" + (mode == ASYNC ? "/async" : ""));
-        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
-        request.addParameter("pretty", "true");        // Improves error reporting readability
-        return request;
+        return finishRequest(new Request("POST", "/_query" + (mode == ASYNC ? "/async" : "")));
     }
 
     private static Request prepareAsyncGetRequest(String id) {
-        Request request = new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s");
-        request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
-        request.addParameter("pretty", "true");        // Improves error reporting readability
-        return request;
+        return finishRequest(new Request("GET", "/_query/async/" + id + "?wait_for_completion_timeout=60s"));
     }
 
     private static Request prepareAsyncDeleteRequest(String id) {
-        Request request = new Request("DELETE", "/_query/async/" + id);
+        return finishRequest(new Request("DELETE", "/_query/async/" + id));
+    }
+
+    private static Request prepareListQueriesRequest() {
+        return finishRequest(new Request("GET", "/_query/queries/"));
+    }
+
+    private static Request finishRequest(Request request) {
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
         return request;

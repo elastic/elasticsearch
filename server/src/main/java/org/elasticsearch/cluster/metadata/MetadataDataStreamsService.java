@@ -459,7 +459,7 @@ public class MetadataDataStreamsService {
         }
 
         for (final Map.Entry<ProjectId, Set<DataStream>> entry : byProject.entrySet()) {
-            clusterState = deleteDataStream(clusterState.projectState(entry.getKey()), entry.getValue(), settings);
+            clusterState = deleteDataStreams(clusterState.projectState(entry.getKey()), entry.getValue(), settings);
         }
         return clusterState;
     }
@@ -472,7 +472,7 @@ public class MetadataDataStreamsService {
      * @param settings     The settings
      * @return The updated Project State
      */
-    public static ClusterState deleteDataStream(ProjectState projectState, Set<DataStream> dataStreams, Settings settings) {
+    public static ClusterState deleteDataStreams(ProjectState projectState, Set<DataStream> dataStreams, Settings settings) {
         if (dataStreams.isEmpty()) {
             return projectState.cluster();
         }
@@ -499,10 +499,10 @@ public class MetadataDataStreamsService {
         // without updating the data stream)
         // TODO: change order when "delete index api" also updates the data stream the "index to be removed" is a member of
         ClusterState newState = projectState.updatedState(builder -> {
-            for (String ds : dataStreams) {
+            for (DataStream ds : dataStreams) {
                 LOGGER.info("removing data stream [{}]", ds.getName());
                 builder.removeDataStream(ds.getName());
-            });
+            }
         });
         return MetadataDeleteIndexService.deleteIndices(newState.projectState(projectState.projectId()), backingIndicesToRemove, settings);
     }

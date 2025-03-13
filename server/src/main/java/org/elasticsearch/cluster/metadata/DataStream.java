@@ -170,7 +170,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         this.name = name;
         this.generation = generation;
         this.metadata = metadata;
-        assert system == false || hidden; // system indices must be hidden
+        // The following assert is commented out, because system data streams created before 8.1 are not hidden,
+        // but should be updated to hidden by 8.18/8.19 (SystemIndexMetadataUpgradeService)
+        // assert system == false || hidden; // system indices must be hidden
         this.hidden = hidden;
         this.replicated = replicated;
         this.timeProvider = timeProvider;

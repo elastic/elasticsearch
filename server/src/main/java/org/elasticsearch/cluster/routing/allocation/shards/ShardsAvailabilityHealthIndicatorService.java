@@ -1195,7 +1195,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 .collect(
                     toMap(
                         SystemIndices.Feature::getName,
-                        feature -> feature.getIndexDescriptors()
+                        feature -> feature.getSystemResourceDescriptors()
                             .stream()
                             .flatMap(descriptor -> descriptor.getMatchingIndices(metadata).stream())
                             .collect(toSet())
@@ -1206,29 +1206,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 for (String featureIndex : featureToIndices.getValue()) {
                     if (restoreFromSnapshotIndices.contains(featureIndex)) {
                         affectedFeatureStates.add(featureToIndices.getKey());
-                        affectedIndices.remove(featureIndex);
-                    }
-                }
-            }
-
-            Map<String, Set<String>> featureToDsBackingIndices = systemIndices.getFeatures()
-                .stream()
-                .collect(
-                    toMap(
-                        SystemIndices.Feature::getName,
-                        feature -> feature.getDataStreamDescriptors()
-                            .stream()
-                            .flatMap(descriptor -> descriptor.getBackingIndexNames(metadata).stream())
-                            .collect(toSet())
-                    )
-                );
-
-            // the shards_availability indicator works with indices so let's remove the feature states data streams backing indices from
-            // the list of affected indices (the feature state will cover the restore of these indices too)
-            for (Map.Entry<String, Set<String>> featureToBackingIndices : featureToDsBackingIndices.entrySet()) {
-                for (String featureIndex : featureToBackingIndices.getValue()) {
-                    if (restoreFromSnapshotIndices.contains(featureIndex)) {
-                        affectedFeatureStates.add(featureToBackingIndices.getKey());
                         affectedIndices.remove(featureIndex);
                     }
                 }

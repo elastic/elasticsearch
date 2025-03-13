@@ -47,8 +47,6 @@ import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.Executor;
@@ -61,7 +59,6 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
-import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.routingAttributes;
 
 /**
  * Base class for transport actions that handle inference requests.
@@ -142,7 +139,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             try {
                 validateRequest(request, unparsedModel);
             } catch (Exception e) {
-                recordRequestDurationMetrics(unparsedModel, timer, e);
+                recordMetrics(unparsedModel, timer, e);
                 listener.onFailure(e);
                 return;
             }
@@ -155,8 +152,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             }
 
             var service = serviceRegistry.getService(serviceName).get();
-            var localNodeId = nodeClient.getLocalNodeId();
-            var routingDecision = determineRouting(serviceName, request, unparsedModel, localNodeId);
+            var routingDecision = determineRouting(serviceName, request, unparsedModel);
 
             if (routingDecision.currentNodeShouldHandleRequest()) {
                 var model = service.parsePersistedConfigWithSecrets(
@@ -165,7 +161,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                     unparsedModel.settings(),
                     unparsedModel.secrets()
                 );
-                inferOnServiceWithMetrics(model, request, service, timer, localNodeId, listener);
+                inferOnServiceWithMetrics(model, request, service, timer, listener);
             } else {
                 // Reroute request
                 request.setHasBeenRerouted(true);
@@ -199,7 +195,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         );
     }
 
-    private NodeRoutingDecision determineRouting(String serviceName, Request request, UnparsedModel unparsedModel, String localNodeId) {
+    private NodeRoutingDecision determineRouting(String serviceName, Request request, UnparsedModel unparsedModel) {
         var modelTaskType = unparsedModel.taskType();
 
         // Rerouting not supported or request was already rerouted
@@ -223,6 +219,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         }
 
         var nodeToHandleRequest = responsibleNodes.get(random.nextInt(responsibleNodes.size()));
+        String localNodeId = nodeClient.getLocalNodeId();
 
         // The drawn node is the current node
         if (nodeToHandleRequest.getId().equals(localNodeId)) {
@@ -268,13 +265,9 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         );
     }
 
-    private void recordRequestDurationMetrics(UnparsedModel model, InferenceTimer timer, @Nullable Throwable t) {
+    private void recordMetrics(UnparsedModel model, InferenceTimer timer, @Nullable Throwable t) {
         try {
-            Map<String, Object> metricAttributes = new HashMap<>();
-            metricAttributes.putAll(modelAttributes(model));
-            metricAttributes.putAll(responseAttributes(unwrapCause(t)));
-
-            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
+            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(model, t));
         } catch (Exception e) {
             log.atDebug().withThrowable(e).log("Failed to record metrics with an unparsed model, dropping metrics");
         }
@@ -285,10 +278,9 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         Request request,
         InferenceService service,
         InferenceTimer timer,
-        String localNodeId,
         ActionListener<InferenceAction.Response> listener
     ) {
-        recordRequestCountMetrics(model, request, localNodeId);
+        inferenceStats.requestCount().incrementBy(1, modelAttributes(model));
         inferOnService(model, request, service, ActionListener.wrap(inferenceResults -> {
             if (request.isStreaming()) {
                 var taskProcessor = streamingTaskManager.<InferenceServiceResults.Result>create(
@@ -297,18 +289,18 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 );
                 inferenceResults.publisher().subscribe(taskProcessor);
 
-                var instrumentedStream = new PublisherWithMetrics(timer, model, request, localNodeId);
+                var instrumentedStream = new PublisherWithMetrics(timer, model);
                 taskProcessor.subscribe(instrumentedStream);
 
                 var streamErrorHandler = streamErrorHandler(instrumentedStream);
 
                 listener.onResponse(new InferenceAction.Response(inferenceResults, streamErrorHandler));
             } else {
-                recordRequestDurationMetrics(model, timer, request, localNodeId, null);
+                recordMetrics(model, timer, null);
                 listener.onResponse(new InferenceAction.Response(inferenceResults));
             }
         }, e -> {
-            recordRequestDurationMetrics(model, timer, request, localNodeId, e);
+            recordMetrics(model, timer, e);
             listener.onFailure(e);
         }));
     }
@@ -317,35 +309,16 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         return upstream;
     }
 
-    private void recordRequestCountMetrics(Model model, Request request, String localNodeId) {
-        Map<String, Object> requestCountAttributes = new HashMap<>();
-        requestCountAttributes.putAll(modelAttributes(model));
-        requestCountAttributes.putAll(routingAttributes(request, localNodeId));
-
-        inferenceStats.requestCount().incrementBy(1, requestCountAttributes);
-    }
-
-    private void recordRequestDurationMetrics(
-        Model model,
-        InferenceTimer timer,
-        Request request,
-        String localNodeId,
-        @Nullable Throwable t
-    ) {
+    private void recordMetrics(Model model, InferenceTimer timer, @Nullable Throwable t) {
         try {
-            Map<String, Object> metricAttributes = new HashMap<>();
-            metricAttributes.putAll(modelAttributes(model));
-            metricAttributes.putAll(routingAttributes(request, localNodeId));
-            metricAttributes.putAll(responseAttributes(unwrapCause(t)));
-
-            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), metricAttributes);
+            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(model, unwrapCause(t)));
         } catch (Exception e) {
             log.atDebug().withThrowable(e).log("Failed to record metrics with a parsed model, dropping metrics");
         }
     }
 
     private void inferOnService(Model model, Request request, InferenceService service, ActionListener<InferenceServiceResults> listener) {
-        if (request.isStreaming() == false || service.canStream(model.getTaskType())) {
+        if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
             doInference(model, request, service, listener);
         } else {
             listener.onFailure(unsupportedStreamingTaskException(request, service));
@@ -390,14 +363,10 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
         private final InferenceTimer timer;
         private final Model model;
-        private final Request request;
-        private final String localNodeId;
 
-        private PublisherWithMetrics(InferenceTimer timer, Model model, Request request, String localNodeId) {
+        private PublisherWithMetrics(InferenceTimer timer, Model model) {
             this.timer = timer;
             this.model = model;
-            this.request = request;
-            this.localNodeId = localNodeId;
         }
 
         @Override
@@ -407,22 +376,23 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
         @Override
         public void onError(Throwable throwable) {
-            recordRequestDurationMetrics(model, timer, request, localNodeId, throwable);
+            recordMetrics(model, timer, throwable);
             super.onError(throwable);
         }
 
         @Override
         protected void onCancel() {
-            recordRequestDurationMetrics(model, timer, request, localNodeId, null);
+            recordMetrics(model, timer, null);
             super.onCancel();
         }
 
         @Override
         public void onComplete() {
-            recordRequestDurationMetrics(model, timer, request, localNodeId, null);
+            recordMetrics(model, timer, null);
             super.onComplete();
         }
     }
+
 
     private record NodeRoutingDecision(boolean currentNodeShouldHandleRequest, DiscoveryNode targetNode) {
         static NodeRoutingDecision handleLocally() {

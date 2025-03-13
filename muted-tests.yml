@@ -339,6 +339,18 @@ tests:
 - class: org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRateTests
   method: testEwmr_threadSafe
   issue: https://github.com/elastic/elasticsearch/issues/124692
+- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/124830
+- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/124831
+- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/124833
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testUpdateIndexTemplateToDataStreamLifecyclePreference
+  issue: https://github.com/elastic/elasticsearch/issues/124837
 
 # Examples:
 #

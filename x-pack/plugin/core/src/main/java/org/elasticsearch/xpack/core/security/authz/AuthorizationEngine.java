@@ -293,12 +293,12 @@ public interface AuthorizationEngine {
          * at a fixed point in time (for a single cluster state view).
          * The result is cached and subsequent calls to this method are idempotent.
          */
-        Set<String> all(@Nullable String selector);
+        Set<String> all(IndexComponentSelector selector);
 
         /**
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
          */
-        boolean check(String name, @Nullable String selector);
+        boolean check(String name, IndexComponentSelector selector);
     }
 
     /**

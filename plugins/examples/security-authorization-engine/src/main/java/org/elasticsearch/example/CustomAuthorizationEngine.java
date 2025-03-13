@@ -10,6 +10,7 @@
 package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -119,19 +120,19 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(new AuthorizedIndices() {
-                public Set<String> all(@Nullable String selector) {
+                public Set<String> all(IndexComponentSelector selector) {
                     return () -> indicesLookup.keySet();
                 }
-                public boolean check(String name, @Nullable String selector) {
+                public boolean check(String name, IndexComponentSelector selector) {
                     return indicesLookup.containsKey(name);
                 }
             });
         } else {
             listener.onResponse(new AuthorizedIndices() {
-                public Set<String> all(@Nullable String selector) {
+                public Set<String> all(IndexComponentSelector selector) {
                     return () -> Set.of();
                 }
-                public boolean check(String name, @Nullable String selector) {
+                public boolean check(String name, IndexComponentSelector selector) {
                     return false;
                 }
             });

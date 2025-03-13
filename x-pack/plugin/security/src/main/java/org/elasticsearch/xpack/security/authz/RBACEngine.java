@@ -43,7 +43,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -929,9 +928,8 @@ public class RBACEngine implements AuthorizationEngine {
                 }
             }
             return indicesAndAliases;
-        }, (name, selectorString) -> {
+        }, (name, selector) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
-            final IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
             if (indexAbstraction == null) {
                 // test access (by name) to a resource that does not currently exist
                 // the action handler must handle the case of accessing resources that do not exist
@@ -1077,12 +1075,12 @@ public class RBACEngine implements AuthorizationEngine {
 
         private final CachedSupplier<Set<String>> authorizedAndAvailableSupplier;
         private final CachedSupplier<Set<String>> failureStoreAuthorizedAndAvailableSupplier;
-        private final BiPredicate<String, String> isAuthorizedPredicate;
+        private final BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate;
 
         AuthorizedIndices(
             Supplier<Set<String>> authorizedAndAvailableSupplier,
             Supplier<Set<String>> failureStoreAuthorizedAndAvailableSupplier,
-            BiPredicate<String, String> isAuthorizedPredicate
+            BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate
         ) {
             this.authorizedAndAvailableSupplier = CachedSupplier.wrap(authorizedAndAvailableSupplier);
             this.failureStoreAuthorizedAndAvailableSupplier = CachedSupplier.wrap(failureStoreAuthorizedAndAvailableSupplier);
@@ -1090,14 +1088,14 @@ public class RBACEngine implements AuthorizationEngine {
         }
 
         @Override
-        public Set<String> all(@Nullable String selector) {
-            return IndexComponentSelector.FAILURES.equals(IndexComponentSelector.getByKeyOrThrow(selector))
+        public Set<String> all(IndexComponentSelector selector) {
+            return IndexComponentSelector.FAILURES.equals(selector)
                 ? failureStoreAuthorizedAndAvailableSupplier.get()
                 : authorizedAndAvailableSupplier.get();
         }
 
         @Override
-        public boolean check(String name, @Nullable String selector) {
+        public boolean check(String name, IndexComponentSelector selector) {
             return isAuthorizedPredicate.test(name, selector);
         }
     }

@@ -322,7 +322,9 @@ class IndicesAndAliasesResolver {
                     );
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
-                    for (String authorizedIndex : authorizedIndices.all(allIndicesPatternSelector)) {
+                    for (String authorizedIndex : authorizedIndices.all(
+                        IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector)
+                    )) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
                             allIndicesPatternSelector,
@@ -432,7 +434,7 @@ class IndicesAndAliasesResolver {
      */
     static String getPutMappingIndexOrAlias(
         PutMappingRequest request,
-        BiPredicate<String, String> isAuthorized,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
         ProjectMetadata projectMetadata
     ) {
         final String concreteIndexName = request.getConcreteIndex().getName();
@@ -451,7 +453,7 @@ class IndicesAndAliasesResolver {
                     + "], but a concrete index is expected"
             );
             // we know this is implicit data access (as opposed to another selector) so the default selector check is correct
-        } else if (isAuthorized.test(concreteIndexName, null)) {
+        } else if (isAuthorized.test(concreteIndexName, IndexComponentSelector.DATA)) {
             // user is authorized to put mappings for this index
             resolvedAliasOrIndex = concreteIndexName;
         } else {
@@ -462,7 +464,7 @@ class IndicesAndAliasesResolver {
             if (aliasMetadata != null) {
                 Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(aliasName -> {
                     // we know this is implicit data access (as opposed to another selector) so the default selector check is correct
-                    if (false == isAuthorized.test(aliasName, null)) {
+                    if (false == isAuthorized.test(aliasName, IndexComponentSelector.DATA)) {
                         return false;
                     }
                     IndexAbstraction alias = projectMetadata.getIndicesLookup().get(aliasName);
@@ -490,7 +492,7 @@ class IndicesAndAliasesResolver {
     ) {
         List<String> authorizedAliases = new ArrayList<>();
         SortedMap<String, IndexAbstraction> existingAliases = projectMetadata.getIndicesLookup();
-        for (String authorizedIndex : authorizedIndices.all(null)) {
+        for (String authorizedIndex : authorizedIndices.all(IndexComponentSelector.DATA)) {
             IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                 authorizedAliases.add(authorizedIndex);

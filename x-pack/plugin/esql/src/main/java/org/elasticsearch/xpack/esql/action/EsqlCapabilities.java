@@ -819,7 +819,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V4(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least

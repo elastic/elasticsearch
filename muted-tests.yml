@@ -342,6 +342,9 @@ tests:
 - class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
   method: testIndexing {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/124830
+- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/124831
 
 # Examples:
 #

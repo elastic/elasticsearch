@@ -318,7 +318,7 @@ public class GoogleAiStudioService extends SenderService {
     ) {
         GoogleAiStudioModel googleAiStudioModel = (GoogleAiStudioModel) model;
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             googleAiStudioModel.getConfigurations().getChunkingSettings()

@@ -896,20 +896,20 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
             assertThat(result1.chunks(), hasSize(1));
-            assertThat(result1.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
                 ((MlTextEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Chunk) result1.chunks().get(0)).embedding(),
+                ((TextEmbeddingFloatResults.Embedding) result1.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks(), hasSize(1));
-            assertThat(result2.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
             assertArrayEquals(
                 ((MlTextEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
-                ((TextEmbeddingFloatResults.Chunk) result2.chunks().get(0)).embedding(),
+                ((TextEmbeddingFloatResults.Embedding) result2.chunks().get(0).embedding()).values(),
                 0.0001f
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
@@ -972,18 +972,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse, hasSize(2));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
-            assertThat(result1.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result1.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
-            assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result2.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
             gotResults.set(true);
@@ -1044,18 +1044,18 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             assertThat(chunkedResponse, hasSize(2));
             assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
             var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
-            assertThat(result1.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result1.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result1.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 1), result1.chunks().get(0).offset());
             assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
             var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
-            assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+            assertThat(result2.chunks().get(0).embedding(), instanceOf(SparseEmbeddingResults.Embedding.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
-                ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
+                ((SparseEmbeddingResults.Embedding) result2.chunks().get(0).embedding()).tokens()
             );
             assertEquals(new ChunkedInference.TextOffset(0, 2), result2.chunks().get(0).offset());
             gotResults.set(true);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
@@ -154,8 +155,10 @@ public class EntitlementInitialization {
             serverModuleFileDatas,
             // Base ES directories
             FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
+            FileData.ofPath(bootstrapArgs.modulesDir(), READ),
             FileData.ofPath(bootstrapArgs.configDir(), READ),
             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+            FileData.ofPath(bootstrapArgs.libDir(), READ),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
 
@@ -239,16 +242,22 @@ public class EntitlementInitialization {
             )
         );
 
-        Path trustStorePath = trustStorePath();
-        if (trustStorePath != null) {
+        // conditionally add FIPS entitlements if FIPS only functionality is enforced
+        if (Booleans.parseBoolean(System.getProperty("org.bouncycastle.fips.approved_only"), false)) {
+            // if custom trust store is set, grant read access to its location, otherwise use the default JDK trust store
+            String trustStore = System.getProperty("javax.net.ssl.trustStore");
+            Path trustStorePath = trustStore != null
+                ? Path.of(trustStore)
+                : Path.of(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+
             Collections.addAll(
                 serverScopes,
                 new Scope(
                     "org.bouncycastle.fips.tls",
                     List.of(
                         new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))),
-                        new OutboundNetworkEntitlement(),
-                        new ManageThreadsEntitlement()
+                        new ManageThreadsEntitlement(),
+                        new OutboundNetworkEntitlement()
                     )
                 ),
                 new Scope(
@@ -298,11 +307,6 @@ public class EntitlementInitialization {
             throw new IllegalStateException("user.home system property is required");
         }
         return PathUtils.get(userHome);
-    }
-
-    private static Path trustStorePath() {
-        String trustStore = System.getProperty("javax.net.ssl.trustStore");
-        return trustStore != null ? Path.of(trustStore) : null;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

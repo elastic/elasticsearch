@@ -34,7 +34,7 @@ public class TextEmbeddingModelValidator implements ModelValidator {
     }
 
     private Model postValidate(InferenceService service, Model model, InferenceServiceResults results) {
-        if (results instanceof TextEmbeddingResults<?, ?> embeddingResults) {
+        if (results instanceof TextEmbeddingResults<?> embeddingResults) {
             var serviceSettings = model.getServiceSettings();
             var dimensions = serviceSettings.dimensions();
             int embeddingSize = getEmbeddingSize(embeddingResults);
@@ -68,7 +68,7 @@ public class TextEmbeddingModelValidator implements ModelValidator {
         }
     }
 
-    private int getEmbeddingSize(TextEmbeddingResults<?, ?> embeddingResults) {
+    private int getEmbeddingSize(TextEmbeddingResults<?> embeddingResults) {
         int embeddingSize;
         try {
             embeddingSize = embeddingResults.getFirstEmbeddingSize();

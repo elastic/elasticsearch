@@ -57,6 +57,7 @@ public class DeepSeekService extends SenderService {
         TaskType.COMPLETION,
         TaskType.CHAT_COMPLETION
     );
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES_FOR_STREAMING = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
     public DeepSeekService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -149,7 +150,8 @@ public class DeepSeekService extends SenderService {
 
     @Override
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        return parsePersistedConfigWithSecrets(modelId, taskType, config, config);
+        var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        return DeepSeekChatCompletionModel.readFromStorage(modelId, taskType, NAME, serviceSettingsMap, null);
     }
 
     @Override
@@ -169,7 +171,7 @@ public class DeepSeekService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(TaskType.CHAT_COMPLETION);
+        return SUPPORTED_TASK_TYPES_FOR_STREAMING;
     }
 
     @Override

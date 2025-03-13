@@ -594,7 +594,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     listener.clusterChanged(clusterChangedEvent);
                 }
             } catch (Metadata.MultiProjectPendingException e) {
-                // don't warn, this fills the logs
+                // don't warn, this fills the logs and also slow down applier thread in CI which could cause unrelated failures
                 logger.trace("ClusterStateListener not multi-project compatible", e);
             } catch (Exception ex) {
                 logger.warn("failed to notify ClusterStateListener", ex);

@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -109,9 +110,8 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                 sparseResult.chunks(),
                 is(
                     List.of(
-                        new SparseEmbeddingResults.Chunk(
-                            List.of(new WeightedToken(".", 0.13315596f)),
-                            "abc",
+                        new EmbeddingResults.Chunk(
+                            new SparseEmbeddingResults.Embedding(List.of(new WeightedToken(".", 0.13315596f)), false),
                             new ChunkedInference.TextOffset(0, "abc".length())
                         )
                     )

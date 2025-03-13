@@ -265,7 +265,7 @@ For a precision threshold of `c`, the implementation that we are using requires 
 
 The following chart shows how the error varies before and after the threshold:
 
-![cardinality error](../../../../images/cardinality_error.png "")
+![cardinality error](/images/cardinality_error.png "")
 
 For all 3 thresholds, counts have been accurate up to the configured threshold. Although not guaranteed, this is likely to be the case. Accuracy in practice depends on the dataset in question. In general, most datasets show consistently good accuracy. Also note that even with a threshold as low as 100, the error remains very low (1-6% as seen in the above graph) even when counting millions of items.
 
@@ -569,7 +569,7 @@ When using this metric, there are a few guidelines to keep in mind:
 
 The following chart shows the relative error on a uniform distribution depending on the number of collected values and the requested percentile:
 
-![percentiles error](../../../../images/percentiles_error.png "")
+![percentiles error](/images/percentiles_error.png "")
 
 It shows how precision is better for extreme percentiles. The reason why error diminishes for large number of values is that the law of large numbers makes the distribution of values more and more uniform and the t-digest tree can do a better job at summarizing it. It would not be the case on more skewed distributions.
 

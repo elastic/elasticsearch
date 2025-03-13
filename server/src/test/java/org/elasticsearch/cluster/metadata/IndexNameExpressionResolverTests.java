@@ -108,7 +108,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndexNamesStrictExpand() {
-        final ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        final ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar")))
             .put(indexBuilder("foobar").putAlias(AliasMetadata.builder("foofoobar")))
             .put(indexBuilder("foofoo-closed").state(State.CLOSE))
@@ -182,7 +182,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndexNamesLenientExpand() {
-        final ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        final ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar")))
             .put(indexBuilder("foobar").putAlias(AliasMetadata.builder("foofoobar")))
             .put(indexBuilder("foofoo-closed").state(State.CLOSE))
@@ -242,7 +242,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndexNamesIgnoreUnavailableDisallowEmpty() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("foo"))
             .put(indexBuilder("foobar"))
             .put(indexBuilder("foofoo-closed").state(IndexMetadata.State.CLOSE))
@@ -296,7 +296,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndexNamesExpandWildcards() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("foo").state(IndexMetadata.State.CLOSE))
             .put(indexBuilder("bar"))
             .put(indexBuilder("foobar").putAlias(AliasMetadata.builder("barbaz")))
@@ -521,7 +521,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndexNamesNoExpandWildcards() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar")))
             .put(indexBuilder("foobar").putAlias(AliasMetadata.builder("foofoobar")))
             .put(indexBuilder("foofoo-closed").state(IndexMetadata.State.CLOSE))
@@ -649,7 +649,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIndexOptionsSingleIndexNoExpandWildcards() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar")))
             .put(indexBuilder("foobar").putAlias(AliasMetadata.builder("foofoobar")))
             .put(indexBuilder("foofoo-closed").state(IndexMetadata.State.CLOSE))
@@ -735,7 +735,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIndexOptionsEmptyCluster() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
 
         IndicesOptions options = IndicesOptions.strictExpandOpen();
         final IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
@@ -824,7 +824,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesIgnoreIndicesOneMissingIndex() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("testXXX"))
             .put(indexBuilder("kuku"))
             .build();
@@ -852,7 +852,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesIgnoreIndicesOneMissingIndexOtherFound() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("testXXX"))
             .put(indexBuilder("kuku"))
             .build();
@@ -869,7 +869,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesIgnoreIndicesAllMissing() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("testXXX"))
             .put(indexBuilder("kuku"))
             .build();
@@ -898,7 +898,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesIgnoreIndicesEmptyRequest() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("testXXX"))
             .put(indexBuilder("kuku"))
             .build();
@@ -911,7 +911,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesNoIndicesErrorMessage() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
             project,
             IndicesOptions.fromOptions(false, false, true, true),
@@ -925,7 +925,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesNoIndicesErrorMessageNoExpand() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
             project,
             IndicesOptions.fromOptions(false, false, false, false),
@@ -939,7 +939,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesWildcardExpansion() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("testXXX").state(State.OPEN))
             .put(indexBuilder("testXXY").state(State.OPEN))
             .put(indexBuilder("testXYY").state(State.CLOSE))
@@ -980,7 +980,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesWildcardWithNegation() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("testXXX").state(State.OPEN))
             .put(indexBuilder("testXXY").state(State.OPEN))
             .put(indexBuilder("testXYY").state(State.OPEN))
@@ -1073,7 +1073,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteIndicesWildcardAndAliases() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("foo_foo").state(State.OPEN).putAlias(AliasMetadata.builder("foo")))
             .put(indexBuilder("bar_bar").state(State.OPEN).putAlias(AliasMetadata.builder("foo")))
             .build();
@@ -1174,7 +1174,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         {
             // A visible index with a visible alias and a hidden index with a hidden alias
-            ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
                 .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetadata.builder(visibleAlias)))
                 .put(
                     indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build()).state(State.OPEN)
@@ -1217,7 +1217,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         {
             // A visible alias that points to one hidden and one visible index
-            ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
                 .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetadata.builder(visibleAlias)))
                 .put(
                     indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build()).state(State.OPEN)
@@ -1243,7 +1243,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         {
             // A hidden alias that points to one hidden and one visible index
-            ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
                 .put(indexBuilder(visibleIndex).state(State.OPEN).putAlias(AliasMetadata.builder(hiddenAlias).isHidden(true)))
                 .put(
                     indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build()).state(State.OPEN)
@@ -1274,7 +1274,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         {
             // A hidden alias with a dot-prefixed name that points to one hidden index with a dot prefix, and one hidden index without
-            ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
                 .put(
                     indexBuilder(dottedHiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build()).state(State.OPEN)
                         .putAlias(AliasMetadata.builder(dottedHiddenAlias).isHidden(true))
@@ -1310,7 +1310,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         IndicesOptions excludeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, false, true, false, false, false);
         IndicesOptions includeHiddenOptions = IndicesOptions.fromOptions(false, true, true, false, true, true, false, false, false);
 
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(
                 indexBuilder(hiddenIndex, Settings.builder().put(INDEX_HIDDEN_SETTING.getKey(), true).build()).state(State.OPEN)
                     .putAlias(AliasMetadata.builder(hiddenAlias).isHidden(true))
@@ -1349,7 +1349,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             );
 
             {
-                final ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+                final ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
                 IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
                     project,
                     indicesOptions,
@@ -1368,7 +1368,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
             {
                 // with existing indices, asking for all indices should return all open/closed indices depending on options
-                ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+                ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
                     .put(indexBuilder("aaa").state(State.OPEN).putAlias(AliasMetadata.builder("aaa_alias1")))
                     .put(indexBuilder("bbb").state(State.OPEN).putAlias(AliasMetadata.builder("bbb_alias1")))
                     .put(indexBuilder("ccc").state(State.CLOSE).putAlias(AliasMetadata.builder("ccc_alias1")))
@@ -1402,7 +1402,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     public void testConcreteIndicesWildcardNoMatch() {
         for (int i = 0; i < 10; i++) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+            ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
                 .put(indexBuilder("aaa").state(State.OPEN).putAlias(AliasMetadata.builder("aaa_alias1")))
                 .put(indexBuilder("bbb").state(State.OPEN).putAlias(AliasMetadata.builder("bbb_alias1")))
                 .put(indexBuilder("ccc").state(State.CLOSE).putAlias(AliasMetadata.builder("ccc_alias1")))
@@ -1478,7 +1478,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIndexOptionsFailClosedIndicesAndAliases() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(
                 indexBuilder("foo1-closed").state(IndexMetadata.State.CLOSE)
                     .putAlias(AliasMetadata.builder("foobar1-closed"))
@@ -1557,7 +1557,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testDedupConcreteIndices() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("index1").putAlias(AliasMetadata.builder("alias1")))
             .build();
         IndicesOptions[] indicesOptions = new IndicesOptions[] {
@@ -1577,7 +1577,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testFilterClosedIndicesOnAliases() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetadata.builder("alias-0")))
             .put(indexBuilder("test-1").state(IndexMetadata.State.CLOSE).putAlias(AliasMetadata.builder("alias-1")))
             .build();
@@ -1848,7 +1848,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testConcreteWriteIndexWithInvalidIndicesRequest() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("test-0").state(State.OPEN).putAlias(AliasMetadata.builder("test-alias")))
             .build();
         Function<String[], IndicesRequest> requestGen = (indices) -> new IndicesRequest() {
@@ -2122,7 +2122,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testIndicesAliasesRequestIgnoresAliases() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(indexBuilder("test-index").state(State.OPEN).putAlias(AliasMetadata.builder("test-alias")))
             .put(indexBuilder("index").state(State.OPEN).putAlias(AliasMetadata.builder("test-alias2")))
             .build();
@@ -2225,7 +2225,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         IndexMetadata backingIndex = createBackingIndex(dataStreamName, 1).build();
 
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID()))
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId())
             .put(backingIndex, false)
             .put(newInstance(dataStreamName, List.of(backingIndex.getIndex())))
             .build();
@@ -2258,7 +2258,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testInvalidIndex() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID())).put(indexBuilder("test")).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).put(indexBuilder("test")).build();
         IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(
             project,
             IndicesOptions.lenientExpandOpen(),
@@ -3328,7 +3328,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testRemoteIndex() {
-        ProjectMetadata project = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        ProjectMetadata project = ProjectMetadata.builder(randomUniqueProjectId()).build();
 
         {
             IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());

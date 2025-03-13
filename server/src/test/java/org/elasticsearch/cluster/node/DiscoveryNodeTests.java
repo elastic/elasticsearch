@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -113,24 +112,6 @@ public class DiscoveryNodeTests extends ESTestCase {
             assertThat(role.roleNameAbbreviation(), equalTo("z"));
             assertTrue(role.canContainData());
         }
-
-        {
-            BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setTransportVersion(TransportVersions.V_7_11_0);
-            node.writeTo(streamOutput);
-
-            StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setTransportVersion(TransportVersions.V_7_11_0);
-            DiscoveryNode serialized = new DiscoveryNode(in);
-            final Set<DiscoveryNodeRole> roles = serialized.getRoles();
-            assertThat(roles, hasSize(1));
-            @SuppressWarnings("OptionalGetWithoutIsPresent")
-            final DiscoveryNodeRole role = roles.stream().findFirst().get();
-            assertThat(role.roleName(), equalTo("data_custom_role"));
-            assertThat(role.roleNameAbbreviation(), equalTo("z"));
-            assertTrue(role.canContainData());
-        }
-
     }
 
     public void testDiscoveryNodeIsRemoteClusterClientDefault() {

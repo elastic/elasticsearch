@@ -11,7 +11,7 @@ Reverses each token in a stream. For example, you can use the `reverse` filter t
 
 Reversed tokens are useful for suffix-based searches, such as finding words that end in `-ion` or searching file names by their extension.
 
-This filter uses Lucene’s [ReverseStringFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/reverse/ReverseStringFilter.md).
+This filter uses Lucene’s [ReverseStringFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/reverse/ReverseStringFilter.html).
 
 ## Example [analysis-reverse-tokenfilter-analyze-ex]
 

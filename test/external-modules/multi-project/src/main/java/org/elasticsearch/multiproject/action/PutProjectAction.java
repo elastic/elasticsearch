@@ -121,7 +121,7 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private static final Pattern VALID_PROJECT_ID_PATTERN = Pattern.compile("[a-z0-9]+");
+        private static final Pattern VALID_PROJECT_ID_PATTERN = Pattern.compile("[-_a-zA-Z0-9]+");
 
         private final ProjectId projectId;
 
@@ -132,7 +132,7 @@ public class PutProjectAction extends ActionType<AcknowledgedResponse> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.projectId = new ProjectId(in);
+            this.projectId = ProjectId.readFrom(in);
         }
 
         @Override

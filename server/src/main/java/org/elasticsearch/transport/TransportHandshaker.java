@@ -21,12 +21,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
@@ -357,28 +355,18 @@ final class TransportHandshaker {
             this.releaseVersion = Objects.requireNonNull(releaseVersion);
         }
 
-        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remainingMessage == null is invalid in v9
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
-            BytesReference remainingMessage;
-            try {
-                remainingMessage = streamInput.readSlicedBytesReference();
-            } catch (EOFException e) {
-                remainingMessage = null;
-            }
-            if (remainingMessage == null) {
-                transportVersion = null;
-                releaseVersion = null;
-            } else {
-                try (StreamInput messageStreamInput = remainingMessage.streamInput()) {
-                    this.transportVersion = TransportVersion.readVersion(messageStreamInput);
-                    if (streamInput.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
-                        this.releaseVersion = messageStreamInput.readString();
-                    } else {
-                        this.releaseVersion = this.transportVersion.toReleaseVersion();
-                    }
+
+            try (StreamInput messageStreamInput = streamInput.readSlicedBytesReference().streamInput()) {
+                this.transportVersion = TransportVersion.readVersion(messageStreamInput);
+                if (streamInput.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
+                    this.releaseVersion = messageStreamInput.readString();
+                } else {
+                    this.releaseVersion = this.transportVersion.toReleaseVersion();
                 }
             }
+
         }
 
         @Override

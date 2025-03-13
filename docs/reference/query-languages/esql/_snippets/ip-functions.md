@@ -7,9 +7,9 @@
 :::
 
 
-:::{include} functions/cidr_match.md
+:::{include} functions/layout/cidr_match.md
 :::
 
-:::{include} functions/ip_prefix.md
+:::{include} functions/layout/ip_prefix.md
 :::
 

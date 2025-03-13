@@ -131,7 +131,7 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 sourceSets.main.output.dir(generatedResourcesDir)
 sourceSets.main.compiledBy(generateModulesList, generatePluginsList)
 
-if (buildParams.isSnapshotBuild() == false) {
+if (buildParams.snapshotBuild == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
         systemProperty 'es.failure_store_feature_flag_enabled', 'true'

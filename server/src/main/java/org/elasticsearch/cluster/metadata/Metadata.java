@@ -88,7 +88,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
     // TODO multi-project: verify that usages are really expected to work on the default project only,
     // and that they are not a stop-gap solution to make the tests pass
-    public static final ProjectId DEFAULT_PROJECT_ID = new ProjectId("default");
+    public static final ProjectId DEFAULT_PROJECT_ID = ProjectId.DEFAULT;
 
     public enum XContentContext {
         /* Custom metadata should be returned as part of API call */
@@ -397,7 +397,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     reservedStateMetadata
                 );
         } else {
-            throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
         }
     }
 
@@ -744,7 +744,26 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             // and not include it in the project xcontent output (through the lack of multi-project params)
             clusterReservedState.putAll(project.reservedStateMetadata());
 
-            @FixForMultiProject(description = "consider include cluster-scoped persistent tasks")
+            // Similarly, combine cluster and project persistent tasks and report them under a single key
+            Iterator<ToXContent> customs = Iterators.flatMap(customs().entrySet().iterator(), entry -> {
+                if (entry.getValue().context().contains(context)
+                    && ClusterPersistentTasksCustomMetadata.TYPE.equals(entry.getKey()) == false) {
+                    return ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p));
+                } else {
+                    return Collections.emptyIterator();
+                }
+            });
+            final var combinedTasks = PersistentTasksCustomMetadata.combine(
+                ClusterPersistentTasksCustomMetadata.get(this),
+                PersistentTasksCustomMetadata.get(project)
+            );
+            if (combinedTasks != null) {
+                customs = Iterators.concat(
+                    customs,
+                    ChunkedToXContentHelper.object(PersistentTasksCustomMetadata.TYPE, combinedTasks.toXContentChunked(p))
+                );
+            }
+
             final var iterators = Iterators.concat(start, Iterators.single((builder, params) -> {
                 builder.field("cluster_uuid", clusterUUID);
                 builder.field("cluster_uuid_committed", clusterUUIDCommitted);
@@ -754,12 +773,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }),
                 persistentSettings,
                 project.toXContentChunked(p),
-                Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    entry -> entry.getValue().context().contains(context)
-                        ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
-                        : Collections.emptyIterator()
-                ),
+                customs,
                 ChunkedToXContentHelper.object("reserved_state", clusterReservedState.values().iterator()),
                 ChunkedToXContentHelper.endObject()
             );
@@ -1154,7 +1168,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
 
-            builder.projectMetadata(in.readMap(ProjectId::new, ProjectMetadata::readFrom));
+            builder.projectMetadata(in.readMap(ProjectId::readFrom, ProjectMetadata::readFrom));
         }
         return builder.build();
     }
@@ -1310,7 +1324,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             if (projectMetadata.isEmpty()) {
                 createDefaultProject();
             } else if (projectMetadata.size() != 1) {
-                throw new UnsupportedOperationException("There are multiple projects " + projectMetadata.keySet());
+                throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
             }
             return projectMetadata.values().iterator().next();
         }

@@ -15,12 +15,12 @@ See [full text search limitations](/reference/query-languages/esql/limitations.m
 :::
 
 
-:::{include} functions/kql.md
+:::{include} functions/layout/kql.md
 :::
 
-:::{include} functions/match.md
+:::{include} functions/layout/match.md
 :::
 
-:::{include} functions/qstr.md
+:::{include} functions/layout/qstr.md
 :::
 

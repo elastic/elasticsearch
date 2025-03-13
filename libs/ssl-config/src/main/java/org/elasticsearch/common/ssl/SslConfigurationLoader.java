@@ -62,7 +62,7 @@ public abstract class SslConfigurationLoader {
 
     static final List<String> DEFAULT_PROTOCOLS = List.of("TLSv1.3", "TLSv1.2");
 
-    private static final List<String> JDK12_CIPHERS = List.of(
+    private static final List<String> PRE_JDK24_CIPHERS = List.of(
         // TLSv1.3 cipher has PFS, AEAD, hardware support
         "TLS_AES_256_GCM_SHA384",
         "TLS_AES_128_GCM_SHA256",
@@ -111,7 +111,44 @@ public abstract class SslConfigurationLoader {
         "TLS_RSA_WITH_AES_128_CBC_SHA"
     );
 
-    static final List<String> DEFAULT_CIPHERS = JDK12_CIPHERS;
+    private static final List<String> JDK24_CIPHERS = List.of(
+        // TLSv1.3 cipher has PFS, AEAD, hardware support
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_AES_128_GCM_SHA256",
+
+        // TLSv1.3 cipher has PFS, AEAD
+        "TLS_CHACHA20_POLY1305_SHA256",
+
+        // PFS, AEAD, hardware support
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+
+        // PFS, AEAD, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+
+        // PFS, AEAD
+        "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+
+        // PFS, hardware support
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+
+        // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+
+        // PFS, hardware support
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+
+        // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
+    );
+
+    static final List<String> DEFAULT_CIPHERS = Runtime.version().feature() < 24 ? PRE_JDK24_CIPHERS : JDK24_CIPHERS;
     private static final char[] EMPTY_PASSWORD = new char[0];
     public static final List<X509Field> GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS = List.of(X509Field.SAN_OTHERNAME_COMMONNAME);
 

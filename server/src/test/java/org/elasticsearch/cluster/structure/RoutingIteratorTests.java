@@ -359,7 +359,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
         );
 
-        ProjectId projectId = new ProjectId(randomUUID());
+        ProjectId projectId = randomUniqueProjectId();
         Metadata metadata = Metadata.builder()
             .put(
                 ProjectMetadata.builder(projectId)

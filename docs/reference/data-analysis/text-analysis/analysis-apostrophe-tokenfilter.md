@@ -9,7 +9,7 @@ mapped_pages:
 
 Strips all characters after an apostrophe, including the apostrophe itself.
 
-This filter is included in {{es}}'s built-in [Turkish language analyzer](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md#turkish-analyzer). It uses Lucene’s [ApostropheFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/tr/ApostropheFilter.md), which was built for the Turkish language.
+This filter is included in {{es}}'s built-in [Turkish language analyzer](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md#turkish-analyzer). It uses Lucene’s [ApostropheFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/tr/ApostropheFilter.html), which was built for the Turkish language.
 
 ## Example [analysis-apostrophe-tokenfilter-analyze-ex]
 

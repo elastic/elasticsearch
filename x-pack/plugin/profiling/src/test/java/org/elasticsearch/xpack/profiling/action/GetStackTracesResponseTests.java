@@ -56,8 +56,8 @@ public class GetStackTracesResponseTests extends ESTestCase {
 
     public void testChunking() {
         AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), instance -> {
-            // start, end, total_frames, samplingrate
-            int chunks = 4;
+            // start, end, samplingrate
+            int chunks = 3;
             chunks += size(instance.getExecutables());
             chunks += size(instance.getStackFrames());
             chunks += size(instance.getStackTraces());

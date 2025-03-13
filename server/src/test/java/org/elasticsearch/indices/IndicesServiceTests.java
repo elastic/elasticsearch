@@ -460,7 +460,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         createIndex(indexName);
 
         // create the alias for the index
-        client().admin().indices().prepareAliases().addAlias(indexName, alias).get();
+        client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indexName, alias).get();
         final ClusterState originalState = clusterService.state();
 
         // try to import a dangling index with the same name as the alias, it should fail
@@ -479,7 +479,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(clusterService.state(), equalTo(originalState));
 
         // remove the alias
-        client().admin().indices().prepareAliases().removeAlias(indexName, alias).get();
+        client().admin().indices().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias(indexName, alias).get();
 
         // now try importing a dangling index with the same name as the alias, it should succeed.
         latch = new CountDownLatch(1);

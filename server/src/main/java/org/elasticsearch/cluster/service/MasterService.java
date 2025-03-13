@@ -178,8 +178,7 @@ public class MasterService extends AbstractLifecycleComponent {
             TimeUnit.SECONDS,
             true,
             daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
-            threadPool.getThreadContext(),
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            threadPool.getThreadContext()
         );
     }
 

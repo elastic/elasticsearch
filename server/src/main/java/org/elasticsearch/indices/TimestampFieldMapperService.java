@@ -77,8 +77,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
             TimeUnit.MILLISECONDS,
             true,
             daemonThreadFactory(nodeName, threadName),
-            threadPool.getThreadContext(),
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            threadPool.getThreadContext()
         );
     }
 

@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -40,7 +39,6 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibra
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
@@ -60,7 +58,6 @@ import java.lang.invoke.MethodHandles;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.Permission;
 import java.security.Security;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -74,7 +71,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
@@ -122,25 +118,9 @@ class Elasticsearch {
         final PrintStream out = getStdout();
         final PrintStream err = getStderr();
         final ServerArgs args;
-        final boolean entitlementsEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled", "true"));
-        // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
-        final boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsEnabled;
         try {
             initSecurityProperties();
 
-            /*
-             * We want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on
-             * the presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy).
-             * This forces such policies to take effect immediately.
-             */
-            if (useEntitlements == false && RuntimeVersionFeature.isSecurityManagerAvailable()) {
-                org.elasticsearch.bootstrap.Security.setSecurityManager(new SecurityManager() {
-                    @Override
-                    public void checkPermission(Permission perm) {
-                        // grant all permissions so that we can later set the security manager to the one that we want
-                    }
-                });
-            }
             LogConfigurator.registerErrorListener();
 
             BootstrapInfo.init();
@@ -166,7 +146,7 @@ class Elasticsearch {
             return null; // unreachable, to satisfy compiler
         }
 
-        return new Bootstrap(out, err, args, useEntitlements);
+        return new Bootstrap(out, err, args);
     }
 
     /**
@@ -231,53 +211,42 @@ class Elasticsearch {
         var modulesBundles = PluginsLoader.loadModulesBundles(nodeEnv.modulesDir());
         var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsDir());
 
-        final PluginsLoader pluginsLoader;
+        LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
-        if (bootstrap.useEntitlements()) {
-            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
+        var pluginData = Stream.concat(
+            modulesBundles.stream()
+                .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+            pluginsBundles.stream()
+                .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+        ).toList();
+        var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData);
 
-            var pluginData = Stream.concat(
-                modulesBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-                pluginsBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
-            ).toList();
-            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData);
+        final PluginsLoader pluginsLoader = PluginsLoader.createPluginsLoader(
+            modulesBundles,
+            pluginsBundles,
+            findPluginsWithNativeAccess(pluginPolicies)
+        );
 
-            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
-
-            var pluginsResolver = PluginsResolver.create(pluginsLoader);
-            Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
-                .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
-            EntitlementBootstrap.bootstrap(
-                pluginPolicies,
-                pluginsResolver::resolveClassToPluginName,
-                nodeEnv.settings()::getValues,
-                nodeEnv.dataDirs(),
-                nodeEnv.repoDirs(),
-                nodeEnv.configDir(),
-                nodeEnv.libDir(),
-                nodeEnv.modulesDir(),
-                nodeEnv.pluginsDir(),
-                sourcePaths,
-                nodeEnv.logsDir(),
-                nodeEnv.tmpDir(),
-                args.pidFile(),
-                Set.of(EntitlementSelfTester.class)
-            );
-            EntitlementSelfTester.entitlementSelfTest();
-        } else {
-            assert RuntimeVersionFeature.isSecurityManagerAvailable();
-            // no need to explicitly enable native access for legacy code
-            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
-            // install SM after natives, shutdown hooks, etc.
-            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
-            org.elasticsearch.bootstrap.Security.configure(
-                nodeEnv,
-                SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
-                args.pidFile()
-            );
-        }
+        var pluginsResolver = PluginsResolver.create(pluginsLoader);
+        Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+            .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
+        EntitlementBootstrap.bootstrap(
+            pluginPolicies,
+            pluginsResolver::resolveClassToPluginName,
+            nodeEnv.settings()::getValues,
+            nodeEnv.dataDirs(),
+            nodeEnv.repoDirs(),
+            nodeEnv.configDir(),
+            nodeEnv.libDir(),
+            nodeEnv.modulesDir(),
+            nodeEnv.pluginsDir(),
+            sourcePaths,
+            nodeEnv.logsDir(),
+            nodeEnv.tmpDir(),
+            args.pidFile(),
+            Set.of(EntitlementSelfTester.class)
+        );
+        EntitlementSelfTester.entitlementSelfTest();
 
         bootstrap.setPluginsLoader(pluginsLoader);
     }
@@ -351,9 +320,6 @@ class Elasticsearch {
                 List<BootstrapCheck> checks
             ) throws NodeValidationException {
                 var additionalChecks = new ArrayList<>(checks);
-                if (bootstrap.useEntitlements() == false) {
-                    additionalChecks.add(new BootstrapChecks.AllPermissionCheck());
-                }
                 BootstrapChecks.check(context, boundTransportAddress, additionalChecks);
             }
         };

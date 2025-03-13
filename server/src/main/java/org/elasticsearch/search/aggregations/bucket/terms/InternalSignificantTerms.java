@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -284,20 +285,19 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         long supersetSize = samplingContext.scaleUp(getSupersetSize());
         long subsetSize = samplingContext.scaleUp(getSubsetSize());
-        return create(
-            subsetSize,
-            supersetSize,
-            getBuckets().stream()
-                .map(
-                    b -> createBucket(
-                        samplingContext.scaleUp(b.subsetDf),
-                        samplingContext.scaleUp(b.supersetDf),
-                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext),
-                        b
-                    )
+        final List<B> originalBuckets = getBuckets();
+        final List<B> buckets = new ArrayList<>(originalBuckets.size());
+        for (B bucket : originalBuckets) {
+            buckets.add(
+                createBucket(
+                    samplingContext.scaleUp(bucket.subsetDf),
+                    samplingContext.scaleUp(bucket.supersetDf),
+                    InternalAggregations.finalizeSampling(bucket.aggregations, samplingContext),
+                    bucket
                 )
-                .toList()
-        );
+            );
+        }
+        return create(subsetSize, supersetSize, buckets);
     }
 
     abstract B createBucket(long subsetDf, long supersetDf, InternalAggregations aggregations, B prototype);

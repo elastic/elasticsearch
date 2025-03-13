@@ -1,0 +1,5 @@
+pr: 124182
+summary: Adding `MinScore` support to Linear Retriever
+area: Search
+type: enhancement
+issues: []

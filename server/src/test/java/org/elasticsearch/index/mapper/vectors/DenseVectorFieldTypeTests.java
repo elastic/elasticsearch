@@ -217,6 +217,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 queryVector[i] = randomFloat();
             }
             Query query = field.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, null, producer);
+            if (query instanceof RescoreKnnVectorQuery rescoreKnnVectorQuery) {
+                query = rescoreKnnVectorQuery.innerQuery();
+            }
             assertThat(query, instanceOf(DiversifyingChildrenFloatKnnVectorQuery.class));
         }
         {
@@ -368,6 +371,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 queryVector[i] = randomFloat();
             }
             Query query = fieldWith4096dims.createKnnQuery(VectorData.fromFloats(queryVector), 10, 10, null, null, null, null);
+            if (query instanceof RescoreKnnVectorQuery rescoreKnnVectorQuery) {
+                query = rescoreKnnVectorQuery.innerQuery();
+            }
             assertThat(query, instanceOf(KnnFloatVectorQuery.class));
         }
 

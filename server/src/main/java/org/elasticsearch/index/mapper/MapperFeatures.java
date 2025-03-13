@@ -17,6 +17,8 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.util.Set;
 
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING;
+
 /**
  * Spec for mapper-related features.
  */
@@ -90,7 +92,8 @@ public class MapperFeatures implements FeatureSpecification {
             ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
             UKNOWN_FIELD_MAPPING_UPDATE_ERROR_MESSAGE,
             DateFieldMapper.INVALID_DATE_FIX,
-            NPE_ON_DIMS_UPDATE_FIX
+            NPE_ON_DIMS_UPDATE_FIX,
+            RESCORE_VECTOR_QUANTIZED_VECTOR_MAPPING
         );
     }
 }

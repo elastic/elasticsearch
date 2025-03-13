@@ -522,7 +522,7 @@ public final class IndicesPermission {
             return indexAbstraction != null && indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX;
         }
 
-        public String nameCombinedWithSelector() {
+        public String nameWithSelector() {
             String combined = IndexNameExpressionResolver.combineSelector(name, selector);
             assert false != IndexComponentSelector.FAILURES.equals(selector) || name.equals(combined)
                 : "Only failures selectors should result in explicit selectors suffix";
@@ -559,7 +559,7 @@ public final class IndicesPermission {
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
             // We can't use resource.name here because we may be accessing a data stream _and_ its failure store,
             // where the selector-free name is the same for both and thus ambiguous.
-            resources.put(resource.nameCombinedWithSelector(), resource);
+            resources.put(resource.nameWithSelector(), resource);
             totalResourceCount += resource.size(lookup);
         }
 

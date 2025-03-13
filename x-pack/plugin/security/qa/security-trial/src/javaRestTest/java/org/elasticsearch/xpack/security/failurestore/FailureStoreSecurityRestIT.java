@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.TestSecurityClient;
@@ -31,15 +32,19 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -79,6 +84,17 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private static final String MANAGE_ACCESS = "manage_access";
     private static final String MANAGE_FAILURE_STORE_ACCESS = "manage_failure_store_access";
     private static final SecureString PASSWORD = new SecureString("elastic-password");
+
+    @Before
+    public void setup() throws IOException {
+        apiKeys = new HashMap<>();
+        createUser(WRITE_ACCESS, PASSWORD, WRITE_ACCESS);
+        upsertRole(Strings.format("""
+            {
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
+            }"""), WRITE_ACCESS);
+    }
 
     public void testGetUserPrivileges() throws IOException {
         Request userRequest = new Request("PUT", "/_security/user/user");
@@ -171,16 +187,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     public void testRoleWithSelectorInIndexPattern() throws Exception {
-        apiKeys = new HashMap<>();
-
-        createUser(WRITE_ACCESS, PASSWORD, WRITE_ACCESS);
-        upsertRole(Strings.format("""
-            {
-              "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
-            }"""), WRITE_ACCESS);
-        createAndStoreApiKey(WRITE_ACCESS, null);
-
         createTemplates();
         populateDataStream();
 
@@ -243,8 +249,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws Exception {
-        apiKeys = new HashMap<>();
-
         createUser(DATA_ACCESS, PASSWORD, DATA_ACCESS);
         upsertRole(Strings.format("""
             {
@@ -317,12 +321,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 """);
         }
 
-        createUser(WRITE_ACCESS, PASSWORD, WRITE_ACCESS);
-        upsertRole(Strings.format("""
-            {
-              "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
-            }"""), WRITE_ACCESS);
         createAndStoreApiKey(WRITE_ACCESS, randomBoolean() ? null : """
             {
               "role": {
@@ -363,27 +361,15 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             """);
 
         createTemplates();
-
         List<String> docIds = populateDataStream();
         assertThat(docIds.size(), equalTo(2));
         assertThat(docIds, hasItem("1"));
         String dataDocId = "1";
         String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
 
-        Request dataStream = new Request("GET", "/_data_stream/test1");
-        Response response = adminClient().performRequest(dataStream);
-        Map<String, Object> dataStreams = entityAsMap(response);
-        assertEquals(Collections.singletonList("test1"), XContentMapValues.extractValue("data_streams.name", dataStreams));
-        List<String> dataIndexNames = (List<String>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams);
-        assertThat(dataIndexNames.size(), equalTo(1));
-        List<String> failureIndexNames = (List<String>) XContentMapValues.extractValue(
-            "data_streams.failure_store.indices.index_name",
-            dataStreams
-        );
-        assertThat(failureIndexNames.size(), equalTo(1));
-
-        String dataIndexName = dataIndexNames.get(0);
-        String failureIndexName = failureIndexNames.get(0);
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
 
         Request aliasRequest = new Request("POST", "/_aliases");
         aliasRequest.setJsonEntity("""
@@ -954,35 +940,25 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         // write operations below
 
         // user with manage access to data stream does NOT get direct access to failure index
-        expectThrows403(() -> deleteIndex(MANAGE_ACCESS, failureIndexName));
+        expectThrows(() -> deleteIndex(MANAGE_ACCESS, failureIndexName), 403);
         expectThrows(() -> deleteIndex(MANAGE_ACCESS, dataIndexName), 400);
         // manage_failure_store user COULD delete failure index (not valid because it's a write index, but allow security-wise)
-        expectThrows403(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, dataIndexName));
+        expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
         expectThrows(() -> deleteIndex(MANAGE_FAILURE_STORE_ACCESS, failureIndexName), 400);
-        expectThrows403(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, dataIndexName));
+        expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, dataIndexName), 403);
 
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1"), 403);
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"), 403);
         // manage user can delete data stream
         deleteDataStream(MANAGE_ACCESS, "test1");
 
-        expectThrows404(() -> performRequest(BOTH_ACCESS, new Request("GET", "/test1/_search")));
-        expectThrows404(() -> adminClient().performRequest(new Request("GET", "/" + dataIndexName + "/_search")));
-        expectThrows404(() -> performRequest(BOTH_ACCESS, new Request("GET", "/test1::failures/_search")));
-        expectThrows404(() -> adminClient().performRequest(new Request("GET", "/" + failureIndexName + "/_search")));
+        expectThrows(() -> performRequest(BOTH_ACCESS, new Request("GET", "/test1/_search")), 404);
+        expectThrows(() -> adminClient().performRequest(new Request("GET", "/" + dataIndexName + "/_search")), 404);
+        expectThrows(() -> performRequest(BOTH_ACCESS, new Request("GET", "/test1::failures/_search")), 404);
+        expectThrows(() -> adminClient().performRequest(new Request("GET", "/" + failureIndexName + "/_search")), 404);
     }
 
-    @SuppressWarnings("unchecked")
     public void testFailureStoreAccessWithApiKeys() throws Exception {
-        apiKeys = new HashMap<>();
-
-        createUser(WRITE_ACCESS, PASSWORD, WRITE_ACCESS);
-        upsertRole(Strings.format("""
-            {
-              "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
-            }"""), WRITE_ACCESS);
-
         createTemplates();
 
         List<String> docIds = populateDataStream();
@@ -991,20 +967,9 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         String dataDocId = "1";
         String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
 
-        Request dataStream = new Request("GET", "/_data_stream/test1");
-        Response response = adminClient().performRequest(dataStream);
-        Map<String, Object> dataStreams = entityAsMap(response);
-        assertEquals(Collections.singletonList("test1"), XContentMapValues.extractValue("data_streams.name", dataStreams));
-        List<String> dataIndexNames = (List<String>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams);
-        assertThat(dataIndexNames.size(), equalTo(1));
-        List<String> failureIndexNames = (List<String>) XContentMapValues.extractValue(
-            "data_streams.failure_store.indices.index_name",
-            dataStreams
-        );
-        assertThat(failureIndexNames.size(), equalTo(1));
-
-        String dataIndexName = dataIndexNames.get(0);
-        String failureIndexName = failureIndexNames.get(0);
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
 
         var user = "user";
         var role = "role";
@@ -1119,12 +1084,106 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectUsingApiKey(apiKey, new Search("test1"), 403);
     }
 
-    private static void expectThrows404(ThrowingRunnable runnable) {
-        expectThrows(runnable, 404);
-    }
+    public void testFlsDls() throws IOException {
+        createTemplates();
+        populateDataStream();
 
-    private static void expectThrows403(ThrowingRunnable runnable) {
-        expectThrows(runnable, 403);
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
+
+        String user = "user";
+        String role = "role";
+        createUser(user, PASSWORD, role);
+        upsertRole("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read", "read_failure_store"],
+                        "field_security": {
+                            "grant": ["@timestamp", "age"]
+                        }
+                     }
+                 ]
+             }""", role);
+
+        // FLS applies to regular data stream
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search("test1").toSearchRequest()),
+            Map.of(dataIndexName, Set.of("@timestamp", "age"))
+        );
+
+        // FLS sort of applies to failure store
+        // TODO this will change with FLS handling
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search("test1::failures").toSearchRequest()),
+            Map.of(failureIndexName, Set.of("@timestamp"))
+        );
+
+        upsertRole(Strings.format("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["%s"],
+                        "privileges": ["read"],
+                        "field_security": {
+                            "grant": ["@timestamp", "age"]
+                        }
+                     },
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read_failure_store"],
+                        "field_security": {
+                            "grant": ["@timestamp", "age"]
+                        }
+                     }
+                 ]
+             }""", randomFrom("test*", "test1")), role);
+
+        // FLS applies to regular data stream
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search("test1").toSearchRequest()),
+            Map.of(dataIndexName, Set.of("@timestamp", "age"))
+        );
+
+        // FLS sort of applies to failure store
+        // TODO this will change with FLS handling
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search("test1::failures").toSearchRequest()),
+            Map.of(failureIndexName, Set.of("@timestamp"))
+        );
+
+        upsertRole("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read"],
+                        "field_security": {
+                            "grant": ["@timestamp", "age"]
+                        }
+                     },
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read_failure_store"]
+                     }
+                 ]
+             }""", role);
+
+        // since there is a section without FLS, no FLS applies
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search("test1").toSearchRequest()),
+            Map.of(dataIndexName, Set.of("@timestamp", "age", "name", "email"))
+        );
+
+        assertSearchResponseContainsExpectedIndicesAndFields(
+            performRequest(user, new Search("test1::failures").toSearchRequest()),
+            Map.of(failureIndexName, Set.of("@timestamp", "document", "error"))
+        );
     }
 
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
@@ -1402,5 +1461,50 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 """, roleName, roleDescriptor));
         }
         return createRoleRequest;
+    }
+
+    protected void assertSearchResponseContainsExpectedIndicesAndFields(
+        Response searchResponse,
+        Map<String, Set<String>> expectedIndicesAndFields
+    ) {
+        try {
+            assertOK(searchResponse);
+            var response = SearchResponseUtils.responseAsSearchResponse(searchResponse);
+            try {
+                final var searchResult = Arrays.stream(response.getHits().getHits())
+                    .collect(Collectors.toMap(SearchHit::getIndex, SearchHit::getSourceAsMap));
+
+                assertThat(searchResult.keySet(), equalTo(expectedIndicesAndFields.keySet()));
+                for (String index : expectedIndicesAndFields.keySet()) {
+                    Set<String> expectedFields = expectedIndicesAndFields.get(index);
+                    assertThat(searchResult.get(index).keySet(), equalTo(expectedFields));
+                }
+            } finally {
+                response.decRef();
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Tuple<List<String>, List<String>> getDataAndFailureIndices(String dataStreamName) throws IOException {
+        Request dataStream = new Request("GET", "/_data_stream/" + dataStreamName);
+        Response response = adminClient().performRequest(dataStream);
+        Map<String, Object> dataStreams = entityAsMap(response);
+        assertEquals(Collections.singletonList("test1"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        List<String> dataIndexNames = (List<String>) XContentMapValues.extractValue("data_streams.indices.index_name", dataStreams);
+        List<String> failureIndexNames = (List<String>) XContentMapValues.extractValue(
+            "data_streams.failure_store.indices.index_name",
+            dataStreams
+        );
+        return new Tuple<>(dataIndexNames, failureIndexNames);
+    }
+
+    private Tuple<String, String> getSingleDataAndFailureIndices(String dataStreamName) throws IOException {
+        Tuple<List<String>, List<String>> indices = getDataAndFailureIndices(dataStreamName);
+        assertThat(indices.v1().size(), equalTo(1));
+        assertThat(indices.v2().size(), equalTo(1));
+        return new Tuple<>(indices.v1().get(0), indices.v2().get(0));
     }
 }

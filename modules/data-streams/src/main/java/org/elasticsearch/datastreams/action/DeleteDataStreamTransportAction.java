@@ -33,8 +33,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -152,15 +150,6 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             } else {
                 throw new ResourceNotFoundException("data streams " + Arrays.toString(request.getNames()) + " not found");
             }
-        }
-
-        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(projectState, dataStreams);
-        if (snapshottingDataStreams.isEmpty() == false) {
-            throw new SnapshotInProgressException(
-                "Cannot delete data streams that are being snapshotted: "
-                    + snapshottingDataStreams
-                    + ". Try again after snapshot finishes or cancel the currently running snapshot."
-            );
         }
 
         return MetadataDataStreamsService.deleteDataStreams(

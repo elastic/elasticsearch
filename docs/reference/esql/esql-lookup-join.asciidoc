@@ -43,7 +43,7 @@ you
 The `LOOKUP JOIN` command adds new columns to a table, with data from
 {es} indices.
 
-image::images/esql/esql-lookup-join.png.png[align="center"]
+image::images/esql/esql-lookup-join.png[align="center"]
 
 [[esql-lookup-join-lookup-index]]
 lookup_index::

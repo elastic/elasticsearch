@@ -1,7 +1,3 @@
 ALL-UNNAMED:
   - manage_threads
   - outbound_network
-  - files:
-      - relative_path: ".aws/"
-        relative_to: "home"
-        mode: "read"

@@ -55,7 +55,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         GetInferenceModelAction.Request getInferenceModelAction = new GetInferenceModelAction.Request("_all", TaskType.ANY, false);
-        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, listener.delegateFailureAndWrap((delegate, response) -> {
+        client.execute(GetInferenceModelAction.INSTANCE, getInferenceModelAction, ActionListener.wrap(response -> {
             Map<String, InferenceFeatureSetUsage.ModelStats> stats = new TreeMap<>();
             for (ModelConfigurations model : response.getEndpoints()) {
                 String statKey = model.getService() + ":" + model.getTaskType().name();
@@ -66,7 +66,7 @@ public class TransportInferenceUsageAction extends XPackUsageFeatureTransportAct
                 stat.add();
             }
             InferenceFeatureSetUsage usage = new InferenceFeatureSetUsage(stats.values());
-            delegate.onResponse(new XPackUsageFeatureResponse(usage));
-        }));
+            listener.onResponse(new XPackUsageFeatureResponse(usage));
+        }, e -> listener.onResponse(new XPackUsageFeatureResponse(InferenceFeatureSetUsage.EMPTY))));
     }
 }

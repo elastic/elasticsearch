@@ -183,6 +183,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = def(9_026_0_00);
     public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
     public static final TransportVersion INFERENCE_CONTEXT = def(9_028_0_00);
+    public static final TransportVersion RANK_DOCS_MIN_SCORE = def(9_029_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

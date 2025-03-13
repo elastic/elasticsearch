@@ -49,14 +49,16 @@ public class RankDocsQuery extends Query {
         private final String[] queryNames;
         private final int[] segmentStarts;
         private final Object contextIdentity;
+        private final float minScore;
 
-        TopQuery(RankDoc[] docs, Query[] sources, String[] queryNames, int[] segmentStarts, Object contextIdentity) {
+        TopQuery(RankDoc[] docs, Query[] sources, String[] queryNames, int[] segmentStarts, Object contextIdentity, float minScore) {
             assert sources.length == queryNames.length;
             this.docs = docs;
             this.sources = sources;
             this.queryNames = queryNames;
             this.segmentStarts = segmentStarts;
             this.contextIdentity = contextIdentity;
+            this.minScore = minScore;
             for (RankDoc doc : docs) {
                 if (false == doc.score >= 0) {
                     throw new IllegalArgumentException("RankDoc scores must be positive values. Missing a normalization step?");
@@ -76,7 +78,7 @@ public class RankDocsQuery extends Query {
                 changed |= newSources[i] != sources[i];
             }
             if (changed) {
-                return new TopQuery(docs, newSources, queryNames, segmentStarts, contextIdentity);
+                return new TopQuery(docs, newSources, queryNames, segmentStarts, contextIdentity, minScore);
             }
             return this;
         }
@@ -165,7 +167,7 @@ public class RankDocsQuery extends Query {
 
                         @Override
                         public float score() throws IOException {
-                            return Math.max(docs[upTo].score, Float.MIN_VALUE);
+                            return Math.max(docs[upTo].score, minScore);
                         }
 
                         @Override
@@ -254,7 +256,7 @@ public class RankDocsQuery extends Query {
         this.docs = rankDocs.clone();
         // sort rank docs by doc id
         Arrays.sort(docs, Comparator.comparingInt(a -> a.doc));
-        this.topQuery = new TopQuery(docs, sources, queryNames, findSegmentStarts(reader, docs), reader.getContext().id());
+        this.topQuery = new TopQuery(docs, sources, queryNames, findSegmentStarts(reader, docs), reader.getContext().id(), minScore);
         if (sources.length > 0 && false == onlyRankDocs) {
             var bq = new BooleanQuery.Builder();
             for (var source : sources) {
@@ -268,12 +270,12 @@ public class RankDocsQuery extends Query {
         this.minScore = minScore;
     }
 
-    private RankDocsQuery(RankDoc[] docs, Query topQuery, Query tailQuery, boolean onlyRankDocs) {
+    private RankDocsQuery(RankDoc[] docs, Query topQuery, Query tailQuery, boolean onlyRankDocs, float minScore) {
         this.docs = docs;
         this.topQuery = topQuery;
         this.tailQuery = tailQuery;
         this.onlyRankDocs = onlyRankDocs;
-        this.minScore = Float.MIN_VALUE;
+        this.minScore = minScore;
     }
 
     private static int binarySearch(RankDoc[] docs, int fromIndex, int toIndex, int key) {
@@ -317,7 +319,7 @@ public class RankDocsQuery extends Query {
         if (tailRewrite != tailQuery) {
             hasChanged = true;
         }
-        return hasChanged ? new RankDocsQuery(docs, topRewrite, tailRewrite, onlyRankDocs) : this;
+        return hasChanged ? new RankDocsQuery(docs, topRewrite, tailRewrite, onlyRankDocs, minScore) : this;
     }
 
     @Override

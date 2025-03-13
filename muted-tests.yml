@@ -447,9 +447,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean
   issue: https://github.com/elastic/elasticsearch/issues/123347
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/rest-api/common-options/line_102}
-  issue: https://github.com/elastic/elasticsearch/issues/121748
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
@@ -462,9 +459,6 @@ tests:
 - class: org.elasticsearch.gradle.internal.InternalBwcGitPluginFuncTest
   method: can resolve checkout folder as project artifact
   issue: https://github.com/elastic/elasticsearch/issues/119948
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/rest-api/common-options/line_125}
-  issue: https://github.com/elastic/elasticsearch/issues/121338
 - class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
   issue: https://github.com/elastic/elasticsearch/issues/120575
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT

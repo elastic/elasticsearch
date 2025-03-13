@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -50,6 +51,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOfLiteral;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -322,7 +324,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
     @Override
     public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (right().foldable()) {
+        if (right() instanceof Literal) {
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 return true;
             }
@@ -371,7 +373,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     private Query translate(TranslatorHandler handler) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
         String name = handler.nameOf(attribute);
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = valueOfLiteral(right());
         String format = null;
         boolean isDateLiteralComparison = false;
 
@@ -452,7 +454,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         if ((left() instanceof FieldAttribute) == false || left().dataType().isNumeric() == false) {
             return null;
         }
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = valueOfLiteral(right());
 
         // Comparisons with multi-values always return null in ESQL.
         if (value instanceof List<?>) {

@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Foldables;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -140,16 +142,14 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
 
     @Override
     public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(str) && suffix.foldable();
+        return pushdownPredicates.isPushableAttribute(str) && suffix instanceof Literal;
     }
 
     @Override
     public Query asQuery(TranslatorHandler handler) {
         LucenePushdownPredicates.checkIsPushableAttribute(str);
         var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
-
-        // TODO: Get the real FoldContext here
-        var wildcardQuery = "*" + QueryParser.escape(BytesRefs.toString(suffix.fold(FoldContext.small())));
+        var wildcardQuery = "*" + QueryParser.escape(BytesRefs.toString(Foldables.valueOfLiteral(suffix)));
 
         return new WildcardQuery(source(), fieldName, wildcardQuery);
     }

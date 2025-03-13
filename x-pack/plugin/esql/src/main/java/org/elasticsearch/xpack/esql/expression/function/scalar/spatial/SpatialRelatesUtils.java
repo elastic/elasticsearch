@@ -175,7 +175,7 @@ public class SpatialRelatesUtils {
         return makeGeometryFromLiteralValue(valueOf(ctx, expr), expr.dataType());
     }
 
-    private static Geometry makeGeometryFromLiteralValue(Object value, DataType dataType) {
+    public static Geometry makeGeometryFromLiteralValue(Object value, DataType dataType) {
         if (value instanceof BytesRef bytesRef) {
             // Single value expression
             return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);

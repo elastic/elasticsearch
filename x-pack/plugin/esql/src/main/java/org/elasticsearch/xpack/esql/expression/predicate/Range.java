@@ -31,6 +31,7 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOfLiteral;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -196,7 +197,7 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
     @Override
     public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && lower.foldable() && upper.foldable();
+        return pushdownPredicates.isPushableAttribute(value) && lower instanceof Literal && upper instanceof Literal;
     }
 
     @Override
@@ -205,8 +206,8 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
     }
 
     private RangeQuery translate(TranslatorHandler handler) {
-        Object l = valueOf(FoldContext.small() /* TODO remove me */, lower);
-        Object u = valueOf(FoldContext.small() /* TODO remove me */, upper);
+        Object l = valueOfLiteral(lower);
+        Object u = valueOfLiteral(upper);
         String format = null;
 
         DataType dataType = value.dataType();

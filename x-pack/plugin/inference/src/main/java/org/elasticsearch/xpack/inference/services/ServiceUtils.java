@@ -716,7 +716,7 @@ public final class ServiceUtils {
             RestStatus.INTERNAL_SERVER_ERROR
         );
     }
-  
+
     public static SecureString apiKey(@Nullable ApiKeySecrets secrets) {
         // To avoid a possible null pointer throughout the code we'll create a noop api key of an empty array
         return secrets == null ? new SecureString(new char[0]) : secrets.apiKey();

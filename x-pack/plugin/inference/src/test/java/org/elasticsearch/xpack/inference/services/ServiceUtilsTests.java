@@ -883,7 +883,7 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validationException.validationErrors().size(), is(1));
         assertThat(validationException.validationErrors().get(0), is("[testscope] does not contain the required setting [missing_key]"));
     }
-  
+
     private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {
         return new HashMap<>(aMap);
     }

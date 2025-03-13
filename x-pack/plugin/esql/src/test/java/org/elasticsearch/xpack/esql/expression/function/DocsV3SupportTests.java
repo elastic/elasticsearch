@@ -25,6 +25,15 @@ public class DocsV3SupportTests extends ESTestCase {
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 
+    public void testOperatorLink() {
+        String text = "If you need floating point division, <<esql-cast-operator>> one of the arguments to a `DOUBLE`.";
+        String expected = """
+            If you need floating point division,
+            [`Cast (::)`](/reference/query-languages/esql/esql-functions-operators.md#esql-cast-operator)
+            one of the arguments to a `DOUBLE`.""".replaceAll("\n"," ");
+        assertThat(docs.replaceLinks(text), equalTo(expected));
+    }
+
     public void testCommandLink() {
         String text = "use a <<esql-where>> command to remove rows";
         String expected = "use a [`WHERE`](/reference/query-languages/esql/esql-commands.md#esql-where) command to remove rows";

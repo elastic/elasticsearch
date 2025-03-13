@@ -120,6 +120,8 @@ public abstract class DocsV3Support {
     private static final Map<String, String> MACROS = new HashMap<>();
     private static final Map<String, String> knownFiles;
     private static final Map<String, String> knownCommands;
+    private static final Map<String, String> knownOperators;
+    private static final Map<String, String> knownMapping;
 
     static {
         MACROS.put("wikipedia", "https://en.wikipedia.org/wiki");
@@ -142,7 +144,17 @@ public abstract class DocsV3Support {
             entry("esql-function-named-params", "esql/esql-syntax.md"),
             entry("query-dsl-query-string-query", "query-dsl-query-string-query.md")
         );
+        // Static links to the commands file
         knownCommands = Map.ofEntries(entry("where", "where"), entry("stats-by", "stats"));
+        // Static links to handwritten operators files
+        knownOperators = Map.ofEntries(entry("cast-operator", "Cast (::)"));
+        // Static links to mapping-reference
+        knownMapping = Map.ofEntries(
+            entry("text", "/reference/elasticsearch/mapping-reference/text.md"),
+            entry("semantic-text", "/reference/elasticsearch/mapping-reference/semantic-text.md"),
+            entry("mapping-index", "/reference/elasticsearch/mapping-reference/mapping-index.md"),
+            entry("doc-values", "/reference/elasticsearch/mapping-reference/doc-values.md")
+        );
     }
     /**
      * Operators are unregistered functions.
@@ -291,11 +303,13 @@ public abstract class DocsV3Support {
             // [`match`](/reference/query-languages/query-dsl-match-query.md)
             return makeLink(key, "query-dsl-", "/reference/query-languages/query-dsl-match-query.md");
         }
+        // Known links to mapping-reference
+        if (knownMapping.containsKey(parts[0])) {
+            return makeLink(key, "", knownMapping.get(parts[0]));
+        }
         // Various other remaining old asciidoc links
         // <<match-field-params,match query parameters>>
         return switch (parts[0]) {
-            case "text" -> makeLink(key, "", "/reference/elasticsearch/mapping-reference/text.md");
-            case "semantic-text" -> makeLink(key, "", "/reference/elasticsearch/mapping-reference/semantic-text.md");
             case "match-field-params" -> makeLink(key, "", "/reference/query-languages/query-dsl-match-query.md");
             case "search-aggregations-bucket-histogram-aggregation" -> makeLink(
                 key,
@@ -309,14 +323,18 @@ public abstract class DocsV3Support {
     private String makeLink(String key, String prefix, String parentFile) {
         String displayText = key.substring(prefix.length());
         if (knownCommands.containsKey(displayText)) {
-            displayText = knownCommands.get(displayText);
-        }
-        int comma = displayText.indexOf(',');
-        if (comma > 0) {
-            key = prefix + displayText.substring(0, comma);
-            displayText = displayText.substring(comma + 1).trim();
+            displayText = "`" + knownCommands.get(displayText).toUpperCase(Locale.ROOT) + "`";
+        } else if (knownOperators.containsKey(displayText)) {
+            displayText = "`" + knownOperators.get(displayText) + "`";
         } else {
-            displayText = "`" + displayText.toUpperCase(Locale.ROOT) + "`";
+            int comma = displayText.indexOf(',');
+            if (comma > 0) {
+                key = prefix + displayText.substring(0, comma);
+                displayText = displayText.substring(comma + 1).trim();
+            } else if (parentFile.contains("esql/esql-")) {
+                // For ES|QL commands and functions we normally make uppercase code
+                displayText = "`" + displayText.toUpperCase(Locale.ROOT) + "`";
+            }
         }
         if (parentFile.contains("/" + key + ".md")) {
             // The current docs-builder trips off all link targets that match the filename, so we need to do the same
@@ -606,13 +624,13 @@ public abstract class DocsV3Support {
 
         void renderDetailedDescription(String detailedDescription, String note) throws IOException {
             StringBuilder rendered = new StringBuilder();
-            detailedDescription = replaceLinks(detailedDescription.trim());
             if (Strings.isNullOrEmpty(detailedDescription) == false) {
+                detailedDescription = replaceLinks(detailedDescription.trim());
                 rendered.append("\n").append(detailedDescription).append("\n");
             }
 
             if (Strings.isNullOrEmpty(note) == false) {
-                rendered.append("\n::::{note}\n").append(note).append("\n::::\n\n");
+                rendered.append("\n::::{note}\n").append(replaceLinks(note)).append("\n::::\n\n");
             }
             if (rendered.isEmpty() == false) {
                 rendered.append("\n");

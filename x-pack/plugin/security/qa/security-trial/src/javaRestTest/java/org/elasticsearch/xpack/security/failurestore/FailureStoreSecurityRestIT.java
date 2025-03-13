@@ -97,14 +97,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     public void testGetUserPrivileges() throws IOException {
-        Request userRequest = new Request("PUT", "/_security/user/user");
-        userRequest.setJsonEntity("""
-            {
-              "password": "x-pack-test-password",
-              "roles": ["role"]
-            }
-            """);
-        assertOK(adminClient().performRequest(userRequest));
+        createUser("user", PASSWORD, "role");
 
         upsertRole("""
             {
@@ -179,6 +172,40 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 {
                   "names": ["*"],
                   "privileges": ["all", "read_failure_store"],
+                  "allow_restricted_indices": false
+                }],
+              "applications": [],
+              "run_as": []
+            }""");
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["read", "read_failure_store"]
+                },
+                {
+                  "names": ["*"],
+                  "privileges": ["write", "manage_failure_store"]
+                }
+              ]
+            }
+            """, "role");
+        expectUserPrivilegesResponse("""
+            {
+              "cluster": ["all"],
+              "global": [],
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["read", "write"],
+                  "allow_restricted_indices": false
+                },
+                {
+                  "names": ["*"],
+                  "privileges": ["manage_failure_store", "read_failure_store"],
                   "allow_restricted_indices": false
                 }],
               "applications": [],
@@ -1084,7 +1111,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectUsingApiKey(apiKey, new Search("test1"), 403);
     }
 
-    public void testFlsDls() throws IOException {
+    public void testDlsFls() throws Exception {
         createTemplates();
         populateDataStream();
 
@@ -1184,6 +1211,56 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             performRequest(user, new Search("test1::failures").toSearchRequest()),
             Map.of(failureIndexName, Set.of("@timestamp", "document", "error"))
         );
+
+        // DLS
+        String dataIndexDocId = "1";
+        upsertRole("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read", "read_failure_store"],
+                        "query":{"term":{"name":{"value":"not-jack"}}}
+                     }
+                 ]
+             }""", role);
+        // DLS applies and no docs match the query
+        expect(user, new Search("test1"));
+        expect(user, new Search("test1::failures"));
+
+        upsertRole("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read", "read_failure_store"],
+                        "query":{"term":{"name":{"value":"jack"}}}
+                     }
+                 ]
+             }""", role);
+        // DLS applies and doc matches the query
+        expect(user, new Search("test1"), dataIndexDocId);
+        expect(user, new Search("test1::failures"));
+
+        upsertRole("""
+            {
+                 "cluster": ["all"],
+                 "indices": [
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read"],
+                        "query":{"term":{"name":{"value":"not-jack"}}}
+                     },
+                     {
+                        "names": ["test*"],
+                        "privileges": ["read_failure_store"]
+                     }
+                 ]
+             }""", role);
+        // DLS does not apply because there is a section without DLS
+        expect(user, new Search("test1"), dataIndexDocId);
     }
 
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {
@@ -1390,11 +1467,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
     private static void expectUserPrivilegesResponse(String userPrivilegesResponse) throws IOException {
         Request request = new Request("GET", "/_security/user/_privileges");
-        request.setOptions(
-            request.getOptions()
-                .toBuilder()
-                .addHeader("Authorization", basicAuthHeaderValue("user", new SecureString("x-pack-test-password".toCharArray())))
-        );
+        request.setOptions(request.getOptions().toBuilder().addHeader("Authorization", basicAuthHeaderValue("user", PASSWORD)));
         Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response), equalTo(mapFromJson(userPrivilegesResponse)));

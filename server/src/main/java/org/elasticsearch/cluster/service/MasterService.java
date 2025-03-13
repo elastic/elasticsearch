@@ -66,7 +66,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -171,8 +170,6 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     protected ExecutorService createThreadPoolExecutor() {
-        ThreadFactory threadFactory = daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME);
-        ThreadContext contextHolder = threadPool.getThreadContext();
         return EsExecutors.newScaling(
             nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
             0,
@@ -180,8 +177,8 @@ public class MasterService extends AbstractLifecycleComponent {
             60,
             TimeUnit.SECONDS,
             true,
-            threadFactory,
-            contextHolder,
+            daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
+            threadPool.getThreadContext(),
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
     }

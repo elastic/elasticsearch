@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -39,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -71,17 +69,15 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         final String threadName = "TimestampFieldMapperService#updateTask";
-        ThreadFactory threadFactory = daemonThreadFactory(nodeName, threadName);
-        ThreadContext contextHolder = threadPool.getThreadContext();
         executor = EsExecutors.newScaling(
             nodeName + "/" + threadName,
             0,
             1,
-            1,
+            0,
             TimeUnit.MILLISECONDS,
             true,
-            threadFactory,
-            contextHolder,
+            daemonThreadFactory(nodeName, threadName),
+            threadPool.getThreadContext(),
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
     }

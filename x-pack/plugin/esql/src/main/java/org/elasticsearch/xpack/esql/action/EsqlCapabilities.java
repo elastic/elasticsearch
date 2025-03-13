@@ -875,7 +875,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be scored when being part of a disjunction
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
+         * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
+         */
+        TO_LOWER_MV;
 
         private final boolean enabled;
 

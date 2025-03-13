@@ -107,6 +107,10 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
+        if (min == 0 && max == 1) {
+            // forbidden due to https://github.com/elastic/elasticsearch/issues/124667
+            throw new IllegalArgumentException("Unsupported configuration, use EsExecutors.newSingleScalingToZero instead");
+        }
         LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
         if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(

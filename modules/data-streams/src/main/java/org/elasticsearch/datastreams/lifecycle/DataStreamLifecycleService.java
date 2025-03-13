@@ -63,6 +63,7 @@ import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -779,7 +780,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private void clearErrorStoreForUnmanagedIndices(DataStream dataStream) {
         Metadata metadata = clusterService.state().metadata();
-        for (String indexName : errorStore.getAllIndices()) {
+        final var projectId = metadata.getProject().id();
+        for (String indexName : errorStore.getAllIndices(projectId)) {
             IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(indexName);
             DataStream parentDataStream = indexAbstraction != null ? indexAbstraction.getParentDataStream() : null;
             if (indexAbstraction == null || parentDataStream == null) {
@@ -787,13 +789,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     "Clearing recorded error for index [{}] because the index doesn't exist or is not a data stream backing index anymore",
                     indexName
                 );
-                errorStore.clearRecordedError(indexName);
+                errorStore.clearRecordedError(projectId, indexName);
             } else if (parentDataStream.getName().equals(dataStream.getName())) {
                 // we're only verifying the indices that pertain to this data stream
                 IndexMetadata indexMeta = metadata.getProject().index(indexName);
                 if (dataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), metadata.getProject()::index) == false) {
                     logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", indexName);
-                    errorStore.clearRecordedError(indexName);
+                    errorStore.clearRecordedError(projectId, indexName);
                 }
             }
         }
@@ -861,7 +863,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (latestDataStream.getWriteIndex().getName().equals(currentRunWriteIndex.getName())) {
                     // data stream has not been rolled over in the meantime so record the error against the write index we
                     // attempted the rollover
-                    errorStore.recordError(currentRunWriteIndex.getName(), e);
+                    errorStore.recordError(clusterService.state().metadata().getProject().id(), currentRunWriteIndex.getName(), e);
                 }
             }
         }
@@ -1069,7 +1071,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (e instanceof IndexNotFoundException) {
                     // index was already deleted, treat this as a success
                     logger.trace("Clearing recorded error for index [{}] because the index was deleted", targetIndex);
-                    errorStore.clearRecordedError(targetIndex);
+                    errorStore.clearRecordedError(clusterService.state().metadata().getProject().id(), targetIndex);
                     listener.onResponse(null);
                     return;
                 }
@@ -1152,7 +1154,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (e instanceof IndexNotFoundException) {
                     // index was already deleted, treat this as a success
                     logger.trace("Clearing recorded error for index [{}] because the index was deleted", targetIndex);
-                    errorStore.clearRecordedError(targetIndex);
+                    errorStore.clearRecordedError(clusterService.state().metadata().getProject().id(), targetIndex);
                     listener.onResponse(null);
                     return;
                 }
@@ -1188,7 +1190,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (e instanceof IndexNotFoundException) {
                     logger.trace("Data stream lifecycle did not delete index [{}] as it was already deleted", targetIndex);
                     // index was already deleted, treat this as a success
-                    errorStore.clearRecordedError(targetIndex);
+                    errorStore.clearRecordedError(clusterService.state().metadata().getProject().id(), targetIndex);
                     listener.onResponse(null);
                     return;
                 }
@@ -1336,7 +1338,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         @Override
         public void onResponse(Void unused) {
             logger.trace("Clearing recorded error for index [{}] because the [{}] action was successful", targetIndex, actionName);
-            errorStore.clearRecordedError(targetIndex);
+            @FixForMultiProject(description = "Don't use default project ID")
+            final var projectId = Metadata.DEFAULT_PROJECT_ID;
+            errorStore.clearRecordedError(projectId, targetIndex);
         }
 
         @Override
@@ -1359,8 +1363,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         String logMessage,
         int signallingErrorRetryThreshold
     ) {
-        ErrorEntry previousError = errorStore.recordError(targetIndex, e);
-        ErrorEntry currentError = errorStore.getError(targetIndex);
+        @FixForMultiProject(description = "Don't use default project ID")
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        ErrorEntry previousError = errorStore.recordError(projectId, targetIndex, e);
+        ErrorEntry currentError = errorStore.getError(projectId, targetIndex);
         if (previousError == null || (currentError != null && previousError.error().equals(currentError.error()) == false)) {
             logger.error(logMessage, e);
         } else {

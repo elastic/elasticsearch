@@ -11,6 +11,7 @@ package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.DslErrorInfo;
@@ -34,7 +35,7 @@ import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 public class DataStreamLifecycleErrorStore {
 
     public static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
-    private final ConcurrentMap<String, ErrorEntry> indexNameToError = new ConcurrentHashMap<>();
+    private final ConcurrentMap<ProjectId, ConcurrentMap<String, ErrorEntry>> indexNameToError = new ConcurrentHashMap<>();
     private final LongSupplier nowSupplier;
 
     public DataStreamLifecycleErrorStore(LongSupplier nowSupplier) {
@@ -48,21 +49,22 @@ public class DataStreamLifecycleErrorStore {
      * Returns the previously recorded error for the provided index, or null otherwise.
      */
     @Nullable
-    public ErrorEntry recordError(String indexName, Exception e) {
+    public ErrorEntry recordError(ProjectId projectId, String indexName, Exception e) {
         String exceptionToString = Strings.toString((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, EMPTY_PARAMS, e);
             return builder;
         });
         String newError = Strings.substring(exceptionToString, 0, MAX_ERROR_MESSAGE_LENGTH);
-        ErrorEntry existingError = indexNameToError.get(indexName);
+        final var projectMap = indexNameToError.computeIfAbsent(projectId, k -> new ConcurrentHashMap<>());
+        ErrorEntry existingError = projectMap.get(indexName);
         long recordedTimestamp = nowSupplier.getAsLong();
         if (existingError == null) {
-            indexNameToError.put(indexName, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
+            projectMap.put(indexName, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
         } else {
             if (existingError.error().equals(newError)) {
-                indexNameToError.put(indexName, ErrorEntry.incrementRetryCount(existingError, nowSupplier));
+                projectMap.put(indexName, ErrorEntry.incrementRetryCount(existingError, nowSupplier));
             } else {
-                indexNameToError.put(indexName, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
+                projectMap.put(indexName, new ErrorEntry(recordedTimestamp, newError, recordedTimestamp, 0));
             }
         }
         return existingError;
@@ -71,8 +73,12 @@ public class DataStreamLifecycleErrorStore {
     /**
      * Clears the recorded error for the provided index (if any exists)
      */
-    public void clearRecordedError(String indexName) {
-        indexNameToError.remove(indexName);
+    public void clearRecordedError(ProjectId projectId, String indexName) {
+        final var projectMap = indexNameToError.get(projectId);
+        if (projectMap == null) {
+            return;
+        }
+        projectMap.remove(indexName);
     }
 
     /**
@@ -86,15 +92,23 @@ public class DataStreamLifecycleErrorStore {
      * Retrieves the recorded error for the provided index.
      */
     @Nullable
-    public ErrorEntry getError(String indexName) {
-        return indexNameToError.get(indexName);
+    public ErrorEntry getError(ProjectId projectId, String indexName) {
+        final var projectMap = indexNameToError.get(projectId);
+        if (projectMap == null) {
+            return null;
+        }
+        return projectMap.get(indexName);
     }
 
     /**
      * Return an immutable view (a snapshot) of the tracked indices at the moment this method is called.
      */
-    public Set<String> getAllIndices() {
-        return Set.copyOf(indexNameToError.keySet());
+    public Set<String> getAllIndices(ProjectId projectId) {
+        final var projectMap = indexNameToError.get(projectId);
+        if (projectMap == null) {
+            return Set.of();
+        }
+        return Set.copyOf(projectMap.keySet());
     }
 
     /**
@@ -103,11 +117,12 @@ public class DataStreamLifecycleErrorStore {
      * retries DSL attempted (descending order) and the number of entries will be limited according to the provided limit parameter.
      * Returns empty list if no entries are present in the error store or none satisfy the predicate.
      */
-    public List<DslErrorInfo> getErrorsInfo(Predicate<ErrorEntry> errorEntryPredicate, int limit) {
-        if (indexNameToError.isEmpty()) {
+    public List<DslErrorInfo> getErrorsInfo(ProjectId projectId, Predicate<ErrorEntry> errorEntryPredicate, int limit) {
+        final var projectMap = indexNameToError.get(projectId);
+        if (projectMap == null || projectMap.isEmpty()) {
             return List.of();
         }
-        return indexNameToError.entrySet()
+        return projectMap.entrySet()
             .stream()
             .filter(keyValue -> errorEntryPredicate.test(keyValue.getValue()))
             .sorted(Map.Entry.comparingByValue())

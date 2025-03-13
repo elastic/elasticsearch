@@ -506,7 +506,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         // all backing indices are in the error store
         for (Index index : dataStream.getIndices()) {
-            dataStreamLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("bad"));
+            dataStreamLifecycleService.getErrorStore()
+                .recordError(Metadata.DEFAULT_PROJECT_ID, index.getName(), new NullPointerException("bad"));
         }
         Index writeIndex = dataStream.getWriteIndex();
         // all indices but the write index are deleted
@@ -528,10 +529,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         dataStreamLifecycleService.run(stateWithDeletedIndices);
 
         for (Index deletedIndex : deletedIndices) {
-            assertThat(dataStreamLifecycleService.getErrorStore().getError(deletedIndex.getName()), nullValue());
+            assertThat(
+                dataStreamLifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, deletedIndex.getName()),
+                nullValue()
+            );
         }
         // the value for the write index should still be in the error store
-        assertThat(dataStreamLifecycleService.getErrorStore().getError(dataStream.getWriteIndex().getName()), notNullValue());
+        assertThat(
+            dataStreamLifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, dataStream.getWriteIndex().getName()),
+            notNullValue()
+        );
     }
 
     public void testErrorStoreIsClearedOnBackingIndexBecomingUnmanaged() {
@@ -548,7 +555,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         );
         // all backing indices are in the error store
         for (Index index : dataStream.getIndices()) {
-            dataStreamLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("bad"));
+            dataStreamLifecycleService.getErrorStore()
+                .recordError(Metadata.DEFAULT_PROJECT_ID, index.getName(), new NullPointerException("bad"));
         }
         builder.put(dataStream);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
@@ -569,7 +577,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         dataStreamLifecycleService.run(updatedState);
 
         for (Index index : dataStream.getIndices()) {
-            assertThat(dataStreamLifecycleService.getErrorStore().getError(index.getName()), nullValue());
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, index.getName()), nullValue());
         }
     }
 
@@ -586,7 +594,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         );
         // all backing indices are in the error store
         for (Index index : ilmManagedDataStream.getIndices()) {
-            dataStreamLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("will be ILM managed soon"));
+            dataStreamLifecycleService.getErrorStore()
+                .recordError(Metadata.DEFAULT_PROJECT_ID, index.getName(), new NullPointerException("will be ILM managed soon"));
         }
         String dataStreamWithBackingIndicesInErrorState = randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
         DataStream dslManagedDataStream = createDataStream(
@@ -599,7 +608,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         );
         // put all backing indices in the error store
         for (Index index : dslManagedDataStream.getIndices()) {
-            dataStreamLifecycleService.getErrorStore().recordError(index.getName(), new NullPointerException("dsl managed index"));
+            dataStreamLifecycleService.getErrorStore()
+                .recordError(Metadata.DEFAULT_PROJECT_ID, index.getName(), new NullPointerException("dsl managed index"));
         }
         builder.put(ilmManagedDataStream);
         builder.put(dslManagedDataStream);
@@ -621,10 +631,10 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         dataStreamLifecycleService.run(updatedState);
 
         for (Index index : dslManagedDataStream.getIndices()) {
-            assertThat(dataStreamLifecycleService.getErrorStore().getError(index.getName()), notNullValue());
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, index.getName()), notNullValue());
         }
         for (Index index : ilmManagedDataStream.getIndices()) {
-            assertThat(dataStreamLifecycleService.getErrorStore().getError(index.getName()), nullValue());
+            assertThat(dataStreamLifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, index.getName()), nullValue());
         }
     }
 
@@ -1407,7 +1417,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         dataStreamLifecycleService.maybeExecuteDownsampling(clusterService.state(), dataStream, List.of(firstGenIndex));
 
         assertThat(clientSeenRequests.size(), is(0));
-        ErrorEntry error = dataStreamLifecycleService.getErrorStore().getError(firstGenIndexName);
+        ErrorEntry error = dataStreamLifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, firstGenIndexName);
         assertThat(error, notNullValue());
         assertThat(error.error(), containsString("resource_already_exists_exception"));
     }

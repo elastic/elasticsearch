@@ -1379,7 +1379,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
 
             final var entry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), entry.failure());
-            final ShardGenerations shardGenerations = buildGenerations(entry, metadata);
+            final ShardGenerations shardGenerations = buildGenerations(entry);
             final SubscribableListener<List<ActionListener<SnapshotInfo>>> snapshotListeners = new SubscribableListener<>();
 
             ActionListener.run(
@@ -1464,7 +1464,7 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             handleFinalizationFailureBeforeUpdatingRootBlob(e);
         }
 
-        private static ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
+        private ShardGenerations buildGenerations(SnapshotsInProgress.Entry snapshot) {
             ShardGenerations.Builder builder = ShardGenerations.builder();
             if (snapshot.isClone()) {
                 snapshot.shardSnapshotStatusByRepoShardId().forEach((key, value) -> builder.put(key.index(), key.shardId(), value));

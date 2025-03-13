@@ -903,6 +903,30 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void tesetRescoreVectorOldIndexVersion() {
+        IndexVersion incompatibleVersion = IndexVersionUtils.randomVersionBetween(
+            random(),
+            IndexVersionUtils.getLowestReadCompatibleVersion(),
+            IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.ADD_RESCORE_PARAMS_TO_QUANTIZED_VECTORS)
+        );
+        for (String indexType : List.of("int8_hnsw", "int8_flat", "int4_hnsw", "int4_flat", "bbq_hnsw", "bbq_flat")) {
+            expectThrows(
+                MapperParsingException.class,
+                () -> createDocumentMapper(
+                    incompatibleVersion,
+                    fieldMapping(
+                        b -> b.field("type", "dense_vector")
+                            .field("index", true)
+                            .startObject("index_options")
+                            .field("type", indexType)
+                            .field(DenseVectorFieldMapper.RescoreVector.NAME, Map.of("oversample", 1.5f))
+                            .endObject()
+                    )
+                )
+            );
+        }
+    }
+
     public void testInvalidRescoreVector() {
         for (String indexType : List.of("int8_hnsw", "int8_flat", "int4_hnsw", "int4_flat", "bbq_hnsw", "bbq_flat")) {
             Exception e = expectThrows(

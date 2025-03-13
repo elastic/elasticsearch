@@ -10,3 +10,6 @@ Use `RLIKE` to filter data based on string patterns using using [regular express
 
 :::{include} ../examples/rlike.md
 :::
+
+:::{include} ../detailedDescription/rlike.md
+:::

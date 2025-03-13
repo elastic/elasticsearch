@@ -2,5 +2,5 @@
 
 **Description**
 
-Returns all values in a group as a multivalued field. The order of the returned values isn’t guaranteed. If you need the values returned in order use [`MV_SORT`](../../../esql-functions-operators.md#esql-mv_sort).
+Returns all values in a group as a multivalued field. The order of the returned values isn’t guaranteed. If you need the values returned in order use [`MV_SORT`](/reference/query-languages/esql/esql-functions-operators.md#esql-mv_sort).
 

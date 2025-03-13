@@ -117,8 +117,6 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
 
 <% if (docker_base == "fips") { %>
 
-# USER root
-
 # Add plugins infrastructure
 RUN mkdir -p /opt/plugins/archive
 RUN chmod -R 0555 /opt/plugins
@@ -146,7 +144,7 @@ COPY plugins/*.zip /opt/plugins/archive/
 RUN chown 1000:1000 /opt/plugins/archive/*
 RUN chmod 0444 /opt/plugins/archive/*
 
-COPY fips/resources/fips_java_oracle.security /usr/share/elasticsearch/config/fips_java.security
+COPY fips/resources/fips_java.security /usr/share/elasticsearch/config/fips_java.security
 COPY fips/resources/fips_java.policy /usr/share/elasticsearch/config/fips_java.policy
 
 WORKDIR /usr/share/elasticsearch/config
@@ -157,8 +155,6 @@ RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Dorg.bouncycastle.fips.approved_only=true
 -Djava.security.properties=config/fips_java.security
 -Djava.security.policy=config/fips_java.policy
-# disable entitlements temporally (should be removed once we are on jdk 24)
--Des.entitlements.enabled=false
 EOF
 
 <% } %>

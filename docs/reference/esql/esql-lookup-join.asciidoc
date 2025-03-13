@@ -62,9 +62,7 @@ contains multi-valued entries, those entries will not match anything
 [[esql-lookup-join-example]]
 ==== Example
 
-`LOOKUP JOIN` has left-join behavior. If no rows match in the looked
-index, `LOOKUP JOIN` retains the incoming row and adds `null`s. If many
-rows in the lookedup index match, `LOOKUP JOIN` adds one row per match.
+`LOOKUP JOIN` has left-join behavior. If no rows match in the looked index, `LOOKUP JOIN` retains the incoming row and adds `null`s. If many rows in the lookedup index match, `LOOKUP JOIN` adds one row per match.
 
 In this example, we have two sample tables:
 
@@ -128,20 +126,21 @@ FROM employees
 |10092 |2 |German |Switzerland
 |10092 |2 |German |null
 |10093 |3 |null |null
-|10094 |4 |Quenya |null
-|10095 |5 |null |Atlantis
+|10094 |4 |Spanish |null
+|10095 |5 |null |France
 |===
 
-::::++{++important} `LOOKUP JOIN` does not guarantee the output to be in
+[IMPORTANT]
+====
+`LOOKUP JOIN` does not guarantee the output to be in
 any particular order. If a certain order is required, users should use a
 link:/reference/query-languages/esql/esql-commands.md#esql-sort[`SORT`]
 somewhere after the `LOOKUP JOIN`.
-
-::::
+====
 
 [discrete]
 [[esql-lookup-join-prereqs]]
-==== Prerequisites ++[++esql-lookup-join-prereqs++]++
+==== Prerequisites
 
 To use `LOOKUP JOIN`, the following requirements must be met:
 

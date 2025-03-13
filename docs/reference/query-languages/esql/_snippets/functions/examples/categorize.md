@@ -11,6 +11,8 @@ FROM sample_data
 
 | count:long | category:keyword |
 | --- | --- |
-| 3 | .**?Connected.+?to.**? |
-| 3 | .**?Connection.+?error.**? |
-| 1 | .**?Disconnected.**? |
+| 3 | .\*?Connected.+?to.\*? |
+| 3 | .\*?Connection.+?error.\*? |
+| 1 | .\*?Disconnected.\*? |
+
+

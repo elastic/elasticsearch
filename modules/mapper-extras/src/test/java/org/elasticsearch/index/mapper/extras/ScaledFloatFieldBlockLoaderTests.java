@@ -18,8 +18,8 @@ import java.util.List;
 import java.util.Map;
 
 public class ScaledFloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Double> {
-    public ScaledFloatFieldBlockLoaderTests() {
-        super(FieldType.SCALED_FLOAT);
+    public ScaledFloatFieldBlockLoaderTests(Params params) {
+        super(FieldType.SCALED_FLOAT, params);
     }
 
     @Override

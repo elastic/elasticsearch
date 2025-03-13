@@ -1,0 +1,6 @@
+pr: 124638
+summary: Provide model size statistics as soon as an anomaly detection job is opened
+area: Machine Learning
+type: bug
+issues:
+ - 121168

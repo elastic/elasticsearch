@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -93,7 +94,7 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
                 return "aaaa";
             }
         };
-        producer.collect(docValues, 1);
+        producer.collect(docValues, IntArrayList.from(1));
         // producer.collect("dummy", "aaaa");
         assertFalse(producer.isEmpty());
         assertEquals("aaaa", producer.label().get());
@@ -129,7 +130,7 @@ public class LabelFieldProducerTests extends AggregatorTestCase {
             }
         };
 
-        producer.collect(docValues, 1);
+        producer.collect(docValues, IntArrayList.from(1));
         assertFalse(producer.isEmpty());
         assertEquals("a\0value_a", (((Object[]) producer.label().get())[0]).toString());
         assertEquals("b\0value_b", (((Object[]) producer.label().get())[1]).toString());

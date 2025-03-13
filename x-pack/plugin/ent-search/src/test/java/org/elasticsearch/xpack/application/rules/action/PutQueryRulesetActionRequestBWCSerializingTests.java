@@ -58,13 +58,9 @@ public class PutQueryRulesetActionRequestBWCSerializingTests extends AbstractBWC
                 for (QueryRuleCriteria criteria : rule.criteria()) {
                     List<Object> values = criteria.criteriaValues();
                     if (values != null && values.isEmpty() == false) {
-                        newCriteria.add(
-                            new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), values.subList(0, 1))
-                        );
+                        newCriteria.add(new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), values.subList(0, 1)));
                     } else {
-                        newCriteria.add(
-                            new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), null)
-                        );
+                        newCriteria.add(new QueryRuleCriteria(criteria.criteriaType(), criteria.criteriaMetadata(), null));
                     }
                 }
                 rules.add(new QueryRule(rule.id(), rule.type(), newCriteria, rule.actions(), null));

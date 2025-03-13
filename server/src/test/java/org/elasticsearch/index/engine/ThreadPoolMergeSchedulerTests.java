@@ -397,9 +397,7 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
 
     public void testAutoIOThrottleForMergeTasksWhenSchedulerDisablesIt() throws Exception {
         // merge scheduler configured with auto IO throttle disabled
-        Settings settings = Settings.builder()
-            .put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), false)
-            .build();
+        Settings settings = Settings.builder().put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), false).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
         ThreadPoolMergeExecutorService threadPoolMergeExecutorService = mock(ThreadPoolMergeExecutorService.class);
         MergePolicy.OneMergeProgress oneMergeProgress = new MergePolicy.OneMergeProgress();

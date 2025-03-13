@@ -14,8 +14,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -542,18 +540,5 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
-    }
-
-    private ProjectState projectState(DataStream dataStream) {
-        final ProjectId projectId = randomProjectIdOrDefault();
-        final Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId).put(dataStream));
-
-        // TODO, add second project
-        final var metadata = metadataBuilder.build();
-        return ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
-            .build()
-            .projectState(projectId);
     }
 }

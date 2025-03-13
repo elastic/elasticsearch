@@ -6,6 +6,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql:tools'))
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
 
   javaRestTestImplementation('org.apache.arrow:arrow-vector:16.1.0')

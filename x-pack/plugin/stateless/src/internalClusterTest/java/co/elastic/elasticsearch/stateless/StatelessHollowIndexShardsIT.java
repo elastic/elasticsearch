@@ -1514,15 +1514,18 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         });
 
         var getResponseFuture = client().prepareGet(indexName, randomFrom(docIds)).setRealtime(true).execute();
-        triggetClusterUpdates(indexName, failCount);
+        triggerClusterUpdates(indexName, failCount);
         assertThat(getResponseFuture.get().isExists(), is(true));
 
-        var multiGetResponseFuture = client().prepareMultiGet().addIds(indexName, randomSubsetOf(docIds)).setRealtime(true).execute();
-        triggetClusterUpdates(indexName, failCount);
+        var multiGetResponseFuture = client().prepareMultiGet()
+            .addIds(indexName, randomNonEmptySubsetOf(docIds))
+            .setRealtime(true)
+            .execute();
+        triggerClusterUpdates(indexName, failCount);
         assertTrue(Stream.of(safeGet(multiGetResponseFuture).getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));
     }
 
-    private static void triggetClusterUpdates(String indexName, int amount) {
+    private static void triggerClusterUpdates(String indexName, int amount) {
         // Trigger cluster state updates for retries
         for (int i = 0; i < amount; i++) {
             safeGet(indicesAdmin().preparePutMapping(indexName).setSource(randomIdentifier(), "type=keyword").execute());

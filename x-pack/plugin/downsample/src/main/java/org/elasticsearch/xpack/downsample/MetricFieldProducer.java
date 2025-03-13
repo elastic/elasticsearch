@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -45,7 +47,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     /** Collect the value of a raw field and compute all downsampled metrics */
-    void collect(Number value) {
+    void collect(double value) {
         for (MetricFieldProducer.Metric metric : metrics()) {
             metric.collect(value);
         }
@@ -53,14 +55,22 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, int docId) throws IOException {
-        if (docValues.advanceExact(docId) == false) {
-            return;
-        }
-        int docValuesCount = docValues.docValueCount();
-        for (int i = 0; i < docValuesCount; i++) {
-            Number num = (Number) docValues.nextValue();
-            collect(num);
+    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
+        assert false : "MetricFieldProducer does not support formatted doc values";
+        throw new UnsupportedOperationException();
+    }
+
+    public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            int docValuesCount = docValues.docValueCount();
+            for (int j = 0; j < docValuesCount; j++) {
+                double num = docValues.nextValue();
+                collect(num);
+            }
         }
     }
 
@@ -79,9 +89,9 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
             return name;
         }
 
-        abstract void collect(Number number);
+        abstract void collect(double number);
 
-        abstract Number get();
+        abstract double get();
 
         abstract void reset();
     }
@@ -90,25 +100,27 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
      * Metric implementation that computes the maximum of all values of a field
      */
     static final class Max extends Metric {
-        private Double max;
+        private static final double NO_VALUE = -Double.MAX_VALUE;
+
+        private double max = NO_VALUE;
 
         Max() {
             super("max");
         }
 
         @Override
-        void collect(Number value) {
-            this.max = max != null ? Math.max(value.doubleValue(), max) : value.doubleValue();
+        void collect(double value) {
+            this.max = Math.max(value, max);
         }
 
         @Override
-        Number get() {
+        double get() {
             return max;
         }
 
         @Override
         void reset() {
-            max = null;
+            max = NO_VALUE;
         }
     }
 
@@ -116,25 +128,27 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
      * Metric implementation that computes the minimum of all values of a field
      */
     static final class Min extends Metric {
-        private Double min;
+        private static final double NO_VALUE = Double.MAX_VALUE;
+
+        private double min = NO_VALUE;
 
         Min() {
             super("min");
         }
 
         @Override
-        void collect(Number value) {
-            this.min = min != null ? Math.min(value.doubleValue(), min) : value.doubleValue();
+        void collect(double value) {
+            this.min = Math.min(value, min);
         }
 
         @Override
-        Number get() {
+        double get() {
             return min;
         }
 
         @Override
         void reset() {
-            min = null;
+            min = NO_VALUE;
         }
     }
 
@@ -153,12 +167,12 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
         }
 
         @Override
-        void collect(Number value) {
-            kahanSummation.add(value.doubleValue());
+        void collect(double value) {
+            kahanSummation.add(value);
         }
 
         @Override
-        Number get() {
+        double get() {
             return kahanSummation.value();
         }
 
@@ -179,12 +193,12 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
         }
 
         @Override
-        void collect(Number value) {
+        void collect(double value) {
             count++;
         }
 
         @Override
-        Number get() {
+        double get() {
             return count;
         }
 
@@ -202,27 +216,29 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
      * ignoring everything else.
      */
     static final class LastValue extends Metric {
-        private Number lastValue;
+        private static final double NO_VALUE = Double.MIN_VALUE;
+
+        private double lastValue = NO_VALUE;
 
         LastValue() {
             super("last_value");
         }
 
         @Override
-        void collect(Number value) {
-            if (lastValue == null) {
+        void collect(double value) {
+            if (lastValue == Double.MIN_VALUE) {
                 lastValue = value;
             }
         }
 
         @Override
-        Number get() {
+        double get() {
             return lastValue;
         }
 
         @Override
         void reset() {
-            lastValue = null;
+            lastValue = NO_VALUE;
         }
     }
 
@@ -236,13 +252,13 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
         }
 
         @Override
-        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+        public void collect(SortedNumericDoubleValues docValues, IntArrayList docIdBuffer) throws IOException {
             // Counter producers only collect the last_value. Since documents are
             // collected by descending timestamp order, the producer should only
             // process the first value for every tsid. So, it will only collect the
             // field if no value has been set before.
             if (isEmpty()) {
-                super.collect(docValues, docId);
+                super.collect(docValues, docIdBuffer);
             }
         }
 
@@ -277,9 +293,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
             if (isEmpty() == false) {
                 builder.startObject(name());
                 for (MetricFieldProducer.Metric metric : metrics()) {
-                    if (metric.get() != null) {
-                        builder.field(metric.name(), metric.get());
-                    }
+                    builder.field(metric.name(), metric.get());
                 }
                 builder.endObject();
             }

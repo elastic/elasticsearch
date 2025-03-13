@@ -7,7 +7,11 @@
 
 package org.elasticsearch.xpack.rank.hybrid;
 
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -15,9 +19,12 @@ import org.elasticsearch.search.retriever.RetrieverBuilderWrapper;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder;
 import org.elasticsearch.xpack.rank.linear.LinearRetrieverBuilder;
 import org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer;
@@ -27,12 +34,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.search.retriever.CompoundRetrieverBuilder.RANK_WINDOW_SIZE_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.rank.hybrid.QuerySettings.TYPE_FIELD;
 
 // TODO:
 // - Retriever name support
@@ -44,12 +54,14 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
     public static final ParseField RERANK_FIELD = new ParseField("rerank");
     public static final ParseField RERANK_FIELD_FIELD = new ParseField("rerank_field");
     public static final ParseField RERANK_INFERENCE_ID_FIELD = new ParseField("rerank_inference_id");
+    public static final ParseField QUERY_SETTINGS_FIELD = new ParseField("query_settings");
 
     private final List<String> fields;
     private final String query;
     private final Boolean rerank;
     private final String rerankField;
     private final String rerankInferenceId;
+    private final Map<String, List<QuerySettings>> querySettingsMap;
     private final int rankWindowSize;
 
     @SuppressWarnings("unchecked")
@@ -63,17 +75,60 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
             String rerankField = (String) args[3];
             String rerankInferenceId = (String) args[4];
             int rankWindowSize = args[5] == null ? RankBuilder.DEFAULT_RANK_WINDOW_SIZE : (int) args[5];
-            return new HybridRetrieverBuilder(fields, query, rerank, rerankField, rerankInferenceId, rankWindowSize);
+            Map<String, List<QuerySettings>> querySettingsMap = (Map<String, List<QuerySettings>>) args[6];
+
+            return new HybridRetrieverBuilder(fields, query, rerank, rerankField, rerankInferenceId, querySettingsMap, rankWindowSize);
         }
     );
 
+    private static final NamedXContentRegistry NAMED_X_CONTENT_REGISTRY;
+
     static {
+        List<NamedXContentRegistry.Entry> xContentRegistryEntries = List.of(
+            new NamedXContentRegistry.Entry(
+                QuerySettings.class,
+                new ParseField(MatchQuerySettings.QUERY_TYPE.getQueryName()),
+                MatchQuerySettings::fromXContent
+            )
+        );
+
+        NAMED_X_CONTENT_REGISTRY = new NamedXContentRegistry(xContentRegistryEntries);
+
         PARSER.declareStringArray(constructorArg(), FIELDS_FIELD);
         PARSER.declareString(constructorArg(), QUERY_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), RERANK_FIELD);
         PARSER.declareString(optionalConstructorArg(), RERANK_FIELD_FIELD);
         PARSER.declareString(optionalConstructorArg(), RERANK_INFERENCE_ID_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
+            Map<String, List<QuerySettings>> querySettingsMap = new HashMap<>();
+
+            Map<String, Object> unparsedMap = p.map();
+            for (var entry : unparsedMap.entrySet()) {
+                String field = entry.getKey();
+                Object value = entry.getValue();
+
+                if (value instanceof List<?> list) {
+                    List<QuerySettings> querySettings = querySettingsMap.computeIfAbsent(field, f -> new ArrayList<>(list.size()));
+                    for (Object listValue : list) {
+                        if (listValue instanceof Map<?, ?> map) {
+                            querySettings.add(parseQuerySettings(map));
+                        } else {
+                            throw new IllegalArgumentException(
+                                "Query settings for field [" + field + "] must be an object or list of objects"
+                            );
+                        }
+                    }
+                } else if (value instanceof Map<?, ?> map) {
+                    List<QuerySettings> querySettings = querySettingsMap.computeIfAbsent(field, f -> new ArrayList<>());
+                    querySettings.add(parseQuerySettings(map));
+                } else {
+                    throw new IllegalArgumentException("Query settings for field [" + field + "] must be an object or list of objects");
+                }
+            }
+
+            return querySettingsMap;
+        }, QUERY_SETTINGS_FIELD);
         RetrieverBuilder.declareBaseParserFields(PARSER);
     }
 
@@ -83,6 +138,7 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         Boolean rerank,
         String rerankField,
         String rerankInferenceId,
+        Map<String, List<QuerySettings>> querySettingsMap,
         int rankWindowSize
     ) {
         this(
@@ -91,8 +147,9 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
             rerank,
             rerankField,
             rerankInferenceId,
+            copyQuerySettingsMap(querySettingsMap),
             rankWindowSize,
-            generateRetrieverBuilder(fields, query, rerank, rerankField, rerankInferenceId, rankWindowSize)
+            generateRetrieverBuilder(fields, query, rerank, rerankField, rerankInferenceId, querySettingsMap, rankWindowSize)
         );
     }
 
@@ -102,6 +159,7 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         Boolean rerank,
         String rerankField,
         String rerankInferenceId,
+        Map<String, List<QuerySettings>> querySettingsMap,
         int rankWindowSize,
         RetrieverBuilder retrieverBuilder
     ) {
@@ -111,12 +169,13 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         this.rerank = rerank;
         this.rerankField = rerankField;
         this.rerankInferenceId = rerankInferenceId;
+        this.querySettingsMap = querySettingsMap;
         this.rankWindowSize = rankWindowSize;
     }
 
     @Override
     protected HybridRetrieverBuilder clone(RetrieverBuilder sub) {
-        return new HybridRetrieverBuilder(fields, query, rerank, rerankField, rerankInferenceId, rankWindowSize, sub);
+        return new HybridRetrieverBuilder(fields, query, rerank, rerankField, rerankInferenceId, querySettingsMap, rankWindowSize, sub);
     }
 
     @Override
@@ -161,18 +220,35 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         return PARSER.apply(parser, context);
     }
 
+    private static Map<String, List<QuerySettings>> copyQuerySettingsMap(Map<String, List<QuerySettings>> querySettingsMap) {
+        if (querySettingsMap == null) {
+            return Map.of();
+        }
+
+        ImmutableOpenMap.Builder<String, List<QuerySettings>> copyBuilder = new ImmutableOpenMap.Builder<>(querySettingsMap.size());
+        for (var entry : querySettingsMap.entrySet()) {
+            String field = entry.getKey();
+            List<QuerySettings> querySettings = entry.getValue();
+
+            copyBuilder.put(field, querySettings != null ? List.copyOf(querySettings) : List.of());
+        }
+
+        return copyBuilder.build();
+    }
+
     private static RetrieverBuilder generateRetrieverBuilder(
         List<String> fields,
         String query,
         Boolean rerank,
         String rerankField,
         String rerankInferenceId,
+        Map<String, List<QuerySettings>> querySettingsMap,
         int rankWindowSize
     ) {
         FieldsAndsWeights fieldsAndsWeights = generateFieldsAndWeights(fields);
 
         LinearRetrieverBuilder linearRetrieverBuilder = new LinearRetrieverBuilder(
-            generateInnerRetrievers(fieldsAndsWeights.fields(), query),
+            generateInnerRetrievers(fieldsAndsWeights.fields(), query, querySettingsMap),
             rankWindowSize,
             fieldsAndsWeights.weights(),
             generateScoreNormalizers(fields)
@@ -197,15 +273,31 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
         return rootRetriever;
     }
 
-    private static List<CompoundRetrieverBuilder.RetrieverSource> generateInnerRetrievers(List<String> fields, String query) {
+    private static List<CompoundRetrieverBuilder.RetrieverSource> generateInnerRetrievers(
+        List<String> fields,
+        String query,
+        Map<String, List<QuerySettings>> querySettingsMap
+    ) {
         if (fields == null) {
             return List.of();
         }
 
-        List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = new ArrayList<>(fields.size());
+        List<CompoundRetrieverBuilder.RetrieverSource> innerRetrievers = new ArrayList<>();
         for (String field : fields) {
-            MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(field, query);
-            innerRetrievers.add(new CompoundRetrieverBuilder.RetrieverSource(new StandardRetrieverBuilder(matchQueryBuilder), null));
+            List<QueryBuilder> fieldQueryBuilders = new ArrayList<>();
+            List<QuerySettings> fieldQuerySettings = querySettingsMap != null ? querySettingsMap.get(field) : null;
+            if (fieldQuerySettings == null || fieldQuerySettings.isEmpty()) {
+                // Default to match query
+                fieldQueryBuilders.add(new MatchQueryBuilder(field, query));
+            } else {
+                for (QuerySettings querySettings : fieldQuerySettings) {
+                    fieldQueryBuilders.add(querySettings.constructQueryBuilder(field, query));
+                }
+            }
+
+            for (QueryBuilder queryBuilder : fieldQueryBuilders) {
+                innerRetrievers.add(new CompoundRetrieverBuilder.RetrieverSource(new StandardRetrieverBuilder(queryBuilder), null));
+            }
         }
 
         return innerRetrievers;
@@ -247,4 +339,30 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
     }
 
     private record FieldsAndsWeights(List<String> fields, float[] weights) {}
+
+    // TODO: Probably a better way to do this, but this is quick & dirty for POC purposes
+    private static QuerySettings parseQuerySettings(Map<?, ?> map) {
+        Map<String, Object> querySettingsMap = XContentMapValues.nodeMapValue(map, "query settings");
+
+        Object typeObject = querySettingsMap.get(TYPE_FIELD.getPreferredName());
+        if (typeObject == null) {
+            throw new IllegalArgumentException("[" + TYPE_FIELD.getPreferredName() + "] must be provided in query settings");
+        } else if (typeObject instanceof String == false) {
+            throw new IllegalArgumentException("[" + TYPE_FIELD.getPreferredName() + "] must have a string value");
+        }
+
+        String typeString = (String) typeObject;
+        MapXContentParser mapXContentParser = new MapXContentParser(
+            NAMED_X_CONTENT_REGISTRY,
+            LoggingDeprecationHandler.INSTANCE,
+            querySettingsMap,
+            null
+        );
+
+        try (mapXContentParser) {
+            return mapXContentParser.namedObject(QuerySettings.class, typeString, null);
+        } catch (IOException e) {
+            throw new XContentParseException(mapXContentParser.getTokenLocation(), "Failed to parse query settings");
+        }
+    }
 }

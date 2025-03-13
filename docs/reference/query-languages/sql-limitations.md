@@ -3,14 +3,14 @@
 
 ## Large queries may throw `ParsingException` [large-parsing-trees]
 
-Extremely large queries can consume too much memory during the parsing phase, in which case the {es-sql} engine will
+Extremely large queries can consume too much memory during the parsing phase, in which case the {{es-sql}} engine will
 abort parsing and throw an error. In such cases, consider reducing the query to a smaller size by potentially
 simplifying it or splitting it into smaller queries.
 
 
 ## Nested fields in `SYS COLUMNS` and `DESCRIBE TABLE` [sys-columns-describe-table-nested-fields]
 
-{es} has a special type of relationship fields called `nested` fields. In {es-sql} they can be used by referencing their inner
+{{es}} has a special type of relationship fields called `nested` fields. In {{es-sql}} they can be used by referencing their inner
 sub-fields. Even though `SYS COLUMNS` in non-driver mode (in the CLI and in REST calls) and `DESCRIBE TABLE` will still display
 them as having the type `NESTED`, they cannot be used in a query. One can only reference its sub-fields in the form:
 
@@ -51,7 +51,7 @@ is supported.
 
 ## Multi-nested fields
 
-{es-sql} doesn't support multi-nested documents, so a query cannot reference more than one nested field in an index.
+{{es-sql}} doesn't support multi-nested documents, so a query cannot reference more than one nested field in an index.
 This applies to multi-level nested fields, but also multiple nested fields defined on the same level. For example, for this index:
 
 ```sql
@@ -66,31 +66,31 @@ nested_B.text         |VARCHAR        |KEYWORD
 ```
 
 `nested_A` and `nested_B` cannot be used at the same time, nor `nested_A`/`nested_B` and `nested_A.nested_X` combination.
-For such situations, {es-sql} will display an error message.
+For such situations, {{es-sql}} will display an error message.
 
 ## Paginating nested inner hits
 
-When SELECTing a nested field, pagination will not work as expected, {es-sql} will return __at least__ the page size records.
-This is because of the way nested queries work in {es}: the root nested field will be returned and it's matching inner nested fields as well,
+When SELECTing a nested field, pagination will not work as expected, {{es-sql}} will return __at least__ the page size records.
+This is because of the way nested queries work in {{es}}: the root nested field will be returned and it's matching inner nested fields as well,
 pagination taking place on the **root nested document and not on its inner hits**.
 
 
 ## Normalized `keyword` fields [normalized-keyword-fields]
 
-`keyword` fields in {es} can be normalized by defining a `normalizer`. Such fields are not supported in {es-sql}.
+`keyword` fields in {{es}} can be normalized by defining a `normalizer`. Such fields are not supported in {{es-sql}}.
 
 ## Array type of fields
 
-Array fields are not supported due to the "invisible" way in which {es} handles an array of values: the mapping doesn't indicate whether
-a field is an array (has multiple values) or not, so without reading all the data, {es-sql} cannot know whether a field is a single or multi value.
-When multiple values are returned for a field, by default, {es-sql} will throw an exception. However, it is possible to change this behavior through `field_multi_value_leniency` parameter in REST (disabled by default) or
+Array fields are not supported due to the "invisible" way in which {{es}} handles an array of values: the mapping doesn't indicate whether
+a field is an array (has multiple values) or not, so without reading all the data, {{es-sql}} cannot know whether a field is a single or multi value.
+When multiple values are returned for a field, by default, {{es-sql}} will throw an exception. However, it is possible to change this behavior through `field_multi_value_leniency` parameter in REST (disabled by default) or
 `field.multi.value.leniency` in drivers (enabled by default).
 
 ## Sorting by aggregation
 
-When doing aggregations (`GROUP BY`) {es-sql} relies on {es}'s `composite` aggregation for its support for paginating results.
+When doing aggregations (`GROUP BY`) {{es-sql}} relies on {{es}}'s `composite` aggregation for its support for paginating results.
 However this type of aggregation does come with a limitation: sorting can only be applied on the key used for the aggregation's buckets.
-{es-sql} overcomes this limitation by doing client-side sorting however as a safety measure, allows only up to *65535* rows.
+{{es-sql}} overcomes this limitation by doing client-side sorting however as a safety measure, allows only up to *65535* rows.
 
 It is recommended to use `LIMIT` for queries that use sorting by aggregation, essentially indicating the top N results that are desired:
 
@@ -99,7 +99,7 @@ SELECT * FROM test GROUP BY age ORDER BY COUNT(*) LIMIT 100;
 ```
 
 It is possible to run the same queries without a `LIMIT` however in that case if the maximum size (*10000*) is passed,
-an exception will be returned as {es-sql} is unable to track (and sort) all the results returned.
+an exception will be returned as {{es-sql}} is unable to track (and sort) all the results returned.
 
 Moreover, the aggregation(s) used in the `ORDER BY` must be only plain aggregate functions. No scalar
 functions or operators can be used, and therefore no complex columns that combine two ore more aggregate
@@ -114,7 +114,7 @@ SELECT age, MAX(salary) - MIN(salary) AS diff FROM test GROUP BY age ORDER BY di
 ## Using a sub-select
 
 Using sub-selects (`SELECT X FROM (SELECT Y)`) is **supported to a small degree**: any sub-select that can be "flattened" into a single
-`SELECT` is possible with {es-sql}. For example:
+`SELECT` is possible with {{es-sql}}. For example:
 
 ```sql 
 include-tagged::{sql-specs}/docs/docs.csv-spec[limitationSubSelect]
@@ -169,7 +169,7 @@ Therefore calling `ST_Z` function in the filtering, grouping or sorting will ret
 ## Retrieving using the `fields` search parameter [using-fields-api]
 
 {{es-sql}} retrieves column values using the [search API's `fields` parameter](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#search-fields-param). Any limitations on the `fields` parameter also apply to
-{es-sql} queries. For example, if `_source` is disabled
+{{es-sql}} queries. For example, if `_source` is disabled
 for any of the returned fields or at index level, the values cannot be retrieved.
 
 ## Aggregations in the `PIVOT` clause [aggs-in-pivot]

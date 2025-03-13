@@ -1236,6 +1236,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(type.name + " only supports even dimensions; provided=" + dim);
         }
 
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("type", type);
+            innerXContent(builder, params);
+            builder.endObject();
+            return builder;
+        }
+
+        abstract public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException;
+
         abstract boolean doEquals(IndexOptions other);
 
         abstract int doHashCode();
@@ -1255,6 +1266,53 @@ public class DenseVectorFieldMapper extends FieldMapper {
         @Override
         public final int hashCode() {
             return Objects.hash(type, doHashCode());
+        }
+    }
+
+    abstract static class AbstractHnswIndexOptions extends IndexOptions {
+        protected final int m;
+        protected final int efConstruction;
+
+        AbstractHnswIndexOptions(VectorIndexType type, int m, int efConstruction) {
+            super(type);
+            this.m = m;
+            this.efConstruction = efConstruction;
+        }
+
+        public int getM() {
+            return m;
+        }
+
+        public int getEfConstruction() {
+            return efConstruction;
+        }
+
+        @Override
+        public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("m", m);
+            builder.field("ef_construction", efConstruction);
+            innerHnswXContent(builder, params);
+            return builder;
+        }
+
+        abstract public XContentBuilder innerHnswXContent(XContentBuilder builder, Params params) throws IOException;
+
+        @Override
+        public boolean doEquals(IndexOptions o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            HnswIndexOptions that = (HnswIndexOptions) o;
+            return m == that.m && efConstruction == that.efConstruction;
+        }
+
+        @Override
+        public int doHashCode() {
+            return Objects.hash(m, efConstruction);
+        }
+
+        @Override
+        public String toString() {
+            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + "}";
         }
     }
 
@@ -1492,13 +1550,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("type", type);
+        public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException {
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
             }
-            builder.endObject();
             return builder;
         }
 
@@ -1536,10 +1591,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("type", type);
-            builder.endObject();
+        public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException {
             return builder;
         }
 
@@ -1567,15 +1619,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class Int4HnswIndexOptions extends IndexOptions {
-        private final int m;
-        private final int efConstruction;
+    static class Int4HnswIndexOptions extends AbstractHnswIndexOptions {
         private final float confidenceInterval;
 
         Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
-            super(VectorIndexType.INT4_HNSW);
-            this.m = m;
-            this.efConstruction = efConstruction;
+            super(VectorIndexType.INT4_HNSW, m, efConstruction);
             // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
             // effectively required for int4 to behave well across a wide range of data.
             this.confidenceInterval = confidenceInterval == null ? 0f : confidenceInterval;
@@ -1588,25 +1636,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("type", type);
-            builder.field("m", m);
-            builder.field("ef_construction", efConstruction);
+        public XContentBuilder innerHnswXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("confidence_interval", confidenceInterval);
-            builder.endObject();
             return builder;
         }
 
         @Override
         public boolean doEquals(IndexOptions o) {
-            Int4HnswIndexOptions that = (Int4HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction && Objects.equals(confidenceInterval, that.confidenceInterval);
+            return super.doEquals(o) && Objects.equals(confidenceInterval, ((Int4HnswIndexOptions) o).confidenceInterval);
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction, confidenceInterval);
+            return super.doHashCode() + Objects.hash(confidenceInterval);
         }
 
         @Override
@@ -1652,11 +1694,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("type", type);
+        public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("confidence_interval", confidenceInterval);
-            builder.endObject();
             return builder;
         }
 
@@ -1689,15 +1728,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     }
 
-    static class Int8HnswIndexOptions extends IndexOptions {
-        private final int m;
-        private final int efConstruction;
+    static class Int8HnswIndexOptions extends AbstractHnswIndexOptions {
         private final Float confidenceInterval;
 
         Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
-            super(VectorIndexType.INT8_HNSW);
-            this.m = m;
-            this.efConstruction = efConstruction;
+            super(VectorIndexType.INT8_HNSW, m, efConstruction);
             this.confidenceInterval = confidenceInterval;
         }
 
@@ -1708,29 +1743,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("type", type);
-            builder.field("m", m);
-            builder.field("ef_construction", efConstruction);
+        public XContentBuilder innerHnswXContent(XContentBuilder builder, Params params) throws IOException {
             if (confidenceInterval != null) {
                 builder.field("confidence_interval", confidenceInterval);
             }
-            builder.endObject();
             return builder;
         }
 
         @Override
         public boolean doEquals(IndexOptions o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Int8HnswIndexOptions that = (Int8HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction && Objects.equals(confidenceInterval, that.confidenceInterval);
+            return super.doEquals(o) && Objects.equals(confidenceInterval, ((Int8HnswIndexOptions) o).confidenceInterval);
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction, confidenceInterval);
+            return super.doHashCode() + Objects.hash(confidenceInterval);
         }
 
         @Override
@@ -1764,14 +1791,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    static class HnswIndexOptions extends IndexOptions {
-        private final int m;
-        private final int efConstruction;
+    static class HnswIndexOptions extends AbstractHnswIndexOptions {
 
         HnswIndexOptions(int m, int efConstruction) {
-            super(VectorIndexType.HNSW);
-            this.m = m;
-            this.efConstruction = efConstruction;
+            super(VectorIndexType.HNSW, m, efConstruction);
         }
 
         @Override
@@ -1796,42 +1819,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("type", type);
-            builder.field("m", m);
-            builder.field("ef_construction", efConstruction);
-            builder.endObject();
+        public XContentBuilder innerHnswXContent(XContentBuilder builder, Params params) throws IOException {
             return builder;
-        }
-
-        @Override
-        public boolean doEquals(IndexOptions o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            HnswIndexOptions that = (HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction;
-        }
-
-        @Override
-        public int doHashCode() {
-            return Objects.hash(m, efConstruction);
-        }
-
-        @Override
-        public String toString() {
-            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + "}";
         }
     }
 
-    static class BBQHnswIndexOptions extends IndexOptions {
-        private final int m;
-        private final int efConstruction;
+    static class BBQHnswIndexOptions extends AbstractHnswIndexOptions {
 
         BBQHnswIndexOptions(int m, int efConstruction) {
-            super(VectorIndexType.BBQ_HNSW);
-            this.m = m;
-            this.efConstruction = efConstruction;
+            super(VectorIndexType.BBQ_HNSW, m, efConstruction);
         }
 
         @Override
@@ -1846,32 +1842,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        boolean doEquals(IndexOptions other) {
-            BBQHnswIndexOptions that = (BBQHnswIndexOptions) other;
-            return m == that.m && efConstruction == that.efConstruction;
-        }
-
-        @Override
-        int doHashCode() {
-            return Objects.hash(m, efConstruction);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("type", type);
-            builder.field("m", m);
-            builder.field("ef_construction", efConstruction);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
         public void validateDimension(int dim) {
             if (type.supportsDimension(dim)) {
                 return;
             }
             throw new IllegalArgumentException(type.name + " does not support dimensions fewer than " + BBQ_MIN_DIMS + "; provided=" + dim);
+        }
+
+        @Override
+        public XContentBuilder innerHnswXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder;
         }
     }
 
@@ -1904,10 +1884,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("type", type);
-            builder.endObject();
+        public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException {
             return builder;
         }
 

@@ -30,7 +30,7 @@ public class DocsV3SupportTests extends ESTestCase {
         String expected = """
             If you need floating point division,
             [`Cast (::)`](/reference/query-languages/esql/esql-functions-operators.md#esql-cast-operator)
-            one of the arguments to a `DOUBLE`.""".replaceAll("\n"," ");
+            one of the arguments to a `DOUBLE`.""".replaceAll("\n", " ");
         assertThat(docs.replaceLinks(text), equalTo(expected));
     }
 

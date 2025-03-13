@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -62,13 +61,10 @@ public class IndicesAccessControl {
      */
     @Nullable
     public IndexAccessControl getIndexPermissions(String index) {
-        Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(index);
-        return this.getAllIndexPermissions()
-            .get(
-                IndexComponentSelector.FAILURES.equals(IndexComponentSelector.getByKey(indexAndSelector.v2()))
-                    ? index
-                    : indexAndSelector.v1()
-            );
+        assert false == IndexNameExpressionResolver.hasSelectorSuffix(index)
+            || IndexNameExpressionResolver.hasSelector(index, IndexComponentSelector.FAILURES)
+            : "index name [" + index + "] cannot have explicit selector other than ::failures";
+        return getAllIndexPermissions().get(index);
     }
 
     public boolean hasIndexPermissions(String index) {

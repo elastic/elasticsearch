@@ -418,7 +418,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         // search data
         {
-            var request = new Search("test1");
+            var request = new Search(randomFrom("test1::data", "test1"));
             for (var user : users) {
                 switch (user) {
                     case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:

@@ -36,7 +36,7 @@ public class Distribution {
         } else if (filename.endsWith(".wolfi.tar")) {
             this.packaging = Packaging.DOCKER_WOLFI;
         } else if (filename.endsWith(".fips.tar")) {
-            this.packaging = Packaging.FIPS;
+            this.packaging = Packaging.DOCKER_FIPS;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
@@ -61,7 +61,7 @@ public class Distribution {
      */
     public boolean isDocker() {
         return switch (packaging) {
-            case DOCKER, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> true;
+            case DOCKER, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI, DOCKER_FIPS -> true;
             default -> false;
         };
     }

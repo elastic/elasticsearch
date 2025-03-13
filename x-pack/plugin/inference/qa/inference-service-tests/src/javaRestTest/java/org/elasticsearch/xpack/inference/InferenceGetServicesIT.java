@@ -64,7 +64,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
-        assertThat(services.size(), equalTo(15));
+        assertThat(services.size(), equalTo(16));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -86,6 +86,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 "jinaai",
                 "mistral",
                 "openai",
+                "test_service",
                 "text_embedding_test_service",
                 "voyageai",
                 "watsonxai"
@@ -157,7 +158,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     @SuppressWarnings("unchecked")
     public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
-        assertThat(services.size(), equalTo(5));
+        assertThat(services.size(), equalTo(6));
 
         String[] providers = new String[services.size()];
         for (int i = 0; i < services.size(); i++) {
@@ -166,7 +167,14 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
         }
 
         assertArrayEquals(
-            List.of("alibabacloud-ai-search", "elastic", "elasticsearch", "hugging_face", "test_service").toArray(),
+            List.of(
+                "alibabacloud-ai-search",
+                "elastic",
+                "elasticsearch",
+                "hugging_face",
+                "streaming_completion_test_service",
+                "test_service"
+            ).toArray(),
             providers
         );
     }

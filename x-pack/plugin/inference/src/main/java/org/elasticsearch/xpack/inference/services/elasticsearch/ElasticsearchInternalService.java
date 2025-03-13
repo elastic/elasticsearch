@@ -56,7 +56,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -533,31 +532,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 chunkingSettings,
                 ConfigurationParseContext.PERSISTENT
             );
-        }
-    }
-
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof CustomElandEmbeddingModel elandModel && elandModel.getTaskType() == TaskType.TEXT_EMBEDDING) {
-            // At this point the inference endpoint configuration has not been persisted yet, if we attempt to do inference using the
-            // inference id we'll get an error because the trained model code needs to use the persisted inference endpoint to retrieve the
-            // model id. To get around this we'll have the getEmbeddingSize() method use the model id instead of inference id. So we need
-            // to create a temporary model that overrides the inference id with the model id.
-            var temporaryModelWithModelId = new CustomElandEmbeddingModel(
-                elandModel.getServiceSettings().modelId(),
-                elandModel.getTaskType(),
-                elandModel.getConfigurations().getService(),
-                elandModel.getServiceSettings(),
-                elandModel.getConfigurations().getChunkingSettings()
-            );
-
-            ServiceUtils.getEmbeddingSize(
-                temporaryModelWithModelId,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(elandModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
         }
     }
 

@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
+class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implements CompositeSyntheticFieldLoader.DocValuesLayer {
     @FunctionalInterface
     interface NumericValueWriter {
         void writeLongValue(XContentBuilder b, long value) throws IOException;
@@ -30,7 +30,7 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
     private final NumericValueWriter valueWriter;
     private NumericDocValuesWithOffsetsLoader docValuesLoader;
 
-    SortedNumericWithOffsetsDocValuesSyntheticFieldLoader(
+    SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(
         String fullPath,
         String leafName,
         String offsetsFieldName,
@@ -53,6 +53,15 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
     @Override
     public boolean hasValue() {
         return docValuesLoader != null && docValuesLoader.hasValue();
+    }
+
+    @Override
+    public long valueCount() {
+        if (docValuesLoader != null) {
+            return docValuesLoader.count();
+        } else {
+            return 0;
+        }
     }
 
     @Override
@@ -111,6 +120,27 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
             return hasOffset || (hasValue && valueDocValues.docValueCount() > 0);
         }
 
+        public int count() {
+            if (hasValue) {
+                if (offsetToOrd != null) {
+                    // Even though there may only be one value, the fact that offsets were recorded means that
+                    // the value was in an array, so we need to trick CompositeSyntheticFieldLoader into
+                    // always serializing this layer as an array
+                    return offsetToOrd.length + 1;
+                } else {
+                    return valueDocValues.docValueCount();
+                }
+            } else {
+                if (hasOffset) {
+                    // same as above, even though there are no values, the presence of recorded offsets means
+                    // there was an array containing zero or more null values in the original source
+                    return 2;
+                } else {
+                    return 0;
+                }
+            }
+        }
+
         public void write(String fieldName, XContentBuilder b) throws IOException {
             if (hasValue == false && hasOffset == false) {
                 return;
@@ -123,7 +153,6 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
                     values[i] = valueDocValues.nextValue();
                 }
 
-                b.startArray(fieldName);
                 for (int offset : offsetToOrd) {
                     if (offset == -1) {
                         b.nullValue();
@@ -131,30 +160,15 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoader extends SourceLoader
                         writer.writeLongValue(b, values[offset]);
                     }
                 }
-                b.endArray();
             } else if (offsetToOrd != null) {
                 // in cased all values are NULLs
-                b.startArray(fieldName);
                 for (int offset : offsetToOrd) {
                     assert offset == -1;
                     b.nullValue();
                 }
-                b.endArray();
             } else {
-                int count = valueDocValues.docValueCount();
-                if (count == 0) {
-                    return;
-                }
-                if (count == 1) {
-                    b.field(fieldName);
-                } else {
-                    b.startArray(fieldName);
-                }
-                for (int i = 0; i < count; i++) {
+                for (int i = 0; i < valueDocValues.docValueCount(); i++) {
                     writer.writeLongValue(b, valueDocValues.nextValue());
-                }
-                if (count > 1) {
-                    b.endArray();
                 }
             }
         }

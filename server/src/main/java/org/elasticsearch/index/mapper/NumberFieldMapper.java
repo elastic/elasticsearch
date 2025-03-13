@@ -71,6 +71,7 @@ import org.elasticsearch.xcontent.XContentParser.Token;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -2226,21 +2227,25 @@ public class NumberFieldMapper extends FieldMapper {
         }
     }
 
+    private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
+        if (offsetsFieldName != null) {
+            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+            layers.add(
+                new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), leafName(), offsetsFieldName, type::writeValue)
+            );
+            if (ignoreMalformed.value()) {
+                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
+            }
+            return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
+        } else {
+            return type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value());
+        }
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            if (offsetsFieldName != null) {
-                return new SyntheticSourceSupport.Native(
-                    () -> new SortedNumericWithOffsetsDocValuesSyntheticFieldLoader(
-                        fullPath(),
-                        leafName(),
-                        offsetsFieldName,
-                        type::writeValue
-                    )
-                );
-            } else {
-                return new SyntheticSourceSupport.Native(() -> type.syntheticFieldLoader(fullPath(), leafName(), ignoreMalformed.value()));
-            }
+            return new SyntheticSourceSupport.Native(this::docValuesSyntheticFieldLoader);
         }
 
         return super.syntheticSourceSupport();

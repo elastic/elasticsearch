@@ -27,6 +27,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         random().nextBytes(q);
         int expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
         assertEquals(expected, ESVectorUtil.ipByteBit(q, d));
+        assertEquals(expected, defaultedProvider.getVectorUtilSupport().ipByteBit(q, d));
+        assertEquals(expected, defOrPanamaProvider.getVectorUtilSupport().ipByteBit(q, d));
     }
 
     public void testIpFloatBit() {
@@ -37,6 +39,8 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
         float expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
         assertEquals(expected, ESVectorUtil.ipFloatBit(q, d), 1e-6);
+        assertEquals(expected, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, d), 1e-6);
+        assertEquals(expected, defOrPanamaProvider.getVectorUtilSupport().ipFloatBit(q, d), 1e-6);
     }
 
     public void testIpFloatByte() {

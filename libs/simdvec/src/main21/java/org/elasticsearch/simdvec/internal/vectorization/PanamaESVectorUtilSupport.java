@@ -13,11 +13,13 @@ import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.FloatVector;
 import jdk.incubator.vector.IntVector;
 import jdk.incubator.vector.LongVector;
+import jdk.incubator.vector.Vector;
 import jdk.incubator.vector.VectorMask;
 import jdk.incubator.vector.VectorOperators;
 import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.Constants;
 
 public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
@@ -52,6 +54,13 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public int ipByteBit(byte[] q, byte[] d) {
+        if (d.length >= 16 && HAS_FAST_INTEGER_VECTORS) {
+            if (VECTOR_BITSIZE >= 512) {
+                return ipByteBit512(q, d);
+            } else if (VECTOR_BITSIZE == 256) {
+                return ipByteBit256(q, d);
+            }
+        }
         return DefaultESVectorUtilSupport.ipByteBitImpl(q, d);
     }
 
@@ -175,25 +184,71 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
 
-    private static final VectorSpecies<Float> FLOAT_SPECIES_8 = FloatVector.SPECIES_256;
-    private static final VectorSpecies<Float> FLOAT_SPECIES_16 = FloatVector.SPECIES_512;
+    private static final VectorSpecies<Integer> INT_SPECIES_512 = IntVector.SPECIES_512;
+    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_INT_512 = VectorSpecies.of(
+        byte.class,
+        VectorShape.forBitSize(INT_SPECIES_512.vectorBitSize() / Integer.BYTES)
+    );
+    private static final VectorSpecies<Integer> INT_SPECIES_256 = IntVector.SPECIES_256;
+    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_INT_256 = VectorSpecies.of(
+        byte.class,
+        VectorShape.forBitSize(INT_SPECIES_256.vectorBitSize() / Integer.BYTES)
+    );
 
-    private static long reverse(byte b) {
-        // see https://graphics.stanford.edu/~seander/bithacks.html#ReverseByteWith64Bits
-        return ((((b & 0xff) * 0x80200802L) & 0x0884422110L) * 0x0101010101L >> 32) & 0xff;
+    static int ipByteBit512(byte[] q, byte[] d) {
+        assert q.length == d.length * Byte.SIZE;
+        IntVector acc = IntVector.zero(INT_SPECIES_512);
+
+        int i = 0;
+        for (; i < BYTE_SPECIES_FOR_INT_512.loopBound(q.length); i += BYTE_SPECIES_FOR_INT_512.length()) {
+            Vector<Integer> bytes = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i).castShape(INT_SPECIES_512, 0);
+            long maskBits = Integer.reverse((short) BitUtil.VH_BE_SHORT.get(d, i / 8)) >> 16;
+
+            acc = acc.add(bytes, VectorMask.fromLong(INT_SPECIES_512, maskBits));
+        }
+
+        int sum = acc.reduceLanes(VectorOperators.ADD);
+        if (i < q.length) {
+            // do the tail
+            sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i);
+        }
+        return sum;
     }
+
+    static int ipByteBit256(byte[] q, byte[] d) {
+        assert q.length == d.length * Byte.SIZE;
+        IntVector acc = IntVector.zero(INT_SPECIES_256);
+
+        int i = 0;
+        for (; i < BYTE_SPECIES_FOR_INT_256.loopBound(q.length); i += BYTE_SPECIES_FOR_INT_256.length()) {
+            Vector<Integer> bytes = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
+            long maskBits = Integer.reverse(d[i / 8]) >> 24;
+
+            acc = acc.add(bytes, VectorMask.fromLong(INT_SPECIES_256, maskBits));
+        }
+
+        int sum = acc.reduceLanes(VectorOperators.ADD);
+        if (i < q.length) {
+            // do the tail
+            sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i);
+        }
+        return sum;
+    }
+
+    private static final VectorSpecies<Float> FLOAT_SPECIES_512 = FloatVector.SPECIES_512;
+    private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
     static float ipFloatBit512(float[] q, byte[] d) {
         assert q.length == d.length * Byte.SIZE;
-        FloatVector acc = FloatVector.zero(FLOAT_SPECIES_16);
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES_512);
 
         int i = 0;
-        for (; i < FLOAT_SPECIES_16.loopBound(q.length); i += FLOAT_SPECIES_16.length()) {
-            FloatVector floats = FloatVector.fromArray(FLOAT_SPECIES_16, q, i);
+        for (; i < FLOAT_SPECIES_512.loopBound(q.length); i += FLOAT_SPECIES_512.length()) {
+            FloatVector floats = FloatVector.fromArray(FLOAT_SPECIES_512, q, i);
             // use the two bytes corresponding to the same sections
             // of the bit vector as a mask for addition
-            long maskBits = reverse(d[i / 8]) | reverse(d[i / 8 + 1]) << 8;
-            acc = acc.add(floats, VectorMask.fromLong(FLOAT_SPECIES_16, maskBits));
+            long maskBits = Integer.reverse((short) BitUtil.VH_BE_SHORT.get(d, i / 8)) >> 16;
+            acc = acc.add(floats, VectorMask.fromLong(FLOAT_SPECIES_512, maskBits));
         }
 
         float sum = acc.reduceLanes(VectorOperators.ADD);
@@ -207,15 +262,15 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     static float ipFloatBit256(float[] q, byte[] d) {
         assert q.length == d.length * Byte.SIZE;
-        FloatVector acc = FloatVector.zero(FLOAT_SPECIES_8);
+        FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
 
         int i = 0;
-        for (; i < FLOAT_SPECIES_8.loopBound(q.length); i += FLOAT_SPECIES_8.length()) {
-            FloatVector floats = FloatVector.fromArray(FLOAT_SPECIES_8, q, i);
+        for (; i < FLOAT_SPECIES_256.loopBound(q.length); i += FLOAT_SPECIES_256.length()) {
+            FloatVector floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
             // use the byte corresponding to the same section
             // of the bit vector as a mask for addition
-            long maskBits = reverse(d[i / 8]);
-            acc = acc.add(floats, VectorMask.fromLong(FLOAT_SPECIES_8, maskBits));
+            long maskBits = Integer.reverse(d[i / 8]) >> 24;
+            acc = acc.add(floats, VectorMask.fromLong(FLOAT_SPECIES_256, maskBits));
         }
 
         float sum = acc.reduceLanes(VectorOperators.ADD);

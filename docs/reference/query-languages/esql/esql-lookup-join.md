@@ -67,8 +67,8 @@ In this example, we have two sample tables:
 |2|German|[Germany\|Austria]|
 |2|German|Switzerland|
 |2|German|
-|4|Quenya|
-|5||Atlantis|
+|4|Spanish|
+|5||France|
 |[6\|7]|Mv-Lang|Mv-Land|
 |[7\|8]|Mv-Lang2|Mv-Land2|
 |Null-Lang|Null-Land|
@@ -95,8 +95,8 @@ FROM employees
 |    10092      | 2                     | German                | Switzerland|
 |    10092      | 2                     | German                | null|
 |    10093      | 3                     | null                  | null|
-|    10094      | 4                     | Quenya                | null|
-|    10095      | 5                     | null                  | Atlantis|
+|    10094      | 4                     | Spanish               | null|
+|    10095      | 5                     | null                  | France|
 
 ::::{important}
 `LOOKUP JOIN` does not guarantee the output to be in any particular order. If a certain order is required, users should use a [`SORT`](/reference/query-languages/esql/esql-commands.md#esql-sort) somewhere after the `LOOKUP JOIN`.

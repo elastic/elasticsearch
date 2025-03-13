@@ -66,7 +66,7 @@ public class IndexingStatsTests extends ESTestCase {
             7,
             8,
             9,
-            false, // isThrottled
+            false,
             10,
             11,
             12,
@@ -112,7 +112,7 @@ public class IndexingStatsTests extends ESTestCase {
             7,
             8,
             9,
-            false, // isThrottled
+            false,
             10,
             2_100_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 2.1sec
             3_000_000_000L, // totalActiveTimeInNanos - 3sec

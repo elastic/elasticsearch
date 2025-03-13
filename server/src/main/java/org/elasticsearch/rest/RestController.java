@@ -874,6 +874,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
+    // exposed for tests
+    static boolean PERMIT_DOUBLE_RESPONSE = false;
+
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
@@ -901,7 +904,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // protect against double-response bugs
                 if (responseSent.compareAndSet(false, true) == false) {
                     final var message = "have already sent a response to this request, cannot send another";
-                    assert false : message;
+                    assert PERMIT_DOUBLE_RESPONSE : message;
                     throw new IllegalStateException(message);
                 }
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);

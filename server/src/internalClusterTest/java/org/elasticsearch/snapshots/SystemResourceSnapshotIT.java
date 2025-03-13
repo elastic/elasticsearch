@@ -52,6 +52,8 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
+
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -69,6 +71,7 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
         plugins.add(DataStreamsPlugin.class);
         plugins.add(AnotherSystemDataStreamTestPlugin.class);
         plugins.add(SystemDataStreamTestPlugin.class);
+        plugins.add(SystemDataStreamManyShardsTestPlugin.class);
         plugins.add(AssociatedIndicesSystemDSTestPlugin.class);
         return plugins;
     }
@@ -950,6 +953,65 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
         });
     }
 
+    /**
+     * Ensures that if we can only capture a partial snapshot of a system data stream, then the feature state associated
+     * with that data stream is not included in the snapshot, because it would not be safe to restore that feature state.
+     */
+    public void testPartialSnapshotsOfSystemDataStreamRemovesFeatureState() throws Exception {
+        final String partialIndexName = SystemDataStreamManyShardsTestPlugin.SYSTEM_DATASTREAM_NAME;
+        final String fullIndexName = AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME;
+
+        createRepositoryNoVerify(REPO_NAME, "mock");
+
+        // Create the index that we'll get a partial snapshot of with a bunch of shards
+        indexDataStream(partialIndexName, "1", "purpose", "pre-snapshot doc");
+        // And another one with the default
+        indexDataStream(fullIndexName, "1", "purpose", "pre-snapshot doc");
+        ensureGreen();
+
+        // Stop a random data node so we lose a shard from the partial index
+        internalCluster().stopRandomDataNode();
+        assertBusy(
+            () -> {
+                var status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getStatus();
+                System.out.println("Potato Cluster status: " + status);
+                assertThat(status, oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.RED));
+            },
+            30,
+            TimeUnit.SECONDS
+        );
+
+        // Get ready to block
+        blockMasterFromFinalizingSnapshotOnIndexFile(REPO_NAME);
+
+        // Start a snapshot and wait for it to hit the block, then kill the master to force a failover
+        final String partialSnapName = "test-partial-snap";
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(
+            TEST_REQUEST_TIMEOUT,
+            REPO_NAME,
+            partialSnapName
+        ).setIncludeGlobalState(true).setWaitForCompletion(false).setPartial(true).get();
+        assertThat(createSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+        waitForBlock(internalCluster().getMasterName(), REPO_NAME);
+        internalCluster().stopCurrentMasterNode();
+
+        // Now get the snapshot and do our checks
+        assertBusy(() -> {
+            GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, REPO_NAME)
+                .setSnapshots(partialSnapName)
+                .get();
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            assertNotNull(snapshotInfo);
+            assertThat(snapshotInfo.failedShards(), lessThan(snapshotInfo.totalShards()));
+            List<String> statesInSnapshot = snapshotInfo.featureStates().stream().map(SnapshotFeatureInfo::getPluginName).toList();
+            assertThat(statesInSnapshot, not(hasItem((new SystemDataStreamManyShardsTestPlugin()).getFeatureName())));
+            assertThat(statesInSnapshot, hasItem((new AnotherSystemDataStreamTestPlugin()).getFeatureName()));
+        }, 5L, TimeUnit.SECONDS);
+
+        // Cleanup to prevent unrelated shutdown failures
+        internalCluster().startDataOnlyNode();
+    }
+
     public void testParallelIndexDeleteRemovesFeatureState() throws Exception {
         final String indexToBeDeleted = SystemIndexTestPlugin.SYSTEM_INDEX_NAME;
         final String fullIndexName = AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME;
@@ -1093,6 +1155,45 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(SYSTEM_DATASTREAM_NAME)) // TODO is this correct?
                             .template(new Template(Settings.EMPTY, mappings, null))
+                            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                            .build(),
+                        Map.of(),
+                        List.of("product"),
+                        ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                    )
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public String getFeatureName() {
+            return SystemDataStreamTestPlugin.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "A simple test plugin for data streams";
+        }
+    }
+
+    public static class SystemDataStreamManyShardsTestPlugin extends Plugin implements SystemIndexPlugin {
+
+        public static final String SYSTEM_DATASTREAM_NAME = ".test-system-data-stream-many-shards";
+
+        @Override
+        public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+            try {
+                CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"name\":{\"type\":\"keyword\"}}}");
+                return Collections.singletonList(
+                    new SystemDataStreamDescriptor(
+                        SYSTEM_DATASTREAM_NAME,
+                        "system data stream test",
+                        SystemDataStreamDescriptor.Type.EXTERNAL,
+                        ComposableIndexTemplate.builder()
+                            .indexPatterns(List.of(SYSTEM_DATASTREAM_NAME)) // TODO is this correct?
+                            .template(new Template(indexSettings(6, 0).build(), mappings, null))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                             .build(),
                         Map.of(),

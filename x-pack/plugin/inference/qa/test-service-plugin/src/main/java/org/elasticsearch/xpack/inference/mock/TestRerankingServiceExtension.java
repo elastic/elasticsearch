@@ -241,7 +241,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
-            this(in.readBoolean(), in.readFloat(), in.readOptionalFloat());
+            this(in.readBoolean(), in.readFloat(), in.readFloat());
         }
 
         @Override

@@ -1362,7 +1362,7 @@ public final class RestoreService implements ClusterStateApplier {
 
             // Clear out all existing system data streams
             currentState = MetadataDataStreamsService.deleteDataStreams(
-                currentState,
+                currentState.projectState(currentState.metadata().getProject().id()),
                 resolveSystemDataStreamsToDelete(currentState, featureStatesToRestore),
                 settings
             );

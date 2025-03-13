@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -480,7 +481,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testDeleteMissing() {
         DataStream dataStream = DataStreamTestHelper.randomInstance();
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT).build().projectState(randomProjectIdOrDefault());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataDataStreamsService.deleteDataStreams(state, Set.of(dataStream), Settings.EMPTY)
@@ -509,7 +510,12 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
             )
         );
         final DataStream dataStream = DataStreamTestHelper.randomInstance(dataStreamName);
-        ClusterState state = ClusterState.builder(clusterState(dataStream)).putCustom(SnapshotsInProgress.TYPE, snaps).build();
+        var projectId = randomProjectIdOrDefault();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putCustom(SnapshotsInProgress.TYPE, snaps)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(dataStream))
+            .build()
+            .projectState(projectId);
         Exception e = expectThrows(
             SnapshotInProgressException.class,
             () -> MetadataDataStreamsService.deleteDataStreams(state, Set.of(dataStream), Settings.EMPTY)
@@ -532,7 +538,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         }
     }
 
-    private ClusterState clusterState(DataStream dataStream) {
+    private ProjectState projectState(DataStream dataStream) {
         final ProjectId projectId = randomProjectIdOrDefault();
         final Metadata.Builder metadataBuilder = Metadata.builder().put(ProjectMetadata.builder(projectId).put(dataStream));
 
@@ -541,6 +547,7 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew))
-            .build();
+            .build()
+            .projectState(projectId);
     }
 }

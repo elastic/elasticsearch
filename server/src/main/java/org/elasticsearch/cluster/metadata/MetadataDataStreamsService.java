@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
@@ -38,10 +37,8 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -440,28 +437,6 @@ public class MetadataDataStreamsService {
             throw new IllegalArgumentException("index [" + indexName + "] not found");
         }
         return index;
-    }
-
-    /**
-     * Removes the given data streams and their backing indices from the Cluster State.
-     *
-     * @param clusterState The cluster state
-     * @param dataStreams  The data streams to remove
-     * @param settings     The settings
-     * @return The updated Cluster State
-     */
-    @FixForMultiProject // Once callers have Project State we can update/remove this method.
-    public static ClusterState deleteDataStreams(ClusterState clusterState, Set<DataStream> dataStreams, Settings settings) {
-        final Map<ProjectId, Set<DataStream>> byProject = new HashMap<>();
-        for (DataStream dataStream : dataStreams) {
-            final ProjectMetadata project = clusterState.metadata().projectFor(dataStream);
-            byProject.computeIfAbsent(project.id(), ignore -> new HashSet<>()).add(dataStream);
-        }
-
-        for (final Map.Entry<ProjectId, Set<DataStream>> entry : byProject.entrySet()) {
-            clusterState = deleteDataStreams(clusterState.projectState(entry.getKey()), entry.getValue(), settings);
-        }
-        return clusterState;
     }
 
     /**

@@ -163,7 +163,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             );
         }
 
-        return MetadataDataStreamsService.deleteDataStream(
+        return MetadataDataStreamsService.deleteDataStreams(
             projectState,
             dataStreams.stream().map(project.dataStreams()::get).collect(Collectors.toSet()),
             settings

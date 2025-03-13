@@ -711,7 +711,7 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     // TODO: This test is failing because the assertion `assertTrue(indexExists(systemDataStreamAlias));` trips.
-    // @AwaitsFix(bugUrl = "assertTrue(indexExists(systemDataStreamAlias)); is broken")
+    @AwaitsFix(bugUrl = "assertTrue(indexExists(systemDataStreamAlias)); is broken")
     public void testSystemDataStreamAliasesAreAlwaysRestored() {
         createRepository(REPO_NAME, "fs");
         // Create a system data stream

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -477,6 +478,9 @@ public class MetadataDataStreamsService {
             for (DataStream ds : dataStreams) {
                 LOGGER.info("removing data stream [{}]", ds.getName());
                 builder.removeDataStream(ds.getName());
+                if (projectState.metadata().dataStreams().get(ds.getName()) == null) {
+                    throw new ResourceNotFoundException("data stream [" + ds.getName() + "] not found");
+                }
             }
         });
         return MetadataDeleteIndexService.deleteIndices(newState.projectState(projectState.projectId()), backingIndicesToRemove, settings);

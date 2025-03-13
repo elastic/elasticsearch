@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
@@ -481,9 +482,14 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
 
     public void testDeleteMissing() {
         DataStream dataStream = DataStreamTestHelper.randomInstance();
-        ProjectState state = ClusterState.builder(ClusterName.DEFAULT).build().projectState(randomProjectIdOrDefault());
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        final var projectId = randomProjectIdOrDefault();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId))
+            .build()
+            .projectState(projectId);
+
+        ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
             () -> MetadataDataStreamsService.deleteDataStreams(state, Set.of(dataStream), Settings.EMPTY)
         );
         assertThat(e.getMessage(), containsString(dataStream.getName()));

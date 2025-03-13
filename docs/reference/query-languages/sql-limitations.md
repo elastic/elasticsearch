@@ -116,13 +116,13 @@ SELECT age, MAX(salary) - MIN(salary) AS diff FROM test GROUP BY age ORDER BY di
 Using sub-selects (`SELECT X FROM (SELECT Y)`) is **supported to a small degree**: any sub-select that can be "flattened" into a single
 `SELECT` is possible with {es-sql}. For example:
 
-```sql subs=attributes,macros
+```sql 
 include-tagged::{sql-specs}/docs/docs.csv-spec[limitationSubSelect]
 ```
 
 The query above is possible because it is equivalent with:
 
-```sql subs="attributes,macros
+```sql
 include-tagged::{sql-specs}/docs/docs.csv-spec[limitationSubSelectRewritten]
 ```
 

@@ -350,6 +350,32 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testRrf() {
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+
+        var query = """
+            FROM test METADATA _score, _id, _index
+            | WHERE id > 2
+            | FORK
+               ( WHERE content:"fox" | SORT _score, _id DESC )
+               ( WHERE content:"dog" | SORT _score, _id DESC )
+            | RRF
+            | EVAL _score = round(_score, 4)
+            | KEEP id, content, _score, _fork
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "content", "_score", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword", "double", "keyword"));
+            assertThat(getValuesList(resp.values()).size(), equalTo(3));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of(6, "The quick brown fox jumps over the lazy dog", 0.0325, List.of("fork1", "fork2")),
+                List.of(4, "The dog is brown but this document is very very long", 0.0164, "fork2"),
+                List.of(3, "This dog is really brown", 0.0159, "fork2")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testThreeSubQueries() {
         var query = """
             FROM test

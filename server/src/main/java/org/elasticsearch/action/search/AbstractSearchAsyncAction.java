@@ -193,7 +193,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (doneFuture.isDone()) {
             releasable.close();
         } else {
-            doneFuture.addListener(ActionListener.releasing((releasable)));
+            doneFuture.addListener(ActionListener.releasing(releasable));
         }
     }
 

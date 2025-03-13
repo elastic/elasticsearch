@@ -1,5 +1,5 @@
 pr: 119743
-summary: POC mark read-only
+summary: Enhance add-block API to flush and add 'verified' metadata
 area: Engine
 type: enhancement
 issues: []

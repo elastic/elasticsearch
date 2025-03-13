@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.downsample;
 
+import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -53,14 +54,17 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
     }
 
     @Override
-    public void collect(FormattedDocValues docValues, int docId) throws IOException {
-        if (docValues.advanceExact(docId) == false) {
-            return;
-        }
-        int docValuesCount = docValues.docValueCount();
-        for (int i = 0; i < docValuesCount; i++) {
-            Number num = (Number) docValues.nextValue();
-            collect(num);
+    public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
+        for (int i = 0; i < docIdBuffer.size(); i++) {
+            int docId = docIdBuffer.get(i);
+            if (docValues.advanceExact(docId) == false) {
+                continue;
+            }
+            int docValuesCount = docValues.docValueCount();
+            for (int j = 0; j < docValuesCount; j++) {
+                Number num = (Number) docValues.nextValue();
+                collect(num);
+            }
         }
     }
 
@@ -236,13 +240,13 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
         }
 
         @Override
-        public void collect(FormattedDocValues docValues, int docId) throws IOException {
+        public void collect(FormattedDocValues docValues, IntArrayList docIdBuffer) throws IOException {
             // Counter producers only collect the last_value. Since documents are
             // collected by descending timestamp order, the producer should only
             // process the first value for every tsid. So, it will only collect the
             // field if no value has been set before.
             if (isEmpty()) {
-                super.collect(docValues, docId);
+                super.collect(docValues, docIdBuffer);
             }
         }
 

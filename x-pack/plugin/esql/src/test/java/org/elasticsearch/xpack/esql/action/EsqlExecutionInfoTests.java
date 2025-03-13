@@ -13,8 +13,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster.Status.PARTIAL;
-
 public class EsqlExecutionInfoTests extends ESTestCase {
 
     static final EsqlExecutionInfo.Cluster localCluster = new EsqlExecutionInfo.Cluster(

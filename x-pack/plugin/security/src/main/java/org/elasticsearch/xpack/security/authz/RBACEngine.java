@@ -885,7 +885,7 @@ public class RBACEngine implements AuthorizationEngine {
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
                     // failure indices are special: when accessed directly (not through ::failures on parent data stream) they are accessed
-                    // as implicitly as data. However, authz to the parent data stream happens via the failures selector
+                    // implicitly as data. However, authz to the parent data stream happens via the failures selector
                     if (indexAbstraction.isFailureIndexOfDataStream()
                         && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)) {
                         indicesAndAliases.add(indexAbstraction.getName());
@@ -1072,7 +1072,6 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
-
         private final CachedSupplier<Set<String>> authorizedAndAvailableSupplier;
         private final CachedSupplier<Set<String>> failureStoreAuthorizedAndAvailableSupplier;
         private final BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate;
@@ -1089,6 +1088,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public Set<String> all(IndexComponentSelector selector) {
+            Objects.requireNonNull(selector);
             return IndexComponentSelector.FAILURES.equals(selector)
                 ? failureStoreAuthorizedAndAvailableSupplier.get()
                 : authorizedAndAvailableSupplier.get();
@@ -1096,6 +1096,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         @Override
         public boolean check(String name, IndexComponentSelector selector) {
+            Objects.requireNonNull(selector);
             return isAuthorizedPredicate.test(name, selector);
         }
     }

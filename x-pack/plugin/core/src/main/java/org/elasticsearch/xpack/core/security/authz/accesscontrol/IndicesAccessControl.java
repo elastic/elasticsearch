@@ -57,7 +57,7 @@ public class IndicesAccessControl {
     }
 
     /**
-     * @return The document and field permissions for an index if exist, otherwise <code>null</code> is returned.
+     * @return The document and field permissions for an index if they exist, otherwise <code>null</code> is returned.
      *         If <code>null</code> is being returned this means that there are no field or document level restrictions.
      */
     @Nullable

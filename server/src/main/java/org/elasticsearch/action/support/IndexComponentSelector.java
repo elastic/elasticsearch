@@ -79,7 +79,7 @@ public enum IndexComponentSelector implements Writeable {
         IndexComponentSelector selector = getByKey(key);
         if (selector == null) {
             throw new IllegalArgumentException(
-                "Unknown key of index component selector [" + key + "], available options are: " + KEY_REGISTRY
+                "Unknown key of index component selector [" + key + "], available options are: " + KEY_REGISTRY.keySet()
             );
         }
         return selector;

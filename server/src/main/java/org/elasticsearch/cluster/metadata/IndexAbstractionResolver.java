@@ -63,8 +63,8 @@ public class IndexAbstractionResolver {
                         + "]"
                 );
             }
-            IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
             indexAbstraction = expressionAndSelector.v1();
+            IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(selectorString);
 
             // we always need to check for date math expressions
             indexAbstraction = IndexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);

@@ -499,9 +499,9 @@ public class MetadataDataStreamsService {
         // without updating the data stream)
         // TODO: change order when "delete index api" also updates the data stream the "index to be removed" is a member of
         ClusterState newState = projectState.updatedState(builder -> {
-            dataStreams.stream().map(DataStream::getName).forEach(ds -> {
-                LOGGER.info("removing data stream [{}]", ds);
-                builder.removeDataStream(ds);
+            for (String ds : dataStreams) {
+                LOGGER.info("removing data stream [{}]", ds.getName());
+                builder.removeDataStream(ds.getName());
             });
         });
         return MetadataDeleteIndexService.deleteIndices(newState.projectState(projectState.projectId()), backingIndicesToRemove, settings);

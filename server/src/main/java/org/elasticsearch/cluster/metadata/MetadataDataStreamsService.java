@@ -466,6 +466,9 @@ public class MetadataDataStreamsService {
         Set<Index> backingIndicesToRemove = new HashSet<>();
         for (DataStream dataStream : dataStreams) {
             assert dataStream != null;
+            if (projectState.metadata().dataStreams().get(dataStream.getName()) == null) {
+                throw new ResourceNotFoundException("data stream [" + dataStream.getName() + "] not found");
+            }
             backingIndicesToRemove.addAll(dataStream.getIndices());
             backingIndicesToRemove.addAll(dataStream.getFailureIndices());
         }
@@ -478,9 +481,6 @@ public class MetadataDataStreamsService {
             for (DataStream ds : dataStreams) {
                 LOGGER.info("removing data stream [{}]", ds.getName());
                 builder.removeDataStream(ds.getName());
-                if (projectState.metadata().dataStreams().get(ds.getName()) == null) {
-                    throw new ResourceNotFoundException("data stream [" + ds.getName() + "] not found");
-                }
             }
         });
         return MetadataDeleteIndexService.deleteIndices(newState.projectState(projectState.projectId()), backingIndicesToRemove, settings);

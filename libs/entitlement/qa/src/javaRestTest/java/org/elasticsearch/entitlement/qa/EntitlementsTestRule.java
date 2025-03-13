@@ -28,8 +28,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
 
 class EntitlementsTestRule implements TestRule {
 
@@ -57,8 +55,8 @@ class EntitlementsTestRule implements TestRule {
         void build(XContentBuilder builder, Path tempDir) throws IOException;
     }
 
-    interface SystemPropertyBuilder {
-        void build(BiConsumer<String, Function<Path, String>> adder);
+    interface TempDirSystemPropertyProvider {
+        Map<String, String> get(Path tempDir);
     }
 
     final TemporaryFolder testDir;
@@ -66,11 +64,11 @@ class EntitlementsTestRule implements TestRule {
     final TestRule ruleChain;
 
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder) {
-        this(modular, policyBuilder, (adder) -> {});
+        this(modular, policyBuilder, tempDir -> Map.of());
     }
 
     @SuppressWarnings("this-escape")
-    EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder, SystemPropertyBuilder systemPropertyBuilder) {
+    EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder, TempDirSystemPropertyProvider tempDirSystemPropertyProvider) {
         testDir = new TemporaryFolder();
         var tempDirSetup = new ExternalResource() {
             @Override
@@ -82,16 +80,16 @@ class EntitlementsTestRule implements TestRule {
                 Files.writeString(testPath.resolve("read_write_file"), "");
             }
         };
-        var clusterBuilder = ElasticsearchCluster.local()
+        cluster = ElasticsearchCluster.local()
             .module("entitled", spec -> buildEntitlements(spec, "org.elasticsearch.entitlement.qa.entitled", ENTITLED_POLICY))
             .module(ENTITLEMENT_TEST_PLUGIN_NAME, spec -> setupEntitlements(spec, modular, policyBuilder))
             .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
-            .setting("xpack.security.enabled", "false");
-        // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
-        // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
-        systemPropertyBuilder.build((k, v) -> clusterBuilder.systemProperty(k, () -> v.apply(testDir.getRoot().toPath())));
-        cluster = clusterBuilder.build();
+            .systemProperties(spec -> tempDirSystemPropertyProvider.get(testDir.getRoot().toPath()))
+            .setting("xpack.security.enabled", "false")
+            // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
+            // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
+            .build();
         ruleChain = RuleChain.outerRule(testDir).around(tempDirSetup).around(cluster);
     }
 

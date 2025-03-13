@@ -18,8 +18,7 @@ import org.junit.ClassRule;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.entitlement.qa.EntitlementsTestRule.ENTITLEMENT_QA_TEST_MODULE_NAME;
@@ -27,25 +26,24 @@ import static org.elasticsearch.entitlement.qa.EntitlementsTestRule.ENTITLEMENT_
 
 public class EntitlementsAllowedViaOverrideIT extends AbstractEntitlementsIT {
 
-    private static void addPolicyOverrideSystemProperties(BiConsumer<String, Function<Path, String>> adder) {
-        adder.accept("es.entitlements.policy." + ENTITLEMENT_TEST_PLUGIN_NAME, tempDir -> {
-            String policyOverride = Strings.format("""
-                policy:
-                  %s:
-                    - load_native_libraries
-                    - files:
-                        - path: %s
-                          mode: read
-                """, ENTITLEMENT_QA_TEST_MODULE_NAME, tempDir.resolve("read_dir"));
-            return new String(Base64.getEncoder().encode(policyOverride.getBytes(StandardCharsets.UTF_8)));
-        });
+    private static Map<String, String> createPolicyOverrideSystemProperty(Path tempDir) {
+        String policyOverride = Strings.format("""
+            policy:
+              %s:
+                - load_native_libraries
+                - files:
+                    - path: %s
+                      mode: read
+            """, ENTITLEMENT_QA_TEST_MODULE_NAME, tempDir.resolve("read_dir"));
+        var encodedPolicyOverride = new String(Base64.getEncoder().encode(policyOverride.getBytes(StandardCharsets.UTF_8)));
+        return Map.of("es.entitlements.policy." + ENTITLEMENT_TEST_PLUGIN_NAME, encodedPolicyOverride);
     }
 
     @ClassRule
     public static EntitlementsTestRule testRule = new EntitlementsTestRule(
         true,
         null,
-        EntitlementsAllowedViaOverrideIT::addPolicyOverrideSystemProperties
+        EntitlementsAllowedViaOverrideIT::createPolicyOverrideSystemProperty
     );
 
     public EntitlementsAllowedViaOverrideIT(@Name("actionName") String actionName) {

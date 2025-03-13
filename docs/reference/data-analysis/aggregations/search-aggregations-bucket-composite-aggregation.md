@@ -26,7 +26,7 @@ For example, consider the following document:
   "number": [23, 65, 76]
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Using `keyword` and `number` as source fields for the aggregation results in the following composite buckets:
 
@@ -38,7 +38,7 @@ Using `keyword` and `number` as source fields for the aggregation results in the
 { "keyword": "bar", "number": 65 }
 { "keyword": "bar", "number": 76 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 ## Value sources [_value_sources]
 
@@ -312,7 +312,7 @@ Instead of a single bucket starting at midnight, the above request groups the do
   }
 }
 ```
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ::::{note}
 The start `offset` of each bucket is calculated after `time_zone` adjustments have been made.
@@ -516,7 +516,7 @@ GET /_search
   }
 }
 ```
-%  TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search?filter_path=aggregations/]
 
 ... returns:
 
@@ -549,7 +549,7 @@ GET /_search
   }
 }
 ```
-%  TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/...//]
 
 To get the next set of buckets, resend the same aggregation with the `after` parameter set to the `after_key` value returned in the response. For example, this request uses the `after_key` value provided in the previous response:
 
@@ -714,7 +714,7 @@ GET /_search
   }
 }
 ```
-%  TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/_search/_search?filter_path=aggregations/]
 
 ... returns:
 
@@ -773,7 +773,7 @@ GET /_search
   }
 }
 ```
-%  TESTRESPONSE[s/...//]
+% TESTRESPONSE[s/...//]
 
 
 ## Pipeline aggregations [search-aggregations-bucket-composite-aggregation-pipeline-aggregations]

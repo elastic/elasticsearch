@@ -54,7 +54,7 @@ POST /stackoverflow/_search?size=0
   }
 }
 ```
-%  TEST[setup:stackoverflow]
+% TEST[setup:stackoverflow]
 
 Response:
 
@@ -83,8 +83,8 @@ Response:
 
 1. 151 documents were sampled in total.
 2. The results of the significant_terms aggregation are not skewed by any single author’s quirks because we asked for a maximum of one post from any one author in our sample.
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-%  TESTRESPONSE[s/2.213/$body.aggregations.my_unbiased_sample.keywords.buckets.0.score/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/2.213/$body.aggregations.my_unbiased_sample.keywords.buckets.0.score/]
 
 ## Scripted example [_scripted_example]
 
@@ -125,7 +125,7 @@ POST /stackoverflow/_search?size=0
   }
 }
 ```
-%  TEST[setup:stackoverflow]
+% TEST[setup:stackoverflow]
 
 Response:
 
@@ -157,9 +157,9 @@ Response:
   }
 }
 ```
-%  TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
-%  TESTRESPONSE[s/2.213/$body.aggregations.my_unbiased_sample.keywords.buckets.0.score/]
-%  TESTRESPONSE[s/1.34/$body.aggregations.my_unbiased_sample.keywords.buckets.1.score/]
+% TESTRESPONSE[s/.../"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/2.213/$body.aggregations.my_unbiased_sample.keywords.buckets.0.score/]
+% TESTRESPONSE[s/1.34/$body.aggregations.my_unbiased_sample.keywords.buckets.1.score/]
 
 
 ## shard_size [_shard_size]

@@ -28,7 +28,7 @@ GET my-index-000001/_search
   }
 }
 ```
-%  TEST[skip: Requires inference endpoints]
+% TEST[skip: Requires inference endpoints]
 
 
 ## Top-level parameters for `semantic` [semantic-query-params]
@@ -73,7 +73,7 @@ POST my-index/_search
   }
 }
 ```
-%  TEST[skip: Requires inference endpoints]
+% TEST[skip: Requires inference endpoints]
 
 You can also use semantic_text as part of [Reciprocal Rank Fusion](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) to make ranking relevant results easier:
 
@@ -109,5 +109,5 @@ GET my-index/_search
   }
 }
 ```
-%  TEST[skip: Requires inference endpoints]
+% TEST[skip: Requires inference endpoints]
 

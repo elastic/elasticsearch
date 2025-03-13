@@ -43,7 +43,7 @@ Which returns:
   }
 }
 ```
-%  TESTRESPONSE
+% TESTRESPONSE
 
 `top_metrics` is fairly similar to [`top_hits`](/reference/data-analysis/aggregations/search-aggregations-metrics-top-hits-aggregation.md) in spirit but because it is more limited it is able to do its job using less memory and is often faster.
 
@@ -139,7 +139,7 @@ Which returns:
   }
 }
 ```
-%  TESTRESPONSE
+% TESTRESPONSE
 
 
 ## `missing` [_missing]
@@ -250,7 +250,7 @@ Which returns:
   }
 }
 ```
-%  TESTRESPONSE
+% TESTRESPONSE
 
 The default `size` is 1. The maximum default size is `10` because the aggregation’s working storage is "dense", meaning we allocate `size` slots for every bucket. `10` is a **very** conservative default maximum and you can raise it if you need to by changing the `top_metrics_max_size` index setting. But know that large sizes can take a fair bit of memory, especially if they are inside of an aggregation which makes many buckes like a large [terms aggregation](#search-aggregations-metrics-top-metrics-example-terms). If you till want to raise it, use something like:
 
@@ -260,7 +260,7 @@ PUT /test/_settings
   "top_metrics_max_size": 100
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 ::::{note}
 If `size` is more than `1` the `top_metrics` aggregation can’t be the **target** of a sort.
@@ -341,7 +341,7 @@ Which returns:
   }
 }
 ```
-%  TESTRESPONSE
+% TESTRESPONSE
 
 Unlike `top_hits`, you can sort buckets by the results of this metric:
 
@@ -366,7 +366,7 @@ POST /node/_search?filter_path=aggregations
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Which returns:
 
@@ -396,7 +396,7 @@ Which returns:
   }
 }
 ```
-%  TESTRESPONSE
+% TESTRESPONSE
 
 
 ### Mixed sort types [_mixed_sort_types]
@@ -437,7 +437,7 @@ Which returns:
   }
 }
 ```
-%  TESTRESPONSE
+% TESTRESPONSE
 
 While this is better than an error it **probably** isn’t what you were going for. While it does lose some precision, you can explicitly cast the whole number fields to floating points with something like:
 
@@ -454,7 +454,7 @@ POST /test*/_search?filter_path=aggregations
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Which returns the much more expected:
 
@@ -467,7 +467,7 @@ Which returns the much more expected:
   }
 }
 ```
-%  TESTRESPONSE
+% TESTRESPONSE
 
 
 ### Use in pipeline aggregations [_use_in_pipeline_aggregations_2]
@@ -503,7 +503,7 @@ POST /test*/_search?filter_path=aggregations
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 The `bucket_path` uses the `top_metrics` name `tm` and a keyword for the metric providing the aggregate value, namely `m`.
 

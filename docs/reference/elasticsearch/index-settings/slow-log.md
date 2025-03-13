@@ -53,7 +53,7 @@ If a call was initiated with an `X-Opaque-ID` header, then the ID is automatical
   "user.realm": "reserved"
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 The following is an example of an indexing event in the slow log:
 
@@ -80,7 +80,7 @@ The following is an example of an indexing event in the slow log:
   "user.realm": "reserved"
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 
 ## Enable slow logging [enable-slow-log]
@@ -139,7 +139,7 @@ PUT /my-index-000001/_settings
   "index.search.slowlog.include.user": true
 }
 ```
-%  TEST[setup:my_index]
+% TEST[setup:my_index]
 
 
 ### Enable slow logging for indexing events [index-slow-log]
@@ -176,7 +176,7 @@ PUT /my-index-000001/_settings
   "index.indexing.slowlog.include.user": true
 }
 ```
-%  TEST[setup:my_index]
+% TEST[setup:my_index]
 
 
 #### Logging the `_source` field [_logging_the_source_field]

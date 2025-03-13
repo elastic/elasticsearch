@@ -106,6 +106,6 @@ We will get the following response:
     }
 }
 ```
-%  TESTRESPONSE[skip:test not setup]
+% TESTRESPONSE[skip:test not setup]
 
 

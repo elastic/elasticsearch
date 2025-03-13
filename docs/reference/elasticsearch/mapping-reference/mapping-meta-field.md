@@ -39,5 +39,5 @@ PUT my-index-000001/_mapping
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 

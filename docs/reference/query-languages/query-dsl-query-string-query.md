@@ -452,7 +452,7 @@ GET /my-index-000001/_search
   }
 }
 ```
-%  TEST[setup:my_index]
+% TEST[setup:my_index]
 
 The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 

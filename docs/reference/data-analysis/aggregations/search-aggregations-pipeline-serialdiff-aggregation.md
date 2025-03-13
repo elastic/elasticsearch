@@ -43,7 +43,7 @@ A `serial_diff` aggregation looks like this in isolation:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$serial-diff-params$$$
 

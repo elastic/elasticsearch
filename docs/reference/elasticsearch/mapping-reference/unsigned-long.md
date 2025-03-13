@@ -131,7 +131,7 @@ Alternatively, you can treat the unsigned long type as `BigInteger` in your scri
     "source": "field('my_counter').asBigInteger(BigInteger.ZERO)"
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 For scripts that need to return float or double values, you can further convert `BigInteger` values to double or float:
 

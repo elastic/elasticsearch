@@ -89,7 +89,7 @@ Consider the following `string` mapping:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 The following SQL query:
 

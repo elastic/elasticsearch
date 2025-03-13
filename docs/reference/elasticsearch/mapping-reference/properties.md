@@ -95,7 +95,7 @@ GET my-index-000001/_search
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 ::::{important}
 The full path to the inner field must be specified.

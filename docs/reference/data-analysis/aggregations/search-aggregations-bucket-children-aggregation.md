@@ -52,7 +52,7 @@ PUT child_example/_doc/1
   ]
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 Examples of `answer` documents:
 
@@ -87,7 +87,7 @@ PUT child_example/_doc/3?routing=1&refresh
   "creation_date": "2009-05-05T13:45:37.030"
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 The following request can be built that connects the two together:
 
@@ -119,7 +119,7 @@ POST child_example/_search?size=0
   }
 }
 ```
-%  TEST[continued]
+% TEST[continued]
 
 1. The `type` points to type / mapping with the name `answer`.
 
@@ -219,7 +219,7 @@ Possible response:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 25/"took": $body.took/]
+% TESTRESPONSE[s/"took": 25/"took": $body.took/]
 
 1. The number of question documents with the tag `file-transfer`, `windows-server-2003`, etc.
 2. The number of answer documents that are related to question documents with the tag `file-transfer`, `windows-server-2003`, etc.

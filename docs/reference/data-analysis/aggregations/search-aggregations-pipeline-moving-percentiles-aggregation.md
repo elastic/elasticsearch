@@ -23,7 +23,7 @@ A `moving_percentiles` aggregation looks like this in isolation:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$moving-percentiles-params$$$
 
@@ -63,7 +63,7 @@ POST /_search
   }
 }
 ```
-%  TEST[setup:sales]
+% TEST[setup:sales]
 
 1. A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
 2. A `percentile` metric is used to calculate the percentiles of a field.
@@ -133,9 +133,9 @@ And the following may be the response:
    }
 }
 ```
-%  TESTRESPONSE[s/"took": 11/"took": $body.took/]
-%  TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
-%  TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
+% TESTRESPONSE[s/"took": 11/"took": $body.took/]
+% TESTRESPONSE[s/"_shards": .../"_shards": $body._shards/]
+% TESTRESPONSE[s/"hits": .../"hits": $body.hits/]
 
 The output format of the `moving_percentiles` aggregation is inherited from the format of the referenced [`percentiles`](/reference/data-analysis/aggregations/search-aggregations-metrics-percentile-aggregation.md) aggregation.
 

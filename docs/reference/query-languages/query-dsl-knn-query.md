@@ -228,7 +228,7 @@ A sample query can look like below:
   }
 }
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 
 ## Knn query with aggregations [knn-query-aggregations]

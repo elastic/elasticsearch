@@ -45,14 +45,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationByte;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationByte;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -272,8 +271,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+            ActionListener<HttpResult> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -286,18 +284,14 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send Cohere embeddings request to [%s]", getUrl(webServer)))
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+            ActionListener<HttpResult> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -310,7 +304,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request"));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -324,10 +318,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send Cohere embeddings request to [%s]", getUrl(webServer)))
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsExceptionWithNullUrl() {
@@ -341,7 +332,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request"));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request. Cause: failed"));
     }
 
     private ExecutableAction createAction(
@@ -353,10 +344,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         Sender sender
     ) {
         var model = CohereEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            model.getServiceSettings().getCommonSettings().uri(),
-            "Cohere embeddings"
-        );
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Cohere embeddings");
         var requestCreator = CohereEmbeddingsRequestManager.of(model, threadPool);
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }

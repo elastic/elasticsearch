@@ -11,7 +11,6 @@ package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,22 +32,10 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
         Executor executor
     ) {
-        this(
-            actionName,
-            true,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            request,
-            indexNameExpressionResolver,
-            response,
-            executor
-        );
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, response, executor);
     }
 
     protected TransportMasterNodeReadAction(
@@ -59,22 +46,10 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
         Executor executor
     ) {
-        super(
-            actionName,
-            canTripCircuitBreaker,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            request,
-            indexNameExpressionResolver,
-            response,
-            executor
-        );
+        super(actionName, canTripCircuitBreaker, transportService, clusterService, threadPool, actionFilters, request, response, executor);
     }
 
     @Override

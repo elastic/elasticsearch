@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -81,11 +82,9 @@ public class OldMappingsIT extends ESRestTestCase {
 
         String repoName = "old_mappings_repo";
         String snapshotName = "snap";
-        List<String> indices;
+        List<String> indices = new ArrayList<>(List.of("filebeat", "custom", "nested", "standard_token_filter", "similarity"));
         if (oldVersion.before(Version.fromString("6.0.0"))) {
-            indices = Arrays.asList("filebeat", "winlogbeat", "custom", "nested", "standard_token_filter");
-        } else {
-            indices = Arrays.asList("filebeat", "custom", "nested", "standard_token_filter");
+            indices.add("winlogbeat");
         }
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
@@ -105,6 +104,22 @@ public class OldMappingsIT extends ESRestTestCase {
                             .put("index.analysis.analyzer.custom_analyzer.type", "custom")
                             .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
                             .put("index.analysis.analyzer.custom_analyzer.filter", "standard")
+                            .build()
+                    )
+                )
+            );
+            assertOK(
+                oldEs.performRequest(
+                    createIndex(
+                        "similarity",
+                        "similarity.json",
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                            .put("index.similarity.custom_dfr.type", "DFR")
+                            .put("index.similarity.custom_dfr.basic_model", randomFrom(Arrays.asList("be", "d", "p")))
+                            .put("index.similarity.custom_dfr.after_effect", "no")
+                            .put("index.similarity.custom_dfr.normalization", "h2")
+                            .put("index.similarity.custom_dfr.normalization.h2.c", "3.0")
                             .build()
                     )
                 )
@@ -165,6 +180,12 @@ public class OldMappingsIT extends ESRestTestCase {
             XContentBuilder bodyDoc4 = XContentFactory.jsonBuilder().startObject().field("content", "Doc 1").endObject();
             doc4.setJsonEntity(Strings.toString(bodyDoc4));
             assertOK(oldEs.performRequest(doc4));
+
+            Request doc5 = new Request("POST", "/" + "similarity" + "/" + "doc");
+            doc5.addParameter("refresh", "true");
+            XContentBuilder bodyDoc5 = XContentFactory.jsonBuilder().startObject().field("content", "Twin Peaks!").endObject();
+            doc5.setJsonEntity(Strings.toString(bodyDoc5));
+            assertOK(oldEs.performRequest(doc5));
 
             // register repo on old ES and take snapshot
             Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
@@ -232,7 +253,15 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testStandardTokenFilter() throws IOException {
-        Request search = new Request("POST", "/" + "standard_token_filter" + "/_search");
+        assertMatchAll("standard_token_filter");
+    }
+
+    public void testSimilarityWithLegacySettings() throws IOException {
+        assertMatchAll("similarity");
+    }
+
+    private void assertMatchAll(String indexName) throws IOException {
+        Request search = new Request("POST", "/" + indexName + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")

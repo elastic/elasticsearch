@@ -267,7 +267,6 @@ public class TransportMasterNodeActionIT extends ESIntegTestCase {
                 threadPool,
                 actionFilters,
                 TestRequest::new,
-                indexNameExpressionResolver,
                 in -> ActionResponse.Empty.INSTANCE,
                 threadPool.generic()
             );

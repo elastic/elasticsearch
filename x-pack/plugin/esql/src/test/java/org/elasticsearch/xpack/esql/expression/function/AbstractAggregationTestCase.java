@@ -61,7 +61,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      *     Use if possible, as this method may get updated with new checks in the future.
      * </p>
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
         List<TestCaseSupplier> suppliers,
         boolean entirelyNullPreservesType,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
@@ -74,13 +74,24 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         );
     }
 
-    // TODO: Remove and migrate everything to the method with all the parameters
     /**
-     * @deprecated Use {@link #parameterSuppliersFromTypedDataWithDefaultChecks(List, boolean, PositionalErrorMessageSupplier)} instead.
-     * This method doesn't add all the default checks.
+     * Converts a list of test cases into a list of parameter suppliers.
+     * Also, adds a default set of extra test cases.
+     * <p>
+     *     Use if possible, as this method may get updated with new checks in the future.
+     * </p>
+     *
+     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
      */
-    @Deprecated
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        // TODO remove after removing parameterSuppliersFromTypedDataWithDefaultChecks rename this to that.
+        List<TestCaseSupplier> suppliers,
+        boolean entirelyNullPreservesType
+    ) {
+        return parameterSuppliersFromTypedData(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)));
+    }
+
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(List<TestCaseSupplier> suppliers) {
         return parameterSuppliersFromTypedData(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)));
     }
 
@@ -399,15 +410,15 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
     }
 
     private Aggregator aggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
-        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier();
 
-        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext()), mode);
+        return new Aggregator(aggregatorFunctionSupplier.aggregator(driverContext(), inputChannels), mode);
     }
 
     private GroupingAggregator groupingAggregator(Expression expression, List<Integer> inputChannels, AggregatorMode mode) {
-        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier(inputChannels);
+        AggregatorFunctionSupplier aggregatorFunctionSupplier = ((ToAggregator) expression).supplier();
 
-        return new GroupingAggregator(aggregatorFunctionSupplier.groupingAggregator(driverContext()), mode);
+        return new GroupingAggregator(aggregatorFunctionSupplier.groupingAggregator(driverContext(), inputChannels), mode);
     }
 
     /**

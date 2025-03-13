@@ -27,8 +27,10 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -64,6 +66,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     private static final Logger logger = LogManager.getLogger(TransportIndicesAliasesAction.class);
 
     private final MetadataIndexAliasesService indexAliasesService;
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RequestValidators<IndicesAliasesRequest> requestValidators;
     private final SystemIndices systemIndices;
 
@@ -74,6 +78,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         final ThreadPool threadPool,
         final MetadataIndexAliasesService indexAliasesService,
         final ActionFilters actionFilters,
+        final ProjectResolver projectResolver,
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final RequestValidators<IndicesAliasesRequest> requestValidators,
         final SystemIndices systemIndices
@@ -85,11 +90,12 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             threadPool,
             actionFilters,
             IndicesAliasesRequest::new,
-            indexNameExpressionResolver,
             IndicesAliasesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexAliasesService = indexAliasesService;
+        this.projectResolver = projectResolver;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.requestValidators = Objects.requireNonNull(requestValidators);
         this.systemIndices = systemIndices;
     }
@@ -100,7 +106,12 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         for (AliasActions aliasAction : request.aliasActions()) {
             Collections.addAll(indices, aliasAction.indices());
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices.toArray(new String[indices.size()]));
+        return state.blocks()
+            .indicesBlockedException(
+                projectResolver.getProjectId(),
+                ClusterBlockLevel.METADATA_WRITE,
+                indices.toArray(new String[indices.size()])
+            );
     }
 
     @Override
@@ -110,7 +121,8 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         final ClusterState state,
         final ActionListener<IndicesAliasesResponse> listener
     ) {
-
+        final ProjectId projectId = projectResolver.getProjectId();
+        final ProjectMetadata projectMetadata = state.metadata().getProject(projectId);
         // Expand the indices names
         List<AliasActions> actions = request.aliasActions();
         List<AliasAction> finalActions = new ArrayList<>();
@@ -135,7 +147,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     action.indices()
                 );
                 List<Index> nonBackingIndices = Arrays.stream(unprocessedConcreteIndices).filter(index -> {
-                    var ia = state.metadata().getIndicesLookup().get(index.getName());
+                    var ia = projectMetadata.getIndicesLookup().get(index.getName());
                     return ia.getParentDataStream() == null;
                 }).toList();
                 concreteIndices = nonBackingIndices.toArray(Index[]::new);
@@ -163,7 +175,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                             );
                         }
                         for (String dataStreamName : concreteDataStreams) {
-                            for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
+                            for (String alias : concreteDataStreamAliases(action, projectMetadata, dataStreamName)) {
                                 finalActions.add(new AddDataStreamAlias(alias, dataStreamName, action.writeIndex(), action.filter()));
                             }
                         }
@@ -173,7 +185,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     }
                     case REMOVE -> {
                         for (String dataStreamName : concreteDataStreams) {
-                            for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
+                            for (String alias : concreteDataStreamAliases(action, projectMetadata, dataStreamName)) {
                                 finalActions.add(new AliasAction.RemoveDataStreamAlias(alias, dataStreamName, action.mustExist()));
                                 numAliasesRemoved++;
                             }
@@ -195,7 +207,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             }
 
             for (Index concreteIndex : concreteIndices) {
-                IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(concreteIndex.getName());
+                IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(concreteIndex.getName());
                 assert indexAbstraction != null : "invalid cluster metadata. index [" + concreteIndex.getName() + "] was not found";
                 if (indexAbstraction.getParentDataStream() != null) {
                     throw new IllegalArgumentException(
@@ -207,7 +219,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                     );
                 }
             }
-            final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
+            final Optional<Exception> maybeException = requestValidators.validateRequest(request, projectMetadata, concreteIndices);
             if (maybeException.isPresent()) {
                 listener.onFailure(maybeException.get());
                 return;
@@ -218,7 +230,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
             for (final Index index : concreteIndices) {
                 switch (action.actionType()) {
                     case ADD:
-                        for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
+                        for (String alias : concreteAliases(action, projectMetadata, index.getName())) {
                             String resolvedName = IndexNameExpressionResolver.resolveDateMathExpression(alias, now);
                             finalActions.add(
                                 new AliasAction.Add(
@@ -234,7 +246,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
                         }
                         break;
                     case REMOVE:
-                        for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
+                        for (String alias : concreteAliases(action, projectMetadata, index.getName())) {
                             finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
                             numAliasesRemoved++;
                         }
@@ -257,6 +269,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(
             request.masterNodeTimeout(),
             request.ackTimeout(),
+            projectId,
             unmodifiableList(finalActions),
             unmodifiableList(actionResults)
         );
@@ -267,7 +280,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         }));
     }
 
-    private static String[] concreteAliases(AliasActions action, Metadata metadata, String concreteIndex) {
+    private static String[] concreteAliases(AliasActions action, ProjectMetadata metadata, String concreteIndex) {
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
             String[] concreteIndices = { concreteIndex };
@@ -288,10 +301,10 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         }
     }
 
-    private static String[] concreteDataStreamAliases(AliasActions action, Metadata metadata, String concreteDataStreamName) {
+    private static String[] concreteDataStreamAliases(AliasActions action, ProjectMetadata project, String concreteDataStreamName) {
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
-            Stream<String> stream = metadata.dataStreamAliases()
+            Stream<String> stream = project.dataStreamAliases()
                 .values()
                 .stream()
                 .filter(alias -> alias.getDataStreams().contains(concreteDataStreamName))

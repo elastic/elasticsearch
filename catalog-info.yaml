@@ -123,7 +123,7 @@ spec:
       pipeline_file: .buildkite/pipelines/lucene-snapshot/build-snapshot.yml
       env:
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"
-        SLACK_NOTIFICATIONS_CHANNEL: "#lucene"
+        SLACK_NOTIFICATIONS_CHANNEL: "#lucene-ci"
         SLACK_NOTIFICATIONS_ALL_BRANCHES: "true"
       branch_configuration: lucene_snapshot
       default_branch: lucene_snapshot
@@ -167,7 +167,7 @@ spec:
       pipeline_file: .buildkite/pipelines/lucene-snapshot/update-branch.yml
       env:
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"
-        SLACK_NOTIFICATIONS_CHANNEL: "#lucene"
+        SLACK_NOTIFICATIONS_CHANNEL: "#lucene-ci"
         SLACK_NOTIFICATIONS_ALL_BRANCHES: "true"
       default_branch: lucene_snapshot
       teams:
@@ -210,7 +210,7 @@ spec:
       pipeline_file: .buildkite/pipelines/lucene-snapshot/run-tests.yml
       env:
         ELASTIC_SLACK_NOTIFICATIONS_ENABLED: "true"
-        SLACK_NOTIFICATIONS_CHANNEL: "#lucene"
+        SLACK_NOTIFICATIONS_CHANNEL: "#lucene-ci"
         SLACK_NOTIFICATIONS_ALL_BRANCHES: "true"
       branch_configuration: lucene_snapshot
       default_branch: lucene_snapshot

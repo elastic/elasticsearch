@@ -13,15 +13,26 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.analytics.AnalyticsCollectionService;
 
+import static org.elasticsearch.xpack.application.EnterpriseSearch.BEHAVIORAL_ANALYTICS_API_ENDPOINT;
+import static org.elasticsearch.xpack.application.EnterpriseSearch.BEHAVIORAL_ANALYTICS_DEPRECATION_MESSAGE;
+
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAction<
     PutAnalyticsCollectionAction.Request,
     PutAnalyticsCollectionAction.Response> {
@@ -34,8 +45,8 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        AnalyticsCollectionService analyticsCollectionService
+        AnalyticsCollectionService analyticsCollectionService,
+        FeatureService featureService
     ) {
         super(
             PutAnalyticsCollectionAction.NAME,
@@ -44,7 +55,6 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
             threadPool,
             actionFilters,
             PutAnalyticsCollectionAction.Request::new,
-            indexNameExpressionResolver,
             PutAnalyticsCollectionAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -63,6 +73,8 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
         ClusterState state,
         ActionListener<PutAnalyticsCollectionAction.Response> listener
     ) {
+        DeprecationLogger.getLogger(TransportDeleteAnalyticsCollectionAction.class)
+            .warn(DeprecationCategory.API, BEHAVIORAL_ANALYTICS_API_ENDPOINT, BEHAVIORAL_ANALYTICS_DEPRECATION_MESSAGE);
         analyticsCollectionService.putAnalyticsCollection(state, request, listener);
     }
 

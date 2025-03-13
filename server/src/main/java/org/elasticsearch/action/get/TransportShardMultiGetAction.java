@@ -11,6 +11,7 @@ package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -26,9 +27,11 @@ import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -71,6 +74,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndicesService indicesService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ExecutorSelector executorSelector,
         NodeClient client
@@ -81,6 +85,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             MultiGetShardRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
@@ -106,13 +111,13 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardIterator shards(ProjectState project, InternalRequest request) {
         ShardIterator iterator = clusterService.operationRouting()
-            .getShards(state, request.request().index(), request.request().shardId(), request.request().preference());
+            .getShards(project, request.request().index(), request.request().shardId(), request.request().preference());
         if (iterator == null) {
             return null;
         }
-        return PlainShardIterator.allSearchableShards(iterator);
+        return ShardIterator.allSearchableShards(iterator);
     }
 
     @Override
@@ -153,7 +158,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     @Override
     protected Executor getExecutor(MultiGetShardRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
-        if (clusterState.metadata().index(shardId.getIndex()).isSystem()) {
+        if (projectResolver.getProjectMetadata(clusterState).index(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
             return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);
@@ -188,7 +193,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 logger,
                 threadPool.getThreadContext()
             );
-            shardMultiGetFromTranslog(request, indexShard, state, observer, listener);
+            shardMultiGetFromTranslog(request, indexShard, projectResolver.getProjectState(state), observer, listener);
         } else {
             // A non-real-time mget with no explicit refresh requested.
             super.asyncShardOperation(request, shardId, listener);
@@ -198,7 +203,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private void shardMultiGetFromTranslog(
         MultiGetShardRequest request,
         IndexShard indexShard,
-        ClusterState state,
+        ProjectState state,
         ClusterStateObserver observer,
         ActionListener<MultiGetShardResponse> listener
     ) {
@@ -209,15 +214,19 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             listener.onFailure(e);
             return;
         }
+        ProjectId projectId = state.projectId();
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("mget_from_translog[shard] failed", cause);
-            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
+            if (cause instanceof ShardNotFoundException
+                || cause instanceof IndexNotFoundException
+                || cause instanceof AlreadyClosedException) {
+                // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
                 logger.debug("retrying mget_from_translog[shard]");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        shardMultiGetFromTranslog(request, indexShard, state, observer, l);
+                        shardMultiGetFromTranslog(request, indexShard, state.projectState(projectId), observer, l);
                     }
 
                     @Override
@@ -227,7 +236,13 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
+                        // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
+                        if (cause instanceof AlreadyClosedException) {
+                            // Do an additional retry just in case AlreadyClosedException didn't generate a cluster update
+                            tryShardMultiGetFromTranslog(request, indexShard, node, l);
+                        } else {
+                            l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
+                        }
                     }
                 });
             } else {
@@ -313,7 +328,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         MultiGetRequest.Item item = request.items.get(location);
         try {
             GetResult getResult = indexShard.getService()
-                .get(
+                .mget(
                     item.id(),
                     item.storedFields(),
                     request.realtime(),

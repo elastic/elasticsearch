@@ -19,8 +19,10 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.create;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 import static org.hamcrest.Matchers.is;
@@ -55,7 +57,7 @@ public class InferenceStatsTests extends ESTestCase {
     }
 
     public void testCreation() {
-        assertNotNull(InferenceStats.create(MeterRegistry.NOOP));
+        assertNotNull(create(MeterRegistry.NOOP));
     }
 
     public void testRecordDurationWithoutError() {
@@ -63,7 +65,11 @@ public class InferenceStatsTests extends ESTestCase {
         var histogramCounter = mock(LongHistogram.class);
         var stats = new InferenceStats(mock(), histogramCounter);
 
-        stats.inferenceDuration().record(expectedLong, responseAttributes(model("service", TaskType.ANY, "modelId"), null));
+        Map<String, Object> metricAttributes = new HashMap<>();
+        metricAttributes.putAll(modelAttributes(model("service", TaskType.ANY, "modelId")));
+        metricAttributes.putAll(responseAttributes(null));
+
+        stats.inferenceDuration().record(expectedLong, metricAttributes);
 
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
@@ -87,7 +93,11 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new ElasticsearchStatusException("hello", statusCode);
         var expectedError = String.valueOf(statusCode.getStatus());
 
-        stats.inferenceDuration().record(expectedLong, responseAttributes(model("service", TaskType.ANY, "modelId"), exception));
+        Map<String, Object> metricAttributes = new HashMap<>();
+        metricAttributes.putAll(modelAttributes(model("service", TaskType.ANY, "modelId")));
+        metricAttributes.putAll(responseAttributes(exception));
+
+        stats.inferenceDuration().record(expectedLong, metricAttributes);
 
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
@@ -110,7 +120,11 @@ public class InferenceStatsTests extends ESTestCase {
         var exception = new IllegalStateException("ahh");
         var expectedError = exception.getClass().getSimpleName();
 
-        stats.inferenceDuration().record(expectedLong, responseAttributes(model("service", TaskType.ANY, "modelId"), exception));
+        Map<String, Object> metricAttributes = new HashMap<>();
+        metricAttributes.putAll(modelAttributes(model("service", TaskType.ANY, "modelId")));
+        metricAttributes.putAll(responseAttributes(exception));
+
+        stats.inferenceDuration().record(expectedLong, metricAttributes);
 
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
@@ -131,7 +145,11 @@ public class InferenceStatsTests extends ESTestCase {
 
         var unparsedModel = new UnparsedModel("inferenceEntityId", TaskType.ANY, "service", Map.of(), Map.of());
 
-        stats.inferenceDuration().record(expectedLong, responseAttributes(unparsedModel, exception));
+        Map<String, Object> metricAttributes = new HashMap<>();
+        metricAttributes.putAll(modelAttributes(unparsedModel));
+        metricAttributes.putAll(responseAttributes(exception));
+
+        stats.inferenceDuration().record(expectedLong, metricAttributes);
 
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));
@@ -151,7 +169,11 @@ public class InferenceStatsTests extends ESTestCase {
 
         var unparsedModel = new UnparsedModel("inferenceEntityId", TaskType.ANY, "service", Map.of(), Map.of());
 
-        stats.inferenceDuration().record(expectedLong, responseAttributes(unparsedModel, exception));
+        Map<String, Object> metricAttributes = new HashMap<>();
+        metricAttributes.putAll(modelAttributes(unparsedModel));
+        metricAttributes.putAll(responseAttributes(exception));
+
+        stats.inferenceDuration().record(expectedLong, metricAttributes);
 
         verify(histogramCounter).record(eq(expectedLong), assertArg(attributes -> {
             assertThat(attributes.get("service"), is("service"));

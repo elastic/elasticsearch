@@ -1,5 +1,0 @@
-pr: 115314
-summary: Only aggregations require at least one shard request
-area: Search
-type: enhancement
-issues: []

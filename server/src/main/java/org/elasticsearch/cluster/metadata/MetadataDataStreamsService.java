@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -63,7 +64,15 @@ public class MetadataDataStreamsService {
                 ClusterState clusterState
             ) {
                 return new Tuple<>(
-                    updateDataLifecycle(clusterState, modifyLifecycleTask.getDataStreamNames(), modifyLifecycleTask.getDataLifecycle()),
+                    ClusterState.builder(clusterState)
+                        .putProjectMetadata(
+                            updateDataLifecycle(
+                                clusterState.metadata().getProject(modifyLifecycleTask.getProjectId()),
+                                modifyLifecycleTask.getDataStreamNames(),
+                                modifyLifecycleTask.getDataLifecycle()
+                            )
+                        )
+                        .build(),
                     modifyLifecycleTask
                 );
             }
@@ -80,7 +89,7 @@ public class MetadataDataStreamsService {
             ) {
                 return new Tuple<>(
                     setRolloverOnWrite(
-                        clusterState,
+                        clusterState.projectState(setRolloverOnWriteTask.projectId()),
                         setRolloverOnWriteTask.getDataStreamName(),
                         setRolloverOnWriteTask.rolloverOnWrite(),
                         setRolloverOnWriteTask.targetFailureStore()
@@ -110,20 +119,30 @@ public class MetadataDataStreamsService {
         this.updateOptionsTaskQueue = clusterService.createTaskQueue("modify-data-stream-options", Priority.NORMAL, updateOptionsExecutor);
     }
 
-    public void modifyDataStream(final ModifyDataStreamsAction.Request request, final ActionListener<AcknowledgedResponse> listener) {
+    public void modifyDataStream(
+        final ProjectId projectId,
+        final ModifyDataStreamsAction.Request request,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         if (request.getActions().size() == 0) {
             listener.onResponse(AcknowledgedResponse.TRUE);
         } else {
             submitUnbatchedTask("update-backing-indices", new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return modifyDataStream(currentState, request.getActions(), indexMetadata -> {
-                        try {
-                            return indicesService.createIndexMapperServiceForValidation(indexMetadata);
-                        } catch (IOException e) {
-                            throw new IllegalStateException(e);
-                        }
-                    }, clusterService.getSettings());
+                    final var project = modifyDataStream(
+                        currentState.metadata().getProject(projectId),
+                        request.getActions(),
+                        indexMetadata -> {
+                            try {
+                                return indicesService.createIndexMapperServiceForValidation(indexMetadata);
+                            } catch (IOException e) {
+                                throw new IllegalStateException(e);
+                            }
+                        },
+                        clusterService.getSettings()
+                    );
+                    return ClusterState.builder(currentState).putProjectMetadata(project).build();
                 }
             });
         }
@@ -133,6 +152,7 @@ public class MetadataDataStreamsService {
      * Submits the task to set the lifecycle to the requested data streams.
      */
     public void setLifecycle(
+        final ProjectId projectId,
         final List<String> dataStreamNames,
         DataStreamLifecycle lifecycle,
         TimeValue ackTimeout,
@@ -141,7 +161,7 @@ public class MetadataDataStreamsService {
     ) {
         updateLifecycleTaskQueue.submitTask(
             "set-lifecycle",
-            new UpdateLifecycleTask(dataStreamNames, lifecycle, ackTimeout, listener),
+            new UpdateLifecycleTask(projectId, dataStreamNames, lifecycle, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -150,6 +170,7 @@ public class MetadataDataStreamsService {
      * Submits the task to remove the lifecycle from the requested data streams.
      */
     public void removeLifecycle(
+        ProjectId projectId,
         List<String> dataStreamNames,
         TimeValue ackTimeout,
         TimeValue masterTimeout,
@@ -157,7 +178,7 @@ public class MetadataDataStreamsService {
     ) {
         updateLifecycleTaskQueue.submitTask(
             "delete-lifecycle",
-            new UpdateLifecycleTask(dataStreamNames, null, ackTimeout, listener),
+            new UpdateLifecycleTask(projectId, dataStreamNames, null, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -204,6 +225,7 @@ public class MetadataDataStreamsService {
      * Submits the task to signal that the next time this data stream receives a document, it will be rolled over.
      */
     public void setRolloverOnWrite(
+        ProjectId projectId,
         String dataStreamName,
         boolean rolloverOnWrite,
         boolean targetFailureStore,
@@ -213,7 +235,7 @@ public class MetadataDataStreamsService {
     ) {
         setRolloverOnWriteTaskQueue.submitTask(
             "set-rollover-on-write",
-            new SetRolloverOnWriteTask(dataStreamName, rolloverOnWrite, targetFailureStore, ackTimeout, listener),
+            new SetRolloverOnWriteTask(projectId, dataStreamName, rolloverOnWrite, targetFailureStore, ackTimeout, listener),
             masterTimeout
         );
     }
@@ -221,23 +243,22 @@ public class MetadataDataStreamsService {
     /**
      * Computes the resulting cluster state after applying all requested data stream modifications in order.
      *
-     * @param currentState current cluster state
-     * @param actions      ordered list of modifications to perform
+     * @param currentProject current project metadata
+     * @param actions ordered list of modifications to perform
      * @return resulting cluster state after all modifications have been performed
      */
-    static ClusterState modifyDataStream(
-        ClusterState currentState,
+    static ProjectMetadata modifyDataStream(
+        ProjectMetadata currentProject,
         Iterable<DataStreamAction> actions,
         Function<IndexMetadata, MapperService> mapperSupplier,
         Settings nodeSettings
     ) {
-        Metadata updatedMetadata = currentState.metadata();
-
+        var updatedProject = currentProject;
         for (var action : actions) {
-            Metadata.Builder builder = Metadata.builder(updatedMetadata);
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(updatedProject);
             if (action.getType() == DataStreamAction.Type.ADD_BACKING_INDEX) {
                 addBackingIndex(
-                    updatedMetadata,
+                    updatedProject,
                     builder,
                     mapperSupplier,
                     action.getDataStream(),
@@ -246,26 +267,25 @@ public class MetadataDataStreamsService {
                     nodeSettings
                 );
             } else if (action.getType() == DataStreamAction.Type.REMOVE_BACKING_INDEX) {
-                removeBackingIndex(updatedMetadata, builder, action.getDataStream(), action.getIndex(), action.isFailureStore());
+                removeBackingIndex(updatedProject, builder, action.getDataStream(), action.getIndex(), action.isFailureStore());
             } else {
                 throw new IllegalStateException("unsupported data stream action type [" + action.getClass().getName() + "]");
             }
-            updatedMetadata = builder.build();
+            updatedProject = builder.build();
         }
 
-        return ClusterState.builder(currentState).metadata(updatedMetadata).build();
+        return updatedProject;
     }
 
     /**
      * Creates an updated cluster state in which the requested data streams have the data stream lifecycle provided.
      * Visible for testing.
      */
-    ClusterState updateDataLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataStreamLifecycle lifecycle) {
-        Metadata metadata = currentState.metadata();
-        Metadata.Builder builder = Metadata.builder(metadata);
+    ProjectMetadata updateDataLifecycle(ProjectMetadata project, List<String> dataStreamNames, @Nullable DataStreamLifecycle lifecycle) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(project);
         boolean onlyInternalDataStreams = true;
         for (var dataStreamName : dataStreamNames) {
-            var dataStream = validateDataStream(metadata, dataStreamName);
+            var dataStream = validateDataStream(project, dataStreamName);
             builder.put(dataStream.copy().setLifecycle(lifecycle).build());
             onlyInternalDataStreams = onlyInternalDataStreams && dataStream.isInternal();
         }
@@ -273,7 +293,7 @@ public class MetadataDataStreamsService {
             // We don't issue any warnings if all data streams are internal data streams
             lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), onlyInternalDataStreams);
         }
-        return ClusterState.builder(currentState).metadata(builder.build()).build();
+        return builder.build();
     }
 
     /**
@@ -288,7 +308,7 @@ public class MetadataDataStreamsService {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
         for (var dataStreamName : dataStreamNames) {
-            var dataStream = validateDataStream(metadata, dataStreamName);
+            var dataStream = validateDataStream(metadata.getProject(), dataStreamName);
             builder.put(dataStream.copy().setDataStreamOptions(dataStreamOptions).build());
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
@@ -298,47 +318,49 @@ public class MetadataDataStreamsService {
      * Creates an updated cluster state in which the requested data stream has the flag {@link DataStream#rolloverOnWrite()}
      * set to the value of the parameter rolloverOnWrite
      *
-     * @param currentState the initial cluster state
+     * @param currentState the initial project state
      * @param dataStreamName the name of the data stream to be updated
      * @param rolloverOnWrite the value of the flag
      * @param targetFailureStore whether this rollover targets the failure store or the backing indices
      * @return the updated cluster state
      */
     public static ClusterState setRolloverOnWrite(
-        ClusterState currentState,
+        ProjectState currentState,
         String dataStreamName,
         boolean rolloverOnWrite,
         boolean targetFailureStore
     ) {
-        Metadata metadata = currentState.metadata();
+        var metadata = currentState.metadata();
         var dataStream = validateDataStream(metadata, dataStreamName);
         var indices = dataStream.getDataStreamIndices(targetFailureStore);
         if (indices.isRolloverOnWrite() == rolloverOnWrite) {
-            return currentState;
+            return currentState.cluster();
         }
-        Metadata.Builder builder = Metadata.builder(metadata);
-        builder.put(
-            dataStream.copy().setDataStreamIndices(targetFailureStore, indices.copy().setRolloverOnWrite(rolloverOnWrite).build()).build()
+        return currentState.updatedState(
+            builder -> builder.put(
+                dataStream.copy()
+                    .setDataStreamIndices(targetFailureStore, indices.copy().setRolloverOnWrite(rolloverOnWrite).build())
+                    .build()
+            )
         );
-        return ClusterState.builder(currentState).metadata(builder.build()).build();
     }
 
     private static void addBackingIndex(
-        Metadata metadata,
-        Metadata.Builder builder,
+        ProjectMetadata project,
+        ProjectMetadata.Builder builder,
         Function<IndexMetadata, MapperService> mapperSupplier,
         String dataStreamName,
         String indexName,
         boolean failureStore,
         Settings nodeSettings
     ) {
-        var dataStream = validateDataStream(metadata, dataStreamName);
-        var index = validateIndex(metadata, indexName);
+        var dataStream = validateDataStream(project, dataStreamName);
+        var index = validateIndex(project, indexName);
 
         try {
             MetadataMigrateToDataStreamService.prepareBackingIndex(
                 builder,
-                metadata.index(index.getWriteIndex()),
+                project.index(index.getWriteIndex()),
                 dataStreamName,
                 mapperSupplier,
                 false,
@@ -351,21 +373,21 @@ public class MetadataDataStreamsService {
 
         // add index to data stream
         if (failureStore) {
-            builder.put(dataStream.addFailureStoreIndex(metadata, index.getWriteIndex()));
+            builder.put(dataStream.addFailureStoreIndex(project, index.getWriteIndex()));
         } else {
-            builder.put(dataStream.addBackingIndex(metadata, index.getWriteIndex()));
+            builder.put(dataStream.addBackingIndex(project, index.getWriteIndex()));
         }
     }
 
     private static void removeBackingIndex(
-        Metadata metadata,
-        Metadata.Builder builder,
+        ProjectMetadata project,
+        ProjectMetadata.Builder builder,
         String dataStreamName,
         String indexName,
         boolean failureStore
     ) {
         boolean indexNotRemoved = true;
-        DataStream dataStream = validateDataStream(metadata, dataStreamName);
+        DataStream dataStream = validateDataStream(project, dataStreamName);
         List<Index> targetIndices = failureStore ? dataStream.getFailureIndices() : dataStream.getIndices();
         for (Index backingIndex : targetIndices) {
             if (backingIndex.getName().equals(indexName)) {
@@ -394,16 +416,16 @@ public class MetadataDataStreamsService {
         }
     }
 
-    private static DataStream validateDataStream(Metadata metadata, String dataStreamName) {
-        IndexAbstraction dataStream = metadata.getIndicesLookup().get(dataStreamName);
+    private static DataStream validateDataStream(ProjectMetadata project, String dataStreamName) {
+        IndexAbstraction dataStream = project.getIndicesLookup().get(dataStreamName);
         if (dataStream == null || dataStream.getType() != IndexAbstraction.Type.DATA_STREAM) {
             throw new IllegalArgumentException("data stream [" + dataStreamName + "] not found");
         }
         return (DataStream) dataStream;
     }
 
-    private static IndexAbstraction validateIndex(Metadata metadata, String indexName) {
-        IndexAbstraction index = metadata.getIndicesLookup().get(indexName);
+    private static IndexAbstraction validateIndex(ProjectMetadata project, String indexName) {
+        IndexAbstraction index = project.getIndicesLookup().get(indexName);
         if (index == null || index.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
             throw new IllegalArgumentException("index [" + indexName + "] not found");
         }
@@ -415,18 +437,25 @@ public class MetadataDataStreamsService {
      */
     static class UpdateLifecycleTask extends AckedBatchedClusterStateUpdateTask {
 
+        private final ProjectId projectId;
         private final List<String> dataStreamNames;
         private final DataStreamLifecycle lifecycle;
 
         UpdateLifecycleTask(
+            ProjectId projectId,
             List<String> dataStreamNames,
             @Nullable DataStreamLifecycle lifecycle,
             TimeValue ackTimeout,
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
+            this.projectId = projectId;
             this.dataStreamNames = dataStreamNames;
             this.lifecycle = lifecycle;
+        }
+
+        public ProjectId getProjectId() {
+            return projectId;
         }
 
         public List<String> getDataStreamNames() {
@@ -471,11 +500,13 @@ public class MetadataDataStreamsService {
      */
     static class SetRolloverOnWriteTask extends AckedBatchedClusterStateUpdateTask {
 
+        private final ProjectId projectId;
         private final String dataStreamName;
         private final boolean rolloverOnWrite;
         private final boolean targetFailureStore;
 
         SetRolloverOnWriteTask(
+            ProjectId projectId,
             String dataStreamName,
             boolean rolloverOnWrite,
             boolean targetFailureStore,
@@ -483,9 +514,14 @@ public class MetadataDataStreamsService {
             ActionListener<AcknowledgedResponse> listener
         ) {
             super(ackTimeout, listener);
+            this.projectId = projectId;
             this.dataStreamName = dataStreamName;
             this.rolloverOnWrite = rolloverOnWrite;
             this.targetFailureStore = targetFailureStore;
+        }
+
+        public ProjectId projectId() {
+            return projectId;
         }
 
         public String getDataStreamName() {

@@ -12,55 +12,25 @@ package org.elasticsearch.entitlement.qa;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.entitlement.qa.common.RestEntitlementsCheckAction;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction;
 import org.junit.ClassRule;
 
-import java.io.IOException;
-import java.util.stream.Stream;
-
-import static org.hamcrest.Matchers.equalTo;
-
-public class EntitlementsAllowedIT extends ESRestTestCase {
+public class EntitlementsAllowedIT extends AbstractEntitlementsIT {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("entitlement-allowed")
-        .module("entitlement-allowed-nonmodular")
-        .systemProperty("es.entitlements.enabled", "true")
-        .setting("xpack.security.enabled", "false")
-        .build();
+    public static EntitlementsTestRule testRule = new EntitlementsTestRule(true, ALLOWED_TEST_ENTITLEMENTS);
 
-    private final String pathPrefix;
-    private final String actionName;
-
-    public EntitlementsAllowedIT(@Name("pathPrefix") String pathPrefix, @Name("actionName") String actionName) {
-        this.pathPrefix = pathPrefix;
-        this.actionName = actionName;
+    public EntitlementsAllowedIT(@Name("actionName") String actionName) {
+        super(actionName, true);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> data() {
-        return Stream.of("allowed", "allowed_nonmodular")
-            .flatMap(
-                path -> RestEntitlementsCheckAction.getCheckActionsAllowedInPlugins().stream().map(action -> new Object[] { path, action })
-            )
-            .toList();
+        return RestEntitlementsCheckAction.getCheckActionsAllowedInPlugins().stream().map(action -> new Object[] { action }).toList();
     }
 
     @Override
     protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
-    public void testCheckActionWithPolicyPass() throws IOException {
-        logger.info("Executing Entitlement test [{}] for [{}]", pathPrefix, actionName);
-        var request = new Request("GET", "/_entitlement/" + pathPrefix + "/_check");
-        request.addParameter("action", actionName);
-        Response result = client().performRequest(request);
-        assertThat(result.getStatusLine().getStatusCode(), equalTo(200));
+        return testRule.cluster.getHttpAddresses();
     }
 }

@@ -11,6 +11,8 @@ package org.elasticsearch.search.source;
 
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Map;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.notNullValue;
@@ -57,8 +59,9 @@ public class SourceFetchingIT extends ESIntegTestCase {
 
         assertResponses(response -> {
             assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-            assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field1"), equalTo("value"));
+            Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+            assertThat(source.size(), equalTo(1));
+            assertThat(source.get("field1"), equalTo("value"));
         },
             prepareSearch("test").setFetchSource("field1", null),
             prepareSearch("test").setFetchSource(new String[] { "*" }, new String[] { "field2" })
@@ -84,8 +87,9 @@ public class SourceFetchingIT extends ESIntegTestCase {
 
         assertResponses(response -> {
             assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-            assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value"));
+            Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+            assertThat(source.size(), equalTo(1));
+            assertThat((String) source.get("field"), equalTo("value"));
         },
             prepareSearch("test").setFetchSource(new String[] { "*.notexisting", "field" }, null),
             prepareSearch("test").setFetchSource(new String[] { "field.notexisting.*", "field" }, null)

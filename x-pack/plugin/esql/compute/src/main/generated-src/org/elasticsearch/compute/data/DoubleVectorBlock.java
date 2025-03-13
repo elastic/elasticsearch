@@ -13,7 +13,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a {@link DoubleVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class DoubleVectorBlock extends AbstractVectorBlock implements DoubleBlock {
 

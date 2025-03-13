@@ -15,13 +15,13 @@ package org.elasticsearch.entitlement.runtime.policy;
  * parser is able to wrap this exception with a line/character number for
  * additional useful error information.
  */
-class PolicyValidationException extends RuntimeException {
+public class PolicyValidationException extends RuntimeException {
 
-    PolicyValidationException(String message) {
+    public PolicyValidationException(String message) {
         super(message);
     }
 
-    PolicyValidationException(String message, Throwable cause) {
+    public PolicyValidationException(String message, Throwable cause) {
         super(message, cause);
     }
 }

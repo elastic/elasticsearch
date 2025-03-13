@@ -72,8 +72,7 @@ public class HuggingFaceActionTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[2];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -88,7 +87,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            is(format("Failed to send Hugging Face test action request from inference entity id [%s]", "inferenceEntityId"))
+            is(format("Failed to send Hugging Face test action request from inference entity id [%s]. Cause: failed", "inferenceEntityId"))
         );
     }
 
@@ -105,7 +104,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
         assertThat(
             thrownException.getMessage(),
-            is(format("Failed to send Hugging Face test action request from inference entity id [%s]", "inferenceEntityId"))
+            is(format("Failed to send Hugging Face test action request from inference entity id [%s]. Cause: failed", "inferenceEntityId"))
         );
     }
 

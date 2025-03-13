@@ -81,7 +81,7 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 if (engine == null) {
                     throw new AlreadyClosedException("engine closed");
                 }
-                segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
+                segmentGeneration = engine.getLastUnsafeSegmentGenerationForGets();
             }
             return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });

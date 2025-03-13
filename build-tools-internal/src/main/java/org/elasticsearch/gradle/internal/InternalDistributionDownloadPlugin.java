@@ -102,6 +102,29 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
             }
             return null;
         }));
+
+        // Distribution resolution for "override" versions. This allows for building from source for any version, including the current
+        // version of existing released versions from a commit form the main branch. This is done by passing certain system properties, ex:
+        //
+        // -Dtests.bwc.refspec.main=deadbeef -Dtests.bwc.main.version=9.0.0
+        //
+        // The 'test.bwc.main.version' property should map to the version returned by the commit referenced in 'tests.bwc.refspec.main'.
+        resolutions.add(new DistributionResolution("override", (project, distribution) -> {
+            String versionProperty = System.getProperty("tests.bwc.main.version");
+            // We use this phony version as a placeholder for the real version
+            if (distribution.getVersion().equals("0.0.0")) {
+                BwcVersions.UnreleasedVersionInfo unreleasedVersionInfo = new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(versionProperty),
+                    "main",
+                    ":distribution:bwc:main"
+                );
+                String projectConfig = getProjectConfig(distribution, unreleasedVersionInfo);
+                return new ProjectBasedDistributionDependency(
+                    (config) -> projectDependency(project.getDependencies(), unreleasedVersionInfo.gradleProjectPath(), projectConfig)
+                );
+            }
+            return null;
+        }));
     }
 
     private boolean isCurrentVersion(ElasticsearchDistribution distribution) {

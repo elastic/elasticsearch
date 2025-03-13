@@ -181,6 +181,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return isRunning;
     }
 
+    public boolean isPartial() {
+        return executionInfo != null && executionInfo.isPartial();
+    }
+
     public EsqlExecutionInfo getExecutionInfo() {
         return executionInfo;
     }
@@ -206,10 +210,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
         Iterator<ToXContent> tookTime;
         if (executionInfo != null && executionInfo.overallTook() != null) {
-            tookTime = ChunkedToXContentHelper.chunk((builder, p) -> {
-                builder.field("took", executionInfo.overallTook().millis());
-                return builder;
-            });
+            tookTime = ChunkedToXContentHelper.chunk(
+                (builder, p) -> builder.field("took", executionInfo.overallTook().millis())
+                    .field(EsqlExecutionInfo.IS_PARTIAL_FIELD.getPreferredName(), executionInfo.isPartial())
+            );
         } else {
             tookTime = Collections.emptyIterator();
         }
@@ -221,9 +225,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             )
             : ResponseXContentUtils.allColumns(columns, "columns");
         Iterator<? extends ToXContent> valuesIt = ResponseXContentUtils.columnValues(this.columns, this.pages, columnar, nullColumns);
-        Iterator<ToXContent> profileRender = profile == null
-            ? Collections.emptyIterator()
-            : ChunkedToXContentHelper.field("profile", profile, params);
+        Iterator<ToXContent> profileRender = profile != null
+            ? ChunkedToXContentHelper.field("profile", profile, params)
+            : Collections.emptyIterator();
         Iterator<ToXContent> executionInfoRender = executionInfo != null
             && executionInfo.isCrossClusterSearch()
             && executionInfo.includeCCSMetadata()
@@ -350,7 +354,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         }
 
         public Profile(StreamInput in) throws IOException {
-            this.drivers = in.readCollectionAsImmutableList(DriverProfile::new);
+            this.drivers = in.readCollectionAsImmutableList(DriverProfile::readFrom);
         }
 
         @Override

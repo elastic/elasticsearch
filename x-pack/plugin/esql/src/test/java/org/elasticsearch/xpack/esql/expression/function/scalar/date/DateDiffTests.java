@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -90,7 +91,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                 zdtStart2,
                 zdtEnd2,
                 "nanoseconds",
-                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [300000000000] out of [integer] range"
+                "Line 1:1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [300000000000] out of [integer] range"
             )
         );
 
@@ -101,7 +102,7 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
         // Units as Keyword case
         return List.of(
             new TestCaseSupplier(
-                "DateDiff(" + unit + "<KEYWORD>, " + startTimestamp + ", " + endTimestamp + ") == " + expected,
+                "DateDiff(" + unit + "<KEYWORD>, " + startTimestamp + "<MILLIS>, " + endTimestamp + "<MILLIS>) == " + expected,
                 List.of(DataType.KEYWORD, DataType.DATETIME, DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
@@ -109,15 +110,60 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(startTimestamp.toEpochMilli(), DataType.DATETIME, "startTimestamp"),
                         new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
                     ),
-                    "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                    "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
                         + "endTimestamp=Attribute[channel=2]]",
+                    DataType.INTEGER,
+                    equalTo(expected)
+                )
+            ),
+            new TestCaseSupplier(
+                "DateDiff(" + unit + "<KEYWORD>, " + startTimestamp + "<NANOS>, " + endTimestamp + "<NANOS>) == " + expected,
+                List.of(DataType.KEYWORD, DataType.DATE_NANOS, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(unit), DataType.KEYWORD, "unit"),
+                        new TestCaseSupplier.TypedData(DateUtils.toLong(startTimestamp), DataType.DATE_NANOS, "startTimestamp"),
+                        new TestCaseSupplier.TypedData(DateUtils.toLong(endTimestamp), DataType.DATE_NANOS, "endTimestamp")
+                    ),
+                    "DateDiffNanosEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                        + "endTimestamp=Attribute[channel=2]]",
+                    DataType.INTEGER,
+                    equalTo(expected)
+                )
+            ),
+            new TestCaseSupplier(
+                "DateDiff(" + unit + "<KEYWORD>, " + startTimestamp + "<NANOS>, " + endTimestamp + "<MILLIS>) == " + expected,
+                List.of(DataType.KEYWORD, DataType.DATE_NANOS, DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(unit), DataType.KEYWORD, "unit"),
+                        new TestCaseSupplier.TypedData(DateUtils.toLong(startTimestamp), DataType.DATE_NANOS, "startTimestamp"),
+                        new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
+                    ),
+                    "DateDiffNanosMillisEvaluator[unit=Attribute[channel=0], startTimestampNanos=Attribute[channel=1], "
+                        + "endTimestampMillis=Attribute[channel=2]]",
+                    DataType.INTEGER,
+                    equalTo(expected)
+                )
+            ),
+            new TestCaseSupplier(
+                "DateDiff(" + unit + "<KEYWORD>, " + startTimestamp + "<MILLIS>, " + endTimestamp + "<NANOS>) == " + expected,
+                List.of(DataType.KEYWORD, DataType.DATETIME, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(unit), DataType.KEYWORD, "unit"),
+                        new TestCaseSupplier.TypedData(startTimestamp.toEpochMilli(), DataType.DATETIME, "startTimestamp"),
+                        new TestCaseSupplier.TypedData(DateUtils.toLong(endTimestamp), DataType.DATE_NANOS, "endTimestamp")
+                    ),
+                    "DateDiffMillisNanosEvaluator[unit=Attribute[channel=0], startTimestampMillis=Attribute[channel=1], "
+                        + "endTimestampNanos=Attribute[channel=2]]",
                     DataType.INTEGER,
                     equalTo(expected)
                 )
             ),
             // Units as text case
             new TestCaseSupplier(
-                "DateDiff(" + unit + "<TEXT>, " + startTimestamp + ", " + endTimestamp + ") == " + expected,
+                "DateDiff(" + unit + "<TEXT>, " + startTimestamp + "<MILLIS>, " + endTimestamp + "<MILLIS>) == " + expected,
                 List.of(DataType.TEXT, DataType.DATETIME, DataType.DATETIME),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
@@ -125,8 +171,53 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(startTimestamp.toEpochMilli(), DataType.DATETIME, "startTimestamp"),
                         new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
                     ),
-                    "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                    "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
                         + "endTimestamp=Attribute[channel=2]]",
+                    DataType.INTEGER,
+                    equalTo(expected)
+                )
+            ),
+            new TestCaseSupplier(
+                "DateDiff(" + unit + "<TEXT>, " + startTimestamp + "<NANOS>, " + endTimestamp + "<NANOS>) == " + expected,
+                List.of(DataType.TEXT, DataType.DATE_NANOS, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(unit), DataType.TEXT, "unit"),
+                        new TestCaseSupplier.TypedData(DateUtils.toLong(startTimestamp), DataType.DATE_NANOS, "startTimestamp"),
+                        new TestCaseSupplier.TypedData(DateUtils.toLong(endTimestamp), DataType.DATE_NANOS, "endTimestamp")
+                    ),
+                    "DateDiffNanosEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                        + "endTimestamp=Attribute[channel=2]]",
+                    DataType.INTEGER,
+                    equalTo(expected)
+                )
+            ),
+            new TestCaseSupplier(
+                "DateDiff(" + unit + "<TEXT>, " + startTimestamp + "<NANOS>, " + endTimestamp + "<MILLIS>) == " + expected,
+                List.of(DataType.TEXT, DataType.DATE_NANOS, DataType.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(unit), DataType.TEXT, "unit"),
+                        new TestCaseSupplier.TypedData(DateUtils.toLong(startTimestamp), DataType.DATE_NANOS, "startTimestamp"),
+                        new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
+                    ),
+                    "DateDiffNanosMillisEvaluator[unit=Attribute[channel=0], startTimestampNanos=Attribute[channel=1], "
+                        + "endTimestampMillis=Attribute[channel=2]]",
+                    DataType.INTEGER,
+                    equalTo(expected)
+                )
+            ),
+            new TestCaseSupplier(
+                "DateDiff(" + unit + "<TEXT>, " + startTimestamp + "<MILLIS>, " + endTimestamp + "<NANOS>) == " + expected,
+                List.of(DataType.TEXT, DataType.DATETIME, DataType.DATE_NANOS),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef(unit), DataType.TEXT, "unit"),
+                        new TestCaseSupplier.TypedData(startTimestamp.toEpochMilli(), DataType.DATETIME, "startTimestamp"),
+                        new TestCaseSupplier.TypedData(DateUtils.toLong(endTimestamp), DataType.DATE_NANOS, "endTimestamp")
+                    ),
+                    "DateDiffMillisNanosEvaluator[unit=Attribute[channel=0], startTimestampMillis=Attribute[channel=1], "
+                        + "endTimestampNanos=Attribute[channel=2]]",
                     DataType.INTEGER,
                     equalTo(expected)
                 )
@@ -146,11 +237,11 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(startTimestamp.toEpochMilli(), DataType.DATETIME, "startTimestamp"),
                         new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
                     ),
-                    "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                    "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
                         + "endTimestamp=Attribute[channel=2]]",
                     DataType.INTEGER,
                     equalTo(null)
-                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                     .withWarning(warning)
             ),
             // Units as text case
@@ -163,11 +254,11 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(startTimestamp.toEpochMilli(), DataType.DATETIME, "startTimestamp"),
                         new TestCaseSupplier.TypedData(endTimestamp.toEpochMilli(), DataType.DATETIME, "endTimestamp")
                     ),
-                    "DateDiffEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
+                    "DateDiffMillisEvaluator[unit=Attribute[channel=0], startTimestamp=Attribute[channel=1], "
                         + "endTimestamp=Attribute[channel=2]]",
                     DataType.INTEGER,
                     equalTo(null)
-                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                     .withWarning(warning)
             )
         );
@@ -176,5 +267,11 @@ public class DateDiffTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new DateDiff(source, args.get(0), args.get(1), args.get(2));
+    }
+
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        // TODO: This function doesn't serialize the Source, and must be fixed.
+        return expression;
     }
 }

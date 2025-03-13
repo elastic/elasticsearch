@@ -116,7 +116,7 @@ public class NativeMemoryUsageEstimationProcessFactory implements AnalyticsProce
         ProcessPipes processPipes
     ) {
         AnalyticsBuilder analyticsBuilder = new AnalyticsBuilder(
-            env::tmpFile,
+            env::tmpDir,
             nativeController,
             processPipes,
             analyticsProcessConfig,

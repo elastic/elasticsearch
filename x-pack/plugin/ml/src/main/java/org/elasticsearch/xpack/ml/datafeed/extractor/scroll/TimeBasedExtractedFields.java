@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.extractor.SourceSupplier;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,8 +41,8 @@ public class TimeBasedExtractedFields extends ExtractedFields {
         return timeField.getName();
     }
 
-    public Long timeFieldValue(SearchHit hit) {
-        Object[] value = timeField.value(hit);
+    public Long timeFieldValue(SearchHit hit, SourceSupplier source) {
+        Object[] value = timeField.value(hit, source);
         if (value.length != 1) {
             throw new RuntimeException(
                 "Time field [" + timeField.getName() + "] expected a single value; actual was: " + Arrays.toString(value)

@@ -46,6 +46,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -218,6 +219,20 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return readPortsFile(portsFile).get(0);
         }
 
+        /**
+         * @return the available transport endpoints of this node; if the node has no available transport endpoints yet then returns an
+         * empty list.
+         */
+        public List<String> getAvailableTransportEndpoints() {
+            Path portsFile = workingDir.resolve("logs").resolve("transport.ports");
+            if (Files.notExists(portsFile)) {
+                // Ok if missing, we're only returning the _available_ transport endpoints and the node might not yet be started up.
+                // If we're using this for discovery then we'll retry until we see enough running nodes to form the cluster.
+                return List.of();
+            }
+            return readPortsFile(portsFile);
+        }
+
         public String getRemoteClusterServerEndpoint() {
             if (spec.isRemoteClusterServerEnabled()) {
                 Path portsFile = workingDir.resolve("logs").resolve("remote_cluster.ports");
@@ -336,15 +351,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         IOUtils.deleteWithRetry(distributionDir);
                     }
 
-                    try {
-                        IOUtils.syncWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
-                    } catch (IOUtils.LinkCreationException e) {
-                        // Note does not work for network drives, e.g. Vagrant
-                        LOGGER.info("Failed to create working dir using hard links. Falling back to copy", e);
-                        // ensure we get a clean copy
-                        IOUtils.deleteWithRetry(distributionDir);
-                        IOUtils.syncWithCopy(distributionDescriptor.getDistributionDir(), distributionDir);
-                    }
+                    IOUtils.syncMaybeWithLinks(distributionDescriptor.getDistributionDir(), distributionDir);
                 }
                 Files.createDirectories(repoDir);
                 Files.createDirectories(dataDir);
@@ -561,6 +568,37 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
         }
 
+        private void updateRolesFileAtomically() throws IOException {
+            final Path targetRolesFile = workingDir.resolve("config").resolve("roles.yml");
+            final Path tempFile = Files.createTempFile(workingDir.resolve("config"), null, null);
+
+            // collect all roles.yml files that should be combined into a single roles file
+            final List<Resource> rolesFiles = new ArrayList<>(spec.getRolesFiles().size() + 1);
+            rolesFiles.add(Resource.fromFile(distributionDir.resolve("config").resolve("roles.yml")));
+            rolesFiles.addAll(spec.getRolesFiles());
+
+            // append all roles files to the temp file
+            rolesFiles.forEach(rolesFile -> {
+                try (
+                    Writer writer = Files.newBufferedWriter(tempFile, StandardOpenOption.APPEND);
+                    Reader reader = new BufferedReader(new InputStreamReader(rolesFile.asStream()))
+                ) {
+                    reader.transferTo(writer);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to append roles file " + rolesFile + " to " + tempFile, e);
+                }
+            });
+
+            // move the temp file to the target roles file atomically
+            try {
+                Files.move(tempFile, targetRolesFile, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to move tmp roles file [" + tempFile + "] to [" + targetRolesFile + "]", e);
+            } finally {
+                Files.deleteIfExists(tempFile);
+            }
+        }
+
         private void configureSecurity() {
             if (spec.isSecurityEnabled()) {
                 if (spec.getUsers().isEmpty() == false) {
@@ -570,13 +608,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         if (resource instanceof MutableResource && roleFileListeners.add(resource)) {
                             ((MutableResource) resource).addUpdateListener(updated -> {
                                 LOGGER.info("Updating roles.yml for node '{}'", name);
-                                Path rolesFile = workingDir.resolve("config").resolve("roles.yml");
                                 try {
-                                    Files.delete(rolesFile);
-                                    Files.copy(distributionDir.resolve("config").resolve("roles.yml"), rolesFile);
-                                    writeRolesFile();
+                                    updateRolesFileAtomically();
+                                    LOGGER.info("Successfully updated roles.yml for node '{}'", name);
                                 } catch (IOException e) {
-                                    throw new UncheckedIOException(e);
+                                    throw new UncheckedIOException("Failed to update roles.yml file for node [" + name + "]", e);
                                 }
                             });
                         }
@@ -759,7 +795,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 });
 
-                IOUtils.syncWithCopy(modulePath, destination);
+                // If we aren't overriding anything we can use links here, otherwise do a full copy
+                if (installSpec.entitlementsOverride == null && installSpec.propertiesOverride == null) {
+                    IOUtils.syncMaybeWithLinks(modulePath, destination);
+                } else {
+                    IOUtils.syncWithCopy(modulePath, destination);
+                }
+
                 try {
                     if (installSpec.entitlementsOverride != null) {
                         Path entitlementsFile = modulePath.resolve(ENTITLEMENT_POLICY_YAML);
@@ -787,7 +829,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     if (extendedProperty != null) {
                         String[] extendedModules = extendedProperty.split(",");
                         for (String module : extendedModules) {
-                            installModule(module, new DefaultPluginInstallSpec(), modulePaths);
+                            if (spec.getModules().containsKey(module) == false) {
+                                installModule(module, new DefaultPluginInstallSpec(), modulePaths);
+                            }
                         }
                     }
                 } catch (IOException e) {

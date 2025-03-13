@@ -102,6 +102,9 @@
                     "unprivileged": {
                       "type": "boolean"
                     },
+                    "fips": {
+                      "type": "boolean"
+                    },
                     "version": {
                       "type": "text",
                       "fields": {
@@ -309,6 +312,9 @@
         },
         "upgrade_status": {
           "type": "keyword"
+        },
+        "upgrade_attempts": {
+          "type": "date"
         },
         "user_provided_metadata": {
           "type": "object",

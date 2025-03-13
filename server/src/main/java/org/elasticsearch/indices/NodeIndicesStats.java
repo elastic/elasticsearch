@@ -257,22 +257,21 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
 
                 case NODE -> Collections.<ToXContent>emptyIterator();
 
-                case INDICES -> Iterators.concat(
-                    ChunkedToXContentHelper.startObject(Fields.INDICES),
+                case INDICES -> ChunkedToXContentHelper.object(
+                    Fields.INDICES,
                     Iterators.map(createCommonStatsByIndex().entrySet().iterator(), entry -> (builder, params) -> {
                         builder.startObject(entry.getKey().getName());
                         entry.getValue().toXContent(builder, params);
                         return builder.endObject();
-                    }),
-                    ChunkedToXContentHelper.endObject()
+                    })
                 );
 
-                case SHARDS -> Iterators.concat(
-                    ChunkedToXContentHelper.startObject(Fields.SHARDS),
+                case SHARDS -> ChunkedToXContentHelper.object(
+                    Fields.SHARDS,
                     Iterators.flatMap(
                         statsByShard.entrySet().iterator(),
-                        entry -> Iterators.concat(
-                            ChunkedToXContentHelper.startArray(entry.getKey().getName()),
+                        entry -> ChunkedToXContentHelper.array(
+                            entry.getKey().getName(),
                             Iterators.flatMap(
                                 entry.getValue().iterator(),
                                 indexShardStats -> Iterators.concat(
@@ -282,11 +281,9 @@ public class NodeIndicesStats implements Writeable, ChunkedToXContent {
                                     Iterators.flatMap(Iterators.forArray(indexShardStats.getShards()), Iterators::<ToXContent>single),
                                     Iterators.single((b, p) -> b.endObject().endObject())
                                 )
-                            ),
-                            ChunkedToXContentHelper.endArray()
+                            )
                         )
-                    ),
-                    ChunkedToXContentHelper.endObject()
+                    )
                 );
             },
 

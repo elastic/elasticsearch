@@ -36,18 +36,29 @@ public enum CohereEmbeddingType {
     /**
      * This is a synonym for INT8
      */
-    BYTE(DenseVectorFieldMapper.ElementType.BYTE, RequestConstants.INT8);
+    BYTE(DenseVectorFieldMapper.ElementType.BYTE, RequestConstants.INT8),
+    /**
+     * Use this when you want to get back binary embeddings. Valid only for v3 models.
+     */
+    BIT(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT),
+    /**
+     * This is a synonym for BIT
+     */
+    BINARY(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT);
 
     private static final class RequestConstants {
         private static final String FLOAT = "float";
         private static final String INT8 = "int8";
+        private static final String BIT = "binary";
     }
 
     private static final Map<DenseVectorFieldMapper.ElementType, CohereEmbeddingType> ELEMENT_TYPE_TO_COHERE_EMBEDDING = Map.of(
         DenseVectorFieldMapper.ElementType.FLOAT,
         FLOAT,
         DenseVectorFieldMapper.ElementType.BYTE,
-        BYTE
+        BYTE,
+        DenseVectorFieldMapper.ElementType.BIT,
+        BIT
     );
     static final EnumSet<DenseVectorFieldMapper.ElementType> SUPPORTED_ELEMENT_TYPES = EnumSet.copyOf(
         ELEMENT_TYPE_TO_COHERE_EMBEDDING.keySet()
@@ -114,6 +125,17 @@ public enum CohereEmbeddingType {
     public static CohereEmbeddingType translateToVersion(CohereEmbeddingType embeddingType, TransportVersion version) {
         if (version.before(TransportVersions.V_8_14_0) && embeddingType == BYTE) {
             return INT8;
+        }
+
+        if (embeddingType == BIT) {
+            if (version.onOrAfter(TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED)
+                || version.isPatchFrom(TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X)) {
+                // BIT embedding type is supported in these versions
+                return embeddingType;
+            } else {
+                // BIT embedding type is not supported in these versions
+                return INT8;
+            }
         }
 
         return embeddingType;

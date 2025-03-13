@@ -10,7 +10,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
@@ -32,20 +31,10 @@ public class TransportVersionUtilsTests extends ESTestCase {
         new CompatibilityVersions(TransportVersions.V_8_0_0, Map.of())
     );
 
-    private static final ClusterState state = new ClusterState(
-        new ClusterName("fred"),
-        0L,
-        "EC7C0637-1644-43AB-AEAB-D8B7970CAECA",
-        null,
-        null,
-        null,
-        transportVersions,
-        null,
-        ClusterBlocks.EMPTY_CLUSTER_BLOCK,
-        null,
-        false,
-        null
-    );
+    private static final ClusterState state = ClusterState.builder(new ClusterName("fred"))
+        .stateUUID("EC7C0637-1644-43AB-AEAB-D8B7970CAECA")
+        .nodeIdsToCompatibilityVersions(transportVersions)
+        .build();
 
     public void testGetMinTransportVersion() {
         assertThat(TransportVersionUtils.getMinTransportVersion(state), equalTo(TransportVersions.V_8_0_0));
@@ -59,20 +48,10 @@ public class TransportVersionUtilsTests extends ESTestCase {
             new CompatibilityVersions(TransportVersion.current(), Map.of())
         );
 
-        ClusterState state1 = new ClusterState(
-            new ClusterName("harry"),
-            0L,
-            "20F833F2-7C48-4522-BA78-6821C9DCD5D8",
-            null,
-            null,
-            null,
-            transportVersions1,
-            null,
-            ClusterBlocks.EMPTY_CLUSTER_BLOCK,
-            null,
-            false,
-            null
-        );
+        ClusterState state1 = ClusterState.builder(new ClusterName("harry"))
+            .stateUUID("20F833F2-7C48-4522-BA78-6821C9DCD5D8")
+            .nodeIdsToCompatibilityVersions(transportVersions1)
+            .build();
 
         assertThat(TransportVersionUtils.isMinTransportVersionSameAsCurrent(state1), equalTo(true));
     }

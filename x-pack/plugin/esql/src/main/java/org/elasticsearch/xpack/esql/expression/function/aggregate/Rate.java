@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -49,7 +50,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
     @FunctionInfo(
         returnType = { "double" },
         description = "compute the rate of a counter field. Available in METRICS command only",
-        isAggregation = true
+        type = FunctionType.AGGREGATE
     )
     public Rate(
         Source source,
@@ -168,16 +169,13 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        if (inputChannels.size() != 2 && inputChannels.size() != 3) {
-            throw new IllegalArgumentException("rate requires two for raw input or three channels for partial input; got " + inputChannels);
-        }
+    public AggregatorFunctionSupplier supplier() {
         final long unitInMillis = unitInMillis();
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongAggregatorFunctionSupplier(inputChannels, unitInMillis);
-            case COUNTER_INTEGER -> new RateIntAggregatorFunctionSupplier(inputChannels, unitInMillis);
-            case COUNTER_DOUBLE -> new RateDoubleAggregatorFunctionSupplier(inputChannels, unitInMillis);
+            case COUNTER_LONG -> new RateLongAggregatorFunctionSupplier(unitInMillis);
+            case COUNTER_INTEGER -> new RateIntAggregatorFunctionSupplier(unitInMillis);
+            case COUNTER_DOUBLE -> new RateDoubleAggregatorFunctionSupplier(unitInMillis);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

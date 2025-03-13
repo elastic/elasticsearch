@@ -66,6 +66,47 @@ public class InferenceServiceConfigurationTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
+    public void testToXContent_EmptyTaskTypes() throws IOException {
+        String content = XContentHelper.stripWhitespace("""
+            {
+               "service": "some_provider",
+               "name": "Some Provider",
+               "task_types": [],
+               "configurations": {
+                    "text_field_configuration": {
+                        "description": "Wow, this tooltip is useful.",
+                        "label": "Very important field",
+                        "required": true,
+                        "sensitive": true,
+                        "updatable": false,
+                        "type": "str"
+                    },
+                    "numeric_field_configuration": {
+                        "default_value": 3,
+                        "description": "Wow, this tooltip is useful.",
+                        "label": "Very important numeric field",
+                        "required": true,
+                        "sensitive": false,
+                        "updatable": true,
+                        "type": "int"
+                    }
+               }
+            }
+            """);
+
+        InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+            new BytesArray(content),
+            XContentType.JSON
+        );
+        boolean humanReadable = true;
+        BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+        InferenceServiceConfiguration parsed;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
+            parsed = InferenceServiceConfiguration.fromXContent(parser);
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+    }
+
     public void testToMap() {
         InferenceServiceConfiguration configField = InferenceServiceConfigurationTestUtils.getRandomServiceConfigurationField();
         Map<String, Object> configFieldAsMap = configField.toMap();

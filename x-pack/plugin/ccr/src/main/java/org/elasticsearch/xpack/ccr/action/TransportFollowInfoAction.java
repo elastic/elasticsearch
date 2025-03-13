@@ -38,6 +38,8 @@ import java.util.Optional;
 
 public class TransportFollowInfoAction extends TransportMasterNodeReadAction<FollowInfoAction.Request, FollowInfoAction.Response> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     @Inject
     public TransportFollowInfoAction(
         TransportService transportService,
@@ -53,10 +55,10 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
             threadPool,
             actionFilters,
             FollowInfoAction.Request::new,
-            indexNameExpressionResolver,
             FollowInfoAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -82,10 +84,10 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
 
     static List<FollowerInfo> getFollowInfos(List<String> concreteFollowerIndices, ClusterState state) {
         List<FollowerInfo> followerInfos = new ArrayList<>();
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
 
         for (String index : concreteFollowerIndices) {
-            IndexMetadata indexMetadata = state.metadata().index(index);
+            IndexMetadata indexMetadata = state.metadata().getProject().index(index);
             Map<String, String> ccrCustomData = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
             if (ccrCustomData != null) {
                 Optional<ShardFollowTask> result;

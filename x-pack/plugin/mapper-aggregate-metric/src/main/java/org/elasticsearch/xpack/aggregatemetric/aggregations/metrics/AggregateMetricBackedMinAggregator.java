@@ -24,14 +24,14 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.Map;
 
 class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
+    private final AggregateMetricsValuesSource.AggregateMetricDouble valuesSource;
     final DocValueFormat format;
     DoubleArray mins;
 
@@ -44,7 +44,7 @@ class AggregateMetricBackedMinAggregator extends NumericMetricsAggregator.Single
     ) throws IOException {
         super(name, context, parent, metadata);
         assert config.hasValues();
-        this.valuesSource = (AggregateMetricsValuesSource.AggregateDoubleMetric) config.getValuesSource();
+        this.valuesSource = (AggregateMetricsValuesSource.AggregateMetricDouble) config.getValuesSource();
         mins = context.bigArrays().newDoubleArray(1, false);
         mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         this.format = config.format();

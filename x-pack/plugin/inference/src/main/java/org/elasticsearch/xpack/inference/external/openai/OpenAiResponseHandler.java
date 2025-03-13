@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionRes
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 
 import java.util.concurrent.Flow;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.inference.external.http.retry.ResponseHandlerUtils.getFirstHeaderOrUnknown;
 
@@ -41,11 +43,17 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
 
     static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
-    private final boolean canHandleStreamingResponses;
-
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
-        super(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse);
-        this.canHandleStreamingResponses = canHandleStreamingResponses;
+        this(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, canHandleStreamingResponses);
+    }
+
+    protected OpenAiResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        Function<HttpResult, ErrorResponse> errorParseFunction,
+        boolean canHandleStreamingResponses
+    ) {
+        super(requestType, parseFunction, errorParseFunction, canHandleStreamingResponses);
     }
 
     /**
@@ -119,11 +127,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         );
 
         return RATE_LIMIT + ". " + usageMessage;
-    }
-
-    @Override
-    public boolean canHandleStreamingResponses() {
-        return canHandleStreamingResponses;
     }
 
     @Override

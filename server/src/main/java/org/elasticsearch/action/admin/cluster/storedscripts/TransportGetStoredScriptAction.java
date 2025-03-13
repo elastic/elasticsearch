@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -31,8 +30,7 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             GetStoredScriptAction.NAME,
@@ -41,7 +39,6 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetStoredScriptRequest::new,
-            indexNameExpressionResolver,
             GetStoredScriptResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

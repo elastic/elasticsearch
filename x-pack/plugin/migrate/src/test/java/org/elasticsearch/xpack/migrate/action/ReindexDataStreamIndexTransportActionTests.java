@@ -30,6 +30,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.Collections;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
@@ -111,7 +112,7 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
             )
         );
 
-        doNothing().when(client).execute(eq(ReindexAction.INSTANCE), request.capture(), eq(listener));
+        doNothing().when(client).execute(eq(ReindexAction.INSTANCE), request.capture(), any());
 
         action.reindex(sourceIndex, destIndex, listener, taskId);
 
@@ -136,7 +137,7 @@ public class ReindexDataStreamIndexTransportActionTests extends ESTestCase {
                 Collections.singleton(ReindexDataStreamIndexTransportAction.REINDEX_MAX_REQUESTS_PER_SECOND_SETTING)
             )
         );
-        doNothing().when(client).execute(eq(ReindexAction.INSTANCE), request.capture(), eq(listener));
+        doNothing().when(client).execute(eq(ReindexAction.INSTANCE), request.capture(), any());
 
         action.reindex(sourceIndex, destIndex, listener, taskId);
 

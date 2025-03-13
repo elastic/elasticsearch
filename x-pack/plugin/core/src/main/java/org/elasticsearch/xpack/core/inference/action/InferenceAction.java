@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
@@ -29,6 +28,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -47,7 +47,7 @@ import static org.elasticsearch.core.Strings.format;
 public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static final InferenceAction INSTANCE = new InferenceAction();
-    public static final String NAME = "cluster:monitor/xpack/inference";
+    public static final String NAME = "cluster:internal/xpack/inference";
 
     public InferenceAction() {
         super(NAME);
@@ -75,12 +75,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             InputType.UNSPECIFIED
         );
 
-        public static Builder parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) throws IOException {
+        public static Builder parseRequest(String inferenceEntityId, TaskType taskType, InferenceContext context, XContentParser parser)
+            throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
             // For rest requests we won't know what the input type is
             builder.setInputType(InputType.UNSPECIFIED);
+            builder.setContext(context);
             return builder;
         }
 
@@ -103,6 +105,31 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             TimeValue inferenceTimeout,
             boolean stream
         ) {
+            this(
+                taskType,
+                inferenceEntityId,
+                query,
+                input,
+                taskSettings,
+                inputType,
+                inferenceTimeout,
+                stream,
+                InferenceContext.EMPTY_INSTANCE
+            );
+        }
+
+        public Request(
+            TaskType taskType,
+            String inferenceEntityId,
+            String query,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            TimeValue inferenceTimeout,
+            boolean stream,
+            InferenceContext context
+        ) {
+            super(context);
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.query = query;
@@ -242,19 +269,31 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
             Request request = (Request) o;
-            return taskType == request.taskType
+            return stream == request.stream
+                && taskType == request.taskType
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
+                && Objects.equals(query, request.query)
                 && Objects.equals(input, request.input)
                 && Objects.equals(taskSettings, request.taskSettings)
-                && Objects.equals(inputType, request.inputType)
-                && Objects.equals(query, request.query)
+                && inputType == request.inputType
                 && Objects.equals(inferenceTimeout, request.inferenceTimeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query, inferenceTimeout);
+            return Objects.hash(
+                super.hashCode(),
+                taskType,
+                inferenceEntityId,
+                query,
+                input,
+                taskSettings,
+                inputType,
+                inferenceTimeout,
+                stream
+            );
         }
 
         public static class Builder {
@@ -267,6 +306,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private String query;
             private TimeValue timeout = DEFAULT_TIMEOUT;
             private boolean stream = false;
+            private InferenceContext context;
 
             private Builder() {}
 
@@ -314,8 +354,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            public Builder setContext(InferenceContext context) {
+                this.context = context;
+                return this;
+            }
+
             public Request build() {
-                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream);
+                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream, context);
             }
         }
 
@@ -334,6 +379,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 + this.getInputType()
                 + ", timeout="
                 + this.getInferenceTimeout()
+                + ", context="
+                + this.getContext()
                 + ")";
         }
     }
@@ -342,7 +389,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         private final InferenceServiceResults results;
         private final boolean isStreaming;
-        private final Flow.Publisher<ChunkedToXContent> publisher;
+        private final Flow.Publisher<InferenceServiceResults.Result> publisher;
 
         public Response(InferenceServiceResults results) {
             this.results = results;
@@ -350,7 +397,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.publisher = null;
         }
 
-        public Response(InferenceServiceResults results, Flow.Publisher<ChunkedToXContent> publisher) {
+        public Response(InferenceServiceResults results, Flow.Publisher<InferenceServiceResults.Result> publisher) {
             this.results = results;
             this.isStreaming = true;
             this.publisher = publisher;
@@ -434,7 +481,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
          * When the RestResponse is finished with the current chunk, it will request the next chunk using the subscription.
          * If the RestResponse is closed, it will cancel the subscription.
          */
-        public Flow.Publisher<ChunkedToXContent> publisher() {
+        public Flow.Publisher<InferenceServiceResults.Result> publisher() {
             assert isStreaming() : "this should only be called after isStreaming() verifies this object is non-null";
             return publisher;
         }

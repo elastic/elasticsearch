@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -28,7 +29,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -42,14 +43,16 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -61,7 +64,10 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -76,6 +82,12 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.CROSS_CLUSTER;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.Features.WILDCARD_PATTERN;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.randomIndexPatterns;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.unquoteIndexPattern;
+import static org.elasticsearch.xpack.esql.IdentifierGenerator.without;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -300,18 +312,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testStatsWithoutAggs() throws Exception {
+    public void testStatsWithoutAggs() {
         assertEquals(
             new Aggregate(EMPTY, PROCESSING_CMD_INPUT, Aggregate.AggregateType.STANDARD, List.of(attribute("a")), List.of(attribute("a"))),
             processingCommand("stats by a")
         );
     }
 
-    public void testStatsWithoutAggsOrGroup() throws Exception {
+    public void testStatsWithoutAggsOrGroup() {
         expectError("from text | stats", "At least one aggregation or grouping expression required in [stats]");
     }
 
-    public void testAggsWithGroupKeyAsAgg() throws Exception {
+    public void testAggsWithGroupKeyAsAgg() {
         var queries = new String[] { """
             row a = 1, b = 2
             | stats a by a
@@ -332,7 +344,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
-    public void testStatsWithGroupKeyAndAggFilter() throws Exception {
+    public void testStatsWithGroupKeyAndAggFilter() {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
@@ -342,7 +354,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testStatsWithGroupKeyAndMixedAggAndFilter() throws Exception {
+    public void testStatsWithGroupKeyAndMixedAggAndFilter() {
         var a = attribute("a");
         var min = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var max = new UnresolvedFunction(EMPTY, "max", DEFAULT, List.of(a));
@@ -377,7 +389,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
-    public void testStatsWithoutGroupKeyMixedAggAndFilter() throws Exception {
+    public void testStatsWithoutGroupKeyMixedAggAndFilter() {
         var a = attribute("a");
         var f = new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(a));
         var filter = new Alias(EMPTY, "min(a) where a > 1", new FilteredExpression(EMPTY, f, new GreaterThan(EMPTY, a, integer(1))));
@@ -390,8 +402,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInlineStatsWithGroups() {
         var query = "inlinestats b = min(a) by c, d.e";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
+                () -> processingCommand(query)
+            );
             return;
         }
         assertEquals(
@@ -416,8 +431,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInlineStatsWithoutGroups() {
         var query = "inlinestats min(a), c = 1";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
+                () -> processingCommand(query)
+            );
             return;
         }
         assertEquals(
@@ -481,7 +499,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "cluster:index");
             clusterAndIndexAsIndexPattern(command, "cluster:.index");
             clusterAndIndexAsIndexPattern(command, "cluster*:index*");
-            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}>*");// this is not a valid pattern, * should be inside <>
+            clusterAndIndexAsIndexPattern(command, "cluster*:<logstash-{now/D}*>");
             clusterAndIndexAsIndexPattern(command, "cluster*:*");
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
@@ -849,16 +868,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Tuple.tuple("a/*hi*/", "a"),
             Tuple.tuple("explain [ frm a ]", "frm")
         )) {
-            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
-            assertThat(
-                pe.getMessage(),
+            expectThrows(
+                ParsingException.class,
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
                     containsString("'explain'"),
                     containsString("'from'"),
                     containsString("'row'")
-                )
+                ),
+                () -> statement(queryWithUnexpectedCmd.v1())
             );
+
         }
     }
 
@@ -873,15 +893,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Tuple.tuple("from a | a/*hi*/", "a"),
             Tuple.tuple("explain [ from a | evl b = c ]", "evl")
         )) {
-            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
-            assertThat(
-                pe.getMessage(),
+            expectThrows(
+                ParsingException.class,
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
                     containsString("'eval'"),
                     containsString("'stats'"),
                     containsString("'where'")
-                )
+                ),
+                () -> statement(queryWithUnexpectedCmd.v1())
             );
         }
     }
@@ -972,10 +992,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals("%{WORD:foo}", grok.parser().pattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
 
-        ParsingException pe = expectThrows(ParsingException.class, () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\""));
-        assertThat(
-            pe.getMessage(),
-            containsString("Invalid pattern [%{_invalid_:x}] for grok: Unable to find pattern [_invalid_] in Grok's pattern dictionary")
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid pattern [%{_invalid_:x}] for grok: Unable to find pattern [_invalid_] in Grok's pattern dictionary"),
+            () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\"")
         );
 
         cmd = processingCommand("grok a \"%{WORD:foo} %{WORD:foo}\"");
@@ -1065,15 +1085,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
             processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
-        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed [foo*]");
-        expectError("from a | enrich countries on foo with bar*", "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]");
+        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed, found [foo*]");
+        expectError("from a | enrich countries on * ", "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]");
+        expectError(
+            "from a | enrich countries on foo with bar*",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [bar*]"
+        );
+        expectError("from a | enrich countries on foo with *", "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]");
         expectError(
             "from a | enrich countries on foo with x = bar* ",
-            "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [bar*]"
+        );
+        expectError(
+            "from a | enrich countries on foo with x = * ",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]"
         );
         expectError(
             "from a | enrich countries on foo with x* = bar ",
-            "Using wildcards [*] in ENRICH WITH projections is not allowed [x*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [x*]"
+        );
+        expectError(
+            "from a | enrich countries on foo with * = bar ",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]"
         );
         expectError(
             "from a | enrich typo:countries on foo",
@@ -1101,8 +1134,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testUsageOfProject() {
         String query = "from test | project foo, bar";
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString("mismatched input 'project' expecting"));
+        expectThrows(ParsingException.class, containsString("mismatched input 'project' expecting"), () -> statement(query));
     }
 
     public void testInputParams() {
@@ -1572,10 +1604,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifier() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where
         assertEquals(
@@ -1687,8 +1715,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     List.of(new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
                 ),
                 attribute("f.*.13.f.14*"),
-                attribute("f.*.13.f.14*"),
-                null
+                attribute("f.*.13.f.14*")
             ),
             statement(
                 """
@@ -1834,10 +1861,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifierPattern() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // name patterns can appear in keep and drop
         // all patterns
         LogicalPlan plan = statement(
@@ -1927,10 +1950,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamInInvalidPosition() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
         // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
         List<String> invalidParamPositions = List.of("eval ?f1 = 1", "stats x = ?f1(*)", "mv_expand ?f1", "rename ?f1 as ?f2");
@@ -1971,7 +1990,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(
                 "from idx1 | " + enrich,
                 List.of(paramAsPattern("f1", pattern), paramAsIdentifier("f2", "f.2"), paramAsIdentifier("f3", "f.3*")),
-                "Using wildcards [*] in ENRICH WITH projections is not allowed [" + pattern + "]"
+                "Using wildcards [*] in ENRICH WITH projections is not allowed, found [" + pattern + "]"
             );
             expectError(
                 "from idx1 | " + enrich,
@@ -1982,10 +2001,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMissingParam() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // cover all processing commands eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
         String error = "Unknown query parameter [f1], did you mean [f4]?";
         String errorMvExpandFunctionNameCommandOption = "Query parameter [?f1] is null or undefined, cannot be used as an identifier";
@@ -2038,20 +2053,22 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     private void assertStringAsIndexPattern(String string, String statement) {
         if (Build.current().isSnapshot() == false && statement.contains("METRIC")) {
-            var e = expectThrows(ParsingException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("mismatched input 'METRICS' expecting {"));
+            expectThrows(ParsingException.class, containsString("mismatched input 'METRICS' expecting {"), () -> statement(statement));
             return;
         }
         LogicalPlan from = statement(statement);
         assertThat(from, instanceOf(UnresolvedRelation.class));
         UnresolvedRelation table = (UnresolvedRelation) from;
-        assertThat(table.table().index(), is(string));
+        assertThat(table.indexPattern().indexPattern(), is(string));
     }
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP_🐔 is in preview and only available in SNAPSHOT build"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:14: LOOKUP_🐔 is in preview and only available in SNAPSHOT build"),
+                () -> statement(statement)
+            );
             return;
         }
         var plan = statement(statement);
@@ -2060,41 +2077,41 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(tableName.fold(FoldContext.small()), equalTo(string));
     }
 
-    public void testIdPatternUnquoted() throws Exception {
+    public void testIdPatternUnquoted() {
         var string = "regularString";
         assertThat(breakIntoFragments(string), contains(string));
     }
 
-    public void testIdPatternQuoted() throws Exception {
+    public void testIdPatternQuoted() {
         var string = "`escaped string`";
         assertThat(breakIntoFragments(string), contains(string));
     }
 
-    public void testIdPatternQuotedWithDoubleBackticks() throws Exception {
+    public void testIdPatternQuotedWithDoubleBackticks() {
         var string = "`escaped``string`";
         assertThat(breakIntoFragments(string), contains(string));
     }
 
-    public void testIdPatternUnquotedAndQuoted() throws Exception {
+    public void testIdPatternUnquotedAndQuoted() {
         var string = "this`is`a`mix`of`ids`";
         assertThat(breakIntoFragments(string), contains("this", "`is`", "a", "`mix`", "of", "`ids`"));
     }
 
-    public void testIdPatternQuotedTraling() throws Exception {
+    public void testIdPatternQuotedTraling() {
         var string = "`foo`*";
         assertThat(breakIntoFragments(string), contains("`foo`", "*"));
     }
 
-    public void testIdPatternWithDoubleQuotedStrings() throws Exception {
+    public void testIdPatternWithDoubleQuotedStrings() {
         var string = "`this``is`a`quoted `` string``with`backticks";
         assertThat(breakIntoFragments(string), contains("`this``is`", "a", "`quoted `` string``with`", "backticks"));
     }
 
-    public void testSpaceNotAllowedInIdPattern() throws Exception {
+    public void testSpaceNotAllowedInIdPattern() {
         expectError("ROW a = 1| RENAME a AS this is `not okay`", "mismatched input 'is' expecting {<EOF>, '|', ',', '.'}");
     }
 
-    public void testSpaceNotAllowedInIdPatternKeep() throws Exception {
+    public void testSpaceNotAllowedInIdPatternKeep() {
         expectError("ROW a = 1, b = 1| KEEP a b", "extraneous input 'b'");
     }
 
@@ -2118,8 +2135,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP_🐔 t ON j";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> statement(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"),
+                () -> statement(query)
+            );
             return;
         }
         var plan = statement(query);
@@ -2275,21 +2295,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test | eval A = coalesce(\"Å\", Å)", "line 1:36: token recognition error at: 'Å'");
     }
 
+    public void testInvalidRemoteClusterPattern() {
+        expectError("from \"rem:ote\":index", "cluster string [rem:ote] must not contain ':'");
+    }
+
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(
-            EMPTY,
-            new TableIdentifier(EMPTY, null, index),
-            false,
-            metadata,
-            IndexMode.TIME_SERIES,
-            null,
-            "FROM TS"
-        );
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, metadata, IndexMode.TIME_SERIES, null, "FROM TS");
     }
 
     public void testMetricWithGroupKeyAsAgg() {
@@ -2303,7 +2319,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMatchOperatorConstantQueryString() {
         var plan = statement("FROM test | WHERE field:\"value\"");
         var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
+        var match = (MatchOperator) filter.condition();
         var matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("field"));
         assertThat(match.query().fold(FoldContext.small()), equalTo("value"));
@@ -2347,7 +2363,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMatchOperatorFieldCasting() {
         var plan = statement("FROM test | WHERE field::int : \"value\"");
         var filter = as(plan, Filter.class);
-        var match = (Match) filter.condition();
+        var match = (MatchOperator) filter.condition();
         var toInteger = (ToInteger) match.field();
         var matchField = (UnresolvedAttribute) toInteger.field();
         assertThat(matchField.name(), equalTo("field"));
@@ -2362,10 +2378,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentInMap() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         // functions can be scalar, grouping and aggregation
         // functions can be in eval/where/stats/sort/dissect/grok commands, commands in snapshot are not covered
         // positive
@@ -2470,8 +2482,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
         UnresolvedRelation ur = as(dissect.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
+    }
 
+    public void testNamedFunctionArgumentInMapWithNamedParameters() {
         // map entry values provided in named parameter, arrays are not supported by named parameters yet
+        LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
+        expectedMap1.put("option1", "string");
+        expectedMap1.put("option2", 1);
+        expectedMap1.put("option3", List.of(2.0, 3.0, 4.0));
+        expectedMap1.put("option4", List.of(true, false));
+        LinkedHashMap<String, Object> expectedMap2 = new LinkedHashMap<>(4);
+        expectedMap2.put("option1", List.of("string1", "string2"));
+        expectedMap2.put("option2", List.of(1, 2, 3));
+        expectedMap2.put("option3", 2.0);
+        expectedMap2.put("option4", true);
+        LinkedHashMap<String, Object> expectedMap3 = new LinkedHashMap<>(4);
+        expectedMap3.put("option1", "string");
+        expectedMap3.put("option2", 2.0);
+        expectedMap3.put("option3", List.of(1, 2, 3));
+        expectedMap3.put("option4", List.of(true, false));
         assertEquals(
             new Filter(
                 EMPTY,
@@ -2569,7 +2598,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
 
-        plan = statement(
+        LogicalPlan plan = statement(
             """
                 from test
                 | dissect ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]}) "%{bar}"
@@ -2589,24 +2618,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
-        grok = as(plan, Grok.class);
+        Grok grok = as(plan, Grok.class);
         assertEquals(function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2))), grok.input());
         assertEquals("%{WORD:foo}", grok.parser().pattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
-        dissect = as(grok.child(), Dissect.class);
+        Dissect dissect = as(grok.child(), Dissect.class);
         assertEquals(function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1))), dissect.input());
         assertEquals("%{bar}", dissect.parser().pattern());
         assertEquals("", dissect.parser().appendSeparator());
         assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
-        ur = as(dissect.child(), UnresolvedRelation.class);
+        UnresolvedRelation ur = as(dissect.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
     }
 
     public void testNamedFunctionArgumentWithCaseSensitiveKeys() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(3);
         expectedMap1.put("option", "string");
         expectedMap1.put("Option", 1);
@@ -2648,10 +2673,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMultipleNamedFunctionArgumentsNotAllowed() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "41"),
             Map.entry("where {}", "38"),
@@ -2676,10 +2697,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentNotInMap() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "38"),
             Map.entry("where {}", "35"),
@@ -2704,10 +2721,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentNotConstant() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String[]> commands = Map.ofEntries(
             Map.entry("eval x = {}", new String[] { "31", "35" }),
             Map.entry("where {}", new String[] { "28", "32" }),
@@ -2740,10 +2753,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentEmptyMap() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "30"),
             Map.entry("where {}", "27"),
@@ -2768,10 +2777,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentMapWithNULL() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2798,10 +2803,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentMapWithEmptyKey() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2837,10 +2838,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentMapWithDuplicatedKey() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2867,10 +2864,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentInInvalidPositions() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         // negative, named arguments are not supported outside of a functionExpression where booleanExpression or indexPattern is supported
         String map = "{\"option1\":\"string\", \"option2\":1}";
 
@@ -2900,10 +2893,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
-        assumeTrue(
-            "named function arguments require snapshot build",
-            EsqlCapabilities.Cap.OPTIONAL_NAMED_ARGUMENT_MAP_FOR_FUNCTION.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),
@@ -2938,5 +2927,229 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             );
         }
+    }
+
+    public void testValidFromPattern() {
+        var basePattern = randomIndexPatterns();
+
+        var plan = statement("FROM " + basePattern);
+
+        assertThat(as(plan, UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
+    }
+
+    public void testValidJoinPattern() {
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        var basePattern = randomIndexPatterns(without(CROSS_CLUSTER));
+        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(CROSS_CLUSTER));
+        var onField = randomIdentifier();
+
+        var plan = statement("FROM " + basePattern + " | LOOKUP JOIN " + joinPattern + " ON " + onField);
+
+        var join = as(plan, LookupJoin.class);
+        assertThat(as(join.left(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(basePattern)));
+        assertThat(as(join.right(), UnresolvedRelation.class).indexPattern().indexPattern(), equalTo(unquoteIndexPattern(joinPattern)));
+
+        var joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+        assertThat(joinType.columns(), hasSize(1));
+        assertThat(as(joinType.columns().getFirst(), UnresolvedAttribute.class).name(), equalTo(onField));
+        assertThat(joinType.coreJoin().joinName(), equalTo("LEFT OUTER"));
+    }
+
+    public void testInvalidJoinPatterns() {
+        assumeTrue("LOOKUP JOIN requires corresponding capability", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
+
+        {
+            // wildcard
+            var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(CROSS_CLUSTER));
+            expectError(
+                "FROM " + randomIndexPatterns() + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
+            );
+        }
+        {
+            // remote cluster on the right
+            var fromPatterns = randomIndexPatterns(without(CROSS_CLUSTER));
+            var joinPattern = randomIndexPattern(CROSS_CLUSTER, without(WILDCARD_PATTERN));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], remote clusters are not supported in LOOKUP JOIN"
+            );
+        }
+        {
+            // remote cluster on the left
+            var fromPatterns = randomIndexPatterns(CROSS_CLUSTER);
+            var joinPattern = randomIndexPattern(without(CROSS_CLUSTER), without(WILDCARD_PATTERN));
+            expectError(
+                "FROM " + fromPatterns + " | LOOKUP JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported in LOOKUP JOIN"
+            );
+        }
+    }
+
+    public void testInvalidInsistAsterisk() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "INSIST doesn't support wildcards, found [*]");
+        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
+    }
+
+    public void testValidFork() {
+        assumeTrue("FORK requires corresponding capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        var plan = statement("""
+            FROM foo*
+            | FORK ( WHERE a:"baz" | LIMIT 11 )
+                   ( WHERE b:"bar" | SORT b )
+                   ( WHERE c:"bat" )
+                   ( SORT c )
+                   ( LIMIT 5 )
+            """);
+        var fork = as(plan, Fork.class);
+        var subPlans = fork.subPlans();
+
+        // first subplan
+        var eval = as(subPlans.get(0), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork1"))));
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(11));
+        var filter = as(limit.child(), Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("a"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo("baz"));
+
+        // second subplan
+        eval = as(subPlans.get(1), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork2"))));
+        var orderBy = as(eval.child(), OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(1));
+        Order order = orderBy.order().get(0);
+        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("b"));
+        filter = as(orderBy.child(), Filter.class);
+        match = (MatchOperator) filter.condition();
+        matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("b"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo("bar"));
+
+        // third subplan
+        eval = as(subPlans.get(2), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork3"))));
+        filter = as(eval.child(), Filter.class);
+        match = (MatchOperator) filter.condition();
+        matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("c"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo("bat"));
+
+        // fourth subplan
+        eval = as(subPlans.get(3), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork4"))));
+        orderBy = as(eval.child(), OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(1));
+        order = orderBy.order().get(0);
+        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("c"));
+
+        // fifth subplan
+        eval = as(subPlans.get(4), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork5"))));
+        limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+    }
+
+    public void testInvalidFork() {
+        assumeTrue("FORK requires corresponding capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least two branches");
+
+        expectError("FROM foo* | FORK (LIMIT 10) (EVAL x = 1)", "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
+        expectError("FROM foo* | FORK (EVAL x = 1) (LIMIT 10)", "line 1:19: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
+        expectError(
+            "FROM foo* | FORK (WHERE x>1 |EVAL x = 1) (WHERE x>1)",
+            "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
+        );
+        expectError(
+            "FROM foo* | FORK (WHERE x>1 |EVAL x = 1) (WHERE x>1)",
+            "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
+        );
+        expectError(
+            "FROM foo* | FORK (WHERE x>1 |STATS count(x) by y) (WHERE x>1)",
+            "line 1:30: mismatched input 'STATS' expecting {'limit', 'sort', 'where'}"
+        );
+        expectError(
+            "FROM foo* | FORK ( FORK (WHERE x>1) (WHERE y>1)) (WHERE z>1)",
+            "line 1:20: mismatched input 'FORK' expecting {'limit', 'sort', 'where'}"
+        );
+        expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1' expecting {'limit', 'sort', 'where'}");
+        expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2' expecting {'limit', 'sort', 'where'}");
+    }
+
+    public void testFieldNamesAsCommands() throws Exception {
+        String[] keywords = new String[] {
+            "dissect",
+            "drop",
+            "enrich",
+            "eval",
+            "explain",
+            "from",
+            "grok",
+            "keep",
+            "limit",
+            "mv_expand",
+            "rename",
+            "sort",
+            "stats" };
+        for (String keyword : keywords) {
+            var plan = statement("FROM test | STATS avg(" + keyword + ")");
+            var aggregate = as(plan, Aggregate.class);
+        }
+    }
+
+    static Alias alias(String name, Expression value) {
+        return new Alias(EMPTY, name, value);
+    }
+
+    public void testValidRrf() {
+        assumeTrue("RRF requires corresponding capability", EsqlCapabilities.Cap.RRF.isEnabled());
+
+        LogicalPlan plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | RRF
+            """);
+
+        var orderBy = as(plan, OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(3));
+
+        assertThat(orderBy.order().get(0).child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
+        assertThat(orderBy.order().get(1).child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
+        assertThat(orderBy.order().get(2).child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
+
+        var dedup = as(orderBy.child(), Dedup.class);
+        assertThat(dedup.groupings().size(), equalTo(2));
+        assertThat(dedup.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(dedup.groupings().get(0).name(), equalTo("_id"));
+        assertThat(dedup.groupings().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(dedup.groupings().get(1).name(), equalTo("_index"));
+        assertThat(dedup.aggregates().size(), equalTo(1));
+        assertThat(dedup.aggregates().get(0), instanceOf(Alias.class));
+
+        var rrfScoreEval = as(dedup.child(), RrfScoreEval.class);
+        assertThat(rrfScoreEval.scoreAttribute(), instanceOf(UnresolvedAttribute.class));
+        assertThat(rrfScoreEval.scoreAttribute().name(), equalTo("_score"));
+        assertThat(rrfScoreEval.forkAttribute(), instanceOf(UnresolvedAttribute.class));
+        assertThat(rrfScoreEval.forkAttribute().name(), equalTo("_fork"));
+
+        assertThat(rrfScoreEval.child(), instanceOf(Fork.class));
     }
 }

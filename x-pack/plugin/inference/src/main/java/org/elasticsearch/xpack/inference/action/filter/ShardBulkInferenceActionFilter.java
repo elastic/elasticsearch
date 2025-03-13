@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -24,6 +23,7 @@ import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -35,12 +35,17 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
@@ -56,6 +61,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 
 /**
  * A {@link MappedActionFilter} that intercepts {@link BulkShardRequest} to apply inference on fields specified
@@ -75,25 +82,29 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final ClusterService clusterService;
     private final InferenceServiceRegistry inferenceServiceRegistry;
     private final ModelRegistry modelRegistry;
+    private final XPackLicenseState licenseState;
     private final int batchSize;
 
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
         InferenceServiceRegistry inferenceServiceRegistry,
-        ModelRegistry modelRegistry
+        ModelRegistry modelRegistry,
+        XPackLicenseState licenseState
     ) {
-        this(clusterService, inferenceServiceRegistry, modelRegistry, DEFAULT_BATCH_SIZE);
+        this(clusterService, inferenceServiceRegistry, modelRegistry, licenseState, DEFAULT_BATCH_SIZE);
     }
 
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
         InferenceServiceRegistry inferenceServiceRegistry,
         ModelRegistry modelRegistry,
+        XPackLicenseState licenseState,
         int batchSize
     ) {
         this.clusterService = clusterService;
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
+        this.licenseState = licenseState;
         this.batchSize = batchSize;
     }
 
@@ -127,7 +138,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         BulkShardRequest bulkShardRequest,
         Runnable onCompletion
     ) {
-        var index = clusterService.state().getMetadata().index(bulkShardRequest.index());
+        final ProjectMetadata project = clusterService.state().getMetadata().getProject();
+        var index = project.index(bulkShardRequest.index());
         boolean useLegacyFormat = InferenceMetadataFieldsMapper.isEnabled(index.getSettings()) == false;
         new AsyncBulkShardInferenceAction(useLegacyFormat, fieldInferenceMap, bulkShardRequest, onCompletion).run();
     }
@@ -278,7 +290,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                         request.field
                                     );
                                 } else {
-                                    failure = new ElasticsearchException(
+                                    failure = new InferenceException(
                                         "Error loading inference for inference id [{}] on field [{}]",
                                         exc,
                                         inferenceId,
@@ -307,7 +319,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             var acc = inferenceResults.get(request.index);
                             if (result instanceof ChunkedInferenceError error) {
                                 acc.addFailure(
-                                    new ElasticsearchException(
+                                    new InferenceException(
                                         "Exception when running inference id [{}] on field [{}]",
                                         error.exception(),
                                         inferenceProvider.model.getInferenceEntityId(),
@@ -339,7 +351,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         for (FieldInferenceRequest request : requests) {
                             addInferenceResponseFailure(
                                 request.index,
-                                new ElasticsearchException(
+                                new InferenceException(
                                     "Exception when running inference id [{}] on field [{}]",
                                     exc,
                                     inferenceProvider.model.getInferenceEntityId(),
@@ -438,7 +450,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     useLegacyFormat ? inputs : null,
                     new SemanticTextField.InferenceResult(
                         inferenceFieldMetadata.getInferenceId(),
-                        model != null ? new SemanticTextField.ModelSettings(model) : null,
+                        model != null ? new MinimalServiceSettings(model) : null,
                         chunkMap
                     ),
                     indexRequest.getContentType()
@@ -481,7 +493,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     isUpdateRequest = true;
                     if (updateRequest.script() != null) {
                         addInferenceResponseFailure(
-                            item.id(),
+                            itemIndex,
                             new ElasticsearchStatusException(
                                 "Cannot apply update with a script on indices that contain [{}] field(s)",
                                 RestStatus.BAD_REQUEST,
@@ -539,7 +551,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         if (valueObj == null || valueObj == EXPLICIT_NULL) {
                             if (isUpdateRequest && useLegacyFormat) {
                                 addInferenceResponseFailure(
-                                    item.id(),
+                                    itemIndex,
                                     new ElasticsearchStatusException(
                                         "Field [{}] must be specified on an update request to calculate inference for field [{}]",
                                         RestStatus.BAD_REQUEST,
@@ -551,19 +563,30 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             }
                             continue;
                         }
-                        ensureResponseAccumulatorSlot(itemIndex);
+                        var slot = ensureResponseAccumulatorSlot(itemIndex);
                         final List<String> values;
                         try {
                             values = SemanticTextUtils.nodeStringValues(field, valueObj);
                         } catch (Exception exc) {
-                            addInferenceResponseFailure(item.id(), exc);
+                            addInferenceResponseFailure(itemIndex, exc);
+                            break;
+                        }
+
+                        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
+                            addInferenceResponseFailure(itemIndex, LicenseUtils.newComplianceException(XPackField.INFERENCE));
                             break;
                         }
 
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());
                         int offsetAdjustment = 0;
                         for (String v : values) {
-                            fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                            if (v.isBlank()) {
+                                slot.addOrUpdateResponse(
+                                    new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
+                                );
+                            } else {
+                                fieldRequests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment));
+                            }
 
                             // When using the inference metadata fields format, all the input values are concatenated so that the
                             // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
@@ -589,7 +612,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
     private static class EmptyChunkedInference implements ChunkedInference {
         @Override
-        public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) {
+        public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
             return Collections.emptyIterator();
         }
     }

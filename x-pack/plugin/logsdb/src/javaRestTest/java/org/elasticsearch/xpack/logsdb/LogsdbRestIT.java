@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LogsdbRestIT extends ESRestTestCase {
@@ -59,26 +60,32 @@ public class LogsdbRestIT extends ESRestTestCase {
                 var settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "field1").build();
                 createIndex("test-index", settings, mapping);
             } else {
-                String mapping = """
-                    {
-                        "_source": {
-                            "mode": "synthetic"
-                        }
-                    }
-                    """;
-                createIndex("test-index", Settings.EMPTY, mapping);
+                createIndex("test-index", Settings.builder().put("index.mapping.source.mode", "synthetic").build());
             }
             var response = getAsMap("/_license/feature_usage");
             @SuppressWarnings("unchecked")
             List<Map<?, ?>> features = (List<Map<?, ?>>) response.get("features");
             logger.info("response's features: {}", features);
             assertThat(features, Matchers.not(Matchers.empty()));
-            Map<?, ?> feature = features.stream().filter(map -> "mappings".equals(map.get("family"))).findFirst().get();
-            assertThat(feature.get("name"), equalTo("synthetic-source"));
-            assertThat(feature.get("license_level"), equalTo("enterprise"));
+            boolean found = false;
+            for (var feature : features) {
+                if (feature.get("family") != null) {
+                    assertThat(feature.get("name"), anyOf(equalTo("synthetic-source"), equalTo("logsdb-routing-on-sort-fields")));
+                    assertThat(feature.get("license_level"), equalTo("enterprise"));
+                    found = true;
+                }
+            }
+            assertTrue(found);
 
-            var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings("test-index").get("test-index")).get("settings");
-            assertNull(settings.get("index.mapping.source.mode"));  // Default, no downgrading.
+            var indexResponse = (Map<?, ?>) getIndexSettings("test-index", true).get("test-index");
+            logger.info("indexResponse: {}", indexResponse);
+            var sourceMode = ((Map<?, ?>) indexResponse.get("settings")).get("index.mapping.source.mode");
+            if (sourceMode != null) {
+                assertThat(sourceMode, equalTo("synthetic"));
+            } else {
+                var defaultSourceMode = ((Map<?, ?>) indexResponse.get("defaults")).get("index.mapping.source.mode");
+                assertThat(defaultSourceMode, equalTo("SYNTHETIC"));
+            }
         }
     }
 

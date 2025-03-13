@@ -54,3 +54,16 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ingest/30_date_processor/Test week based date parsing", "week-date behaviour has changed")
 })
+
+configurations {
+  basicRestSpecs {
+    attributes {
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE)
+    }
+  }
+}
+
+artifacts {
+  // This intentionally doesn't use the specify the `test` directory, because it creates a conflict with `/rest-api-spec/test/ingest/10_basic.yml` file.
+  basicRestSpecs(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec"))
+}

@@ -16,12 +16,14 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -64,6 +66,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         TransportService transportService,
         SearchService searchService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -72,6 +75,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             clusterService,
             transportService,
             actionFilters,
+            projectResolver,
             indexNameExpressionResolver,
             ExplainRequest::new,
             threadPool.executor(ThreadPool.Names.GET)
@@ -87,7 +91,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             request,
-            clusterService.state(),
+            getProjectState().metadata(),
             indexNameExpressionResolver,
             remoteClusterService,
             request.nowInMillis
@@ -109,8 +113,12 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
-        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state, request.request().index());
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
+        final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            state.metadata(),
+            request.request().index()
+        );
+        @FixForMultiProject
         final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
     }
@@ -172,15 +180,9 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     }
 
     @Override
-    protected ShardIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardIterator shards(ProjectState state, InternalRequest request) {
         return clusterService.operationRouting()
-            .getShards(
-                clusterService.state(),
-                request.concreteIndex(),
-                request.request().id(),
-                request.request().routing(),
-                request.request().preference()
-            );
+            .getShards(state, request.concreteIndex(), request.request().id(), request.request().routing(), request.request().preference());
     }
 
     @Override

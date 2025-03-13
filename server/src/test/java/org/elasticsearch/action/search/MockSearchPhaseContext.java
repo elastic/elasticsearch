@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -62,7 +61,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
             Runnable::run,
             new SearchRequest(),
             ActionListener.noop(),
-            new GroupShardsIterator<SearchShardIterator>(List.of()),
+            List.of(),
             null,
             ClusterState.EMPTY_STATE,
             new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap()),
@@ -151,7 +150,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         SearchActionListener<SearchPhaseResult> listener
     ) {
         onShardResult(new SearchPhaseResult() {
-        }, shardIt);
+        });
     }
 
     @Override

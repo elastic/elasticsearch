@@ -11,10 +11,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.compute.EsqlRefCountingListener;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -29,13 +30,15 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Manages computes across multiple clusters by sending {@link ClusterComputeRequest} to remote clusters and executing the computes.
@@ -63,47 +66,111 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         transportService.registerRequestHandler(ComputeService.CLUSTER_ACTION_NAME, esqlExecutor, ClusterComputeRequest::new, this);
     }
 
-    void startComputeOnRemoteClusters(
+    void startComputeOnRemoteCluster(
         String sessionId,
         CancellableTask rootTask,
         Configuration configuration,
         PhysicalPlan plan,
         ExchangeSourceHandler exchangeSource,
-        List<RemoteCluster> clusters,
-        ComputeListener computeListener
+        RemoteCluster cluster,
+        Runnable cancelQueryOnFailure,
+        EsqlExecutionInfo executionInfo,
+        ActionListener<List<DriverProfile>> listener
     ) {
         var queryPragmas = configuration.pragmas();
-        var linkExchangeListeners = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
-        try (EsqlRefCountingListener refs = new EsqlRefCountingListener(linkExchangeListeners)) {
-            for (RemoteCluster cluster : clusters) {
-                final var childSessionId = computeService.newChildSession(sessionId);
-                ExchangeService.openExchange(
-                    transportService,
-                    cluster.connection,
-                    childSessionId,
-                    queryPragmas.exchangeBufferSize(),
-                    esqlExecutor,
-                    refs.acquire().delegateFailureAndWrap((l, unused) -> {
-                        var remoteSink = exchangeService.newRemoteSink(rootTask, childSessionId, transportService, cluster.connection);
-                        exchangeSource.addRemoteSink(remoteSink, true, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
-                        var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
-                        var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, childSessionId, configuration, remotePlan);
-                        var clusterListener = ActionListener.runBefore(
-                            computeListener.acquireCompute(cluster.clusterAlias()),
-                            () -> l.onResponse(null)
-                        );
-                        transportService.sendChildRequest(
-                            cluster.connection,
-                            ComputeService.CLUSTER_ACTION_NAME,
-                            clusterRequest,
-                            rootTask,
-                            TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
-                        );
-                    })
-                );
+        listener = ActionListener.runBefore(listener, exchangeSource.addEmptySink()::close);
+        final var childSessionId = computeService.newChildSession(sessionId);
+        final String clusterAlias = cluster.clusterAlias();
+        final AtomicBoolean pagesFetched = new AtomicBoolean();
+        final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
+        listener = listener.delegateResponse((l, e) -> {
+            final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
+            if (receivedResults == false && EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
+                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
+                l.onResponse(List.of());
+            } else if (configuration.allowPartialResults()) {
+                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
+                l.onResponse(List.of());
+            } else {
+                l.onFailure(e);
             }
-        }
+        });
+        ExchangeService.openExchange(
+            transportService,
+            cluster.connection,
+            childSessionId,
+            queryPragmas.exchangeBufferSize(),
+            esqlExecutor,
+            listener.delegateFailure((l, unused) -> {
+                final CancellableTask groupTask;
+                final Runnable onGroupFailure;
+                boolean failFast = executionInfo.isSkipUnavailable(clusterAlias) == false && configuration.allowPartialResults() == false;
+                if (failFast) {
+                    groupTask = rootTask;
+                    onGroupFailure = cancelQueryOnFailure;
+                } else {
+                    try {
+                        groupTask = computeService.createGroupTask(rootTask, () -> "compute group: cluster [" + clusterAlias + "]");
+                    } catch (TaskCancelledException e) {
+                        l.onFailure(e);
+                        return;
+                    }
+                    onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
+                    l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
+                }
+                try (var computeListener = new ComputeListener(transportService.getThreadPool(), onGroupFailure, l.map(profiles -> {
+                    updateExecutionInfo(executionInfo, clusterAlias, finalResponse.get());
+                    return profiles;
+                }))) {
+                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
+                    exchangeSource.addRemoteSink(
+                        remoteSink,
+                        failFast,
+                        () -> pagesFetched.set(true),
+                        queryPragmas.concurrentExchangeClients(),
+                        computeListener.acquireAvoid()
+                    );
+                    var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
+                    var clusterRequest = new ClusterComputeRequest(clusterAlias, childSessionId, configuration, remotePlan);
+                    final ActionListener<ComputeResponse> clusterListener = computeListener.acquireCompute().map(r -> {
+                        finalResponse.set(r);
+                        return r.getProfiles();
+                    });
+                    transportService.sendChildRequest(
+                        cluster.connection,
+                        ComputeService.CLUSTER_ACTION_NAME,
+                        clusterRequest,
+                        groupTask,
+                        TransportRequestOptions.EMPTY,
+                        new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
+                    );
+                }
+            })
+        );
+    }
+
+    private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(resp.getTotalShards())
+                .setSuccessfulShards(resp.getSuccessfulShards())
+                .setSkippedShards(resp.getSkippedShards())
+                .setFailedShards(resp.getFailedShards());
+            if (resp.getTook() != null) {
+                builder.setTook(TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos()));
+            } else {
+                // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
+                // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
+                builder.setTook(executionInfo.tookSoFar());
+            }
+            if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                if (executionInfo.isStopped() || resp.failedShards > 0) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                } else {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                }
+            }
+            return builder.build();
+        });
     }
 
     List<RemoteCluster> getRemoteClusters(
@@ -141,28 +208,16 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + plan));
             return;
         }
-        String clusterAlias = request.clusterAlias();
-        /*
-         * This handler runs only on remote cluster coordinators, so it creates a new local EsqlExecutionInfo object to record
-         * execution metadata for ES|QL processing local to this cluster. The execution info will be copied into the
-         * ComputeResponse that is sent back to the primary coordinating cluster.
-         */
-        EsqlExecutionInfo execInfo = new EsqlExecutionInfo(true);
-        execInfo.swapCluster(clusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(clusterAlias, Arrays.toString(request.indices())));
-        CancellableTask cancellable = (CancellableTask) task;
-        try (var computeListener = ComputeListener.create(clusterAlias, transportService, cancellable, execInfo, listener)) {
-            runComputeOnRemoteCluster(
-                clusterAlias,
-                request.sessionId(),
-                (CancellableTask) task,
-                request.configuration(),
-                (ExchangeSinkExec) plan,
-                Set.of(remoteClusterPlan.targetIndices()),
-                remoteClusterPlan.originalIndices(),
-                execInfo,
-                computeListener
-            );
-        }
+        runComputeOnRemoteCluster(
+            request.clusterAlias(),
+            request.sessionId(),
+            (CancellableTask) task,
+            request.configuration(),
+            (ExchangeSinkExec) plan,
+            Set.of(remoteClusterPlan.targetIndices()),
+            remoteClusterPlan.originalIndices(),
+            listener
+        );
     }
 
     /**
@@ -182,8 +237,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         ExchangeSinkExec plan,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
-        EsqlExecutionInfo executionInfo,
-        ComputeListener computeListener
+        ActionListener<ComputeResponse> listener
     ) {
         final var exchangeSink = exchangeService.getSinkHandler(globalSessionId);
         parentTask.addListener(
@@ -191,39 +245,51 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         );
         final String localSessionId = clusterAlias + ":" + globalSessionId;
         final PhysicalPlan coordinatorPlan = ComputeService.reductionPlan(plan, true);
-        var exchangeSource = new ExchangeSourceHandler(
-            configuration.pragmas().exchangeBufferSize(),
-            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
-            computeListener.acquireAvoid()
-        );
-        try (Releasable ignored = exchangeSource.addEmptySink()) {
-            exchangeSink.addCompletionListener(computeListener.acquireAvoid());
-            computeService.runCompute(
-                parentTask,
-                new ComputeContext(
+        final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
+        final long startTimeInNanos = System.nanoTime();
+        final Runnable cancelQueryOnFailure = computeService.cancelQueryOnFailure(parentTask);
+        try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
+            final TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
+            final ComputeResponse r = finalResponse.get();
+            return new ComputeResponse(profiles, took, r.totalShards, r.successfulShards, r.skippedShards, r.failedShards);
+        }))) {
+            var exchangeSource = new ExchangeSourceHandler(
+                configuration.pragmas().exchangeBufferSize(),
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+            );
+            try (Releasable ignored = exchangeSource.addEmptySink()) {
+                exchangeSink.addCompletionListener(computeListener.acquireAvoid());
+                computeService.runCompute(
+                    parentTask,
+                    new ComputeContext(
+                        localSessionId,
+                        "remote_reduce",
+                        clusterAlias,
+                        List.of(),
+                        configuration,
+                        configuration.newFoldContext(),
+                        exchangeSource::createExchangeSource,
+                        () -> exchangeSink.createExchangeSink(() -> {})
+                    ),
+                    coordinatorPlan,
+                    computeListener.acquireCompute()
+                );
+                dataNodeComputeHandler.startComputeOnDataNodes(
                     localSessionId,
                     clusterAlias,
-                    List.of(),
+                    parentTask,
                     configuration,
-                    configuration.newFoldContext(),
+                    plan,
+                    concreteIndices,
+                    originalIndices,
                     exchangeSource,
-                    exchangeSink
-                ),
-                coordinatorPlan,
-                computeListener.acquireCompute(clusterAlias)
-            );
-            dataNodeComputeHandler.startComputeOnDataNodes(
-                localSessionId,
-                clusterAlias,
-                parentTask,
-                configuration,
-                plan,
-                concreteIndices,
-                originalIndices,
-                exchangeSource,
-                executionInfo,
-                computeListener
-            );
+                    cancelQueryOnFailure,
+                    computeListener.acquireCompute().map(r -> {
+                        finalResponse.set(r);
+                        return r.getProfiles();
+                    })
+                );
+            }
         }
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -17,9 +18,11 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
@@ -33,7 +36,10 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
-        StreamingTaskManager streamingTaskManager
+        StreamingTaskManager streamingTaskManager,
+        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
+        NodeClient nodeClient,
+        ThreadPool threadPool
     ) {
         super(
             InferenceAction.NAME,
@@ -44,7 +50,10 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            InferenceAction.Request::new
+            InferenceAction.Request::new,
+            inferenceServiceNodeLocalRateLimitCalculator,
+            nodeClient,
+            threadPool
         );
     }
 

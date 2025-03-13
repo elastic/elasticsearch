@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -85,13 +87,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
         Metadata metadata = metaBuilder.build();
         NodeJoinExecutor.ensureIndexCompatibility(
             IndexVersions.MINIMUM_COMPATIBLE,
@@ -113,13 +116,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithUnsupportedIndices() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(IndexVersion.fromId(6080099))) // latest V6 released version
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
         Metadata metadata = metaBuilder.build();
         expectThrows(
             IllegalStateException.class,
@@ -133,13 +137,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
     }
 
     public void testJoinClusterWithReadOnlyCompatibleIndices() {
+        var randomBlock = randomFrom(IndexMetadata.SETTING_BLOCKS_WRITE, IndexMetadata.SETTING_READ_ONLY);
         {
             var indexMetadata = IndexMetadata.builder("searchable-snapshot")
                 .settings(
                     Settings.builder()
                         .put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.MINIMUM_READONLY_COMPATIBLE)
-                        .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                        .put(randomBlock, true)
                 )
                 .numberOfShards(1)
                 .numberOfReplicas(1)
@@ -239,7 +244,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
             var indexMetadata = IndexMetadata.builder("regular")
                 .settings(
                     Settings.builder()
-                        .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+                        .put(randomBlock, true)
                         .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true)
                         .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
                         .build()
@@ -261,7 +266,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), randomBoolean());
             }
             if (randomBoolean()) {
-                settings.put(IndexMetadata.SETTING_BLOCKS_WRITE, false);
+                settings.put(randomBlock, false);
             }
             var indexMetadata = IndexMetadata.builder("regular").settings(settings).numberOfShards(1).numberOfReplicas(1).build();
 
@@ -281,7 +286,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), false);
             }
             if (randomBoolean()) {
-                settings.put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean());
+                settings.put(randomBlock, randomBoolean());
             }
 
             var indexMetadata = IndexMetadata.builder("regular-not-read-only-verified")
@@ -638,19 +643,21 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     public void testSuccess() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId));
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        metaBuilder.getProject(projectId).put(indexMetadata, false);
         indexMetadata = IndexMetadata.builder("test1")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        metaBuilder.getProject(projectId).put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
         NodeJoinExecutor.ensureIndexCompatibility(
             // randomCompatibleVersionSettings() can set a version as low as MINIMUM_READONLY_COMPATIBLE

@@ -75,7 +75,17 @@ teardown:
   - do:
       security.query_role:
         body: >
-          {}
+          {
+            "query": {
+              "bool": {
+                "must_not": {
+                  "term": {
+                    "metadata._reserved": true
+                  }
+                }
+              }
+            }
+          }
   - match: { total: 1 }
   - match: { count: 1 }
   - match: { roles.0.name: "remote_role" }

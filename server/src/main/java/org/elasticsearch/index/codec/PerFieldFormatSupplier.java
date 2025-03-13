@@ -60,18 +60,18 @@ public class PerFieldFormatSupplier {
         if (mapperService != null) {
             Mapper mapper = mapperService.mappingLookup().getMapper(field);
             if (mapper instanceof CompletionFieldMapper) {
-                return PostingsFormatHolder.POSTINGS_FORMAT;
+                return CompletionPostingsFormatHolder.POSTINGS_FORMAT;
             }
         }
         // return our own posting format using PFOR
         return es812PostingsFormat;
     }
 
-    private static class PostingsFormatHolder {
-        private static final PostingsFormat POSTINGS_FORMAT = getPostingsFormat();
+    private static class CompletionPostingsFormatHolder {
+        private static final PostingsFormat POSTINGS_FORMAT = getCompletionPostingsFormat();
 
-        private static PostingsFormat getPostingsFormat() {
-            String defaultName = "Completion912"; // Caution: changing this name will result in exceptions if a field is created during a
+        private static PostingsFormat getCompletionPostingsFormat() {
+            String defaultName = "Completion101"; // Caution: changing this name will result in exceptions if a field is created during a
             // rolling upgrade and the new codec (specified by the name) is not available on all nodes in the cluster.
             String codecName = ExtensionLoader.loadSingleton(ServiceLoader.load(CompletionsPostingsFormatExtension.class))
                 .map(CompletionsPostingsFormatExtension::getFormatName)

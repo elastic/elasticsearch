@@ -249,7 +249,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
             String inferenceText,
             float minScore
         ) {
-            super(size, from, windowSize);
+            super(size, from, windowSize, false);
             this.client = client;
             this.inferenceId = inferenceId;
             this.inferenceText = inferenceText;

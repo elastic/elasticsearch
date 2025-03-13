@@ -55,6 +55,24 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
         assertTrue(InferenceMetadataFieldsMapper.isEnabled(settings));
     }
 
+    public void testIsEnabledByDefault() {
+        var settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                IndexVersionUtils.getPreviousVersion(InferenceMetadataFieldsMapper.USE_NEW_SEMANTIC_TEXT_FORMAT_BY_DEFAULT)
+            )
+            .build();
+        assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
+
+        settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                InferenceMetadataFieldsMapper.USE_NEW_SEMANTIC_TEXT_FORMAT_BY_DEFAULT
+            )
+            .build();
+        assertTrue(InferenceMetadataFieldsMapper.isEnabled(settings));
+    }
+
     @Override
     public void testFieldHasValue() {
         assertTrue(

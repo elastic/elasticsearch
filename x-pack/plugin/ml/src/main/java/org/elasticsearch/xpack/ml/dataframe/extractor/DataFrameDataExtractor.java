@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ml.dataframe.traintestsplit.TrainTestSplitter;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.extractor.ProcessedField;
+import org.elasticsearch.xpack.ml.extractor.SourceSupplier;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -156,7 +157,7 @@ public class DataFrameDataExtractor {
 
                 List<String[]> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
-                    String[] extractedValues = extractValues(hit);
+                    String[] extractedValues = extractValues(hit, new SourceSupplier(hit));
                     rows.add(extractedValues);
                 }
                 delegate.onResponse(rows);
@@ -255,9 +256,9 @@ public class DataFrameDataExtractor {
         return searchResponse.getHits().asUnpooled().getHits();
     }
 
-    private String extractNonProcessedValues(SearchHit hit, String organicFeature) {
+    private String extractNonProcessedValues(SearchHit hit, SourceSupplier sourceSupplier, String organicFeature) {
         ExtractedField field = extractedFieldsByName.get(organicFeature);
-        Object[] values = field.value(hit);
+        Object[] values = field.value(hit, sourceSupplier);
         if (values.length == 1 && isValidValue(values[0])) {
             return Objects.toString(values[0]);
         }
@@ -270,8 +271,8 @@ public class DataFrameDataExtractor {
         return null;
     }
 
-    private String[] extractProcessedValue(ProcessedField processedField, SearchHit hit) {
-        Object[] values = processedField.value(hit, extractedFieldsByName::get);
+    private String[] extractProcessedValue(ProcessedField processedField, SearchHit hit, SourceSupplier sourceSupplier) {
+        Object[] values = processedField.value(hit, sourceSupplier, extractedFieldsByName::get);
         if (values.length == 0 && context.supportsRowsWithMissingValues == false) {
             return null;
         }
@@ -309,12 +310,13 @@ public class DataFrameDataExtractor {
     }
 
     public Row createRow(SearchHit hit) {
-        String[] extractedValues = extractValues(hit);
+        SourceSupplier sourceSupplier = new SourceSupplier(hit);
+        String[] extractedValues = extractValues(hit, sourceSupplier);
         if (extractedValues == null) {
-            return new Row(null, hit, true);
+            return new Row(null, hit, sourceSupplier, true);
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        Row row = new Row(extractedValues, hit, isTraining);
+        Row row = new Row(extractedValues, hit, sourceSupplier, isTraining);
         LOGGER.trace(
             () -> format(
                 "[%s] Extracted row: sort key = [%s], is_training = [%s], values = %s",
@@ -327,18 +329,18 @@ public class DataFrameDataExtractor {
         return row;
     }
 
-    private String[] extractValues(SearchHit hit) {
+    private String[] extractValues(SearchHit hit, SourceSupplier sourceSupplier) {
         String[] extractedValues = new String[organicFeatures.length + processedFeatures.length];
         int i = 0;
         for (String organicFeature : organicFeatures) {
-            String extractedValue = extractNonProcessedValues(hit, organicFeature);
+            String extractedValue = extractNonProcessedValues(hit, sourceSupplier, organicFeature);
             if (extractedValue == null) {
                 return null;
             }
             extractedValues[i++] = extractedValue;
         }
         for (ProcessedField processedField : context.extractedFields.getProcessedFields()) {
-            String[] processedValues = extractProcessedValue(processedField, hit);
+            String[] processedValues = extractProcessedValue(processedField, hit, sourceSupplier);
             if (processedValues == null) {
                 return null;
             }
@@ -445,9 +447,12 @@ public class DataFrameDataExtractor {
 
         private final boolean isTraining;
 
-        private Row(String[] values, SearchHit hit, boolean isTraining) {
+        private final SourceSupplier sourceSupplier;
+
+        private Row(String[] values, SearchHit hit, SourceSupplier sourceSupplier, boolean isTraining) {
             this.values = values;
             this.hit = hit;
+            this.sourceSupplier = sourceSupplier;
             this.isTraining = isTraining;
         }
 
@@ -474,6 +479,10 @@ public class DataFrameDataExtractor {
 
         public long getSortKey() {
             return (long) hit.getSortValues()[0];
+        }
+
+        public Map<String, Object> getSource() {
+            return sourceSupplier.get();
         }
     }
 }

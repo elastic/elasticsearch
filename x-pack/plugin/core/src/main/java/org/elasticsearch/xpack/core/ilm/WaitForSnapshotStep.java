@@ -55,7 +55,7 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.index(index);
+        IndexMetadata indexMetadata = metadata.getProject().index(index);
         if (indexMetadata == null) {
             listener.onFailure(error(NO_INDEX_METADATA_MESSAGE, index.getName()));
             return;
@@ -68,7 +68,7 @@ public class WaitForSnapshotStep extends AsyncWaitStep {
             return;
         }
 
-        SnapshotLifecycleMetadata snapMeta = metadata.custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = metadata.getProject().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null || snapMeta.getSnapshotConfigurations().containsKey(policy) == false) {
             listener.onFailure(error(POLICY_NOT_FOUND_MESSAGE, policy));
             return;

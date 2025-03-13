@@ -24,14 +24,14 @@ import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.Map;
 
 class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
-    final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
+    final AggregateMetricsValuesSource.AggregateMetricDouble valuesSource;
 
     LongArray counts;
     DoubleArray sums;
@@ -47,7 +47,7 @@ class AggregateMetricBackedAvgAggregator extends NumericMetricsAggregator.Single
     ) throws IOException {
         super(name, context, parent, metadata);
         assert valuesSourceConfig.hasValues();
-        this.valuesSource = (AggregateMetricsValuesSource.AggregateDoubleMetric) valuesSourceConfig.getValuesSource();
+        this.valuesSource = (AggregateMetricsValuesSource.AggregateMetricDouble) valuesSourceConfig.getValuesSource();
         final BigArrays bigArrays = context.bigArrays();
         counts = bigArrays.newLongArray(1, true);
         sums = bigArrays.newDoubleArray(1, true);

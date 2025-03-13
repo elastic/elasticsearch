@@ -7,19 +7,16 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.tasks.TaskCancelledException;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -27,21 +24,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * An {@link ExchangeSourceHandler} asynchronously fetches pages and status from multiple {@link RemoteSink}s
  * and feeds them to its {@link ExchangeSource}, which are created using the {@link #createExchangeSource()}) method.
- * {@link RemoteSink}s are added using the {@link #addRemoteSink(RemoteSink, boolean, int, ActionListener)}) method.
+ * {@link RemoteSink}s are added using the {@link #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}) method.
  *
  * @see #createExchangeSource()
- * @see #addRemoteSink(RemoteSink, boolean, int, ActionListener)
+ * @see #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
  */
 public final class ExchangeSourceHandler {
+
     private final ExchangeBuffer buffer;
     private final Executor fetchExecutor;
 
     private final PendingInstances outstandingSinks;
     private final PendingInstances outstandingSources;
-    // Collect failures that occur while fetching pages from the remote sink with `failFast=true`.
-    // The exchange source will stop fetching and abort as soon as any failure is added to this failure collector.
-    // The final failure collected will be notified to callers via the {@code completionListener}.
-    private final FailureCollector failure = new FailureCollector();
+    // Track if this exchange source should abort. There is no need to track the actual failure since the actual failure
+    // should be notified via #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener).
+    private volatile boolean aborted = false;
 
     private final AtomicInteger nextSinkId = new AtomicInteger();
     private final Map<Integer, RemoteSink> remoteSinks = ConcurrentCollections.newConcurrentMap();
@@ -52,35 +49,22 @@ public final class ExchangeSourceHandler {
      * @param maxBufferSize      the maximum size of the exchange buffer. A larger buffer reduces ``pauses`` but uses more memory,
      *                           which could otherwise be allocated for other purposes.
      * @param fetchExecutor      the executor used to fetch pages.
-     * @param completionListener a listener that will be notified when the exchange source handler fails or completes
      */
-    public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor, ActionListener<Void> completionListener) {
+    public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.fetchExecutor = fetchExecutor;
         this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
-        final PendingInstances closingSinks = new PendingInstances(() -> {});
-        closingSinks.trackNewInstance();
-        this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.running(closingSinks::finishInstance)));
-        buffer.addCompletionListener(ActionListener.running(() -> {
-            final ActionListener<Void> listener = ActionListener.assertAtLeastOnce(completionListener);
-            try (RefCountingRunnable refs = new RefCountingRunnable(() -> {
-                final Exception e = failure.getFailure();
-                if (e != null) {
-                    listener.onFailure(e);
-                } else {
-                    listener.onResponse(null);
-                }
-            })) {
-                closingSinks.completion.addListener(refs.acquireListener());
-                for (PendingInstances pending : List.of(outstandingSinks, outstandingSources)) {
-                    // Create an outstanding instance and then finish to complete the completionListener
-                    // if we haven't registered any instances of exchange sinks or exchange sources before.
-                    pending.trackNewInstance();
-                    pending.completion.addListener(refs.acquireListener());
-                    pending.finishInstance();
-                }
-            }
-        }));
+        this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.noop()));
+    }
+
+    public boolean isFinished() {
+        return buffer.isFinished();
+    }
+
+    private void checkFailure() {
+        if (aborted) {
+            throw new TaskCancelledException("remote sinks failed");
+        }
     }
 
     private class ExchangeSourceImpl implements ExchangeSource {
@@ -88,13 +72,6 @@ public final class ExchangeSourceHandler {
 
         ExchangeSourceImpl() {
             outstandingSources.trackNewInstance();
-        }
-
-        private void checkFailure() {
-            Exception e = failure.getFailure();
-            if (e != null) {
-                throw ExceptionsHelper.convertToRuntime(e);
-            }
         }
 
         @Override
@@ -185,11 +162,13 @@ public final class ExchangeSourceHandler {
         private volatile boolean finished = false;
         private final RemoteSink remoteSink;
         private final boolean failFast;
+        private final Runnable onPageFetched;
         private final ActionListener<Void> completionListener;
 
-        RemoteSinkFetcher(RemoteSink remoteSink, boolean failFast, ActionListener<Void> completionListener) {
+        RemoteSinkFetcher(RemoteSink remoteSink, boolean failFast, Runnable onPageFetched, ActionListener<Void> completionListener) {
             outstandingSinks.trackNewInstance();
             this.remoteSink = remoteSink;
+            this.onPageFetched = onPageFetched;
             this.failFast = failFast;
             this.completionListener = completionListener;
         }
@@ -199,10 +178,11 @@ public final class ExchangeSourceHandler {
             while (loopControl.isRunning()) {
                 loopControl.exiting();
                 // finish other sinks if one of them failed or source no longer need pages.
-                boolean toFinishSinks = buffer.noMoreInputs() || failure.hasFailure();
+                boolean toFinishSinks = buffer.noMoreInputs() || aborted;
                 remoteSink.fetchPageAsync(toFinishSinks, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();
                     if (page != null) {
+                        onPageFetched.run();
                         buffer.addPage(page);
                     }
                     if (resp.finished()) {
@@ -228,7 +208,7 @@ public final class ExchangeSourceHandler {
 
         void onSinkFailed(Exception e) {
             if (failFast) {
-                failure.unwrapAndCollect(e);
+                aborted = true;
             }
             buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
             if (finished == false) {
@@ -252,29 +232,42 @@ public final class ExchangeSourceHandler {
     /**
      * Add a remote sink as a new data source of this handler. The handler will start fetching data from this remote sink intermediately.
      *
-     * @param remoteSink the remote sink
-     * @param failFast   determines how failures in this remote sink are handled:
-     *                   - If {@code false}, failures from this remote sink will not cause the exchange source to abort.
-     *                   Callers must handle these failures notified via {@code listener}.
-     *                   - If {@code true}, failures from this remote sink will cause the exchange source to abort.
-     *                   Callers can safely ignore failures notified via this listener, as they are collected and
-     *                   reported by the exchange source.
-     * @param instances  the number of concurrent ``clients`` that this handler should use to fetch pages.
-     *                   More clients reduce latency, but add overhead.
-     * @param listener   a listener that will be notified when the sink fails or completes
+     * @param remoteSink    the remote sink
+     * @param failFast      determines how failures in this remote sink are handled:
+     *                      - If {@code false}, failures from this remote sink will not cause the exchange source to abort.
+     *                      Callers must handle these failures notified via {@code listener}.
+     *                      - If {@code true}, failures from this remote sink will cause the exchange source to abort.
+     *
+     * @param onPageFetched a callback that will be called when a page is fetched from the remote sink
+     * @param instances     the number of concurrent ``clients`` that this handler should use to fetch pages.
+     *                      More clients reduce latency, but add overhead.
+     * @param listener      a listener that will be notified when the sink fails or completes. Callers must handle failures notified via
+     *                      this listener.
      * @see ExchangeSinkHandler#fetchPageAsync(boolean, ActionListener)
      */
-    public void addRemoteSink(RemoteSink remoteSink, boolean failFast, int instances, ActionListener<Void> listener) {
+    public void addRemoteSink(
+        RemoteSink remoteSink,
+        boolean failFast,
+        Runnable onPageFetched,
+        int instances,
+        ActionListener<Void> listener
+    ) {
         final int sinkId = nextSinkId.incrementAndGet();
         remoteSinks.put(sinkId, remoteSink);
         final ActionListener<Void> sinkListener = ActionListener.assertAtLeastOnce(
             ActionListener.notifyOnce(ActionListener.runBefore(listener, () -> remoteSinks.remove(sinkId)))
         );
+        final Releasable emptySink = addEmptySink();
         fetchExecutor.execute(new AbstractRunnable() {
+            @Override
+            public void onAfter() {
+                emptySink.close();
+            }
+
             @Override
             public void onFailure(Exception e) {
                 if (failFast) {
-                    failure.unwrapAndCollect(e);
+                    aborted = true;
                 }
                 buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
                 remoteSink.close(ActionListener.running(() -> sinkListener.onFailure(e)));
@@ -284,7 +277,7 @@ public final class ExchangeSourceHandler {
             protected void doRun() {
                 try (EsqlRefCountingListener refs = new EsqlRefCountingListener(sinkListener)) {
                     for (int i = 0; i < instances; i++) {
-                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, refs.acquire());
+                        var fetcher = new RemoteSinkFetcher(remoteSink, failFast, onPageFetched, refs.acquire());
                         fetcher.fetchPage();
                     }
                 }

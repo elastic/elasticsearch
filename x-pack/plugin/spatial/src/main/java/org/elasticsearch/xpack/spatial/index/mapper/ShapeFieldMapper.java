@@ -104,10 +104,14 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         public ShapeFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
+                /*
+                 * We have no plans to fail on multifields because it isn't worth breaking
+                 * even the tiny fraction of users.
+                 */
                 DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "shape_multifields",
-                    "Adding multifields to [shape] mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [shape] mappers has no effect"
                 );
             }
             GeometryParser geometryParser = new GeometryParser(

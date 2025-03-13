@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.SlowLogFieldProvider;
@@ -66,8 +66,8 @@ public class IndicesServiceBuilder {
     BigArrays bigArrays;
     ScriptService scriptService;
     ClusterService clusterService;
+    ProjectResolver projectResolver;
     Client client;
-    FeatureService featureService;
     MetaStateService metaStateService;
     Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = List.of();
     Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = Map.of();
@@ -168,13 +168,13 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder client(Client client) {
-        this.client = client;
+    public IndicesServiceBuilder projectResolver(ProjectResolver projectResolver) {
+        this.projectResolver = projectResolver;
         return this;
     }
 
-    public IndicesServiceBuilder featureService(FeatureService featureService) {
-        this.featureService = featureService;
+    public IndicesServiceBuilder client(Client client) {
+        this.client = client;
         return this;
     }
 
@@ -229,8 +229,8 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(scriptService);
         Objects.requireNonNull(clusterService);
+        Objects.requireNonNull(projectResolver);
         Objects.requireNonNull(client);
-        Objects.requireNonNull(featureService);
         Objects.requireNonNull(metaStateService);
         Objects.requireNonNull(engineFactoryProviders);
         Objects.requireNonNull(directoryFactories);

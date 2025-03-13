@@ -38,18 +38,18 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
     protected LookupFromIndexOperator.Status mutateInstance(LookupFromIndexOperator.Status in) throws IOException {
         long receivedPages = in.receivedPages();
         long completedPages = in.completedPages();
-        long totalTimeInMillis = in.totalTimeInMillis();
+        long procesNanos = in.procesNanos();
         long totalTerms = in.totalTerms();
         long emittedPages = in.emittedPages();
         switch (randomIntBetween(0, 4)) {
             case 0 -> receivedPages = randomValueOtherThan(receivedPages, ESTestCase::randomNonNegativeLong);
             case 1 -> completedPages = randomValueOtherThan(completedPages, ESTestCase::randomNonNegativeLong);
-            case 2 -> totalTimeInMillis = randomValueOtherThan(totalTimeInMillis, ESTestCase::randomNonNegativeLong);
+            case 2 -> procesNanos = randomValueOtherThan(procesNanos, ESTestCase::randomNonNegativeLong);
             case 3 -> totalTerms = randomValueOtherThan(totalTerms, ESTestCase::randomNonNegativeLong);
             case 4 -> emittedPages = randomValueOtherThan(emittedPages, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms, emittedPages);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, procesNanos, totalTerms, emittedPages);
     }
 
     public void testToXContent() {
@@ -57,10 +57,10 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
+              "process_nanos" : 10000,
+              "process_time" : "10micros",
               "received_pages" : 100,
               "completed_pages" : 50,
-              "total_time_in_millis" : 10000,
-              "total_time" : "10s",
               "emitted_pages" : 88,
               "total_terms" : 120
             }"""));

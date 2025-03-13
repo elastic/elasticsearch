@@ -27,6 +27,13 @@ public interface XContentParserConfiguration {
     XContentParserConfiguration EMPTY = XContentProvider.provider().empty();
 
     /**
+     *  Disable to not include the source in case of parsing errors (defaults to true).
+     */
+    XContentParserConfiguration withIncludeSourceOnError(boolean includeSourceOnError);
+
+    boolean includeSourceOnError();
+
+    /**
      * Replace the registry backing {@link XContentParser#namedObject}.
      */
     XContentParserConfiguration withRegistry(NamedXContentRegistry registry);

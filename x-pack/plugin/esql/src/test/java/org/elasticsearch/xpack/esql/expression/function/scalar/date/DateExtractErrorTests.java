@@ -35,7 +35,7 @@ public class DateExtractErrorTests extends ErrorsForCasesWithoutExamplesTestCase
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
             case 0 -> "string";
-            case 1 -> "datetime";
+            case 1 -> "datetime or date_nanos";
             default -> "";
         }));
     }

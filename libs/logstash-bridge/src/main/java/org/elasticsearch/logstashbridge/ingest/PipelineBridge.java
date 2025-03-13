@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.logstashbridge.ingest;
 
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.logstashbridge.StableBridgeAPI;
 import org.elasticsearch.logstashbridge.script.ScriptServiceBridge;
@@ -20,6 +21,7 @@ public class PipelineBridge extends StableBridgeAPI.Proxy<Pipeline> {
         return new PipelineBridge(pipeline);
     }
 
+    @FixForMultiProject(description = "should we pass a non-null project ID here?")
     public static PipelineBridge create(
         String id,
         Map<String, Object> config,
@@ -27,7 +29,13 @@ public class PipelineBridge extends StableBridgeAPI.Proxy<Pipeline> {
         ScriptServiceBridge scriptServiceBridge
     ) throws Exception {
         return wrap(
-            Pipeline.create(id, config, StableBridgeAPI.unwrap(processorFactories), StableBridgeAPI.unwrapNullable(scriptServiceBridge))
+            Pipeline.create(
+                id,
+                config,
+                StableBridgeAPI.unwrap(processorFactories),
+                StableBridgeAPI.unwrapNullable(scriptServiceBridge),
+                null
+            )
         );
     }
 

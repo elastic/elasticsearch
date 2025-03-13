@@ -12,7 +12,6 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Function;
@@ -52,6 +51,13 @@ public enum ChunkedToXContentHelper {
     }
 
     /**
+     * Defines an object named {@code name}, with the contents set by calling {@code toXContent} on each entry in {@code map}
+     */
+    public static <T> Iterator<ToXContent> object(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
+        return object(name, Iterators.map(map.entrySet().iterator(), toXContent));
+    }
+
+    /**
      * Defines an object named {@code name}, with the contents of each field created from each entry in {@code map}
      */
     public static Iterator<ToXContent> xContentObjectFields(String name, Map<String, ? extends ToXContent> map) {
@@ -63,26 +69,6 @@ public enum ChunkedToXContentHelper {
      */
     public static Iterator<ToXContent> xContentObjectFieldObjects(String name, Map<String, ? extends ToXContent> map) {
         return object(name, map, e -> (b, p) -> e.getValue().toXContent(b.startObject(e.getKey()), p).endObject());
-    }
-
-    public static Iterator<ToXContent> field(String name, boolean value) {
-        return Iterators.single((b, p) -> b.field(name, value));
-    }
-
-    public static Iterator<ToXContent> field(String name, long value) {
-        return Iterators.single((b, p) -> b.field(name, value));
-    }
-
-    public static Iterator<ToXContent> field(String name, String value) {
-        return Iterators.single((b, p) -> b.field(name, value));
-    }
-
-    public static Iterator<ToXContent> optionalField(String name, String value) {
-        if (value == null) {
-            return Collections.emptyIterator();
-        } else {
-            return field(name, value);
-        }
     }
 
     /**
@@ -101,6 +87,10 @@ public enum ChunkedToXContentHelper {
         return Iterators.concat(startArray(name), contents, endArray());
     }
 
+    public static <T> Iterator<ToXContent> array(Iterator<T> items, Function<T, ToXContent> toXContent) {
+        return Iterators.concat(startArray(), Iterators.map(items, toXContent), endArray());
+    }
+
     /**
      * Creates an Iterator to serialize a named field where the value is represented by an iterator of {@link ChunkedToXContentObject}.
      * Chunked equivalent for {@code XContentBuilder array(String name, ToXContent value)}
@@ -110,7 +100,7 @@ public enum ChunkedToXContentHelper {
      * @return Iterator composing field name and value serialization
      */
     public static Iterator<ToXContent> array(String name, Iterator<? extends ChunkedToXContentObject> contents, ToXContent.Params params) {
-        return Iterators.concat(startArray(name), Iterators.flatMap(contents, c -> c.toXContentChunked(params)), endArray());
+        return array(name, Iterators.flatMap(contents, c -> c.toXContentChunked(params)));
     }
 
     /**
@@ -118,13 +108,6 @@ public enum ChunkedToXContentHelper {
      */
     public static Iterator<ToXContent> object(String name, Iterator<? extends ToXContent> iterator) {
         return Iterators.concat(startObject(name), iterator, endObject());
-    }
-
-    /**
-     * Defines an object named {@code name}, with the contents set by calling {@code toXContent} on each entry in {@code map}
-     */
-    public static <T> Iterator<ToXContent> object(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
-        return object(name, Iterators.map(map.entrySet().iterator(), toXContent));
     }
 
     /**
@@ -138,14 +121,4 @@ public enum ChunkedToXContentHelper {
         return Iterators.single(item);
     }
 
-    /**
-     * Creates an Iterator of a single ToXContent object that serializes the given object as a single chunk. Just wraps {@link
-     * Iterators#single}, but still useful because it avoids any type ambiguity.
-     *
-     * @param item Item to wrap
-     * @return Singleton iterator for the given item.
-     */
-    public static Iterator<ToXContent> singleChunk(ToXContent item) {
-        return Iterators.single(item);
-    }
 }

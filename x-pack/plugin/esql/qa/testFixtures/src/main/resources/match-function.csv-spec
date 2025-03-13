@@ -10,8 +10,9 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 | KEEP book_no, author 
 | SORT book_no 
-| LIMIT 5;
+| LIMIT 5
 // end::match-with-field[]
+;
 
 // tag::match-with-field-result[]
 book_no:keyword | author:text
@@ -20,8 +21,8 @@ book_no:keyword | author:text
 2847            | Colleen Faulkner
 2883            | William Faulkner
 3293            | Danny Faulkner
-;
 // end::match-with-field-result[]
+;
 
 matchWithMultipleFunctions
 required_capability: match_function
@@ -672,4 +673,85 @@ from semantic_text
 
 host:keyword | semantic_text_field:text
 "host1"      | live long and prosper
+;
+
+testMatchWithOptionsFuzziness
+required_capability: match_function
+required_capability: match_function_options
+
+from books 
+| where match(title, "Pings", {"fuzziness": 1})  
+| keep book_no;
+ignoreOrder:true
+
+book_no:keyword
+2714
+2675
+4023
+7140
+;
+
+testMatchWithOptionsOperator
+required_capability: match_function
+required_capability: match_function_options
+
+// tag::match-with-named-function-params[]
+FROM books 
+| WHERE MATCH(title, "Hobbit Back Again", {"operator": "AND"})
+| KEEP title;
+// end::match-with-named-function-params[]
+
+// tag::match-with-named-function-params-result[]
+title:text
+The Hobbit or There and Back Again
+// end::match-with-named-function-params-result[]
+;
+
+testMatchWithOptionsMinimumShouldMatch
+required_capability: match_function
+required_capability: match_function_options
+
+from books 
+| where match(title, "Hobbit Back Again", {"minimum_should_match": 2})
+| keep title;
+
+title:text
+The Hobbit or There and Back Again
+;
+
+testMatchWithNonPushableDisjunctions
+required_capability: match_function
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where match(title, "lord") or length(title) > 130 
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675   
+2714   
+4023   
+7140   
+8678
+;
+
+testMatchWithNonPushableDisjunctionsOnComplexExpressions
+required_capability: match_function
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where (match(title, "lord") and ratings > 4.5) or (match(author, "dostoevsky") and length(title) > 50)
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675
+2924
+4023
+1937
+7140
+2714
 ;

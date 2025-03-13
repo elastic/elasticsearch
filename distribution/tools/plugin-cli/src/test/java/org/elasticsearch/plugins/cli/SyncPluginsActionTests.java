@@ -55,10 +55,10 @@ public class SyncPluginsActionTests extends ESTestCase {
         Path home = createTempDir();
         Settings settings = Settings.builder().put("path.home", home).build();
         env = TestEnvironment.newEnvironment(settings);
-        Files.createDirectories(env.binFile());
-        Files.createFile(env.binFile().resolve("elasticsearch"));
-        Files.createDirectories(env.configFile());
-        Files.createDirectories(env.pluginsFile());
+        Files.createDirectories(env.binDir());
+        Files.createFile(env.binDir().resolve("elasticsearch"));
+        Files.createDirectories(env.configDir());
+        Files.createDirectories(env.pluginsDir());
 
         terminal = MockTerminal.create();
         action = new SyncPluginsAction(terminal, env);
@@ -78,7 +78,7 @@ public class SyncPluginsActionTests extends ESTestCase {
      * then an exception is thrown.
      */
     public void test_ensureNoConfigFile_withConfig_throwsException() throws Exception {
-        Files.createFile(env.configFile().resolve("elasticsearch-plugins.yml"));
+        Files.createFile(env.configDir().resolve("elasticsearch-plugins.yml"));
         final UserException e = expectThrows(UserException.class, () -> SyncPluginsAction.ensureNoConfigFile(env));
 
         assertThat(e.getMessage(), Matchers.matchesPattern("^Plugins config \\[.*] exists.*$"));
@@ -354,7 +354,7 @@ public class SyncPluginsActionTests extends ESTestCase {
 
     private void createPlugin(String name, String version) throws IOException {
         PluginTestUtil.writePluginProperties(
-            env.pluginsFile().resolve(name),
+            env.pluginsDir().resolve(name),
             "description",
             "dummy",
             "name",

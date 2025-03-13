@@ -51,33 +51,6 @@ import static org.hamcrest.Matchers.sameInstance;
  * which can be automatically tested against several scenarios (null handling, concurrency, etc).
  */
 public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTestCase {
-
-    /**
-     * Converts a list of test cases into a list of parameter suppliers.
-     * Also, adds a default set of extra test cases.
-     * <p>
-     *     Use if possible, as this method may get updated with new checks in the future.
-     * </p>
-     *
-     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
-     * @deprecated use {@link #parameterSuppliersFromTypedDataWithDefaultChecksNoErrors}
-     *             and make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase}.
-     *             It's a <strong>long</strong> faster.
-     */
-    @Deprecated
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        boolean entirelyNullPreservesType,
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)),
-                positionalErrorMessageSupplier
-            )
-        );
-    }
-
     /**
      * Converts a list of test cases into a list of parameter suppliers.
      * Also, adds a default set of extra test cases.
@@ -111,30 +84,6 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         List<TestCaseSupplier> suppliers
     ) {
         return parameterSuppliersFromTypedData(anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString));
-    }
-
-    /**
-     * Converts a list of test cases into a list of parameter suppliers.
-     * Also, adds a default set of extra test cases.
-     * <p>
-     *     Use if possible, as this method may get updated with new checks in the future.
-     * </p>
-     *
-     * @param nullsExpectedType See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
-     * @param evaluatorToString See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
-     */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        ExpectedType nullsExpectedType,
-        ExpectedEvaluatorToString evaluatorToString,
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString),
-                positionalErrorMessageSupplier
-            )
-        );
     }
 
     public final void testEvaluate() {
@@ -452,8 +401,8 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 evaluator + "[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 dataType,
                 is(nullValue())
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.ArithmeticException: " + typeNameOverflow)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: " + typeNameOverflow)
         );
     }
 }

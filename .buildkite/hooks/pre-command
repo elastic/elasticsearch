@@ -44,6 +44,9 @@ export GRADLE_BUILD_CACHE_USERNAME
 GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_PASSWORD
 
+DEVELOCITY_ACCESS_KEY="gradle-enterprise.elastic.co=$(vault read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)"
+export DEVELOCITY_ACCESS_KEY
+
 BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN
 

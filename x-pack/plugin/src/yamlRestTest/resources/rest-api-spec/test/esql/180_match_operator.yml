@@ -171,30 +171,21 @@ setup:
 
 ---
 "match with disjunctions":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ full_text_functions_disjunctions_compute_engine ]
+      reason: "Full text functions disjunctions support"
   - do:
-      catch: bad_request
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM test | WHERE content:"fox" OR to_upper(content) == "FOX"'
+          query: 'FROM test | WHERE content:"fox" OR length(content) < 20'
 
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - match: { error.reason: "/.+Invalid\\ condition\\ \\[content\\:\"fox\"\\ OR\\ to_upper\\(content\\)\\ ==\\ \"FOX\"\\]\\./" }
-
-  - do:
-      catch: bad_request
-      allowed_warnings_regex:
-        - "No limit defined, adding default limit of \\[.*\\]"
-      esql.query:
-        body:
-          query: 'FROM test | WHERE content:"fox" OR to_upper(content) == "FOX"'
-
-  - match: { status: 400 }
-  - match: { error.type: verification_exception }
-  - match: { error.reason: "/.+Invalid\\ condition\\ \\[content\\:\"fox\"\\ OR\\ to_upper\\(content\\)\\ ==\\ \"FOX\"\\]\\./" }
-
+  - length: { values: 3 }
 
 ---
 "match within eval":

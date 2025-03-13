@@ -136,14 +136,14 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * Schedule all non-scheduled snapshot jobs contained in the cluster state
      */
     public void scheduleSnapshotJobs(final ClusterState state) {
-        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta != null) {
             snapMeta.getSnapshotConfigurations().values().forEach(this::maybeScheduleSnapshot);
         }
     }
 
     public void cleanupDeletedPolicies(final ClusterState state) {
-        SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = state.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta != null) {
             // Retrieve all of the expected policy job ids from the policies in the metadata
             final Set<String> policyJobIds = snapMeta.getSnapshotConfigurations()

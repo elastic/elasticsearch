@@ -14,7 +14,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvLast}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvLastBooleanEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   public MvLastBooleanEvaluator(EvalOperator.ExpressionEvaluator field,

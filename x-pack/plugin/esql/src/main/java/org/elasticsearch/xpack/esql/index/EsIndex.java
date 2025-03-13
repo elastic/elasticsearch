@@ -19,18 +19,29 @@ import java.util.Set;
 
 import static java.util.stream.Collectors.toMap;
 
-public record EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) implements Writeable {
+public record EsIndex(
+    String name,
+    Map<String, EsField> mapping,
+    Map<String, IndexMode> indexNameWithModes,
+    /** Fields mapped only in some (but *not* all) indices. Since this is only used by the analyzer, it is not serialized. */
+    Set<String> partiallyUnmappedFields
+) implements Writeable {
 
     public EsIndex {
         assert name != null;
         assert mapping != null;
+        assert partiallyUnmappedFields != null;
+    }
+
+    public EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
+        this(name, mapping, indexNameWithModes, Set.of());
     }
 
     /**
      * Intended for tests. Returns an index with an empty index mode map.
      */
     public EsIndex(String name, Map<String, EsField> mapping) {
-        this(name, mapping, Map.of());
+        this(name, mapping, Map.of(), Set.of());
     }
 
     public static EsIndex readFrom(StreamInput in) throws IOException {
@@ -45,7 +56,8 @@ public record EsIndex(String name, Map<String, EsField> mapping, Map<String, Ind
             assert indices != null;
             indexNameWithModes = indices.stream().collect(toMap(e -> e, e -> IndexMode.STANDARD));
         }
-        return new EsIndex(name, mapping, indexNameWithModes);
+        // partially unmapped fields shouldn't pass the coordinator node anyway, since they are only used by the Analyzer.
+        return new EsIndex(name, mapping, indexNameWithModes, Set.of());
     }
 
     @Override
@@ -57,6 +69,11 @@ public record EsIndex(String name, Map<String, EsField> mapping, Map<String, Ind
         } else {
             out.writeGenericValue(indexNameWithModes.keySet());
         }
+        // partially unmapped fields shouldn't pass the coordinator node anyway, since they are only used by the Analyzer.
+    }
+
+    public boolean isPartiallyUnmappedField(String fieldName) {
+        return partiallyUnmappedFields.contains(fieldName);
     }
 
     public Set<String> concreteIndices() {

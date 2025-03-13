@@ -26,10 +26,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.reactivestreams.FlowAdapters;
@@ -88,7 +88,8 @@ public class AmazonBedrockInferenceClient extends AmazonBedrockBaseClient {
     }
 
     @Override
-    public Flow.Publisher<? extends ChunkedToXContent> converseStream(ConverseStreamRequest request) throws ElasticsearchException {
+    public Flow.Publisher<? extends InferenceServiceResults.Result> converseStream(ConverseStreamRequest request)
+        throws ElasticsearchException {
         var awsResponseProcessor = new AmazonBedrockStreamingChatProcessor(threadPool);
         internalClient.converseStream(
             request,

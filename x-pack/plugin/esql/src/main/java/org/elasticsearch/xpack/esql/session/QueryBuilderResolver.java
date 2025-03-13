@@ -99,9 +99,7 @@ public class QueryBuilderResolver {
 
     public Set<String> indexNames(LogicalPlan plan) {
         Holder<Set<String>> indexNames = new Holder<>();
-
-        plan.forEachDown(EsRelation.class, esRelation -> { indexNames.set(esRelation.index().concreteIndices()); });
-
+        plan.forEachDown(EsRelation.class, esRelation -> indexNames.set(esRelation.concreteIndices()));
         return indexNames.get();
     }
 
@@ -121,7 +119,7 @@ public class QueryBuilderResolver {
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndexNamesAndOptions(
             indexNames.toArray(String[]::new),
             IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            clusterService.state(),
+            clusterService.state().getMetadata().getProject(),
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
             System.currentTimeMillis()

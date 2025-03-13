@@ -109,7 +109,7 @@ public class ClusterModule extends AbstractModule {
         DESIRED_BALANCE_ALLOCATOR,
         Function.identity(),
         Property.NodeScope,
-        Property.Deprecated
+        Property.DeprecatedWarning
     );
 
     private final ClusterService clusterService;

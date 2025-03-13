@@ -34,7 +34,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
@@ -180,7 +179,8 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                     }
                     offset = input.indexOf(c, offset);
                     int endOffset = offset + c.length();
-                    chunks.add(new EmbeddingResults.Chunk(tokens, new ChunkedInference.TextOffset(offset, endOffset)));
+                    var embeddings = new SparseEmbeddingResults.Embedding(tokens, false);
+                    chunks.add(new SparseEmbeddingResults.Chunk(embeddings, new ChunkedInference.TextOffset(offset, endOffset)));
                 }
                 ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
                 results.add(chunkedInferenceEmbedding);

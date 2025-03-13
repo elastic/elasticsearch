@@ -631,6 +631,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     null,
                     List.of("input text"),
                     new HashMap<>(),
+                    null,
                     InputType.INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener

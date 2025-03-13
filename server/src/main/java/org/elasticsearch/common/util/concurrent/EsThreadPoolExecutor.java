@@ -29,6 +29,9 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
 
+    // probe to
+    static final Runnable NOOP_PROBE = () -> {};
+
     private final ThreadContext contextHolder;
 
     /**
@@ -78,7 +81,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        final Runnable wrappedRunnable = wrapRunnable(command);
+        final Runnable wrappedRunnable = command != NOOP_PROBE ? wrapRunnable(command) : NOOP_PROBE;
         try {
             super.execute(wrappedRunnable);
         } catch (Exception e) {

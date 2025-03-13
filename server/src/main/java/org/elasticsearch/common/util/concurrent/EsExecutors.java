@@ -123,6 +123,9 @@ public class EsExecutors {
         TaskTrackingConfig config
     ) {
         LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
+        // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
+        // probing the worker pool prevents this.
+        boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
         if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
@@ -133,7 +136,7 @@ public class EsExecutors {
                 queue,
                 TimedRunnable::new,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown),
+                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
                 contextHolder,
                 config
             );
@@ -146,7 +149,7 @@ public class EsExecutors {
                 unit,
                 queue,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown),
+                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
                 contextHolder
             );
         }
@@ -430,6 +433,11 @@ public class EsExecutors {
      * Customized {@link LinkedTransferQueue} to allow a {@link ThreadPoolExecutor} to scale beyond its core pool size despite having an
      * unbounded queue.
      * <p>
+     * Note, usage of unbounded work queues is a problem by itself. For once, it makes error-prone customizations necessary so that
+     * thread pools can scale up adequately. But worse, infinite queues prevent backpressure and impose a high risk of causing OOM errors.
+     * <a href="https://github.com/elastic/elasticsearch/issues/18613">Github #18613</a> captures various long outstanding, but important
+     * improvements to thread pools.
+     * <p>
      * Once having reached its core pool size, a {@link ThreadPoolExecutor} will only add more workers if capacity remains and
      * the task offer is rejected by the work queue. Typically that's never the case using a regular unbounded queue.
      * <p>
@@ -440,7 +448,7 @@ public class EsExecutors {
      * Note, {@link ForceQueuePolicy} cannot guarantee there will be available workers when appending tasks directly to the queue.
      * For that reason {@link ExecutorScalingQueue} cannot be used with executors with empty core and max pool size of 1:
      * the only available worker could time out just about at the same time as the task is appended, see
-     * <a href="https://github.com/elastic/elasticsearch/issues/124667">this Github issue</a> for more details.
+     * <a href="https://github.com/elastic/elasticsearch/issues/124667">Github #124667</a> for more details.
      */
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
@@ -448,6 +456,10 @@ public class EsExecutors {
 
         @Override
         public boolean offer(E e) {
+            if (e == EsThreadPoolExecutor.NOOP_PROBE) { // referential equality
+                // this probe ensures a worker is available after force queueing a task via ForceQueuePolicy
+                return super.offer(e);
+            }
             // try to transfer to a waiting worker thread
             // otherwise reject queuing the task to force the thread pool executor to add a worker if it can;
             // combined with ForceQueuePolicy, this causes the thread pool to always scale up to max pool size
@@ -495,14 +507,23 @@ public class EsExecutors {
         private final boolean rejectAfterShutdown;
 
         /**
+         * Flag to indicate if the worker pool needs to be probed after force queuing a task to guarantee a worker is available.
+         */
+        private final boolean probeWorkerPool;
+
+        /**
          * @param rejectAfterShutdown indicates if {@link Runnable} should be rejected once the thread pool is shutting down
          */
-        ForceQueuePolicy(boolean rejectAfterShutdown) {
+        ForceQueuePolicy(boolean rejectAfterShutdown, boolean probeWorkerPool) {
             this.rejectAfterShutdown = rejectAfterShutdown;
+            this.probeWorkerPool = probeWorkerPool;
         }
 
         @Override
         public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
+            if (task == EsThreadPoolExecutor.NOOP_PROBE) { // referential equality
+                return;
+            }
             if (rejectAfterShutdown) {
                 if (executor.isShutdown()) {
                     reject(executor, task);
@@ -519,12 +540,17 @@ public class EsExecutors {
             }
         }
 
-        private static void put(ThreadPoolExecutor executor, Runnable task) {
+        private void put(ThreadPoolExecutor executor, Runnable task) {
             final BlockingQueue<Runnable> queue = executor.getQueue();
             // force queue policy should only be used with a scaling queue (ExecutorScalingQueue / LinkedTransferQueue)
             assert queue instanceof LinkedTransferQueue;
             try {
                 queue.put(task);
+                if (probeWorkerPool && task == queue.peek()) { // referential equality
+                    // If the task is at the head of the queue, we can assume the queue was previously empty. In this case available workers
+                    // might have timed out in the meanwhile. To prevent the task from starving, we submit a noop probe to the executor.
+                    executor.execute(EsThreadPoolExecutor.NOOP_PROBE);
+                }
             } catch (final InterruptedException e) {
                 assert false : "a scaling queue never blocks so a put to it can never be interrupted";
                 throw new AssertionError(e);

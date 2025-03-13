@@ -264,6 +264,9 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
   method: testFilesEntitlementsWithExclusive
   issue: https://github.com/elastic/elasticsearch/issues/124420
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/124160
 
 # Examples:
 #

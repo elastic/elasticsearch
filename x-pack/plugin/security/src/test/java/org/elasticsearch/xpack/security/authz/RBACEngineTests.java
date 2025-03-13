@@ -1488,7 +1488,8 @@ public class RBACEngineTests extends ESTestCase {
             lookup,
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices.all(null).isEmpty(), is(true));
+        assertThat(authorizedIndices.all(IndexComponentSelector.DATA).isEmpty(), is(true));
+        assertThat(authorizedIndices.all(IndexComponentSelector.FAILURES).isEmpty(), is(true));
     }
 
     public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {

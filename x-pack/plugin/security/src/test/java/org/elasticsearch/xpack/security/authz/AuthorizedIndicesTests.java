@@ -124,7 +124,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), not(contains(internalSecurityIndex)));
         assertThat(authorizedIndices.check(internalSecurityIndex, IndexComponentSelector.DATA), is(false));
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), not(contains(SecuritySystemIndices.SECURITY_MAIN_ALIAS)));
-        assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, null), is(false));
+        assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, IndexComponentSelector.DATA), is(false));
     }
 
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetadata() {

@@ -345,6 +345,18 @@ tests:
 - class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
   method: testIndexing {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/124831
+- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
+  method: testIndexing {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/124833
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testUpdateIndexTemplateToDataStreamLifecyclePreference
+  issue: https://github.com/elastic/elasticsearch/issues/124837
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvalsTests
+  method: testGroupingAliasingMoved_To_LeftSideOfJoin
+  issue: https://github.com/elastic/elasticsearch/issues/124839
+- class: org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvalsTests
+  method: testGroupingAliasingMoved_To_LeftSideOfJoin_WithExpression
+  issue: https://github.com/elastic/elasticsearch/issues/124838
 
 # Examples:
 #

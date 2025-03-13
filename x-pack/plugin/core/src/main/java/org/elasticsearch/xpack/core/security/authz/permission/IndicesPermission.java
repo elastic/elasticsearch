@@ -565,7 +565,7 @@ public final class IndicesPermission {
             totalResourceCount += resource.size(lookup);
         }
 
-        final boolean overallGranted = isActionGranted(action, resources);
+        final boolean overallGranted = isActionGranted(action, resources.values());
         final int finalTotalResourceCount = totalResourceCount;
         final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> buildIndicesAccessControl(
             action,
@@ -695,11 +695,11 @@ public final class IndicesPermission {
      * Returns {@code true} if action is granted for all {@code requestedResources}.
      * If action is not granted for at least one resource, this method will return {@code false}.
      */
-    private boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
+    private boolean isActionGranted(final String action, final Collection<IndexResource> requestedResources) {
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
-        for (IndexResource resource : requestedResources.values()) {
+        for (IndexResource resource : requestedResources) {
             // true if ANY group covers the given index AND the given action
             boolean granted = false;
             // true if ANY group, which contains certain ingest privileges, covers the given index AND the action is a mapping update for

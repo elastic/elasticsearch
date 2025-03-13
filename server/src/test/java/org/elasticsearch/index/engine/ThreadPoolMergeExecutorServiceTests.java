@@ -102,7 +102,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 Schedule schedule = randomFrom(BACKLOG, runOrAbort);
                 if (schedule == BACKLOG) {
                     // reenqueue backlogged merge task
-                    new Thread(() -> { threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask); }).start();
+                    new Thread(() -> threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(mergeTask)).start();
                 }
                 return schedule;
             }).when(mergeTask).schedule();
@@ -135,9 +135,20 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         });
         // shutdown prevents new merge tasks to be enqueued but existing ones should be allowed to continue
         testThreadPool.shutdown();
+        // assert all executors, except the merge one, are terminated
+        for (String executorName : ThreadPool.THREAD_POOL_TYPES.keySet()) {
+            assertTrue(testThreadPool.executor(executorName).isShutdown());
+            if (ThreadPool.Names.MERGE.equals(executorName)) {
+                assertFalse(testThreadPool.executor(executorName).isTerminated());
+            } else {
+                assertTrue(testThreadPool.executor(executorName).isTerminated());
+            }
+        }
         for (int i = 0; i < mergesToSubmit; i++) {
             // closing the thread pool is delayed because there are running and/or enqueued merge tasks
             assertFalse(testThreadPool.awaitTermination(1, TimeUnit.NANOSECONDS));
+            assertTrue(threadPoolExecutor.isShutdown());
+            assertFalse(threadPoolExecutor.isTerminated());
             // let merges run one by one and check thread pool
             runMergeSemaphore.release();
             int completedMergesCount = i + 1;
@@ -158,6 +169,8 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
         }
         assertBusy(() -> {
             assertTrue(testThreadPool.awaitTermination(1, TimeUnit.NANOSECONDS));
+            assertTrue(threadPoolExecutor.isShutdown());
+            assertTrue(threadPoolExecutor.isTerminated());
             assertTrue(threadPoolMergeExecutorService.allDone());
         });
     }

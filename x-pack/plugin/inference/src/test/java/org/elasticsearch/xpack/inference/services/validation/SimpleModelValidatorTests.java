@@ -13,7 +13,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.junit.Before;
 import org.mockito.Mock;
 

@@ -64,7 +64,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     // TODO: Make this a simple request in a future version where there is no possibility
     // of this request being serialized to another node.
     @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING)
-    public static class Request extends ActionRequest /*MasterNodeReadRequest<Request>*/ {
+    public static class Request extends ActionRequest {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
@@ -72,7 +72,6 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
         private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
-            // super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
         }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -103,8 +104,7 @@ public class RerankOperator extends AsyncOperator<Page> {
     @Override
     protected void performAsync(Page inputPage, ActionListener<Page> listener) {
         // Ensure input page blocks are released when the listener is called.
-        final ActionListener<Page> outputListener = ActionListener.runAfter(listener, inputPage::releaseBlocks);
-
+        ActionListener<Page> outputListener = ActionListener.runAfter(listener, inputPage::releaseBlocks);
         try {
             inferenceService.doInference(
                 buildInferenceRequest(inputPage),
@@ -113,7 +113,7 @@ public class RerankOperator extends AsyncOperator<Page> {
                     outputListener::onFailure
                 )
             );
-        } catch (IOException e) {
+        } catch (Exception e) {
             outputListener.onFailure(e);
         }
     }
@@ -154,15 +154,19 @@ public class RerankOperator extends AsyncOperator<Page> {
         int blockCount = inputPage.getBlockCount();
         Block[] blocks = new Block[blockCount];
 
-        for (int b = 0; b < blockCount; b++) {
-            if (b == scoreChannel) {
-                blocks[b] = buildScoreBlock(inputPage, rankedDocsResults);
-            } else {
-                blocks[b] = BlockUtils.deepCopyOf(inputPage.getBlock(b), blockFactory);
+        try {
+            for (int b = 0; b < blockCount; b++) {
+                if (b == scoreChannel) {
+                    blocks[b] = buildScoreBlock(inputPage, rankedDocsResults);
+                } else {
+                    blocks[b] = inputPage.getBlock(b);
+                    blocks[b].incRef();
+                }
             }
+            listener.onResponse(new Page(blocks));
+        } catch (Exception e) {
+            Releasables.closeExpectNoException(blocks);
         }
-
-        listener.onResponse(new Page(blocks));
     }
 
     private Block buildScoreBlock(Page inputPage, RankedDocsResults rankedDocsResults) {
@@ -177,7 +181,7 @@ public class RerankOperator extends AsyncOperator<Page> {
                 if (sortedRankedDocsScores[pos] != null) {
                     scoreBlockFactory.beginPositionEntry().appendDouble(sortedRankedDocsScores[pos]).endPositionEntry();
                 } else {
-                    scoreBlockFactory.beginPositionEntry().endPositionEntry();
+                    scoreBlockFactory.appendNull();
                 }
             }
 
@@ -193,6 +197,7 @@ public class RerankOperator extends AsyncOperator<Page> {
             if (inputBlocks.length > 0) for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
                 inputs[pos] = toYaml(inputBlocks, pos);
             }
+
             return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build();
         } finally {
             Releasables.closeExpectNoException(inputBlocks);
@@ -224,10 +229,23 @@ public class RerankOperator extends AsyncOperator<Page> {
     }
 
     private Object toYaml(Object value) {
-        return switch (value) {
-            case BytesRef b -> b.utf8ToString();
-            case List<?> l -> l.stream().map(this::toYaml).toList();
-            default -> value;
-        };
+        try {
+            return switch (value) {
+                case BytesRef b -> toYaml(b);
+                case List<?> l -> l.stream().map(this::toYaml).toList();
+                default -> value;
+            };
+        } catch (Error e) {
+            throw new IllegalStateException(LoggerMessageFormat.format("Unexpected error while processing value: {}", e.getMessage()), e);
+        }
+    }
+
+    private String toYaml(BytesRef b) {
+        try {
+            return b.utf8ToString();
+        } catch (Exception | Error e) {
+            // TODO better handling of these cases.
+            return "";
+        }
     }
 }

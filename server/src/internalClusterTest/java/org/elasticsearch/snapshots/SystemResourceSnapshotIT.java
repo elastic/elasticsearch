@@ -972,7 +972,6 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
         internalCluster().stopRandomDataNode();
         assertBusy(() -> {
             var status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getStatus();
-            System.out.println("Potato Cluster status: " + status);
             assertThat(status, oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.RED));
         }, 30, TimeUnit.SECONDS);
 

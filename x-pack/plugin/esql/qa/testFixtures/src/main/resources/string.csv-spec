@@ -1404,7 +1404,7 @@ emp_no:integer  | first_name:keyword    | name_lower:keyword
 
 
 toLowerMv
-required_capability: fn_reverse
+required_capability: to_lower_mv
 // tag::to_lower_mv[]
 ROW v = TO_LOWER(["Some", "Text"])
 // end::to_lower_mv[]
@@ -1440,7 +1440,7 @@ emp_no:integer  | first_name:keyword    | name_upper:keyword
 
 
 toUpperMv
-required_capability: fn_reverse
+required_capability: to_lower_mv
 // tag::to_upper_mv[]
 ROW v = TO_UPPER(["Some", "Text"])
 // end::to_upper_mv[]

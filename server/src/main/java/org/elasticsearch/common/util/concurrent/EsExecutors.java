@@ -96,6 +96,21 @@ public class EsExecutors {
         return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
+    /**
+     * Creates a scaling {@link EsThreadPoolExecutor} using an unbounded work queue.
+     * <p>
+     * The {@link EsThreadPoolExecutor} scales the same way as a regular {@link ThreadPoolExecutor} until the core pool size
+     * (and at least 1) is reached: each time a task is submitted a new worker is added.
+     * <p>
+     * Once having reached the core pool size, a {@link ThreadPoolExecutor} will only add a new worker if the work queue rejects
+     * a task offer. Typically, using a regular unbounded queue, task offers won't ever be rejected, meaning the worker pool would never
+     * scale beyond the core pool size.
+     * <p>
+     * Scaling {@link EsThreadPoolExecutor}s use a customized unbounded {@link LinkedTransferQueue}, which rejects every task offer unless
+     * it can be immediately transferred to an available idle worker. If no such worker is available, the executor will add
+     * a new worker if capacity remains, otherwise the task is rejected and then appended to the work queue via the {@link ForceQueuePolicy}
+     * rejection handler.
+     */
     public static EsThreadPoolExecutor newScaling(
         String name,
         int min,
@@ -137,6 +152,21 @@ public class EsExecutors {
         }
     }
 
+    /**
+     * Creates a scaling {@link EsThreadPoolExecutor} using an unbounded work queue.
+     * <p>
+     * The {@link EsThreadPoolExecutor} scales the same way as a regular {@link ThreadPoolExecutor} until the core pool size
+     * (and at least 1) is reached: each time a task is submitted a new worker is added.
+     * <p>
+     * Once having reached the core pool size, a {@link ThreadPoolExecutor} will only add a new worker if the work queue rejects
+     * a task offer. Typically, using a regular unbounded queue, task offers won't ever be rejected, meaning the worker pool would never
+     * scale beyond the core pool size.
+     * <p>
+     * Scaling {@link EsThreadPoolExecutor}s use a customized unbounded {@link LinkedTransferQueue}, which rejects every task offer unless
+     * it can be immediately transferred to an available idle worker. If no such worker is available, the executor will add
+     * a new worker if capacity remains, otherwise the task is rejected and then appended to the work queue via the {@link ForceQueuePolicy}
+     * rejection handler.
+     */
     public static EsThreadPoolExecutor newScaling(
         String name,
         int min,
@@ -396,6 +426,22 @@ public class EsExecutors {
         return new ExecutorScalingQueue<>();
     }
 
+    /**
+     * Customized {@link LinkedTransferQueue} to allow a {@link ThreadPoolExecutor} to scale beyond its core pool size despite having an
+     * unbounded queue.
+     * <p>
+     * Once having reached its core pool size, a {@link ThreadPoolExecutor} will only add more workers if capacity remains and
+     * the task offer is rejected by the work queue. Typically that's never the case using a regular unbounded queue.
+     * <p>
+     * This customized implementation rejects every task offer unless it can be immediately transferred to an available idle worker.
+     * It relies on {@link ForceQueuePolicy} rejection handler to append the task to the work queue if no additional worker can be added
+     * and the task is rejected by the executor.
+     * <p>
+     * Note, {@link ForceQueuePolicy} cannot guarantee there will be available workers when appending tasks directly to the queue.
+     * For that reason {@link ExecutorScalingQueue} cannot be used with executors with empty core and max pool size of 1:
+     * the only available worker could time out just about at the same time as the task is appended, see
+     * <a href="https://github.com/elastic/elasticsearch/issues/124667">this Github issue</a> for more details.
+     */
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {
 
         ExecutorScalingQueue() {}

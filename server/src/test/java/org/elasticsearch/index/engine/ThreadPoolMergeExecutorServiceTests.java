@@ -57,13 +57,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
 
     public void testNewMergeTaskIsAbortedWhenThreadPoolIsShutdown() {
         TestThreadPool testThreadPool = new TestThreadPool("test");
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-            .maybeCreateThreadPoolMergeExecutorService(
-                testThreadPool,
-                Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
-            );
-        assertNotNull(threadPoolMergeExecutorService);
-        assertTrue(threadPoolMergeExecutorService.allDone());
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
         // shutdown the thread pool
         testThreadPool.shutdown();
         MergeTask mergeTask = mock(MergeTask.class);
@@ -85,9 +79,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
         TestThreadPool testThreadPool = new TestThreadPool("test", settings);
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-            .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
-        assertNotNull(threadPoolMergeExecutorService);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
         assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
         Semaphore runMergeSemaphore = new Semaphore(0);
         ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
@@ -184,9 +176,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
-            assertNotNull(threadPoolMergeExecutorService);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             Semaphore runMergeSemaphore = new Semaphore(0);
             AtomicInteger submittedIOThrottledMergeTasks = new AtomicInteger();
@@ -268,9 +258,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
-            assertNotNull(threadPoolMergeExecutorService);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
             Semaphore runMergeSemaphore = new Semaphore(0);
@@ -363,12 +351,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
     ) {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-            .maybeCreateThreadPoolMergeExecutorService(
-                mergeExecutorThreadPool,
-                Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
-            );
-        assertNotNull(threadPoolMergeExecutorService);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(mergeExecutorThreadPool);
         final AtomicInteger currentlySubmittedMergeTaskCount = new AtomicInteger();
         final AtomicLong targetIORateLimit = new AtomicLong(ThreadPoolMergeExecutorService.START_IO_RATE.getBytes());
         final AtomicReference<MergeTask> lastRunTask = new AtomicReference<>();
@@ -429,9 +412,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
-            assertNotNull(threadPoolMergeExecutorService);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             // more merge tasks than max concurrent merges allowed to run concurrently
             int totalMergeTasksCount = mergeExecutorThreadCount + randomIntBetween(1, 5);
@@ -511,9 +492,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
-            assertNotNull(threadPoolMergeExecutorService);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             int totalMergeTasksCount = randomIntBetween(1, 10);
             ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) testThreadPool.executor(ThreadPool.Names.MERGE);
@@ -566,9 +545,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
             .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
-            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
-            assertNotNull(threadPoolMergeExecutorService);
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(testThreadPool);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             // many merge tasks concurrently
             int mergeTaskCount = randomIntBetween(10, 100);
@@ -627,12 +604,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
     public void testMergeTasksExecuteInSizeOrder() {
         DeterministicTaskQueue mergeExecutorTaskQueue = new DeterministicTaskQueue();
         ThreadPool mergeExecutorThreadPool = mergeExecutorTaskQueue.getThreadPool();
-        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-            .maybeCreateThreadPoolMergeExecutorService(
-                mergeExecutorThreadPool,
-                Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
-            );
-        assertNotNull(threadPoolMergeExecutorService);
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = getThreadPoolMergeExecutorService(mergeExecutorThreadPool);
         DeterministicTaskQueue reEnqueueBackloggedTaskQueue = new DeterministicTaskQueue();
         int mergeTaskCount = randomIntBetween(10, 100);
         // sort merge tasks available to run by size
@@ -689,6 +661,19 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
                 runOneTask(mergeExecutorTaskQueue);
             }
         }
+    }
+
+    static ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService(ThreadPool threadPool) {
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
+            .maybeCreateThreadPoolMergeExecutorService(
+                threadPool,
+                randomBoolean()
+                    ? Settings.EMPTY
+                    : Settings.builder().put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true).build()
+            );
+        assertNotNull(threadPoolMergeExecutorService);
+        assertTrue(threadPoolMergeExecutorService.allDone());
+        return threadPoolMergeExecutorService;
     }
 
     private static boolean runOneTask(DeterministicTaskQueue deterministicTaskQueue) {

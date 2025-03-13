@@ -71,7 +71,7 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
 
     @Override
     protected ClusterBlockException checkBlock(ReshardIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, request.indices());
+        return state.blocks().indexBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE, request.index());
     }
 
     @Override
@@ -82,11 +82,13 @@ public class TransportReshardAction extends TransportMasterNodeAction<ReshardInd
         final ActionListener<ReshardIndexResponse> listener
     ) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        if (concreteIndices == null || concreteIndices.length == 0) {
-            listener.onResponse(new ReshardIndexResponse(true, false));
-            return;
-        }
-        assert (concreteIndices.length == 1) : "Reshard request should contain exactly one index";
+
+        /* This assert is perhaps unnecessary because we use {@link STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED}
+         * option for the {@link ReshardIndexRequest}.
+         * There are tests in {@link StatelessResharIT} to test that NULL/multiple indices are caught by the
+         * indexNameExpressionResolver.
+         */
+        assert (concreteIndices != null && concreteIndices.length == 1) : "Reshard request should contain exactly one index";
 
         final ReshardIndexClusterStateUpdateRequest updateRequest = new ReshardIndexClusterStateUpdateRequest(
             projectResolver.getProjectId(),

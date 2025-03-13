@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexClosedException;
 
@@ -160,6 +161,37 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             .prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), (String) null))
             .get();
+    }
+
+    public void testReshardFailsWithNullIndex() {
+        String indexNode = startMasterAndIndexNode();
+
+        ensureStableCluster(1);
+
+        final String indexName = "test-index";
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        // Test null index
+        ReshardIndexRequest request = new ReshardIndexRequest("", ActiveShardCount.NONE);
+        expectThrows(IndexNotFoundException.class, () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet());
+    }
+
+    public void testReshardFailsWithWildcardIndex() {
+        String indexNode = startMasterAndIndexNode();
+
+        ensureStableCluster(1);
+
+        final String indexName1 = "test-1";
+        final String indexName2 = "test-2";
+        createIndex(indexName1, indexSettings(1, 0).build());
+        createIndex(indexName2, indexSettings(1, 0).build());
+        ensureGreen(indexName1);
+        ensureGreen(indexName2);
+
+        // Multiple indices not allowed "test*"
+        ReshardIndexRequest request = new ReshardIndexRequest("test*", ActiveShardCount.NONE);
+        expectThrows(IndexNotFoundException.class, () -> client(indexNode).execute(TransportReshardAction.TYPE, request).actionGet());
     }
 
     public void testReshardWithIndexClose() throws Exception {

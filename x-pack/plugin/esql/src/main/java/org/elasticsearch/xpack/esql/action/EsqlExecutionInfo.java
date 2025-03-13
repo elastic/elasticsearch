@@ -295,11 +295,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     private Iterator<? extends ToXContent> onlyFailuresToXContent() {
         Iterator<Cluster> failuresIterator = clusterInfo.values().stream().filter(c -> (c.getFailures().isEmpty() == false)).iterator();
-        return Iterators.concat(
-            ChunkedToXContentHelper.startObject(),
-            ChunkedToXContentHelper.object("details", failuresIterator),
-            ChunkedToXContentHelper.endObject()
-        );
+        if (failuresIterator.hasNext()) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.object("details", failuresIterator),
+                ChunkedToXContentHelper.endObject()
+            );
+        } else {
+            return Collections.emptyIterator();
+        }
     }
 
     /**

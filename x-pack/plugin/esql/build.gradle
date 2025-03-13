@@ -148,7 +148,7 @@ tasks.named("test").configure {
       }
 
       List kibana = fileTree(kibanaFolder).matching {
-        include "**/*.md"  // Recursively include all MD files
+        include "**/*.json"  // Recursively include all JSON files
       }.files.collect { it.name }
       int countKibana = kibana.size()
       if (countKibana == 0) {
@@ -159,7 +159,8 @@ tasks.named("test").configure {
           from kibanaFolder
           into kibanaDocFolder
           include '**/*.md', '**/*.json'
-          if (countKibana == 1) {
+          if (countKibana <= 100) {
+            // If we do not run the full test of tests, do not attempt to remove potentially unused files
             preserve {
               include '**/*.md', '**/*.json'
             }

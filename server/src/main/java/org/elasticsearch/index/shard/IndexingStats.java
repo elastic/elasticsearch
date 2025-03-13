@@ -303,6 +303,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             builder.humanReadableField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, getThrottleTime());
 
             builder.field(Fields.WRITE_LOAD, getWriteLoad());
+            builder.field(Fields.RECENT_WRITE_LOAD, getRecentWriteLoad());
             return builder;
         }
 
@@ -424,6 +425,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";
         static final String WRITE_LOAD = "write_load";
+        static final String RECENT_WRITE_LOAD = "recent_write_load";
     }
 
     @Override

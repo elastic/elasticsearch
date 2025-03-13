@@ -168,6 +168,7 @@ abstract sealed class MetricFieldProducer extends AbstractDownsampleFieldProduce
                         case sum -> sum.add(value);
                         // This is the reason why we can't use GaugeMetricFieldProducer
                         // For downsampled indices aggregate metric double's value count field needs to be summed.
+                        // (Note: not using CompensatedSum here should be ok given that value_count is mapped as long)
                         case value_count -> count += Math.round(value);
                     }
                 }

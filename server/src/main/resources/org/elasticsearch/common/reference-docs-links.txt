@@ -1,6 +1,6 @@
 INITIAL_MASTER_NODES                                            deploy-manage/deploy/self-managed/important-settings-configuration#initial-master-nodes
-DISCOVERY_TROUBLESHOOTING                                       troubleshoot/elasticsearch/discovery-troubleshooting.md
-UNSTABLE_CLUSTER_TROUBLESHOOTING                                troubleshoot/elasticsearch/troubleshooting-unstable-cluster.md.html
+DISCOVERY_TROUBLESHOOTING                                       troubleshoot/elasticsearch/discovery-troubleshooting
+UNSTABLE_CLUSTER_TROUBLESHOOTING                                troubleshoot/elasticsearch/troubleshooting-unstable-cluster
 LAGGING_NODE_TROUBLESHOOTING                                    troubleshoot/elasticsearch/troubleshooting-unstable-cluster#troubleshooting-unstable-cluster-lagging
 SHARD_LOCK_TROUBLESHOOTING                                      troubleshoot/elasticsearch/troubleshooting-unstable-cluster#troubleshooting-unstable-cluster-shardlockobtainfailedexception
 NETWORK_DISCONNECT_TROUBLESHOOTING                              troubleshoot/elasticsearch/troubleshooting-unstable-cluster#troubleshooting-unstable-cluster-network

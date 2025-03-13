@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.InferenceContext;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -78,12 +79,14 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             InputType.UNSPECIFIED
         );
 
-        public static Builder parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) throws IOException {
+        public static Builder parseRequest(String inferenceEntityId, TaskType taskType, InferenceContext context, XContentParser parser)
+            throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
             // For rest requests we won't know what the input type is
             builder.setInputType(InputType.UNSPECIFIED);
+            builder.setContext(context);
             return builder;
         }
 
@@ -106,6 +109,31 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             TimeValue inferenceTimeout,
             boolean stream
         ) {
+            this(
+                taskType,
+                inferenceEntityId,
+                query,
+                input,
+                taskSettings,
+                inputType,
+                inferenceTimeout,
+                stream,
+                InferenceContext.EMPTY_INSTANCE
+            );
+        }
+
+        public Request(
+            TaskType taskType,
+            String inferenceEntityId,
+            String query,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            TimeValue inferenceTimeout,
+            boolean stream,
+            InferenceContext context
+        ) {
+            super(context);
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.query = query;
@@ -245,19 +273,31 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
             Request request = (Request) o;
-            return taskType == request.taskType
+            return stream == request.stream
+                && taskType == request.taskType
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
+                && Objects.equals(query, request.query)
                 && Objects.equals(input, request.input)
                 && Objects.equals(taskSettings, request.taskSettings)
-                && Objects.equals(inputType, request.inputType)
-                && Objects.equals(query, request.query)
+                && inputType == request.inputType
                 && Objects.equals(inferenceTimeout, request.inferenceTimeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query, inferenceTimeout);
+            return Objects.hash(
+                super.hashCode(),
+                taskType,
+                inferenceEntityId,
+                query,
+                input,
+                taskSettings,
+                inputType,
+                inferenceTimeout,
+                stream
+            );
         }
 
         public static class Builder {
@@ -270,6 +310,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private String query;
             private TimeValue timeout = DEFAULT_TIMEOUT;
             private boolean stream = false;
+            private InferenceContext context;
 
             private Builder() {}
 
@@ -317,8 +358,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            public Builder setContext(InferenceContext context) {
+                this.context = context;
+                return this;
+            }
+
             public Request build() {
-                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream);
+                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream, context);
             }
         }
 
@@ -337,6 +383,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 + this.getInputType()
                 + ", timeout="
                 + this.getInferenceTimeout()
+                + ", context="
+                + this.getContext()
                 + ")";
         }
     }

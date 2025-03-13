@@ -46,10 +46,12 @@ public class DeepSeekRequestManager extends BaseRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        switch (inferenceInputs) {
-            case UnifiedChatInput uci -> execute(uci, requestSender, hasRequestCompletedFunction, listener);
-            case ChatCompletionInput cci -> execute(cci, requestSender, hasRequestCompletedFunction, listener);
-            default -> throw createUnsupportedTypeException(inferenceInputs, UnifiedChatInput.class);
+        if (inferenceInputs instanceof UnifiedChatInput uci) {
+            execute(uci, requestSender, hasRequestCompletedFunction, listener);
+        } else if (inferenceInputs instanceof ChatCompletionInput cci) {
+            execute(cci, requestSender, hasRequestCompletedFunction, listener);
+        } else {
+            throw createUnsupportedTypeException(inferenceInputs, UnifiedChatInput.class);
         }
     }
 

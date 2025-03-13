@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.block;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,6 +22,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class ClusterBlock implements Writeable, ToXContentFragment {
 
@@ -98,12 +101,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
     }
 
     public boolean contains(ClusterBlockLevel level) {
-        for (ClusterBlockLevel testLevel : levels) {
-            if (testLevel == level) {
-                return true;
-            }
-        }
-        return false;
+        return levels.contains(level);
     }
 
     /**
@@ -146,7 +144,12 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         out.writeVInt(id);
         out.writeOptionalString(uuid);
         out.writeString(description);
-        out.writeEnumSet(levels);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK)) {
+            out.writeEnumSet(levels);
+        } else {
+            // do not send ClusterBlockLevel.REFRESH to old nodes
+            out.writeEnumSet(filterLevels(levels, level -> ClusterBlockLevel.REFRESH.equals(level) == false));
+        }
         out.writeBoolean(retryable);
         out.writeBoolean(disableStatePersistence);
         RestStatus.writeTo(out, status);
@@ -183,10 +186,25 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, uuid);
+        return 31 * Integer.hashCode(id) + Objects.hashCode(uuid);
     }
 
     public boolean isAllowReleaseResources() {
         return allowReleaseResources;
+    }
+
+    static EnumSet<ClusterBlockLevel> filterLevels(EnumSet<ClusterBlockLevel> levels, Predicate<ClusterBlockLevel> predicate) {
+        assert levels != null;
+        int size = levels.size();
+        if (size == 0 || (size == 1 && predicate.test(levels.iterator().next()))) {
+            return levels;
+        }
+        var filteredLevels = EnumSet.noneOf(ClusterBlockLevel.class);
+        for (ClusterBlockLevel level : levels) {
+            if (predicate.test(level)) {
+                filteredLevels.add(level);
+            }
+        }
+        return filteredLevels;
     }
 }

@@ -8,12 +8,10 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionType;
 
-public class XPackUsageAction extends ActionType<XPackUsageResponse> {
+public class XPackUsageAction {
 
     public static final String NAME = "cluster:monitor/xpack/usage";
-    public static final XPackUsageAction INSTANCE = new XPackUsageAction();
+    public static final ActionType<XPackUsageResponse> INSTANCE = new ActionType<>(NAME);
 
-    public XPackUsageAction() {
-        super(NAME, XPackUsageResponse::new);
-    }
+    private XPackUsageAction() {/* no instances */}
 }

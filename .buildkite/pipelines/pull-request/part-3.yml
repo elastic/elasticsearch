@@ -1,0 +1,11 @@
+config:
+  skip-target-branches: "7.17"
+steps:
+  - label: part-3
+    command: .ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart3
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk

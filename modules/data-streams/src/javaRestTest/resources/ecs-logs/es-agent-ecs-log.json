@@ -1,0 +1,118 @@
+{
+  "@timestamp": "2023-05-16T13:49:40.377Z",
+  "test": "elastic-agent-log",
+  "container": {
+    "image": {
+      "name": "docker.elastic.co/beats/elastic-agent:8.9.0-SNAPSHOT"
+    },
+    "runtime": "containerd",
+    "id": "bdabf58305b2b537d06b85764c588ff659190d875cb5470214bc16ba50ea1a4d"
+  },
+  "kubernetes": {
+    "container": {
+      "name": "elastic-agent"
+    },
+    "node": {
+      "uid": "0f4dd3b8-0b29-418e-ad7a-ebc55bc279ff",
+      "hostname": "multi-v1.27.1-worker",
+      "name": "multi-v1.27.1-worker",
+      "labels": {
+        "kubernetes_io/hostname": "multi-v1.27.1-worker",
+        "beta_kubernetes_io/os": "linux",
+        "kubernetes_io/arch": "arm64",
+        "kubernetes_io/os": "linux",
+        "beta_kubernetes_io/arch": "arm64"
+      }
+    },
+    "pod": {
+      "uid": "c91d1354-27cf-40f3-a2d6-e2b75aa96bf2",
+      "ip": "172.18.0.4",
+      "test_ip": "172.18.0.5",
+      "name": "elastic-agent-managed-daemonset-jwktj"
+    },
+    "namespace": "kube-system",
+    "namespace_uid": "63294aeb-b23f-429d-827c-e793ccf91024",
+    "daemonset": {
+      "name": "elastic-agent-managed-daemonset"
+    },
+    "namespace_labels": {
+      "kubernetes_io/metadata_name": "kube-system"
+    },
+    "labels": {
+      "controller-revision-hash": "7ff74fcd4b",
+      "pod-template-generation": "1",
+      "k8s-app": "elastic-agent"
+    }
+  },
+  "agent": {
+    "name": "multi-v1.27.1-worker",
+    "id": "230358e2-6c5d-4675-9069-04feaddad64b",
+    "ephemeral_id": "e0934bfb-7e35-4bcc-a935-803643841213",
+    "type": "filebeat",
+    "version": "8.9.0"
+  },
+  "log": {
+    "file": {
+      "path": "/var/log/containers/elastic-agent-managed-daemonset-jwktj_kube-system_elastic-agent-bdabf58305b2b537d06b85764c588ff659190d875cb5470214bc16ba50ea1a4d.log"
+    },
+    "offset": 635247
+  },
+  "elastic_agent": {
+    "id": "230358e2-6c5d-4675-9069-04feaddad64b",
+    "version": "8.9.0",
+    "snapshot": true
+  },
+  "message": "{\"log.level\":\"info\",\"@timestamp\":\"2023-05-16T13:49:40.374Z\",\"message\":\"Non-zero metrics in the last 30s\",\"component\":{\"binary\":\"metricbeat\",\"dataset\":\"elastic_agent.metricbeat\",\"id\":\"kubernetes/metrics-a92ab320-f3ed-11ed-9c8d-45656839f031\",\"type\":\"kubernetes/metrics\"},\"log\":{\"source\":\"kubernetes/metrics-a92ab320-f3ed-11ed-9c8d-45656839f031\"},\"log.logger\":\"monitoring\",\"log.origin\":{\"file.line\":187,\"file.name\":\"log/log.go\"},\"service.name\":\"metricbeat\",\"ecs.version\":\"1.6.0\"}",
+  "orchestrator": {
+    "cluster": {
+      "name": "multi-v1.27.1",
+      "url": "multi-v1.27.1-control-plane:6443"
+    }
+  },
+  "input": {
+    "type": "filestream"
+  },
+  "ecs": {
+    "version": "8.0.0"
+  },
+  "stream": "stderr",
+  "data_stream": {
+    "namespace": "default",
+    "dataset": "kubernetes.container_logs"
+  },
+  "host": {
+    "hostname": "multi-v1.27.1-worker",
+    "os": {
+      "kernel": "5.15.49-linuxkit",
+      "codename": "focal",
+      "name": "Ubuntu",
+      "type": "linux",
+      "family": "debian",
+      "version": "20.04.6 LTS (Focal Fossa)",
+      "platform": "ubuntu"
+    },
+    "ip": [
+      "10.244.2.1",
+      "10.244.2.1",
+      "172.18.0.4",
+      "fc00:f853:ccd:e793::4",
+      "fe80::42:acff:fe12:4",
+      "172.21.0.9"
+    ],
+    "containerized": false,
+    "name": "multi-v1.27.1-worker",
+    "id": "b2c527655d7746328f0686e25d3c413a",
+    "mac": [
+      "02-42-AC-12-00-04",
+      "02-42-AC-15-00-09",
+      "32-7E-AA-73-39-04",
+      "EA-F3-80-1D-88-E3"
+    ],
+    "architecture": "aarch64"
+  },
+  "event": {
+    "agent_id_status": "verified",
+    "ingested": "2023-05-16T13:49:47Z",
+    "dataset": "kubernetes.container_logs"
+  }
+}

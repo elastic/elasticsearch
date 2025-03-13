@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.action.util;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {
+public class PageParamsTests extends AbstractXContentSerializingTestCase<PageParams> {
 
     @Override
     protected PageParams doParseInstance(XContentParser parser) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.plain;
@@ -14,7 +15,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
@@ -32,9 +32,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-
-import java.util.Collection;
-import java.util.Collections;
 
 public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
@@ -78,11 +75,6 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
 
         @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
-        }
-
-        @Override
         public SortedSetDocValues getOrdinalsValues() {
             if (value == null) {
                 return DocValues.emptySortedSet();
@@ -120,9 +112,6 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
             };
             return DocValues.singleton(sortedValues);
         }
-
-        @Override
-        public void close() {}
 
     }
 

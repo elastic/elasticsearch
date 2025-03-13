@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardEntry;
 import org.elasticsearch.cluster.action.shard.ShardStateAction.FailedShardUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.hamcrest.Matchers;
 
@@ -71,17 +73,16 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(INDEX)
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(numberOfReplicas)
                     .primaryTerm(0, randomIntBetween(2, 10))
             )
             .build();
-        routingTable = RoutingTable.builder().addAsNew(metadata.index(INDEX)).build();
-        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(routingTable)
+        routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.getProject().index(INDEX))
             .build();
+        clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
         executor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
     }
 
@@ -144,7 +145,10 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         List<FailedShardUpdateTask> tasks = new ArrayList<>();
         for (FailedShardUpdateTask failingTask : failingTasks) {
             FailedShardEntry entry = failingTask.entry();
-            long primaryTerm = currentState.metadata().index(entry.getShardId().getIndex()).primaryTerm(entry.getShardId().id());
+            long primaryTerm = currentState.metadata()
+                .getProject()
+                .index(entry.getShardId().getIndex())
+                .primaryTerm(entry.getShardId().id());
             tasks.add(
                 new FailedShardUpdateTask(
                     new FailedShardEntry(
@@ -174,6 +178,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                                 + task.entry().primaryTerm
                                 + "] did not match current primary term ["
                                 + currentState.metadata()
+                                    .getProject()
                                     .index(task.entry().getShardId().getIndex())
                                     .primaryTerm(task.entry().getShardId().id())
                                 + "]"
@@ -192,15 +197,15 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         ClusterState clusterState = createClusterStateWithStartedShards("test markAsStale");
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(INDEX).shard(0);
-        long primaryTerm = clusterState.metadata().index(INDEX).primaryTerm(0);
-        final Set<String> oldInSync = clusterState.metadata().index(INDEX).inSyncAllocationIds(0);
+        long primaryTerm = clusterState.metadata().getProject().index(INDEX).primaryTerm(0);
+        final Set<String> oldInSync = clusterState.metadata().getProject().index(INDEX).inSyncAllocationIds(0);
         {
             FailedShardUpdateTask failShardOnly = new FailedShardUpdateTask(
                 new FailedShardEntry(shardRoutingTable.shardId(), randomFrom(oldInSync), primaryTerm, "dummy", null, false),
                 createTestListener()
             );
             ClusterState appliedState = executeAndAssertSuccessful(clusterState, List.of(failShardOnly), true);
-            Set<String> newInSync = appliedState.metadata().index(INDEX).inSyncAllocationIds(0);
+            Set<String> newInSync = appliedState.metadata().getProject().index(INDEX).inSyncAllocationIds(0);
             assertThat(newInSync, equalTo(oldInSync));
         }
         {
@@ -210,7 +215,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                 createTestListener()
             );
             ClusterState appliedState = executeAndAssertSuccessful(clusterState, List.of(failAndMarkAsStale), true);
-            Set<String> newInSync = appliedState.metadata().index(INDEX).inSyncAllocationIds(0);
+            Set<String> newInSync = appliedState.metadata().getProject().index(INDEX).inSyncAllocationIds(0);
             assertThat(Sets.difference(oldInSync, newInSync), contains(failedAllocationId));
         }
     }
@@ -220,7 +225,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         IntStream.rangeClosed(1, numberOfNodes).mapToObj(node -> newNode("node" + node)).forEach(nodes::add);
         ClusterState stateAfterAddingNode = ClusterState.builder(clusterState).nodes(nodes).build();
-        ClusterState stateWithInitializingPrimary = allocationService.reroute(stateAfterAddingNode, reason);
+        ClusterState stateWithInitializingPrimary = allocationService.reroute(stateAfterAddingNode, reason, ActionListener.noop());
         ClusterState stateWithStartedPrimary = startInitializingShardsAndReroute(allocationService, stateWithInitializingPrimary);
         final boolean secondReroute = randomBoolean();
         ClusterState resultingState = secondReroute
@@ -237,14 +242,14 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
 
     private List<FailedShardUpdateTask> createExistingShards(ClusterState currentState, String reason) {
         List<ShardRouting> shards = new ArrayList<>();
-        GroupShardsIterator<ShardIterator> shardGroups = currentState.routingTable().allAssignedShardsGrouped(new String[] { INDEX }, true);
+        List<ShardIterator> shardGroups = currentState.routingTable().allAssignedShardsGrouped(new String[] { INDEX }, true);
         for (ShardIterator shardIt : shardGroups) {
             for (ShardRouting shard : shardIt) {
                 shards.add(shard);
             }
         }
         List<ShardRouting> failures = randomSubsetOf(randomIntBetween(1, 1 + shards.size() / 4), shards.toArray(new ShardRouting[0]));
-        String indexUUID = metadata.index(INDEX).getIndexUUID();
+        String indexUUID = metadata.getProject().index(INDEX).getIndexUUID();
         int numberOfTasks = randomIntBetween(failures.size(), 2 * failures.size());
         List<ShardRouting> shardsToFail = new ArrayList<>(numberOfTasks);
         for (int i = 0; i < numberOfTasks; i++) {
@@ -317,7 +322,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             assertSame(clusterState, resultingState);
         }
 
-        for (final var shard : resultingState.getRoutingTable().allShards()) {
+        for (ShardRouting shard : resultingState.getRoutingTable().allShardsIterator()) {
             if (shard.assignedToNode()) {
                 for (final var task : tasks) {
                     assertFalse(
@@ -344,7 +349,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
                     new FailedShardEntry(
                         shard.shardId(),
                         shard.allocationId().getId(),
-                        randomBoolean() ? 0L : currentState.metadata().getIndexSafe(shard.index()).primaryTerm(shard.id()),
+                        randomBoolean() ? 0L : currentState.metadata().getProject().getIndexSafe(shard.index()).primaryTerm(shard.id()),
                         message,
                         new CorruptIndexException("simulated", indexUUID),
                         randomBoolean()
@@ -356,6 +361,6 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     }
 
     private static <T> ActionListener<T> createTestListener() {
-        return ActionListener.wrap(() -> { throw new AssertionError("task should not complete"); });
+        return ActionTestUtils.assertNoFailureListener(t -> {});
     }
 }

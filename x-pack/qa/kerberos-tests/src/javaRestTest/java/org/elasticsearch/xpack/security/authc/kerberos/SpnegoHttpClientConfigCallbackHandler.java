@@ -206,7 +206,7 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<T>) () -> Subject.doAsPrivileged(subject, action, acc));
         } catch (PrivilegedActionException pae) {
-            if (pae.getCause()instanceof PrivilegedActionException privilegedActionException) {
+            if (pae.getCause() instanceof PrivilegedActionException privilegedActionException) {
                 throw privilegedActionException;
             }
             throw pae;

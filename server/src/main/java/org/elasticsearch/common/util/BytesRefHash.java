@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
+import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -46,7 +48,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            this.hashes = bigArrays.newIntArray(capacity, false);
+            this.hashes = bigArrays.newIntArray(maxSize, false);
             this.bytesRefs = new BytesRefArray(capacity, bigArrays);
             success = true;
         } finally {
@@ -96,7 +98,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            this.hashes = bigArrays.newIntArray(bytesRefs.size() + 1, false);
+            this.hashes = bigArrays.newIntArray(maxSize, false);
             this.bytesRefs = BytesRefArray.takeOwnershipOf(bytesRefs);
             success = true;
         } finally {
@@ -133,10 +135,14 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
      * Get the id associated with <code>key</code>
      */
     public long find(BytesRef key, int code) {
+        return find(key, code, spare);
+    }
+
+    private long find(BytesRef key, int code, BytesRef intermediate) {
         final long slot = slot(rehash(code), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
-            if (id == -1L || key.bytesEquals(get(id, spare))) {
+            if (id == -1L || key.bytesEquals(get(id, intermediate))) {
                 return id;
             }
         }
@@ -147,6 +153,15 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         return find(key, key.hashCode());
     }
 
+    /**
+     * Allows finding a key in the hash in a thread safe manner, by providing an intermediate
+     * BytesRef reference to storing intermediate results. As long as each thread provides
+     * its own intermediate instance, this method is thread safe.
+     */
+    private long threadSafeFind(BytesRef key, BytesRef intermediate) {
+        return find(key, key.hashCode(), intermediate);
+    }
+
     private long set(BytesRef key, int code, long id) {
         assert rehash(key.hashCode()) == code;
         assert size < maxSize;
@@ -154,7 +169,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 append(id, key, code);
                 ++size;
                 return id;
@@ -167,7 +182,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     private void append(long id, BytesRef key, int code) {
         assert size == id;
         bytesRefs.append(key);
-        hashes = bigArrays.grow(hashes, id + 1);
         hashes.set(id, code);
     }
 
@@ -182,7 +196,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 break;
             }
         }
@@ -196,6 +210,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            hashes = bigArrays.resize(hashes, maxSize);
         }
         assert size < maxSize;
         return set(key, rehash(code), size);
@@ -208,7 +223,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
 
     @Override
     protected void removeAndAdd(long index) {
-        final long id = id(index, -1);
+        final long id = getAndSetId(index, -1);
         assert id >= 0;
         final int code = hashes.get(id);
         reset(code, id);
@@ -234,6 +249,21 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
     @Override
     public long ramBytesUsed() {
         return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + ids.ramBytesUsed() + hashes.ramBytesUsed() + spare.bytes.length;
+    }
+
+    /**
+     * Returns a finder class that can be used to find keys in the hash in a thread-safe manner
+     */
+    public Finder newFinder() {
+        return new Finder();
+    }
+
+    public class Finder {
+        private final BytesRef intermediate = new BytesRef();
+
+        public long find(BytesRef key) {
+            return threadSafeFind(key, intermediate);
+        }
     }
 
 }

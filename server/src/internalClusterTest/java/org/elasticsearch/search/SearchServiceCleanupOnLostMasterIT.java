@@ -1,27 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
@@ -48,17 +50,14 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
     public void testDroppedOutNode() throws Exception {
         testLostMaster((master, dataNode) -> {
-            final MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                master
-            );
-            final TransportService dataTransportService = internalCluster().getInstance(TransportService.class, dataNode);
+            final var masterTransportService = MockTransportService.getInstance(master);
+            final var dataTransportService = MockTransportService.getInstance(dataNode);
             masterTransportService.addFailToSendNoConnectRule(dataTransportService, FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
 
             assertBusy(() -> {
                 final ClusterHealthStatus indexHealthStatus = client(master).admin()
                     .cluster()
-                    .health(Requests.clusterHealthRequest("test"))
+                    .health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test"))
                     .actionGet()
                     .getStatus();
                 assertThat(indexHealthStatus, Matchers.is(ClusterHealthStatus.RED));
@@ -73,8 +72,10 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
         index("test", "test", "{}");
 
-        assertThat(client().prepareSearch("test").setScroll("30m").get().getScrollId(), is(notNullValue()));
-
+        assertResponse(
+            prepareSearch("test").setScroll(TimeValue.timeValueMinutes(30)),
+            response -> assertThat(response.getScrollId(), is(notNullValue()))
+        );
         loseMaster.accept(master, dataNode);
         // in the past, this failed because the search context for the scroll would prevent the shard lock from being released.
         ensureYellow();

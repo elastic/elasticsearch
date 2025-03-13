@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.DeleteForecastAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -30,7 +30,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -222,8 +221,6 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testOverflowToDisk() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/44609", Constants.WINDOWS);
-
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("clientIP");
 
@@ -624,7 +621,7 @@ public class ForecastIT extends MlNativeAutodetectIntegTestCase {
             double value = 10.0 + h;
             for (int i = 1; i < 101; i++) {
                 for (int j = 1; j < 81; j++) {
-                    String json = String.format(Locale.ROOT, """
+                    String json = Strings.format("""
                         {"time": %s, "value": %f, "clientIP": "192.168.%d.%d"}
                         """, timestamp, value, i, j);
                     data.add(json);

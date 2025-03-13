@@ -12,13 +12,14 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -32,8 +33,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.apache.lucene.util.automaton.Operations.subsetOf;
 
 /**
  * Stores patterns to fields which access is granted or denied to and maintains an automaton that can be used to check if permission is
@@ -61,18 +60,18 @@ public final class FieldPermissions implements Accountable, CacheKey {
         BASE_HASHSET_ENTRY_SIZE = mapEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 
-    private final FieldPermissionsDefinition fieldPermissionsDefinition;
-    @Nullable
-    private final FieldPermissionsDefinition limitedByFieldPermissionsDefinition;
+    private final List<FieldPermissionsDefinition> fieldPermissionsDefinitions;
+
     // an automaton that represents a union of one more sets of permitted and denied fields
     private final CharacterRunAutomaton permittedFieldsAutomaton;
     private final boolean permittedFieldsAutomatonIsTotal;
     private final Automaton originalAutomaton;
+    private final FieldPredicate fieldPredicate;
 
     private final long ramBytesUsed;
 
     /** Constructor that does not enable field-level security: all fields are accepted. */
-    public FieldPermissions() {
+    private FieldPermissions() {
         this(new FieldPermissionsDefinition(null, null), Automatons.MATCH_ALL);
     }
 
@@ -85,35 +84,39 @@ public final class FieldPermissions implements Accountable, CacheKey {
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
      *  have precedence over include rules. */
     FieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition, Automaton permittedFieldsAutomaton) {
-        this(fieldPermissionsDefinition, null, permittedFieldsAutomaton);
+        this(
+            List.of(Objects.requireNonNull(fieldPermissionsDefinition, "field permission definition cannot be null")),
+            permittedFieldsAutomaton
+        );
     }
 
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
      *  have precedence over include rules. */
-    private FieldPermissions(
-        FieldPermissionsDefinition fieldPermissionsDefinition,
-        @Nullable FieldPermissionsDefinition limitedByFieldPermissionsDefinition,
-        Automaton permittedFieldsAutomaton
-    ) {
+    private FieldPermissions(List<FieldPermissionsDefinition> fieldPermissionsDefinitions, Automaton permittedFieldsAutomaton) {
         if (permittedFieldsAutomaton.isDeterministic() == false && permittedFieldsAutomaton.getNumStates() > 1) {
             // we only accept deterministic automata so that the CharacterRunAutomaton constructor
             // directly wraps the provided automaton
             throw new IllegalArgumentException("Only accepts deterministic automata");
         }
-        this.fieldPermissionsDefinition = Objects.requireNonNull(fieldPermissionsDefinition, "field permission definition cannot be null");
-        this.limitedByFieldPermissionsDefinition = limitedByFieldPermissionsDefinition;
+        this.fieldPermissionsDefinitions = Objects.requireNonNull(
+            fieldPermissionsDefinitions,
+            "field permission definitions cannot be null"
+        );
         this.originalAutomaton = permittedFieldsAutomaton;
         this.permittedFieldsAutomaton = new CharacterRunAutomaton(permittedFieldsAutomaton);
         // we cache the result of isTotal since this might be a costly operation
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
+        this.fieldPredicate = permittedFieldsAutomatonIsTotal
+            ? FieldPredicate.ACCEPT_ALL
+            : new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton);
 
         long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
-        ramBytesUsed += ramBytesUsedForFieldPermissionsDefinition(this.fieldPermissionsDefinition);
-        if (this.limitedByFieldPermissionsDefinition != null) {
-            ramBytesUsed += ramBytesUsedForFieldPermissionsDefinition(this.limitedByFieldPermissionsDefinition);
-        }
+        ramBytesUsed += this.fieldPermissionsDefinitions.stream()
+            .mapToLong(FieldPermissions::ramBytesUsedForFieldPermissionsDefinition)
+            .sum();
         ramBytesUsed += permittedFieldsAutomaton.ramBytesUsed();
         ramBytesUsed += runAutomatonRamBytesUsed(permittedFieldsAutomaton);
+        ramBytesUsed += fieldPredicate.ramBytesUsed();
         this.ramBytesUsed = ramBytesUsed;
     }
 
@@ -173,7 +176,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
-        if (subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
+        if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
             throw new ElasticsearchSecurityException(
                 "Exceptions for field permissions must be a subset of the "
                     + "granted fields but "
@@ -199,12 +202,16 @@ public final class FieldPermissions implements Accountable, CacheKey {
      */
     public FieldPermissions limitFieldPermissions(FieldPermissions limitedBy) {
         if (hasFieldLevelSecurity() && limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
+            // TODO: cache the automaton computation with FieldPermissionsCache
             Automaton _permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
-            return new FieldPermissions(fieldPermissionsDefinition, limitedBy.fieldPermissionsDefinition, _permittedFieldsAutomaton);
+            return new FieldPermissions(
+                CollectionUtils.concatLists(fieldPermissionsDefinitions, limitedBy.fieldPermissionsDefinitions),
+                _permittedFieldsAutomaton
+            );
         } else if (limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
-            return new FieldPermissions(limitedBy.getFieldPermissionsDefinition(), limitedBy.getIncludeAutomaton());
+            return new FieldPermissions(limitedBy.fieldPermissionsDefinitions, limitedBy.getIncludeAutomaton());
         } else if (hasFieldLevelSecurity()) {
-            return new FieldPermissions(this.getFieldPermissionsDefinition(), getIncludeAutomaton());
+            return new FieldPermissions(fieldPermissionsDefinitions, getIncludeAutomaton());
         }
         return FieldPermissions.DEFAULT;
     }
@@ -217,23 +224,17 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return permittedFieldsAutomatonIsTotal || permittedFieldsAutomaton.run(fieldName);
     }
 
-    public FieldPermissionsDefinition getFieldPermissionsDefinition() {
-        return fieldPermissionsDefinition;
+    public FieldPredicate fieldPredicate() {
+        return fieldPredicate;
     }
 
-    public FieldPermissionsDefinition getLimitedByFieldPermissionsDefinition() {
-        return limitedByFieldPermissionsDefinition;
+    public List<FieldPermissionsDefinition> getFieldPermissionsDefinitions() {
+        return fieldPermissionsDefinitions;
     }
 
     @Override
     public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
-        fieldPermissionsDefinition.buildCacheKey(out, context);
-        if (limitedByFieldPermissionsDefinition != null) {
-            out.writeBoolean(true);
-            limitedByFieldPermissionsDefinition.buildCacheKey(out, context);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeCollection(fieldPermissionsDefinitions, (o, fpd) -> fpd.buildCacheKey(o, context));
     }
 
     /** Return whether field-level security is enabled, ie. whether any field might be filtered out. */
@@ -259,13 +260,12 @@ public final class FieldPermissions implements Accountable, CacheKey {
         if (o == null || getClass() != o.getClass()) return false;
         FieldPermissions that = (FieldPermissions) o;
         return permittedFieldsAutomatonIsTotal == that.permittedFieldsAutomatonIsTotal
-            && fieldPermissionsDefinition.equals(that.fieldPermissionsDefinition)
-            && Objects.equals(limitedByFieldPermissionsDefinition, that.limitedByFieldPermissionsDefinition);
+            && fieldPermissionsDefinitions.equals(that.fieldPermissionsDefinitions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldPermissionsDefinition, limitedByFieldPermissionsDefinition, permittedFieldsAutomatonIsTotal);
+        return Objects.hash(fieldPermissionsDefinitions, permittedFieldsAutomatonIsTotal);
     }
 
     @Override

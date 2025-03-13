@@ -1,38 +1,46 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.file.FileSystemOperations;
+import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.services.BuildService;
-import org.gradle.api.services.BuildServiceParameters;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.
@@ -43,37 +51,88 @@ import static java.util.Arrays.stream;
  */
 public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
-    private static final String BWC_TASK_THROTTLE_SERVICE = "bwcTaskThrottle";
+    private final ObjectFactory objectFactory;
     private ProviderFactory providerFactory;
+    private JavaToolchainService toolChainService;
+    private FileSystemOperations fileSystemOperations;
 
     @Inject
-    public InternalDistributionBwcSetupPlugin(ProviderFactory providerFactory) {
+    public InternalDistributionBwcSetupPlugin(
+        ObjectFactory objectFactory,
+        ProviderFactory providerFactory,
+        FileSystemOperations fileSystemOperations
+    ) {
+        this.objectFactory = objectFactory;
         this.providerFactory = providerFactory;
+        this.fileSystemOperations = fileSystemOperations;
     }
 
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        Provider<BwcTaskThrottle> bwcTaskThrottleProvider = project.getGradle()
-            .getSharedServices()
-            .registerIfAbsent(BWC_TASK_THROTTLE_SERVICE, BwcTaskThrottle.class, spec -> spec.getMaxParallelUsages().set(1));
-        BuildParams.getBwcVersions()
-            .forPreviousUnreleased(
-                (BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
-                    configureBwcProject(project.project(unreleasedVersion.gradleProjectPath()), unreleasedVersion, bwcTaskThrottleProvider);
-                }
+        project.getPlugins().apply(JvmToolchainsPlugin.class);
+        toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
+        var buildParams = loadBuildParams(project).get();
+        Boolean isCi = buildParams.getCi();
+        buildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
+            configureBwcProject(
+                project.project(unreleasedVersion.gradleProjectPath()),
+                buildParams,
+                unreleasedVersion,
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
             );
+        });
+
+        // Also set up the "main" project which is just used for arbitrary overrides. See InternalDistributionDownloadPlugin.
+        if (System.getProperty("tests.bwc.main.version") != null) {
+            configureBwcProject(
+                project.project(":distribution:bwc:main"),
+                buildParams,
+                new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(System.getProperty("tests.bwc.main.version")),
+                    "main",
+                    ":distribution:bwc:main"
+                ),
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
+            );
+        }
     }
 
-    private void configureBwcProject(
+    private static void configureBwcProject(
         Project project,
+        BuildParameterExtension buildParams,
         BwcVersions.UnreleasedVersionInfo versionInfo,
-        Provider<BwcTaskThrottle> bwcTaskThrottleProvider
+        ProviderFactory providerFactory,
+        ObjectFactory objectFactory,
+        JavaToolchainService toolChainService,
+        Boolean isCi,
+        FileSystemOperations fileSystemOperations
     ) {
+        ProjectLayout layout = project.getLayout();
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
-        Provider<File> checkoutDir = versionInfoProvider.map(info -> new File(project.getBuildDir(), "bwc/checkout-" + info.branch()));
+        Provider<File> checkoutDir = versionInfoProvider.map(
+            info -> new File(layout.getBuildDirectory().get().getAsFile(), "bwc/checkout-" + info.branch())
+        );
         BwcSetupExtension bwcSetupExtension = project.getExtensions()
-            .create("bwcSetup", BwcSetupExtension.class, project, versionInfoProvider, bwcTaskThrottleProvider, checkoutDir);
+            .create(
+                "bwcSetup",
+                BwcSetupExtension.class,
+                project,
+                objectFactory,
+                providerFactory,
+                toolChainService,
+                versionInfoProvider,
+                checkoutDir,
+                isCi
+            );
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());
         gitExtension.setBwcVersion(versionInfoProvider.map(info -> info.version()));
@@ -86,9 +145,28 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         TaskProvider<Task> buildBwcTaskProvider = project.getTasks().register("buildBwc");
         List<DistributionProject> distributionProjects = resolveArchiveProjects(checkoutDir.get(), bwcVersion.get());
 
+        // Setup gradle user home directory
+        // We don't use a normal `Copy` task here as snapshotting the entire gradle user home is very expensive. This task is cheap, so
+        // up-to-date checking doesn't buy us much
+        project.getTasks().register("setupGradleUserHome", task -> {
+            File gradleUserHome = project.getGradle().getGradleUserHomeDir();
+            String projectName = project.getName();
+            task.doLast(t -> {
+                fileSystemOperations.copy(copy -> {
+                    String absoluteGradleUserHomePath = gradleUserHome.getAbsolutePath();
+                    copy.into(absoluteGradleUserHomePath + "-" + projectName);
+                    copy.from(absoluteGradleUserHomePath, copySpec -> {
+                        copySpec.include("gradle.properties");
+                        copySpec.include("init.d/*");
+                    });
+                });
+            });
+        });
+
         for (DistributionProject distributionProject : distributionProjects) {
             createBuildBwcTask(
                 bwcSetupExtension,
+                buildParams,
                 project,
                 bwcVersion,
                 distributionProject.name,
@@ -111,6 +189,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         createBuildBwcTask(
             bwcSetupExtension,
+            buildParams,
             project,
             bwcVersion,
             "jdbc",
@@ -119,9 +198,44 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             buildBwcTaskProvider,
             "assemble"
         );
+
+        // for versions before 8.7.0, we do not need to set up stable API bwc
+        if (bwcVersion.get().before(Version.fromString("8.7.0"))) {
+            return;
+        }
+
+        for (Project stableApiProject : resolveStableProjects(project)) {
+
+            String relativeDir = project.getRootProject().relativePath(stableApiProject.getProjectDir());
+
+            DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
+                new File(
+                    checkoutDir.get(),
+                    relativeDir
+                        + "/build/distributions/elasticsearch-"
+                        + stableApiProject.getName()
+                        + "-"
+                        + bwcVersion.get()
+                        + "-SNAPSHOT.jar"
+                ),
+                null
+            );
+
+            createBuildBwcTask(
+                bwcSetupExtension,
+                buildParams,
+                project,
+                bwcVersion,
+                stableApiProject.getName(),
+                "libs/" + stableApiProject.getName(),
+                stableAnalysisPluginProjectArtifact,
+                buildBwcTaskProvider,
+                "assemble"
+            );
+        }
     }
 
-    private void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
+    private static void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
         String projectName = distributionProject.name;
         String buildBwcTask = buildBwcTaskName(projectName);
 
@@ -138,7 +252,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }
     }
 
-    private void registerDistributionArchiveArtifact(Project bwcProject, DistributionProject distributionProject, String buildBwcTask) {
+    private static void registerDistributionArchiveArtifact(
+        Project bwcProject,
+        DistributionProject distributionProject,
+        String buildBwcTask
+    ) {
         File distFile = distributionProject.expectedBuildArtifact.distFile;
         String artifactFileName = distFile.getName();
         String artifactName = artifactFileName.contains("oss") ? "elasticsearch-oss" : "elasticsearch";
@@ -208,7 +326,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         }).collect(Collectors.toList());
     }
 
-    private static String buildBwcTaskName(String projectName) {
+    private static List<Project> resolveStableProjects(Project project) {
+        Set<String> stableProjectNames = Set.of("logging", "plugin-api", "plugin-analysis-api");
+        return project.findProject(":libs")
+            .getSubprojects()
+            .stream()
+            .filter(subproject -> stableProjectNames.contains(subproject.getName()))
+            .toList();
+    }
+
+    public static String buildBwcTaskName(String projectName) {
         return "buildBwc"
             + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
                 .collect(Collectors.joining());
@@ -216,6 +343,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     static void createBuildBwcTask(
         BwcSetupExtension bwcSetupExtension,
+        BuildParameterExtension buildParams,
         Project project,
         Provider<Version> bwcVersion,
         String projectName,
@@ -227,31 +355,32 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String bwcTaskName = buildBwcTaskName(projectName);
         bwcSetupExtension.bwcTask(bwcTaskName, c -> {
             boolean useNativeExpanded = projectArtifact.expandedDistDir != null;
+            boolean isReleaseBuild = System.getProperty("tests.bwc.snapshot", "true").equals("false");
             File expectedOutputFile = useNativeExpanded
-                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + "-SNAPSHOT")
+                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + (isReleaseBuild ? "" : "-SNAPSHOT"))
                 : projectArtifact.distFile;
-            c.getInputs().file(new File(project.getBuildDir(), "refspec"));
+            c.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
             if (useNativeExpanded) {
                 c.getOutputs().dir(expectedOutputFile);
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().cacheIf("BWC distribution caching is disabled on 'main' branch", task -> {
-                String gitBranch = System.getenv("GIT_BRANCH");
-                return BuildParams.isCi()
-                    && (gitBranch == null || gitBranch.endsWith("master") == false || gitBranch.endsWith("main") == false);
-            });
-            c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
+            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
+            c.getArgs().add("-p");
+            c.getArgs().add(projectPath);
+            c.getArgs().add(assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.getArgs().add("--build-cache");
             }
+            File rootDir = project.getRootDir();
             c.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
                     if (expectedOutputFile.exists() == false) {
-                        throw new InvalidUserDataException(
-                            "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
-                        );
+                        Path relativeOutputPath = rootDir.toPath().relativize(expectedOutputFile.toPath());
+                        final String message = "Building %s didn't generate expected artifact [%s]. The working branch may be "
+                            + "out-of-date - try merging in the latest upstream changes to the branch.";
+                        throw new InvalidUserDataException(message.formatted(bwcVersion.get(), relativeOutputPath));
                     }
                 }
             });
@@ -320,6 +449,4 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             this.expandedDistDir = expandedDistDir;
         }
     }
-
-    public abstract class BwcTaskThrottle implements BuildService<BuildServiceParameters.None> {}
 }

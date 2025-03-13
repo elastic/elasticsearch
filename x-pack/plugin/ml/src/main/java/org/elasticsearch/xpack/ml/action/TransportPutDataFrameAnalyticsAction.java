@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -19,12 +18,14 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -54,10 +56,12 @@ import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAction<
@@ -94,9 +98,8 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             threadPool,
             actionFilters,
             PutDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             PutDataFrameAnalyticsAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.configProvider = configProvider;
@@ -132,18 +135,13 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
 
         final DataFrameAnalyticsConfig config = request.getConfig();
 
-        ActionListener<Boolean> sourceDestValidationListener = ActionListener.wrap(
-            aBoolean -> putValidatedConfig(config, request.masterNodeTimeout(), listener),
-            listener::onFailure
-        );
-
         sourceDestValidator.validate(
             clusterService.state(),
             config.getSource().getIndex(),
             config.getDest().getIndex(),
             null,
             SourceDestValidations.ALL_VALIDATIONS,
-            sourceDestValidationListener
+            listener.delegateFailureAndWrap((l, aBoolean) -> putValidatedConfig(config, request.masterNodeTimeout(), l))
         );
     }
 
@@ -154,16 +152,18 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
     ) {
         DataFrameAnalyticsConfig preparedForPutConfig = new DataFrameAnalyticsConfig.Builder(config, maxModelMemoryLimitSupplier.get())
             .setCreateTime(Instant.now())
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .build();
 
         if (securityContext != null) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String username = securityContext.getUser().principal();
-                RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(preparedForPutConfig.getSource().getIndex())
-                    .privileges("read")
-                    .build();
+                // DFA doesn't support CCS, but if it did it would need this filter, so it's safest to have the filter
+                // in place even though it's a no-op.
+                // TODO: Remove this filter once https://github.com/elastic/elasticsearch/issues/67798 is fixed.
+                final String[] sourceIndices = Arrays.stream(preparedForPutConfig.getSource().getIndex())
+                    .filter(not(RemoteClusterLicenseChecker::isRemoteIndex))
+                    .toArray(String[]::new);
                 RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                     .indices(preparedForPutConfig.getDest().getIndex())
                     .privileges("read", "index", "create_index")
@@ -173,24 +173,32 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
                 privRequest.username(username);
                 privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
-                privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
+                RoleDescriptor.IndicesPrivileges[] indicesPrivileges;
+                if (sourceIndices.length > 0) {
+                    RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+                        .indices(sourceIndices)
+                        .privileges("read")
+                        .build();
+                    indicesPrivileges = new RoleDescriptor.IndicesPrivileges[] { sourceIndexPrivileges, destIndexPrivileges };
+                } else {
+                    indicesPrivileges = new RoleDescriptor.IndicesPrivileges[] { destIndexPrivileges };
+                }
+                privRequest.indexPrivileges(indicesPrivileges);
 
-                ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                    r -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener),
-                    listener::onFailure
+                client.execute(
+                    HasPrivilegesAction.INSTANCE,
+                    privRequest,
+                    listener.delegateFailureAndWrap(
+                        (l, r) -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener)
+                    )
                 );
-
-                client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
             });
         } else {
             updateDocMappingAndPutConfig(
                 preparedForPutConfig,
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
-                ActionListener.wrap(
-                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, finalConfig) -> l.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)))
             );
         }
     }
@@ -207,10 +215,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
                 memoryCappedConfig,
                 threadPool.getThreadContext().getHeaders(),
                 masterNodeTimeout,
-                ActionListener.wrap(
-                    finalConfig -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)),
-                    listener::onFailure
-                )
+                listener.delegateFailureAndWrap((l, finalConfig) -> l.onResponse(new PutDataFrameAnalyticsAction.Response(finalConfig)))
             );
         } else {
             XContentBuilder builder = JsonXContent.contentBuilder();
@@ -238,18 +243,22 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         TimeValue masterNodeTimeout,
         ActionListener<DataFrameAnalyticsConfig> listener
     ) {
-        ActionListener<DataFrameAnalyticsConfig> auditingListener = ActionListener.wrap(finalConfig -> {
+        ActionListener<DataFrameAnalyticsConfig> auditingListener = listener.delegateFailureAndWrap((delegate, finalConfig) -> {
             auditor.info(
                 finalConfig.getId(),
                 Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_CREATED, finalConfig.getAnalysis().getWriteableName())
             );
-            listener.onResponse(finalConfig);
-        }, listener::onFailure);
+            delegate.onResponse(finalConfig);
+        });
+
+        final var deleterTimeout = masterNodeTimeout.millis() < 0 ? TimeValue.MAX_VALUE : masterNodeTimeout;
+        // NB a negative masterNodeTimeout means never to time out, but recording dataframe analytics configs does not support infinite
+        // timeouts so we just use a very long timeout here instead
 
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
-            configProvider.put(config, headers, masterNodeTimeout, auditingListener);
+            configProvider.put(config, headers, deleterTimeout, auditingListener);
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -258,7 +267,8 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             client,
             clusterState,
             masterNodeTimeout,
-            ActionListener.wrap(unused -> configProvider.put(config, headers, masterNodeTimeout, auditingListener), listener::onFailure)
+            auditingListener.delegateFailureAndWrap((l, unused) -> configProvider.put(config, headers, deleterTimeout, l)),
+            MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
         );
     }
 

@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,10 +55,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String policyName = "basic-test";
         if ("leader".equals(targetCluster)) {
             putILMPolicy(policyName, "50GB", null, TimeValue.timeValueHours(7 * 24));
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName)
+            Settings indexSettings = indexSettings(1, 0).put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", "logs")
                 .build();
             createIndex(indexName, indexSettings, "", "\"logs\": { }");
@@ -111,8 +107,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     public void testCCRUnfollowDuringSnapshot() throws Exception {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {
-            Settings indexSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
-            createIndex(adminClient(), indexName, indexSettings);
+            createIndex(adminClient(), indexName, indexSettings(2, 0).build());
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
             createNewSingletonPolicy("unfollow-only", "hot", UnfollowAction.INSTANCE, TimeValue.ZERO);
@@ -185,10 +180,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // Create a policy on the leader
             putILMPolicy(policyName, null, 1, null);
             Request templateRequest = new Request("PUT", "/_index_template/my_template");
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName)
+            Settings indexSettings = indexSettings(1, 0).put("index.lifecycle.name", policyName)
                 .put("index.lifecycle.rollover_alias", alias)
                 .build();
             templateRequest.setJsonEntity(
@@ -212,7 +204,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             try (RestClient leaderClient = buildLeaderClient()) {
                 // Create an index on the leader using the template set up above
                 Request createIndexRequest = new Request("PUT", "/" + indexName);
-                createIndexRequest.setJsonEntity("""
+                createIndexRequest.setJsonEntity(Strings.format("""
                     {
                       "mappings": {
                         "properties": {
@@ -226,7 +218,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                           "is_write_index": true
                         }
                       }
-                    }""".formatted(alias));
+                    }""", alias));
                 assertOK(leaderClient.performRequest(createIndexRequest));
                 // Check that the new index is created
                 Request checkIndexRequest = new Request("GET", "/_cluster/health/" + indexName);
@@ -300,11 +292,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         final int numberOfAliases = randomIntBetween(0, 4);
 
         if ("leader".equals(targetCluster)) {
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
-                .build();
+            // this policy won't exist on the leader, that's fine
+            Settings indexSettings = indexSettings(3, 0).put("index.lifecycle.name", policyName).build();
             final StringBuilder aliases = new StringBuilder();
             boolean first = true;
             for (int i = 0; i < numberOfAliases; i++) {
@@ -364,11 +353,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         final String policyName = "shrink-test-policy";
 
         if ("leader".equals(targetCluster)) {
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
-                .build();
+            // this policy won't exist on the leader, that's fine
+            Settings indexSettings = indexSettings(3, 0).put("index.lifecycle.name", policyName).build();
             createIndex(indexName, indexSettings, "", "");
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
@@ -413,8 +399,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             // otherwise it'll proceed through shrink before we can set up the
             // follower
             putShrinkOnlyPolicy(client(), policyName);
-            Settings indexSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
-            createIndex(indexName, indexSettings, "", "");
+            createIndex(indexName, indexSettings(2, 0).build(), "", "");
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
 
@@ -482,10 +467,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         final String policyName = "unfollow_only_policy";
 
         if ("leader".equals(targetCluster)) {
-            Settings indexSettings = Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0)
-                .put("index.lifecycle.name", policyName) // this policy won't exist on the leader, that's fine
+            Settings indexSettings = indexSettings(1, 0).put("index.lifecycle.name", policyName) // this policy won't exist on the leader,
+                                                                                                 // that's fine
                 .build();
             createIndex(leaderIndex, indexSettings, "", "");
             ensureGreen(leaderIndex);
@@ -558,7 +541,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
             "{\"persistent\": {\"cluster.remote."
                 + name
                 + ".seeds\": "
-                + (leaderRemoteClusterSeed != null ? String.format(Locale.ROOT, "\"%s\"", leaderRemoteClusterSeed) : null)
+                + (leaderRemoteClusterSeed != null ? Strings.format("\"%s\"", leaderRemoteClusterSeed) : null)
                 + "}}"
         );
         assertThat(client().performRequest(request).getStatusLine().getStatusCode(), equalTo(200));
@@ -778,8 +761,8 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
     }
 
     private void createNewSingletonPolicy(String policyName, String phaseName, LifecycleAction action, TimeValue after) throws IOException {
-        Phase phase = new Phase(phaseName, after, singletonMap(action.getWriteableName(), action));
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, singletonMap(phase.getName(), phase));
+        Phase phase = new Phase(phaseName, after, Map.of(action.getWriteableName(), action));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policyName, Map.of(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();
         lifecyclePolicy.toXContent(builder, null);
         final StringEntity entity = new StringEntity("{ \"policy\":" + Strings.toString(builder) + "}", ContentType.APPLICATION_JSON);

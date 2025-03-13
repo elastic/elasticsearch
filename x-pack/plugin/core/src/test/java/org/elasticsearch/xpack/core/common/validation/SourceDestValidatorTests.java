@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.common.validation;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -14,15 +14,19 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RedirectToLocalClusterRemoteClusterClient;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestService;
@@ -54,14 +58,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_IN_SOURCE_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_PIPELINE_MISSING_VALIDATION;
 import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator.DESTINATION_SINGLE_INDEX_VALIDATION;
@@ -95,6 +97,7 @@ public class SourceDestValidatorTests extends ESTestCase {
         REMOTE_SOURCE_VALIDATION
     );
 
+    private TestThreadPool clientThreadPool;
     private Client clientWithBasicLicense;
     private Client clientWithExpiredBasicLicense;
     private Client clientWithPlatinumLicense;
@@ -103,7 +106,12 @@ public class SourceDestValidatorTests extends ESTestCase {
     private LicensedFeature platinumFeature;
 
     private final ThreadPool threadPool = new TestThreadPool(getClass().getName());
-    private final TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+    private final TransportService transportService = MockTransportService.createNewService(
+        Settings.EMPTY,
+        VersionInformation.CURRENT,
+        TransportVersion.current(),
+        threadPool
+    );
     private final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
     private final IngestService ingestService = mock(IngestService.class);
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(
@@ -121,35 +129,17 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     static {
         IndexMetadata source1 = IndexMetadata.builder(SOURCE_1)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
-            )
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .putAlias(AliasMetadata.builder(SOURCE_1_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
         IndexMetadata source2 = IndexMetadata.builder(SOURCE_2)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
-            )
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .putAlias(AliasMetadata.builder(DEST_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).writeIndex(false).build())
             .build();
         IndexMetadata aliasedDest = IndexMetadata.builder(ALIASED_DEST)
-            .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
-            )
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
             .putAlias(AliasMetadata.builder(DEST_ALIAS).build())
             .putAlias(AliasMetadata.builder(ALIAS_READ_WRITE_DEST).build())
             .build();
@@ -167,15 +157,19 @@ public class SourceDestValidatorTests extends ESTestCase {
         private final String license;
         private final LicenseStatus licenseStatus;
 
-        MockClientLicenseCheck(String testName, String license, LicenseStatus licenseStatus) {
-            super(testName);
+        MockClientLicenseCheck(ThreadPool threadPool, String license, LicenseStatus licenseStatus) {
+            super(threadPool);
             this.license = license;
             this.licenseStatus = licenseStatus;
         }
 
         @Override
-        public Client getRemoteClusterClient(String clusterAlias) {
-            return this;
+        public RemoteClusterClient getRemoteClusterClient(
+            String clusterAlias,
+            Executor responseExecutor,
+            RemoteClusterService.DisconnectedStrategy disconnectedStrategy
+        ) {
+            return new RedirectToLocalClusterRemoteClusterClient(this);
         }
 
         @SuppressWarnings("unchecked")
@@ -200,21 +194,19 @@ public class SourceDestValidatorTests extends ESTestCase {
 
     @Before
     public void setupComponents() {
-        clientWithBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.ACTIVE);
-        clientWithExpiredBasicLicense = new MockClientLicenseCheck(getTestName(), "basic", LicenseStatus.EXPIRED);
+        clientThreadPool = createThreadPool();
+        clientWithBasicLicense = new MockClientLicenseCheck(clientThreadPool, "basic", LicenseStatus.ACTIVE);
+        clientWithExpiredBasicLicense = new MockClientLicenseCheck(clientThreadPool, "basic", LicenseStatus.EXPIRED);
         LicensedFeature.Momentary feature = LicensedFeature.momentary(null, "feature", License.OperationMode.BASIC);
         platinumFeature = LicensedFeature.momentary(null, "platinum-feature", License.OperationMode.PLATINUM);
         remoteClusterLicenseCheckerBasic = new RemoteClusterLicenseChecker(clientWithBasicLicense, feature);
-        clientWithPlatinumLicense = new MockClientLicenseCheck(getTestName(), "platinum", LicenseStatus.ACTIVE);
-        clientWithTrialLicense = new MockClientLicenseCheck(getTestName(), "trial", LicenseStatus.ACTIVE);
+        clientWithPlatinumLicense = new MockClientLicenseCheck(clientThreadPool, "platinum", LicenseStatus.ACTIVE);
+        clientWithTrialLicense = new MockClientLicenseCheck(clientThreadPool, "trial", LicenseStatus.ACTIVE);
     }
 
     @After
     public void closeComponents() throws Exception {
-        clientWithBasicLicense.close();
-        clientWithExpiredBasicLicense.close();
-        clientWithPlatinumLicense.close();
-        clientWithTrialLicense.close();
+        clientThreadPool.close();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -607,7 +599,8 @@ public class SourceDestValidatorTests extends ESTestCase {
             Arrays.asList(Collections.singletonMap("test", processorConfig0), Collections.singletonMap("test", processorConfig1))
         );
         Map<String, Processor.Factory> processorRegistry = Collections.singletonMap("test", new TestProcessor.Factory());
-        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null);
+        var projectId = randomProjectIdOrDefault();
+        Pipeline pipeline = Pipeline.create("missing-pipeline", pipelineConfig, processorRegistry, null, projectId);
         when(ingestService.getPipeline("missing-pipeline")).thenReturn(pipeline);
 
         assertValidation(

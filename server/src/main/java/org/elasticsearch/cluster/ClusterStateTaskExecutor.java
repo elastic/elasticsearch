@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster;
 
@@ -21,7 +22,8 @@ import java.util.function.Supplier;
  */
 public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     /**
-     * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no update should be published.
+     * Update the cluster state based on the current state and the given tasks. Return {@code batchExecutionContext.initialState()} to avoid
+     * publishing any update.
      * <p>
      * If this method throws an exception then the cluster state is unchanged and every task's {@link ClusterStateTaskListener#onFailure}
      * method is called.
@@ -30,8 +32,15 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      * This works ok but beware that constructing a whole new {@link ClusterState} can be somewhat expensive, and there may sometimes be
      * surprisingly many tasks to process in the batch. If it's possible to accumulate the effects of the tasks at a lower level then you
      * should do that instead.
+     * <p>
+     * Returning {@code batchExecutionContext.initialState()} is an important and useful optimisation in most cases, but note that this
+     * fast-path exposes APIs to the risk of stale reads in the vicinity of a master failover: a node {@code N} that handles such a no-op
+     * task batch does not verify with its peers that it's still the master, and if it's not the master then another node {@code M} may
+     * already have become master and updated the state in a way that would be inconsistent with the response that {@code N} sends back to
+     * clients.
      *
-     * @return The resulting cluster state after executing all the tasks. If {code initialState} is returned then no update is published.
+     * @return The resulting cluster state after executing all the tasks. If {@code batchExecutionContext.initialState()} is returned then
+     * no update is published.
      */
     ClusterState execute(BatchExecutionContext<T> batchExecutionContext) throws Exception;
 
@@ -65,29 +74,10 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
         Strings.collectionToDelimitedStringWithLimit(
             (Iterable<String>) () -> tasks.stream().map(Object::toString).filter(s -> s.isEmpty() == false).iterator(),
             ", ",
-            "",
-            "",
             1024,
             output
         );
         return output.toString();
-    }
-
-    /**
-     * A {@link Consumer} for passing to {@link ClusterStateTaskExecutor.TaskContext#success} which preserves the
-     * legacy behaviour of calling {@link ClusterStateTaskListener#clusterStateProcessed} or {@link ClusterStateTaskListener#onFailure}.
-     * <p>
-     * New implementations should use a dedicated listener rather than relying on this legacy behaviour.
-     */
-    // TODO remove all remaining usages of this listener
-    @Deprecated
-    record LegacyClusterTaskResultActionListener(ClusterStateTaskListener task, ClusterState originalState)
-        implements
-            Consumer<ClusterState> {
-        @Override
-        public void accept(ClusterState publishedState) {
-            task.clusterStateProcessed(originalState, publishedState);
-        }
     }
 
     /**
@@ -108,10 +98,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * method and must instead call {@link #success(Runnable, ClusterStateAckListener)}, passing the task itself as the {@code
          * clusterStateAckListener} argument.
          *
-         * @param onPublicationSuccess An action executed when (if?) the cluster state update succeeds. The task's {@link
-         *                             ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master
-         *                             service once the task execution has succeeded, but legacy implementations may supply a listener
-         *                             which calls this methods.
+         * @param onPublicationSuccess An action executed when (if?) the cluster state update succeeds.
          */
         void success(Runnable onPublicationSuccess);
 
@@ -122,10 +109,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * method and must instead call {@link #success(Consumer, ClusterStateAckListener)}, passing the task itself as the {@code
          * clusterStateAckListener} argument.
          *
-         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published. The task's {@link
-         *                               ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master
-         *                               service once the task execution has succeeded, but legacy implementations may supply a listener
-         *                               which calls this methods.
+         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published.
          *                               <p>
          *                               The consumer should prefer not to use the published state for things like determining the result
          *                               of a task. The task may have been executed as part of a batch, and later tasks in the batch may
@@ -143,10 +127,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you must pass the task
          * itself as the {@code clusterStateAckListener} argument.
          *
-         * @param onPublicationSuccess An action executed when (if?) the cluster state update succeeds. The task's {@link
-         *                             ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master
-         *                             service once the task execution has succeeded, but legacy implementations may supply a listener
-         *                             which calls this methods.
+         * @param onPublicationSuccess An action executed when (if?) the cluster state update succeeds.
          *
          * @param clusterStateAckListener A listener for acknowledgements from nodes. If the publication succeeds then this listener is
          *                                completed as nodes ack the state update. If the publication fails then the failure
@@ -160,10 +141,7 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
          * Note that some tasks implement {@link ClusterStateAckListener} and can listen for acks themselves. If so, you must pass the task
          * itself as the {@code clusterStateAckListener} argument.
          *
-         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published. The task's {@link
-         *                               ClusterStateTaskListener#clusterStateProcessed} method is not called directly by the master
-         *                               service once the task execution has succeeded, but legacy implementations may supply a listener
-         *                               which calls this methods.
+         * @param publishedStateConsumer A consumer of the cluster state that was ultimately published.
          *                               <p>
          *                               The consumer should prefer not to use the published state for things like determining the result
          *                               of a task. The task may have been executed as part of a batch, and later tasks in the batch may
@@ -218,9 +196,9 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
      *                                   emitted response headers, for cases where things like deprecation warnings may be emitted but
      *                                   cannot be associated with any specific task.
      */
-    record BatchExecutionContext<T extends ClusterStateTaskListener> (
+    record BatchExecutionContext<T extends ClusterStateTaskListener>(
         ClusterState initialState,
-        List<TaskContext<T>> taskContexts,
+        List<? extends TaskContext<T>> taskContexts,
         Supplier<Releasable> dropHeadersContextSupplier
     ) {
         /**

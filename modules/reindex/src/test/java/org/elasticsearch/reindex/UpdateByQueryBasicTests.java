@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
@@ -29,12 +30,12 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testBasics() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("foo", "a"),
-            client().prepareIndex("test").setId("2").setSource("foo", "a"),
-            client().prepareIndex("test").setId("3").setSource("foo", "b"),
-            client().prepareIndex("test").setId("4").setSource("foo", "c")
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "a"),
+            prepareIndex("test").setId("3").setSource("foo", "b"),
+            prepareIndex("test").setId("4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 4);
+        assertHitCount(prepareSearch("test").setSize(0), 4);
         assertEquals(1, client().prepareGet("test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "4").get().getVersion());
 
@@ -69,12 +70,12 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
     public void testSlices() throws Exception {
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("foo", "a"),
-            client().prepareIndex("test").setId("2").setSource("foo", "a"),
-            client().prepareIndex("test").setId("3").setSource("foo", "b"),
-            client().prepareIndex("test").setId("4").setSource("foo", "c")
+            prepareIndex("test").setId("1").setSource("foo", "a"),
+            prepareIndex("test").setId("2").setSource("foo", "a"),
+            prepareIndex("test").setId("3").setSource("foo", "b"),
+            prepareIndex("test").setId("4").setSource("foo", "c")
         );
-        assertHitCount(client().prepareSearch("test").setSize(0).get(), 4);
+        assertHitCount(prepareSearch("test").setSize(0), 4);
         assertEquals(1, client().prepareGet("test", "1").get().getVersion());
         assertEquals(1, client().prepareGet("test", "4").get().getVersion());
 
@@ -117,14 +118,14 @@ public class UpdateByQueryBasicTests extends ReindexTestCase {
             docs.put(indexName, new ArrayList<>());
             int numDocs = between(5, 15);
             for (int i = 0; i < numDocs; i++) {
-                docs.get(indexName).add(client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("foo", "a"));
+                docs.get(indexName).add(prepareIndex(indexName).setId(Integer.toString(i)).setSource("foo", "a"));
             }
         }
 
         List<IndexRequestBuilder> allDocs = docs.values().stream().flatMap(Collection::stream).collect(Collectors.toList());
         indexRandom(true, allDocs);
         for (Map.Entry<String, List<IndexRequestBuilder>> entry : docs.entrySet()) {
-            assertHitCount(client().prepareSearch(entry.getKey()).setSize(0).get(), entry.getValue().size());
+            assertHitCount(prepareSearch(entry.getKey()).setSize(0), entry.getValue().size());
         }
 
         int slices = randomSlices(1, 10);

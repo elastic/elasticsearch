@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -52,14 +53,12 @@ public class SearchIndexNameMatcher implements Predicate<String> {
      *  the separator ':', and must match on both the cluster alias and index name.
      */
     public boolean test(String pattern) {
-        int separatorIndex = pattern.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
-        if (separatorIndex < 0) {
+        String[] splitIndex = RemoteClusterAware.splitIndexName(pattern);
+
+        if (splitIndex[0] == null) {
             return clusterAlias == null && matchesIndex(pattern);
         } else {
-            String clusterPattern = pattern.substring(0, separatorIndex);
-            String indexPattern = pattern.substring(separatorIndex + 1);
-
-            return Regex.simpleMatch(clusterPattern, clusterAlias) && matchesIndex(indexPattern);
+            return Regex.simpleMatch(splitIndex[0], clusterAlias) && matchesIndex(splitIndex[1]);
         }
     }
 

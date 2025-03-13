@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -97,14 +97,10 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         {
             request1 = new PutIndexTemplateRequest("foo");
             request2 = new PutIndexTemplateRequest("bar");
-            Map<String, Object> nakedMapping = MapBuilder.<String, Object>newMapBuilder()
-                .put(
-                    "properties",
-                    MapBuilder.<String, Object>newMapBuilder()
-                        .put("bar", MapBuilder.<String, Object>newMapBuilder().put("type", "scaled_float").put("scaling_factor", 100).map())
-                        .map()
-                )
-                .map();
+            Map<String, Object> nakedMapping = Map.<String, Object>of(
+                "properties",
+                Map.<String, Object>of("bar", Map.<String, Object>of("type", "scaled_float", "scaling_factor", 100))
+            );
             request1.mapping(nakedMapping);
             request2.mapping(Map.of("_doc", nakedMapping));
             assertEquals(request1.mappings(), request2.mappings());

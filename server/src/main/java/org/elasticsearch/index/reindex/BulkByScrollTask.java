@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -20,14 +21,9 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParseException;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,9 +38,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Task storing information about a currently running BulkByScroll request.
@@ -359,7 +353,7 @@ public class BulkByScrollTask extends CancellableTask {
         public static final String THROTTLED_UNTIL_HR_FIELD = "throttled_until";
         public static final String SLICES_FIELD = "slices";
 
-        public static Set<String> FIELDS_SET = new HashSet<>();
+        public static final Set<String> FIELDS_SET = new HashSet<>();
         static {
             FIELDS_SET.add(SLICE_ID_FIELD);
             FIELDS_SET.add(TOTAL_FIELD);
@@ -378,37 +372,6 @@ public class BulkByScrollTask extends CancellableTask {
             FIELDS_SET.add(THROTTLED_UNTIL_RAW_FIELD);
             FIELDS_SET.add(THROTTLED_UNTIL_HR_FIELD);
             FIELDS_SET.add(SLICES_FIELD);
-        }
-
-        static final ConstructingObjectParser<Tuple<Long, Long>, Void> RETRIES_PARSER = new ConstructingObjectParser<>(
-            "bulk_by_scroll_task_status_retries",
-            true,
-            a -> new Tuple<>(((Long) a[0]), (Long) a[1])
-        );
-        static {
-            RETRIES_PARSER.declareLong(constructorArg(), new ParseField(RETRIES_BULK_FIELD));
-            RETRIES_PARSER.declareLong(constructorArg(), new ParseField(RETRIES_SEARCH_FIELD));
-        }
-
-        public static void declareFields(ObjectParser<? extends StatusBuilder, Void> parser) {
-            parser.declareInt(StatusBuilder::setSliceId, new ParseField(SLICE_ID_FIELD));
-            parser.declareLong(StatusBuilder::setTotal, new ParseField(TOTAL_FIELD));
-            parser.declareLong(StatusBuilder::setUpdated, new ParseField(UPDATED_FIELD));
-            parser.declareLong(StatusBuilder::setCreated, new ParseField(CREATED_FIELD));
-            parser.declareLong(StatusBuilder::setDeleted, new ParseField(DELETED_FIELD));
-            parser.declareInt(StatusBuilder::setBatches, new ParseField(BATCHES_FIELD));
-            parser.declareLong(StatusBuilder::setVersionConflicts, new ParseField(VERSION_CONFLICTS_FIELD));
-            parser.declareLong(StatusBuilder::setNoops, new ParseField(NOOPS_FIELD));
-            parser.declareObject(StatusBuilder::setRetries, RETRIES_PARSER, new ParseField(RETRIES_FIELD));
-            parser.declareLong(StatusBuilder::setThrottled, new ParseField(THROTTLED_RAW_FIELD));
-            parser.declareFloat(StatusBuilder::setRequestsPerSecond, new ParseField(REQUESTS_PER_SEC_FIELD));
-            parser.declareString(StatusBuilder::setReasonCancelled, new ParseField(CANCELED_FIELD));
-            parser.declareLong(StatusBuilder::setThrottledUntil, new ParseField(THROTTLED_UNTIL_RAW_FIELD));
-            parser.declareObjectArray(
-                StatusBuilder::setSliceStatuses,
-                (p, c) -> StatusOrException.fromXContent(p),
-                new ParseField(SLICES_FIELD)
-            );
         }
 
         private final Integer sliceId;
@@ -537,7 +500,7 @@ public class BulkByScrollTask extends CancellableTask {
             requestsPerSecond = in.readFloat();
             reasonCancelled = in.readOptionalString();
             throttledUntil = in.readTimeValue();
-            sliceStatuses = in.readList(stream -> stream.readOptionalWriteable(StatusOrException::new));
+            sliceStatuses = in.readCollectionAsList(stream -> stream.readOptionalWriteable(StatusOrException::new));
         }
 
         @Override
@@ -571,11 +534,6 @@ public class BulkByScrollTask extends CancellableTask {
             return builder.endObject();
         }
 
-        /**
-         * We need to write a manual parser for this because of {@link StatusOrException}. Since
-         * {@link StatusOrException#fromXContent(XContentParser)} tries to peek at a field first before deciding
-         * what needs to be it cannot use an {@link ObjectParser}.
-         */
         public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException {
             if (sliceId != null) {
                 builder.field(SLICE_ID_FIELD, sliceId);
@@ -615,61 +573,6 @@ public class BulkByScrollTask extends CancellableTask {
                 builder.endArray();
             }
             return builder;
-        }
-
-        public static Status fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token;
-            if (parser.currentToken() == Token.START_OBJECT) {
-                token = parser.nextToken();
-            } else {
-                token = parser.nextToken();
-            }
-            ensureExpectedToken(Token.START_OBJECT, token, parser);
-            token = parser.nextToken();
-            ensureExpectedToken(Token.FIELD_NAME, token, parser);
-            return innerFromXContent(parser);
-        }
-
-        public static Status innerFromXContent(XContentParser parser) throws IOException {
-            Token token = parser.currentToken();
-            String fieldName = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-            StatusBuilder builder = new StatusBuilder();
-            while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                if (token == Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                } else if (token == Token.START_OBJECT) {
-                    if (fieldName.equals(Status.RETRIES_FIELD)) {
-                        builder.setRetries(Status.RETRIES_PARSER.parse(parser, null));
-                    } else {
-                        parser.skipChildren();
-                    }
-                } else if (token == Token.START_ARRAY) {
-                    if (fieldName.equals(Status.SLICES_FIELD)) {
-                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                            builder.addToSliceStatuses(StatusOrException.fromXContent(parser));
-                        }
-                    } else {
-                        parser.skipChildren();
-                    }
-                } else { // else if it is a value
-                    switch (fieldName) {
-                        case Status.SLICE_ID_FIELD -> builder.setSliceId(parser.intValue());
-                        case Status.TOTAL_FIELD -> builder.setTotal(parser.longValue());
-                        case Status.UPDATED_FIELD -> builder.setUpdated(parser.longValue());
-                        case Status.CREATED_FIELD -> builder.setCreated(parser.longValue());
-                        case Status.DELETED_FIELD -> builder.setDeleted(parser.longValue());
-                        case Status.BATCHES_FIELD -> builder.setBatches(parser.intValue());
-                        case Status.VERSION_CONFLICTS_FIELD -> builder.setVersionConflicts(parser.longValue());
-                        case Status.NOOPS_FIELD -> builder.setNoops(parser.longValue());
-                        case Status.THROTTLED_RAW_FIELD -> builder.setThrottled(parser.longValue());
-                        case Status.REQUESTS_PER_SEC_FIELD -> builder.setRequestsPerSecond(parser.floatValue());
-                        case Status.CANCELED_FIELD -> builder.setReasonCancelled(parser.text());
-                        case Status.THROTTLED_UNTIL_RAW_FIELD -> builder.setThrottledUntil(parser.longValue());
-                    }
-                }
-            }
-            return builder.buildStatus();
         }
 
         @Override
@@ -871,7 +774,7 @@ public class BulkByScrollTask extends CancellableTask {
         private final Status status;
         private final Exception exception;
 
-        public static Set<String> EXPECTED_EXCEPTION_FIELDS = new HashSet<>();
+        public static final Set<String> EXPECTED_EXCEPTION_FIELDS = new HashSet<>();
         static {
             EXPECTED_EXCEPTION_FIELDS.add("type");
             EXPECTED_EXCEPTION_FIELDS.add("reason");
@@ -935,46 +838,6 @@ public class BulkByScrollTask extends CancellableTask {
                 builder.endObject();
             }
             return builder;
-        }
-
-        /**
-         * Since {@link StatusOrException} can contain either an {@link Exception} or a {@link Status} we need to peek
-         * at a field first before deciding what needs to be parsed since the same object could contains either.
-         * The {@link #EXPECTED_EXCEPTION_FIELDS} contains the fields that are expected when the serialised object
-         * was an instance of exception and the {@link Status#FIELDS_SET} is the set of fields expected when the
-         * serialized object was an instance of Status.
-         */
-        public static StatusOrException fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.currentToken();
-            if (token == null) {
-                token = parser.nextToken();
-            }
-            if (token == Token.VALUE_NULL) {
-                return null;
-            } else {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-                token = parser.nextToken();
-                // This loop is present only to ignore unknown tokens. It breaks as soon as we find a field
-                // that is allowed.
-                while (token != Token.END_OBJECT) {
-                    ensureExpectedToken(Token.FIELD_NAME, token, parser);
-                    String fieldName = parser.currentName();
-                    // weird way to ignore unknown tokens
-                    if (Status.FIELDS_SET.contains(fieldName)) {
-                        return new StatusOrException(Status.innerFromXContent(parser));
-                    } else if (EXPECTED_EXCEPTION_FIELDS.contains(fieldName)) {
-                        return new StatusOrException(ElasticsearchException.innerFromXContent(parser, false));
-                    } else {
-                        // Ignore unknown tokens
-                        token = parser.nextToken();
-                        if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                            parser.skipChildren();
-                        }
-                        token = parser.nextToken();
-                    }
-                }
-                throw new XContentParseException("Unable to parse StatusFromException. Expected fields not found.");
-            }
         }
 
         @Override

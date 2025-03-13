@@ -31,6 +31,11 @@ public class UpdateJobActionRequestTests extends AbstractWireSerializingTestCase
     }
 
     @Override
+    protected UpdateJobAction.Request mutateInstance(UpdateJobAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<UpdateJobAction.Request> instanceReader() {
         return UpdateJobAction.Request::new;
     }

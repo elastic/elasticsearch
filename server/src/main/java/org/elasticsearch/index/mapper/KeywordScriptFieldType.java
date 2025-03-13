@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -50,22 +53,25 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             StringFieldScript.Factory factory,
             Script script,
-            Map<String, String> meta
+            Map<String, String> meta,
+            OnScriptError onScriptError
         ) {
-            return new KeywordScriptFieldType(name, factory, script, meta);
+            return new KeywordScriptFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
-        StringFieldScript.Factory getParseFromSourceFactory() {
+        protected StringFieldScript.Factory getParseFromSourceFactory() {
             return StringFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        StringFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected StringFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return StringFieldScript.leafAdapter(parentScriptFactory);
         }
     }
@@ -74,10 +80,16 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         return new Builder(name).createRuntimeField(StringFieldScript.PARSE_FROM_SOURCE);
     }
 
-    public KeywordScriptFieldType(String name, StringFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    public KeywordScriptFieldType(
+        String name,
+        StringFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -100,6 +112,11 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return new KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader(leafFactory(blContext.lookup()));
+    }
+
+    @Override
     public StringScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         return new StringScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), KeywordDocValuesField::new);
     }
@@ -117,7 +134,8 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
         applyScriptContext(context);
         return StringScriptFieldFuzzyQuery.build(

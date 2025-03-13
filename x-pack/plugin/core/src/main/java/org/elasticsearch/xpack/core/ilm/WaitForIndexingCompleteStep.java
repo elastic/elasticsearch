@@ -37,10 +37,10 @@ final class WaitForIndexingCompleteStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata followerIndex = clusterState.metadata().index(index);
+        IndexMetadata followerIndex = clusterState.metadata().getProject().index(index);
         if (followerIndex == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
         Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);

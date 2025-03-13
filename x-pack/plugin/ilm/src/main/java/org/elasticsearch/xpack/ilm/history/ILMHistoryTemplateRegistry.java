@@ -19,9 +19,7 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
-import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -36,10 +34,12 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     // version 3: templates moved to composable templates
     // version 4: add `allow_auto_create` setting
     // version 5: convert to data stream
-    public static final int INDEX_TEMPLATE_VERSION = 5;
+    // version 6: manage by data stream lifecycle
+    // version 7: version the index template name so we can upgrade existing deployments
+    public static final int INDEX_TEMPLATE_VERSION = 7;
 
     public static final String ILM_TEMPLATE_VERSION_VARIABLE = "xpack.ilm_history.template.version";
-    public static final String ILM_TEMPLATE_NAME = "ilm-history";
+    public static final String ILM_TEMPLATE_NAME = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String ILM_POLICY_NAME = "ilm-history-ilm-policy";
 
@@ -74,15 +74,23 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig(ILM_POLICY_NAME, "/ilm-history-ilm-policy.json").load(
-            new NamedXContentRegistry(IndexLifecycle.NAMED_X_CONTENT_ENTRIES)
-        )
+    private static final LifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new LifecyclePolicyConfig(
+        ILM_POLICY_NAME,
+        "/ilm-history-ilm-policy.json"
     );
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
-        return this.ilmHistoryEnabled ? LIFECYCLE_POLICIES : Collections.emptyList();
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of(LIFECYCLE_POLICY_CONFIG);
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        if (ilmHistoryEnabled) {
+            return lifecyclePolicies;
+        } else {
+            return List.of();
+        }
     }
 
     @Override

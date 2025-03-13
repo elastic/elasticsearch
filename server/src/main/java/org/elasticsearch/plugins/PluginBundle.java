@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -20,14 +21,16 @@ import java.util.Set;
 /**
  * A "bundle" is a group of jars that will be loaded in their own classloader
  */
-class PluginBundle {
+public class PluginBundle {
     public final PluginDescriptor plugin;
+    private final Path dir;
     public final Set<URL> urls;
     public final Set<URL> spiUrls;
     public final Set<URL> allUrls;
 
     PluginBundle(PluginDescriptor plugin, Path dir) throws IOException {
         this.plugin = Objects.requireNonNull(plugin);
+        this.dir = dir;
 
         Path spiDir = dir.resolve("spi");
         // plugin has defined an explicit api for extension
@@ -38,6 +41,10 @@ class PluginBundle {
             allUrls.addAll(spiUrls);
         }
         this.allUrls = allUrls;
+    }
+
+    public Path getDir() {
+        return dir;
     }
 
     public PluginDescriptor pluginDescriptor() {
@@ -82,4 +89,5 @@ class PluginBundle {
     public int hashCode() {
         return Objects.hash(plugin);
     }
+
 }

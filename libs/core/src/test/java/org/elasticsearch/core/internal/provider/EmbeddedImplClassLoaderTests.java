@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core.internal.provider;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.CompoundEnumeration;
 import org.elasticsearch.test.ESTestCase;
@@ -452,7 +454,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
             // getResources
             var urls1 = Collections.list(urlcLoader.getResources(resourcePath)).stream().map(URL::toString).toList();
             var urls2 = Collections.list(embedLoader.getResources(resourcePath)).stream().map(URL::toString).toList();
-            assertThat("urls1=%s, urls2=%s".formatted(urls1, urls2), urls2, hasSize(1));
+            assertThat(Strings.format("urls1=%s, urls2=%s", urls1, urls2), urls2, hasSize(1));
             assertThat(urls1.get(0), endsWith("!/" + expectedURLSuffix));
             assertThat(urls2.get(0), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
 

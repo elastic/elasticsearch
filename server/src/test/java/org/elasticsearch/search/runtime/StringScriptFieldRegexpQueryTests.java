@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
@@ -84,13 +86,14 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             0,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
-        assertTrue(query.matches(List.of("astuffb")));
-        assertFalse(query.matches(List.of("astuffB")));
-        assertFalse(query.matches(List.of("fffff")));
-        assertFalse(query.matches(List.of("ab")));
-        assertFalse(query.matches(List.of("aasdf")));
-        assertFalse(query.matches(List.of("dsfb")));
-        assertTrue(query.matches(List.of("astuffb", "fffff")));
+        BytesRefBuilder scratch = new BytesRefBuilder();
+        assertTrue(query.matches(List.of("astuffb"), scratch));
+        assertFalse(query.matches(List.of("astuffB"), scratch));
+        assertFalse(query.matches(List.of("fffff"), scratch));
+        assertFalse(query.matches(List.of("ab"), scratch));
+        assertFalse(query.matches(List.of("aasdf"), scratch));
+        assertFalse(query.matches(List.of("dsfb"), scratch));
+        assertTrue(query.matches(List.of("astuffb", "fffff"), scratch));
 
         StringScriptFieldRegexpQuery ciQuery = new StringScriptFieldRegexpQuery(
             randomScript(),
@@ -101,9 +104,8 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             RegExp.ASCII_CASE_INSENSITIVE,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
-        assertTrue(ciQuery.matches(List.of("astuffB")));
-        assertTrue(ciQuery.matches(List.of("Astuffb", "fffff")));
-
+        assertTrue(ciQuery.matches(List.of("astuffB"), scratch));
+        assertTrue(ciQuery.matches(List.of("Astuffb", "fffff"), scratch));
     }
 
     @Override

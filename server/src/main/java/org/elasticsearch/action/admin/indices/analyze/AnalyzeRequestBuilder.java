@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
@@ -17,12 +18,12 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<
     AnalyzeAction.Response,
     AnalyzeRequestBuilder> {
 
-    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action) {
-        super(client, action, new AnalyzeAction.Request());
+    public AnalyzeRequestBuilder(ElasticsearchClient client) {
+        super(client, AnalyzeAction.INSTANCE, new AnalyzeAction.Request());
     }
 
-    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action, String index, String... text) {
-        super(client, action, new AnalyzeAction.Request(index).text(text));
+    public AnalyzeRequestBuilder(ElasticsearchClient client, String index, String... text) {
+        super(client, AnalyzeAction.INSTANCE, new AnalyzeAction.Request(index).text(text));
     }
 
     /**

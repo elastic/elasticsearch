@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -55,6 +57,13 @@ public interface IndexEventListener {
     default void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
 
     /**
+     * Called after the index shard has been marked closed. It could still be waiting for the async close of the engine.
+     * The ordering between this and the subsequent state notifications (closed, deleted, store closed) is
+     * not guaranteed.
+     */
+    default void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
+
+    /**
      * Called after the index shard has been closed.
      *
      * @param shardId The shard id
@@ -76,6 +85,25 @@ public interface IndexEventListener {
         IndexShardState currentState,
         @Nullable String reason
     ) {}
+
+    /**
+     * Invoked before a shard performs a mutable operation. Mutable operations include, but are not limited to:
+     * <ul>
+     *     <li>Indexing operations</li>
+     *     <li>Force merges</li>
+     * </ul>
+     *
+     * This method ensures that the shard is ready to accept mutating operations. This is particularly useful in cases
+     * where the shard initializes its internal {@link org.elasticsearch.index.engine.Engine} lazily, which may take some time.
+     * The provided listener should be notified once the shard is prepared to proceed with the operation.
+     * This can be called from a transport thread and therefore the function should be lightweight and not block the thread.
+     *
+     * @param indexShard the shard where the mutable operation will be performed
+     * @param listener   the listener to be notified when the shard is ready to proceed
+     */
+    default void beforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 
     /**
      * Called before the index gets created. Note that this is also called
@@ -166,8 +194,15 @@ public interface IndexEventListener {
      *
      * @param indexShard    the shard that is about to recover
      * @param indexSettings the shard's index settings
+     * @param listener      listener notified when this step completes
      */
-    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {}
+    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
+    default void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 
     /**
      * Called after the raw files have been restored from the repository but any other recovery processing has happened

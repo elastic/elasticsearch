@@ -11,19 +11,19 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-public class PhaseTests extends AbstractSerializingTestCase<Phase> {
+public class PhaseTests extends AbstractXContentSerializingTestCase<Phase> {
     private String phaseName;
 
     @Before
@@ -39,11 +39,11 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     static Phase randomTestPhase(String phaseName) {
         TimeValue after = null;
         if (randomBoolean()) {
-            after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
+            after = randomTimeValue(0, 1_000_000_000, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
         }
-        Map<String, LifecycleAction> actions = Collections.emptyMap();
+        Map<String, LifecycleAction> actions = Map.of();
         if (randomBoolean()) {
-            actions = Collections.singletonMap(MockAction.NAME, new MockAction());
+            actions = Map.of(MockAction.NAME, new MockAction());
         }
         return new Phase(phaseName, after, actions);
     }
@@ -60,7 +60,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
+            List.of(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
         );
     }
 
@@ -75,7 +75,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     }
 
     @Override
-    protected Phase mutateInstance(Phase instance) throws IOException {
+    protected Phase mutateInstance(Phase instance) {
         String name = instance.getName();
         TimeValue after = instance.getMinimumAge();
         Map<String, LifecycleAction> actions = instance.getActions();
@@ -84,7 +84,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
             case 1 -> after = TimeValue.timeValueSeconds(after.getSeconds() + randomIntBetween(1, 1000));
             case 2 -> {
                 actions = new HashMap<>(actions);
-                actions.put(MockAction.NAME + "another", new MockAction(Collections.emptyList()));
+                actions.put(MockAction.NAME + "another", new MockAction(List.of()));
             }
             default -> throw new AssertionError("Illegal randomisation branch");
         }
@@ -92,7 +92,7 @@ public class PhaseTests extends AbstractSerializingTestCase<Phase> {
     }
 
     public void testDefaultAfter() {
-        Phase phase = new Phase(randomAlphaOfLength(20), null, Collections.emptyMap());
+        Phase phase = new Phase(randomAlphaOfLength(20), null, Map.of());
         assertEquals(TimeValue.ZERO, phase.getMinimumAge());
     }
 }

@@ -6,13 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -20,11 +22,10 @@ import java.util.Objects;
 public class RegressionConfig implements LenientlyParsedInferenceConfig, StrictlyParsedInferenceConfig {
 
     public static final ParseField NAME = new ParseField("regression");
-    private static final Version MIN_SUPPORTED_VERSION = Version.V_7_6_0;
-    public static final ParseField RESULTS_FIELD = new ParseField("results_field");
+    private static final MlConfigVersion MIN_SUPPORTED_VERSION = MlConfigVersion.V_7_6_0;
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
 
-    public static RegressionConfig EMPTY_PARAMS = new RegressionConfig(DEFAULT_RESULTS_FIELD, null);
+    public static final RegressionConfig EMPTY_PARAMS = new RegressionConfig(DEFAULT_RESULTS_FIELD, null);
 
     private static final ObjectParser<RegressionConfig.Builder, Void> LENIENT_PARSER = createParser(true);
     private static final ObjectParser<RegressionConfig.Builder, Void> STRICT_PARSER = createParser(false);
@@ -134,8 +135,31 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return requestingImportance() ? Version.V_7_7_0 : MIN_SUPPORTED_VERSION;
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof RegressionConfigUpdate configUpdate) {
+            RegressionConfig.Builder builder = new RegressionConfig.Builder(this);
+            if (configUpdate.getResultsField() != null) {
+                builder.setResultsField(configUpdate.getResultsField());
+            }
+            if (configUpdate.getNumTopFeatureImportanceValues() != null) {
+                builder.setNumTopFeatureImportanceValues(configUpdate.getNumTopFeatureImportanceValues());
+            }
+            return builder.build();
+        } else if (update instanceof ResultsFieldUpdate resultsFieldUpdate) {
+            return new RegressionConfig.Builder(this).setResultsField(resultsFieldUpdate.getResultsField()).build();
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return requestingImportance() ? MlConfigVersion.V_7_7_0 : MIN_SUPPORTED_VERSION;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersions.ZERO;
     }
 
     public static Builder builder() {

@@ -10,11 +10,10 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -129,7 +128,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final List<X509Credential> spEncryptionCredentials = buildOpenSamlCredential(spEncryptionCertificatePairs).stream()
             .map((cred) -> (X509Credential) cred)
             .collect(Collectors.<X509Credential>toList());
-        final SpConfiguration sp = new SpConfiguration(
+        final SpConfiguration sp = new SingleSamlSpConfiguration(
             SP_ENTITY_ID,
             SP_ACS_URL,
             null,
@@ -216,13 +215,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             .add(getAttribute(attributeName, attributeFriendlyName, null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "attribute name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
@@ -231,10 +226,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             );
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -247,17 +239,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertion.getAttributeStatements().get(0).getAttributes().add(getAttribute(UID_OID, "friendly", null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -274,20 +259,17 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         SamlToken token = token(signResponse(response));
 
         final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "attribute name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
                     SPECIAL_ATTRIBUTE_LOG_MESSAGE
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "attribute friendly name warning",
                     authenticator.getClass().getName(),
                     Level.WARN,
@@ -296,10 +278,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             );
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -343,6 +322,45 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertThat(attributes.name().spNameQualifier, equalTo(SP_ENTITY_ID));
 
         assertThat(attributes.session(), equalTo(session));
+    }
+
+    public void testSuccessfullyParseContentFromRawXmlWithSignedAssertion() throws Exception {
+        Instant now = clock.instant();
+        final String nameId = randomAlphaOfLengthBetween(12, 24);
+        final String sessionindex = randomId();
+        final String xml = getSimpleResponseFromXmlTemplate(now, nameId, sessionindex);
+
+        SamlToken token = token(signAssertions(xml));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+        assertThat(attributes.attributes(), iterableWithSize(2));
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
+        assertThat(uid, contains("daredevil"));
+        assertThat(uid, iterableWithSize(1));
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(TRANSIENT));
+        assertThat(attributes.name().value, equalTo(nameId));
+    }
+
+    public void testSuccessfullyParseContentFromRawXmlWithSignedUnicodeAssertion() throws Exception {
+        Instant now = clock.instant();
+        // Picking a completely random, but valid XML, unicode char is hard. We just insert some well known chars.
+        final String nameId = randomAlphaOfLengthBetween(2, 4) + "セキュリティ" + randomAlphaOfLengthBetween(2, 4);
+        final String nameIdFormat = "urn:fake:nameid-format:soluções";
+        final String sessionindex = randomId();
+        // Randomly skip the header because the XML parser is supposed to infer UTF-8 if there is no header
+        final String xml = getSimpleResponseFromXmlTemplate(randomBoolean(), now, nameIdFormat, nameId, sessionindex);
+
+        SamlToken token = token(signAssertions(xml));
+        final SamlAttributes attributes = authenticator.authenticate(token);
+        assertThat(attributes, notNullValue());
+        assertThat(attributes.attributes(), iterableWithSize(2));
+        final List<String> uid = attributes.getAttributeValues(UID_OID);
+        assertThat(uid, contains("daredevil"));
+        assertThat(uid, iterableWithSize(1));
+        assertThat(attributes.name(), notNullValue());
+        assertThat(attributes.name().format, equalTo(nameIdFormat));
+        assertThat(attributes.name().value, equalTo(nameId));
     }
 
     public void testSuccessfullyParseContentFromEncryptedAssertion() throws Exception {
@@ -574,17 +592,23 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     public void testExpiredAuthnStatementSessionIsRejected() throws Exception {
-        Instant now = clock.instant();
-        String xml = getSimpleResponseAsString(now);
+        final Instant now = clock.instant();
+        final int sessionExpirySeconds = 60;
+        final Instant subjectConfirmationValidUntil = now.plusSeconds(500);
+        final Instant sessionValidUntil = now.plusSeconds(sessionExpirySeconds);
+        final String xml = SamlUtils.getXmlContent(
+            getSimpleResponse(now, randomId(), randomId(), subjectConfirmationValidUntil, sessionValidUntil),
+            false
+        );
         SamlToken token = token(signResponse(xml));
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // and still valid if we advance partway through the session expiry time
-        clock.fastForwardSeconds(30);
+        clock.fastForwardSeconds(sessionExpirySeconds / 2);
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // and still valid if we advance past the expiry time, but allow for clock skew
-        clock.fastForwardSeconds((int) (30 + maxSkew.seconds() / 2));
+        clock.fastForwardSeconds((int) (sessionExpirySeconds / 2 + maxSkew.seconds() / 2));
         assertThat(authenticator.authenticate(token), notNullValue());
 
         // but fails once we get past the clock skew allowance
@@ -845,14 +869,9 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         String xml = SamlUtils.getXmlContent(response, false);
         final SamlToken token = token(signResponse(xml));
 
-        final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(samlLogger, mockAppender);
-
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "similar audience",
                     authenticator.getClass().getName(),
                     Level.INFO,
@@ -865,8 +884,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                         + "] [:80/] vs [/])"
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "not similar audience",
                     authenticator.getClass().getName(),
                     Level.INFO,
@@ -875,10 +894,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             );
             final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
             assertThat(exception.getMessage(), containsString("required audience"));
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(samlLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1378,9 +1394,14 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         final Credential keyEncryptionCredential = new BasicCredential(keyPair.v1().getPublicKey(), keyPair.v2());
         KeyEncryptionParameters keyEncryptionParameters = new KeyEncryptionParameters();
         keyEncryptionParameters.setEncryptionCredential(keyEncryptionCredential);
-        keyEncryptionParameters.setAlgorithm(
-            randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP, EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15)
-        );
+        if (inFipsJvm()) {
+            // RSA v1.5 is not allowed when running in FIPS mode
+            keyEncryptionParameters.setAlgorithm(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP);
+        } else {
+            keyEncryptionParameters.setAlgorithm(
+                randomFrom(EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSAOAEP, EncryptionConstants.ALGO_ID_KEYTRANSPORT_RSA15)
+            );
+        }
 
         final Encrypter samlEncrypter = new Encrypter(encryptionParameters, keyEncryptionParameters);
         samlEncrypter.setKeyPlacement(Encrypter.KeyPlacement.INLINE);
@@ -1427,8 +1448,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     private Response getSimpleResponse(Instant now, String nameId, String sessionindex) {
-        Instant subjectConfirmationValidUntil = now.plusSeconds(120);
-        Instant sessionValidUntil = now.plusSeconds(60);
+        Instant subjectConfirmationValidUntil = now.plusSeconds(500);
+        Instant sessionValidUntil = now.plusSeconds(300);
         return getSimpleResponse(now, nameId, sessionindex, subjectConfirmationValidUntil, sessionValidUntil);
     }
 
@@ -1540,9 +1561,18 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
     }
 
     private String getSimpleResponseFromXmlTemplate(Instant now, String nameId, String sessionindex) {
-        Instant validUntil = now.plusSeconds(30);
-        String xml = "<?xml version='1.0' encoding='UTF-8'?>\n"
-            + "<proto:Response"
+        return getSimpleResponseFromXmlTemplate(true, now, TRANSIENT, nameId, sessionindex);
+    }
+
+    private String getSimpleResponseFromXmlTemplate(
+        boolean includeXmlHeader,
+        Instant now,
+        String nameIdFormat,
+        String nameId,
+        String sessionindex
+    ) {
+        Instant validUntil = now.plusSeconds(300);
+        String xml = "<proto:Response"
             + "    Destination='%(SP_ACS_URL)'"
             + "    ID='%(randomId)'"
             + "    InResponseTo='%(requestId)'"
@@ -1558,7 +1588,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "  <assert:Assertion ID='%(sessionindex)' IssueInstant='%(now)' Version='2.0'>"
             + "    <assert:Issuer>%(IDP_ENTITY_ID)</assert:Issuer>"
             + "    <assert:Subject>"
-            + "      <assert:NameID  Format='%(TRANSIENT)'"
+            + "      <assert:NameID  Format='%(nameIdFormat)'"
             + "        NameQualifier='%(IDP_ENTITY_ID)'"
             + "        SPNameQualifier='%(SP_ENTITY_ID)'>%(nameId)</assert:NameID>"
             + "      <assert:SubjectConfirmation Method='%(METHOD_BEARER)'>"
@@ -1586,6 +1616,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             + "  </assert:Assertion>"
             + "</proto:Response>";
 
+        if (includeXmlHeader) {
+            xml = "<?xml version='1.0' encoding='UTF-8'?>\n" + xml;
+        }
+
         final Map<String, Object> replacements = new HashMap<>();
         replacements.put("IDP_ENTITY_ID", IDP_ENTITY_ID);
         replacements.put("METHOD_BEARER", METHOD_BEARER);
@@ -1597,7 +1631,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         replacements.put("sessionindex", sessionindex);
         replacements.put("SP_ACS_URL", SP_ACS_URL);
         replacements.put("SP_ENTITY_ID", SP_ENTITY_ID);
-        replacements.put("TRANSIENT", TRANSIENT);
+        replacements.put("nameIdFormat", nameIdFormat);
         replacements.put("validUntil", validUntil);
 
         return NamedFormatter.format(xml, replacements);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
@@ -18,6 +19,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
@@ -94,7 +96,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     if (randomBoolean()) {
                         String delId = Integer.toString(i);
-                        engine.delete(new Engine.Delete(delId, newUid(delId), primaryTerm.get()));
+                        engine.delete(new Engine.Delete(delId, Uid.encodeId(delId), primaryTerm.get()));
                     }
                     if (rarely()) {
                         engine.flush();
@@ -142,7 +144,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             // Close and reopen the main engine
             try (InternalEngine recoveringEngine = new InternalEngine(config)) {
-                recoveringEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+                recoverFromTranslog(recoveringEngine, translogHandler, Long.MAX_VALUE);
                 // the locked down engine should still point to the previous commit
                 assertThat(readOnlyEngine.getPersistedLocalCheckpoint(), equalTo(lastSeqNoStats.getLocalCheckpoint()));
                 assertThat(readOnlyEngine.getSeqNoStats(globalCheckpoint.get()).getMaxSeqNo(), equalTo(lastSeqNoStats.getMaxSeqNo()));
@@ -364,7 +366,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             }
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true, randomBoolean())) {
                 final TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), config.getIndexSettings());
-                readOnlyEngine.recoverFromTranslog(translogHandler, randomNonNegativeLong());
+                recoverFromTranslog(readOnlyEngine, translogHandler, randomNonNegativeLong());
 
                 assertThat(translogHandler.appliedOperations(), equalTo(0L));
             }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.gcs;
@@ -11,16 +12,25 @@ package org.elasticsearch.repositories.gcs;
 import com.google.cloud.http.HttpTransportOptions;
 import com.google.cloud.storage.Storage;
 
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.protocol.HttpContext;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -28,6 +38,7 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,7 +75,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             .put(GoogleCloudStorageClientSettings.PROXY_PORT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 8080)
             .build();
         SetOnce<Proxy> proxy = new SetOnce<>();
-        final GoogleCloudStorageService service = new GoogleCloudStorageService() {
+        final GoogleCloudStorageService service = new GoogleCloudStorageService(Settings.EMPTY) {
             @Override
             void notifyProxyIsSet(Proxy p) {
                 proxy.set(p);
@@ -74,13 +85,13 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> service.client("another_client", "repo", statsCollector)
+            () -> service.client("another_client", "repo", randomPurpose(), statsCollector)
         );
         assertThat(e.getMessage(), Matchers.startsWith("Unknown client name"));
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING.getConcreteSettingForNamespace(clientName) }
         );
-        final Storage storage = service.client(clientName, "repo", statsCollector);
+        final Storage storage = service.client(clientName, "repo", randomPurpose(), statsCollector);
         assertThat(storage.getOptions().getApplicationName(), Matchers.containsString(applicationName));
         assertThat(storage.getOptions().getHost(), Matchers.is(endpoint));
         assertThat(storage.getOptions().getProjectId(), Matchers.is(projectIdName));
@@ -108,14 +119,14 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
             GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
-            final Storage client11 = storageService.client("gcs1", "repo1", statsCollector);
+            final Storage client11 = storageService.client("gcs1", "repo1", randomPurpose(), statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
-            final Storage client12 = storageService.client("gcs2", "repo2", statsCollector);
+            final Storage client12 = storageService.client("gcs2", "repo2", randomPurpose(), statsCollector);
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // client 3 is missing
             final IllegalArgumentException e1 = expectThrows(
                 IllegalArgumentException.class,
-                () -> storageService.client("gcs3", "repo3", statsCollector)
+                () -> storageService.client("gcs3", "repo3", randomPurpose(), statsCollector)
             );
             assertThat(e1.getMessage(), containsString("Unknown client name [gcs3]."));
             // update client settings
@@ -123,18 +134,18 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             // old client 1 not changed
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             // new client 1 is changed
-            final Storage client21 = storageService.client("gcs1", "repo1", statsCollector);
+            final Storage client21 = storageService.client("gcs1", "repo1", randomPurpose(), statsCollector);
             assertThat(client21.getOptions().getProjectId(), equalTo("project_gcs21"));
             // old client 2 not changed
             assertThat(client12.getOptions().getProjectId(), equalTo("project_gcs12"));
             // new client2 is gone
             final IllegalArgumentException e2 = expectThrows(
                 IllegalArgumentException.class,
-                () -> storageService.client("gcs2", "repo2", statsCollector)
+                () -> storageService.client("gcs2", "repo2", randomPurpose(), statsCollector)
             );
             assertThat(e2.getMessage(), containsString("Unknown client name [gcs2]."));
             // client 3 emerged
-            final Storage client23 = storageService.client("gcs3", "repo3", statsCollector);
+            final Storage client23 = storageService.client("gcs3", "repo3", randomPurpose(), statsCollector);
             assertThat(client23.getOptions().getProjectId(), equalTo("project_gcs23"));
         }
     }
@@ -146,15 +157,35 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
 
-            final Storage repo1Client = storageService.client("gcs1", "repo1", new GoogleCloudStorageOperationsStats("bucket"));
-            final Storage repo2Client = storageService.client("gcs1", "repo2", new GoogleCloudStorageOperationsStats("bucket"));
+            final OperationPurpose operationPurpose = randomPurpose();
+            final OperationPurpose differentOperationPurpose = randomValueOtherThan(operationPurpose, BlobStoreTestUtil::randomPurpose);
+            final Storage repo1Client = storageService.client(
+                "gcs1",
+                "repo1",
+                operationPurpose,
+                new GoogleCloudStorageOperationsStats("bucket")
+            );
+            final Storage repo1ClientOtherPurpose = storageService.client(
+                "gcs1",
+                "repo1",
+                differentOperationPurpose,
+                new GoogleCloudStorageOperationsStats("bucket")
+            );
+            final Storage repo2Client = storageService.client(
+                "gcs1",
+                "repo2",
+                operationPurpose,
+                new GoogleCloudStorageOperationsStats("bucket")
+            );
             final Storage repo1ClientSecondInstance = storageService.client(
                 "gcs1",
                 "repo1",
+                operationPurpose,
                 new GoogleCloudStorageOperationsStats("bucket")
             );
 
             assertNotSame(repo1Client, repo2Client);
+            assertNotSame(repo1Client, repo1ClientOtherPurpose);
             assertSame(repo1Client, repo1ClientSecondInstance);
         }
     }
@@ -179,5 +210,23 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         assertEquals(-1, GoogleCloudStorageService.toTimeout(null).intValue());
         assertEquals(-1, GoogleCloudStorageService.toTimeout(TimeValue.ZERO).intValue());
         assertEquals(0, GoogleCloudStorageService.toTimeout(TimeValue.MINUS_ONE).intValue());
+    }
+
+    public void testGetDefaultProjectIdViaProxy() throws Exception {
+        String proxyProjectId = randomAlphaOfLength(16);
+        var proxyServer = new MockHttpProxyServer() {
+            @Override
+            public void handle(HttpRequest request, HttpResponse response, HttpContext context) {
+                assertEquals(
+                    "GET http://metadata.google.internal/computeMetadata/v1/project/project-id HTTP/1.1",
+                    request.getRequestLine().toString()
+                );
+                response.setEntity(new StringEntity(proxyProjectId, ContentType.TEXT_PLAIN));
+            }
+        };
+        try (proxyServer) {
+            var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), proxyServer.getPort()));
+            assertEquals(proxyProjectId, SocketAccess.doPrivilegedIOException(() -> GoogleCloudStorageService.getDefaultProjectId(proxy)));
+        }
     }
 }

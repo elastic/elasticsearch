@@ -17,7 +17,7 @@ import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
@@ -27,7 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class QueryWatchesRequestTests extends AbstractSerializingTestCase<QueryWatchesAction.Request> {
+public class QueryWatchesRequestTests extends AbstractXContentSerializingTestCase<QueryWatchesAction.Request> {
 
     @Override
     protected QueryWatchesAction.Request doParseInstance(XContentParser parser) throws IOException {
@@ -65,6 +65,11 @@ public class QueryWatchesRequestTests extends AbstractSerializingTestCase<QueryW
             sorts,
             searchAfter
         );
+    }
+
+    @Override
+    protected QueryWatchesAction.Request mutateInstance(QueryWatchesAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

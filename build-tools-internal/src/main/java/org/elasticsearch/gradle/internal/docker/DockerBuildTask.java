@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.docker;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -19,13 +21,16 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.SetProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
+import org.gradle.process.ExecSpec;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
@@ -35,6 +40,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
@@ -42,7 +48,7 @@ import javax.inject.Inject;
  * This task wraps up the details of building a Docker image, including adding a pull
  * mechanism that can retry, and emitting the image SHA as a task output.
  */
-public class DockerBuildTask extends DefaultTask {
+public abstract class DockerBuildTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(DockerBuildTask.class);
 
     private final WorkerExecutor workerExecutor;
@@ -72,8 +78,10 @@ public class DockerBuildTask extends DefaultTask {
             params.getTags().set(Arrays.asList(tags));
             params.getPull().set(pull);
             params.getNoCache().set(noCache);
+            params.getPush().set(getPush().getOrElse(false));
             params.getBaseImages().set(Arrays.asList(baseImages));
             params.getBuildArgs().set(buildArgs);
+            params.getPlatforms().set(getPlatforms());
         });
     }
 
@@ -124,9 +132,16 @@ public class DockerBuildTask extends DefaultTask {
         return buildArgs;
     }
 
-    public void setBuildArgs(MapProperty<String, String> buildArgs) {
-        this.buildArgs = buildArgs;
+    @Input
+    public abstract SetProperty<String> getPlatforms();
+
+    public void setPlatform(String platform) {
+        getPlatforms().set(Arrays.asList(platform));
     }
+
+    @Input
+    @Optional
+    public abstract Property<Boolean> getPush();
 
     @OutputFile
     public RegularFileProperty getMarkerFile() {
@@ -152,6 +167,7 @@ public class DockerBuildTask extends DefaultTask {
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 try {
                     LoggedExec.exec(execOperations, spec -> {
+                        maybeConfigureDockerConfig(spec);
                         spec.executable("docker");
                         spec.args("pull");
                         spec.args(baseImage);
@@ -167,6 +183,13 @@ public class DockerBuildTask extends DefaultTask {
             throw new GradleException("Failed to pull Docker base image [" + baseImage + "], all attempts failed");
         }
 
+        private void maybeConfigureDockerConfig(ExecSpec spec) {
+            String dockerConfig = System.getenv("DOCKER_CONFIG");
+            if (dockerConfig != null) {
+                spec.environment("DOCKER_CONFIG", dockerConfig);
+            }
+        }
+
         @Override
         public void execute() {
             final Parameters parameters = getParameters();
@@ -176,11 +199,22 @@ public class DockerBuildTask extends DefaultTask {
             }
 
             final List<String> tags = parameters.getTags().get();
+            final boolean isCrossPlatform = isCrossPlatform();
 
             LoggedExec.exec(execOperations, spec -> {
+                maybeConfigureDockerConfig(spec);
+
                 spec.executable("docker");
 
+                if (isCrossPlatform) {
+                    spec.args("buildx");
+                }
+
                 spec.args("build", parameters.getDockerContext().get().getAsFile().getAbsolutePath());
+
+                if (isCrossPlatform) {
+                    spec.args("--platform", parameters.getPlatforms().get().stream().collect(Collectors.joining(",")));
+                }
 
                 if (parameters.getNoCache().get()) {
                     spec.args("--no-cache");
@@ -189,16 +223,32 @@ public class DockerBuildTask extends DefaultTask {
                 tags.forEach(tag -> spec.args("--tag", tag));
 
                 parameters.getBuildArgs().get().forEach((k, v) -> spec.args("--build-arg", k + "=" + v));
+
+                if (parameters.getPush().getOrElse(false)) {
+                    spec.args("--push");
+                }
             });
 
             // Fetch the Docker image's hash, and write it to desk as the task's output. Doing this allows us
             // to do proper up-to-date checks in Gradle.
             try {
+                // multi-platform image builds do not end up in local registry, so we need to pull the just build image
+                // first to get the checksum and also serves as a test for the image being pushed correctly
+                if (parameters.getPlatforms().get().size() > 1 && parameters.getPush().getOrElse(false)) {
+                    pullBaseImage(tags.get(0));
+                }
                 final String checksum = getImageChecksum(tags.get(0));
                 Files.writeString(parameters.getMarkerFile().getAsFile().get().toPath(), checksum + "\n");
             } catch (IOException e) {
                 throw new RuntimeException("Failed to write marker file", e);
             }
+        }
+
+        private boolean isCrossPlatform() {
+            return getParameters().getPlatforms()
+                .get()
+                .stream()
+                .anyMatch(any -> any.equals(Architecture.current().dockerPlatform) == false);
         }
 
         private String getImageChecksum(String imageTag) {
@@ -228,5 +278,9 @@ public class DockerBuildTask extends DefaultTask {
         ListProperty<String> getBaseImages();
 
         MapProperty<String, String> getBuildArgs();
+
+        SetProperty<String> getPlatforms();
+
+        Property<Boolean> getPush();
     }
 }

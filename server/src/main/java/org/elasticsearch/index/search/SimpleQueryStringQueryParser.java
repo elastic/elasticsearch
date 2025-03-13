@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.search;
 
@@ -49,6 +50,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     private final Settings settings;
     private SearchExecutionContext context;
     private final MultiMatchQueryParser queryBuilder;
+    private MultiMatchQueryBuilder.Type type = MultiMatchQueryBuilder.Type.MOST_FIELDS;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
     public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags, Settings settings, SearchExecutionContext context) {
@@ -110,10 +112,14 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     @Override
     public Query newDefaultQuery(String text) {
         try {
-            return queryBuilder.parse(MultiMatchQueryBuilder.Type.MOST_FIELDS, weights, text, null);
+            return queryBuilder.parse(type, weights, text, null);
         } catch (IOException e) {
             return rethrowUnlessLenient(new IllegalStateException(e.getMessage()));
         }
+    }
+
+    public void setType(MultiMatchQueryBuilder.Type type) {
+        this.type = type;
     }
 
     @Override
@@ -192,6 +198,9 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         }
         if (disjuncts.size() == 1) {
             return disjuncts.get(0);
+        }
+        if (disjuncts.size() == 0) {
+            return null;
         }
         return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }

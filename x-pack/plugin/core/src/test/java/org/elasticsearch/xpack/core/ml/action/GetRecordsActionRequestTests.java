@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetRecordsAction.Request;
 
-public class GetRecordsActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class GetRecordsActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected Request doParseInstance(XContentParser parser) {
@@ -51,12 +51,13 @@ public class GetRecordsActionRequestTests extends AbstractSerializingTestCase<Re
     }
 
     @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

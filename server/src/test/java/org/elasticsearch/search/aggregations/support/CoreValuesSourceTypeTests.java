@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -45,7 +46,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     public void testDatePrepareRoundingWithNothing() throws IOException {
         withAggregationContext(dateMapperService(), List.of(), context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepareForUnknown();
         });
     }
@@ -55,7 +56,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         long max = randomLongBetween(min + 1, 100000000000L);
         withAggregationContext(dateMapperService(), docsWithDatesBetween(min, max), context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepare(min, max);
         });
     }
@@ -82,7 +83,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         );
         withAggregationContext(null, mapperService, List.of(), query, context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepare(min, max);
         });
     }
@@ -105,7 +106,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         );
         withAggregationContext(null, mapperService, List.of(), query, context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepareForUnknown();
         });
     }
@@ -134,7 +135,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
             .rangeQuery(minQuery, maxQuery, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService));
         withAggregationContext(null, mapperService, docsWithDatesBetween(minDocs, maxDocs), query, context -> {
             Rounding rounding = mock(Rounding.class);
-            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
+            CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null).roundingPreparer(context).apply(rounding);
             verify(rounding).prepare(min, max);
         });
     }
@@ -143,7 +144,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         return createMapperService(fieldMapping(b -> b.field("type", "date")));
     }
 
-    private List<SourceToParse> docsWithDatesBetween(long min, long max) throws IOException {
+    private static List<SourceToParse> docsWithDatesBetween(long min, long max) throws IOException {
         return List.of(source(b -> b.field("field", min)), source(b -> b.field("field", max)));
     }
 }

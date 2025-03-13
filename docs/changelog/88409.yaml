@@ -1,5 +1,0 @@
-pr: 88409
-summary: Enable `BloomFilter` for `_id` of non-datastream indices
-area: Search
-type: enhancement
-issues: []

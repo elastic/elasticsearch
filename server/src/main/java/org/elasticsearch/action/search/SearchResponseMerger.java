@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -18,7 +19,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.SearchHit;
@@ -26,11 +29,11 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.transport.LeakTracker;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -64,13 +67,19 @@ import static org.elasticsearch.action.search.SearchPhaseController.mergeTopDocs
 // TODO it may make sense to integrate the remote clusters responses as a shard response in the initial search phase and ignore hits coming
 // from the remote clusters in the fetch phase. This would be identical to the removed QueryAndFetch strategy except that only the remote
 // cluster response would have the fetch results.
-final class SearchResponseMerger {
+public final class SearchResponseMerger implements Releasable {
     final int from;
     final int size;
     final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
+
+    private final Releasable releasable = LeakTracker.wrap(() -> {
+        for (SearchResponse searchResponse : searchResponses) {
+            searchResponse.decRef();
+        }
+    });
 
     SearchResponseMerger(
         int from,
@@ -83,7 +92,7 @@ final class SearchResponseMerger {
         this.size = size;
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
         this.searchTimeProvider = Objects.requireNonNull(searchTimeProvider);
-        this.aggReduceContextBuilder = Objects.requireNonNull(aggReduceContextBuilder);
+        this.aggReduceContextBuilder = aggReduceContextBuilder; // might be null if there are no aggregations
     }
 
     /**
@@ -91,8 +100,9 @@ final class SearchResponseMerger {
      * Merges currently happen at once when all responses are available and {@link #getMergedResponse(Clusters)} )} is called.
      * That may change in the future as it's possible to introduce incremental merges as responses come in if necessary.
      */
-    void add(SearchResponse searchResponse) {
+    public void add(SearchResponse searchResponse) {
         assert searchResponse.getScrollId() == null : "merging scroll results is not supported";
+        searchResponse.mustIncRef();
         searchResponses.add(searchResponse);
     }
 
@@ -101,10 +111,13 @@ final class SearchResponseMerger {
     }
 
     /**
-     * Returns the merged response. To be called once all responses have been added through {@link #add(SearchResponse)}
-     * so that all responses are merged into a single one.
+     * Returns the merged response of all SearchResponses received so far. Can be called at any point,
+     * including when only some clusters have finished, in order to get "incremental" partial results.
+     * @param clusters The Clusters object for the search to report on the status of each cluster
+     *                 involved in the cross-cluster search
+     * @return merged response
      */
-    SearchResponse getMergedResponse(Clusters clusters) {
+    public SearchResponse getMergedResponse(Clusters clusters) {
         // if the search is only across remote clusters, none of them are available, and all of them have skip_unavailable set to true,
         // we end up calling merge without anything to merge, we just return an empty search response
         if (searchResponses.size() == 0) {
@@ -136,7 +149,7 @@ final class SearchResponseMerger {
             profileResults.putAll(searchResponse.getProfileResults());
 
             if (searchResponse.hasAggregations()) {
-                InternalAggregations internalAggs = (InternalAggregations) searchResponse.getAggregations();
+                InternalAggregations internalAggs = searchResponse.getAggregations();
                 aggs.add(internalAggs);
             }
 
@@ -166,7 +179,7 @@ final class SearchResponseMerger {
             final TotalHits totalHits;
             if (searchHits.getTotalHits() == null) {
                 // in case we didn't track total hits, we get null from each cluster, but we need to set 0 eq to the TopDocs
-                totalHits = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+                totalHits = Lucene.TOTAL_HITS_EQUAL_TO_ZERO;
                 assert trackTotalHits == null || trackTotalHits == false;
                 trackTotalHits = false;
             } else {
@@ -193,36 +206,37 @@ final class SearchResponseMerger {
         setTopDocsShardIndex(shards, topDocsList);
         TopDocs topDocs = mergeTopDocs(topDocsList, size, from);
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
-        setSuggestShardIndex(shards, groupedSuggestions);
-        Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-        InternalAggregations reducedAggs = aggs.isEmpty()
-            ? InternalAggregations.EMPTY
-            : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
-        ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
-        SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
-        // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
-        Arrays.sort(shardFailures, FAILURES_COMPARATOR);
-        InternalSearchResponse response = new InternalSearchResponse(
-            mergedSearchHits,
-            reducedAggs,
-            suggest,
-            profileShardResults,
-            topDocsStats.timedOut,
-            topDocsStats.terminatedEarly,
-            numReducePhases
-        );
-        long tookInMillis = searchTimeProvider.buildTookInMillis();
-        return new SearchResponse(
-            response,
-            null,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            tookInMillis,
-            shardFailures,
-            clusters,
-            null
-        );
+        try {
+            setSuggestShardIndex(shards, groupedSuggestions);
+            Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
+            InternalAggregations reducedAggs = aggs.isEmpty()
+                ? InternalAggregations.EMPTY
+                : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
+            ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
+            SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
+            // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
+            Arrays.sort(shardFailures, FAILURES_COMPARATOR);
+            long tookInMillis = searchTimeProvider.buildTookInMillis();
+            return new SearchResponse(
+                mergedSearchHits,
+                reducedAggs,
+                suggest,
+                topDocsStats.timedOut,
+                topDocsStats.terminatedEarly,
+                profileShardResults,
+                numReducePhases,
+                null,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                tookInMillis,
+                shardFailures,
+                clusters,
+                null
+            );
+        } finally {
+            mergedSearchHits.decRef();
+        }
     }
 
     private static final Comparator<ShardSearchFailure> FAILURES_COMPARATOR = new Comparator<ShardSearchFailure>() {
@@ -368,6 +382,7 @@ final class SearchResponseMerger {
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 FieldDocAndSearchHit scoreDoc = (FieldDocAndSearchHit) topDocs.scoreDocs[i];
                 searchHits[i] = scoreDoc.searchHit;
+                scoreDoc.searchHit.mustIncRef();
             }
         }
         SortField[] sortFields = null;
@@ -381,6 +396,11 @@ final class SearchResponseMerger {
             }
         }
         return new SearchHits(searchHits, topDocsStats.getTotalHits(), topDocsStats.getMaxScore(), sortFields, groupField, groupValues);
+    }
+
+    @Override
+    public void close() {
+        releasable.close();
     }
 
     private static final class FieldDocAndSearchHit extends FieldDoc {

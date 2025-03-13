@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.sql.util.Check;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.checkResultLength;
+
 public class InsertFunctionProcessor implements Processor {
 
     private final Processor input, start, length, replacement;
@@ -71,7 +73,9 @@ public class InsertFunctionProcessor implements Processor {
         StringBuilder sb = new StringBuilder(input.toString());
         String replString = (replacement.toString());
 
-        return sb.replace(realStart, realStart + ((Number) length).intValue(), replString).toString();
+        int cutLength = ((Number) length).intValue();
+        checkResultLength(sb.length() - cutLength + replString.length());
+        return sb.replace(realStart, realStart + cutLength, replString).toString();
     }
 
     @Override

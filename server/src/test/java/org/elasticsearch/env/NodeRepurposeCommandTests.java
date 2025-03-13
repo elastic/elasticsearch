@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
 import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
@@ -25,6 +25,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 import org.junit.Before;
@@ -70,7 +71,8 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                     nodeId,
                     xContentRegistry(),
                     new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                    () -> 0L
+                    () -> 0L,
+                    ESTestCase::randomBoolean
                 ).createWriter()
             ) {
                 writer.writeFullStateAndCommit(1L, ClusterState.EMPTY_STATE);
@@ -130,7 +132,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         boolean hasClusterState = randomBoolean();
         createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
-        String messageText = NodeRepurposeCommand.noMasterMessage(1, environment.dataFiles().length * shardCount, 0);
+        String messageText = NodeRepurposeCommand.noMasterMessage(1, environment.dataDirs().length * shardCount, 0);
 
         Matcher<String> outputMatcher = allOf(
             containsString(messageText),
@@ -156,7 +158,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
         Matcher<String> matcher = allOf(
-            containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
+            containsString(NodeRepurposeCommand.shardMessage(environment.dataDirs().length * shardCount, 1)),
             conditionalNot(containsString("testUUID"), verbose == false),
             conditionalNot(containsString("testIndex"), verbose == false || hasClusterState == false),
             conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
@@ -240,7 +242,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                                         IndexMetadata.builder(INDEX.getName())
                                             .settings(
                                                 Settings.builder()
-                                                    .put("index.version.created", Version.CURRENT)
+                                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                     .put(IndexMetadata.SETTING_INDEX_UUID, INDEX.getUUID())
                                             )
                                             .numberOfShards(1)
@@ -270,7 +272,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
     private long digestPaths() {
         // use a commutative digest to avoid dependency on file system order.
-        return Arrays.stream(environment.dataFiles()).mapToLong(this::digestPath).sum();
+        return Arrays.stream(environment.dataDirs()).mapToLong(this::digestPath).sum();
     }
 
     private long digestPath(Path path) {

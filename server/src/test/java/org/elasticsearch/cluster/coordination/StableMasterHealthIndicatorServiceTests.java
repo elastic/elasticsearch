@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -25,6 +25,7 @@ import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -38,13 +39,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -61,30 +63,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     @Before
     public void setup() throws Exception {
-        node1 = new DiscoveryNode(
-            "node1",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node2 = new DiscoveryNode(
-            "node2",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        node3 = new DiscoveryNode(
-            "node3",
-            randomNodeId(),
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
+        node1 = DiscoveryNodeUtils.create("node1", randomNodeId());
+        node2 = DiscoveryNodeUtils.create("node2", randomNodeId());
+        node3 = DiscoveryNodeUtils.create("node3", randomNodeId());
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
@@ -92,7 +73,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
     }
 
     @SuppressWarnings("unchecked")
-    public void testGetHealthIndicatorResultNotGreenExplainTrue() throws Exception {
+    public void testGetHealthIndicatorResultNotGreenVerboseTrue() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
@@ -134,17 +115,29 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             assertThat(recentMasterMap.get("name"), not(emptyOrNullString()));
             assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
         }
-        Map<String, String> clusterFormationMap = (Map<String, String>) detailsMap.get("cluster_formation");
-        assertThat(clusterFormationMap.size(), equalTo(2));
-        assertThat(clusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
-        assertThat(clusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
-        List<Diagnosis> diagnosis = result.diagnosisList();
-        assertThat(diagnosis.size(), equalTo(1));
-        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));
+        List<Map<String, String>> clusterFormations = (List<Map<String, String>>) detailsMap.get("cluster_formation");
+        assertThat(clusterFormations.size(), equalTo(2));
+        Map<String, String> nodeIdToClusterFormationMap = new HashMap<>();
+        Map<String, String> nodeIdToNodeNameMap = new HashMap<>();
+        for (Map<String, String> clusterFormationMap : clusterFormations) {
+            nodeIdToClusterFormationMap.put(clusterFormationMap.get("node_id"), clusterFormationMap.get("cluster_formation_message"));
+            nodeIdToNodeNameMap.put(clusterFormationMap.get("node_id"), clusterFormationMap.get("name"));
+        }
+        assertThat(nodeIdToClusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
+        assertThat(nodeIdToClusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
+        assertThat(nodeIdToNodeNameMap.get(node1.getId()), equalTo(node1.getName()));
+        assertThat(nodeIdToNodeNameMap.get(node2.getId()), equalTo(node2.getName()));
+        assertThat(
+            result.diagnosisList(),
+            containsInAnyOrder(
+                StableMasterHealthIndicatorService.CONTACT_SUPPORT,
+                StableMasterHealthIndicatorService.TROUBLESHOOT_DISCOVERY,
+                StableMasterHealthIndicatorService.TROUBLESHOOT_UNSTABLE_CLUSTER
+            )
+        );
     }
 
-    @SuppressWarnings("unchecked")
-    public void testGetHealthIndicatorResultNotGreenExplainFalse() throws Exception {
+    public void testGetHealthIndicatorResultNotGreenVerboseFalse() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
@@ -170,7 +163,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(diagnosis.size(), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetHealthIndicatorResultGreenOrUnknown() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
@@ -236,7 +228,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
         // Change 4:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
-        HealthIndicatorResult result = service.calculate(true);
+        HealthIndicatorResult result = service.calculate(true, HealthInfo.EMPTY_HEALTH_INFO);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.symptom(), equalTo("The elected master node has changed 4 times in the last 30m"));
         assertThat(result.impacts().size(), equalTo(3));
@@ -254,14 +246,26 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
 
     }
 
-    private static ClusterState createClusterState(DiscoveryNode masterNode) {
+    // We expose the indicator name and the diagnosis in the x-pack usage API, consequently these end up in the mapping of the telemetry
+    // index, any changes or additions that we want to track need to be added to the mapping.
+    public void testMappedFieldsForTelemetry() {
+        assertThat(StableMasterHealthIndicatorService.NAME, equalTo("master_is_stable"));
+        assertThat(
+            StableMasterHealthIndicatorService.CONTACT_SUPPORT.definition().getUniqueId(),
+            equalTo("elasticsearch:health:master_is_stable:diagnosis:contact_support")
+        );
+    }
+
+    private ClusterState createClusterState(DiscoveryNode masterNode) {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         if (masterNode != null) {
             nodesBuilder.masterNodeId(masterNode.getId());
-            nodesBuilder.add(masterNode);
         }
+        nodesBuilder.add(node1);
+        nodesBuilder.add(node2);
+        nodesBuilder.add(node3);
         return ClusterState.builder(new ClusterName("test-cluster"))
             .routingTable(routingTableBuilder.build())
             .metadata(metadataBuilder.build())
@@ -277,11 +281,12 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
      * Creates a mocked MasterHistoryService with a non-mocked local master history (which can be updated with clusterChanged calls). The
      * remote master history is mocked.
      */
-    private static MasterHistoryService createMasterHistoryService() throws Exception {
+    private MasterHistoryService createMasterHistoryService() throws Exception {
         var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.state()).thenReturn(nullMasterClusterState);
         ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        when(threadPool.relativeTimeInMillisSupplier()).thenReturn(System::currentTimeMillis);
         MasterHistory localMasterHistory = new MasterHistory(threadPool, clusterService);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(localMasterHistory);
@@ -303,16 +308,21 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         Coordinator coordinator = mock(Coordinator.class);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
         TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(mock(ThreadPool.class));
         return new StableMasterHealthIndicatorService(
-            new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService)
+            new CoordinationDiagnosticsService(clusterService, transportService, coordinator, masterHistoryService),
+            clusterService
         );
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         xcontent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-        return parser.map();
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(xContentRegistry(), LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput())
+        ) {
+            return parser.map();
+        }
     }
 }

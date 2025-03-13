@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.core.Strings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step;
 
@@ -57,7 +57,7 @@ public class MoveToErrorStepUpdateTask extends IndexLifecycleClusterStateUpdateT
 
     @Override
     protected ClusterState doExecute(ClusterState currentState) throws Exception {
-        IndexMetadata idxMeta = currentState.getMetadata().index(index);
+        IndexMetadata idxMeta = currentState.getMetadata().getProject().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;

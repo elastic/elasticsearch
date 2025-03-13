@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -32,6 +33,7 @@ public final class SearchableSnapshotsSettings {
     public static final String SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY = "index.store.snapshot.snapshot_name";
     public static final String SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY = "index.store.snapshot.snapshot_uuid";
     public static final String SEARCHABLE_SNAPSHOTS_DELETE_SNAPSHOT_ON_INDEX_DELETION = "index.store.snapshot.delete_searchable_snapshot";
+    public static final String SEARCHABLE_SNAPSHOT_INDEX_NAME_SETTING_KEY = "index.store.snapshot.index_name";
 
     private SearchableSnapshotsSettings() {}
 

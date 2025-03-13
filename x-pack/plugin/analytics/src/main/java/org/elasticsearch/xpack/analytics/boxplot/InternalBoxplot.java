@@ -7,20 +7,20 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import com.tdunning.math.stats.Centroid;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.tdigest.Centroid;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -120,6 +120,15 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             return Metrics.valueOf(name.toUpperCase(Locale.ROOT));
         }
 
+        public static boolean hasMetric(String name) {
+            try {
+                InternalBoxplot.Metrics.resolve(name);
+                return true;
+            } catch (IllegalArgumentException iae) {
+                return false;
+            }
+        }
+
         public String value() {
             return name().toLowerCase(Locale.ROOT);
         }
@@ -168,6 +177,16 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
+    static InternalBoxplot empty(
+        String name,
+        double compression,
+        TDigestExecutionHint executionHint,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
+        return new InternalBoxplot(name, TDigestState.createWithoutCircuitBreaking(compression, executionHint), format, metadata);
+    }
+
     static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
         Stream.of(Metrics.values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.toSet())
     );
@@ -177,6 +196,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, formatter, metadata);
         this.state = state;
+        this.state.compress();
     }
 
     /**
@@ -185,6 +205,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     public InternalBoxplot(StreamInput in) throws IOException {
         super(in);
         state = TDigestState.read(in);
+        state.compress();
     }
 
     @Override
@@ -269,16 +290,24 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     }
 
     @Override
-    public InternalBoxplot reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        TDigestState merged = null;
-        for (InternalAggregation aggregation : aggregations) {
-            final InternalBoxplot percentiles = (InternalBoxplot) aggregation;
-            if (merged == null) {
-                merged = new TDigestState(percentiles.state.compression());
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            TDigestState merged = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final InternalBoxplot percentiles = (InternalBoxplot) aggregation;
+                if (merged == null) {
+                    merged = TDigestState.createUsingParamsFrom(percentiles.state);
+                }
+                merged.add(percentiles.state);
             }
-            merged.add(percentiles.state);
-        }
-        return new InternalBoxplot(name, merged, format, metadata);
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalBoxplot(name, merged, format, metadata);
+            }
+        };
     }
 
     @Override

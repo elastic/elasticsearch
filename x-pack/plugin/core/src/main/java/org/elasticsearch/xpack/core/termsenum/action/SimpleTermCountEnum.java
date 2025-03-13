@@ -7,11 +7,13 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.lucene.index.ImpactsEnum;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
@@ -19,7 +21,7 @@ import java.util.Arrays;
 
 /**
  * A utility class for fields that need to support autocomplete via
- * {@link MappedFieldType#getTerms(boolean, String, org.elasticsearch.index.query.SearchExecutionContext, String)}
+ * {@link MappedFieldType#getTerms(IndexReader, String, boolean, String)}
  * but can't return a raw Lucene TermsEnum.
  */
 public class SimpleTermCountEnum extends TermsEnum {
@@ -65,6 +67,11 @@ public class SimpleTermCountEnum extends TermsEnum {
 
     @Override
     public AttributeSource attributes() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public IOBooleanSupplier prepareSeekExact(BytesRef bytesRef) throws IOException {
         throw new UnsupportedOperationException();
     }
 

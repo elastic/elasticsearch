@@ -3,8 +3,6 @@ setup:
       indices.create:
         index: test1
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               value1:
@@ -18,8 +16,6 @@ setup:
       indices.create:
         index: test2
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               value1:
@@ -57,10 +53,10 @@ setup:
 
 ---
 "matrix stats all fields available with two fields":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: bug fixed in 8.3.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       search:
@@ -99,10 +95,10 @@ setup:
 
 ---
 "matrix stats all fields available with one field":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: bug fixed in 8.3.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       search:
@@ -128,10 +124,10 @@ setup:
 
 ---
 "matrix stats field not in all indices bad request":
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: bug fixed in 8.3.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       catch: bad_request
@@ -151,10 +147,10 @@ setup:
 
 ---
 "matrix stats with bucket_selector":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: bug fixed in 8.4.0
-      features: close_to
+      test_runner_features: close_to
 
   - do:
       search:
@@ -210,3 +206,78 @@ setup:
   - close_to: { aggregations.matrix.buckets.0.stats.fields.1.covariance.value2: { value: 0.0, error: 0.0001 } }
   - close_to: { aggregations.matrix.buckets.0.stats.fields.1.correlation.value1: { value: 1.0, error: 0.0001 } }
   - close_to: { aggregations.matrix.buckets.0.stats.fields.1.correlation.value2: { value: 0.0, error: 0.0001 } }
+
+---
+"Counter field":
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "counter field support added in 8.10"
+      test_runner_features: close_to
+
+  - do:
+      indices.create:
+        index: test_counter
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ key ]
+              time_series:
+                start_time: 2021-01-01T00:00:00Z
+                end_time: 2021-01-31T00:00:00Z
+              number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              key:
+                type: keyword
+                time_series_dimension: true
+              counter1:
+                type: long
+                time_series_metric: counter
+              counter2:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: test_counter
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-01-01T00:01:00Z", "key": "bar", "counter1": 10, "counter2": 7 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-01-01T00:02:00Z", "key": "bar", "counter1": 20, "counter2": 10 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-01-01T00:03:00Z", "key": "bar", "counter1": 22, "counter2": 12 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-01-01T00:04:00Z", "key": "bar", "counter1": 28, "counter2": 13 }'
+
+  - do:
+      search:
+        index: test_counter
+        body:
+          aggs:
+            counter_matrix_stats:
+              matrix_stats:
+                fields: [ "counter1", "counter2" ]
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.counter_matrix_stats.fields.0.name: "counter2" }
+  - match: { aggregations.counter_matrix_stats.fields.0.count: 4 }
+  - close_to: { aggregations.counter_matrix_stats.fields.0.mean: { value: 10.50, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.0.variance: { value: 7.00, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.0.covariance.counter2: { value: 7.00, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.0.covariance.counter1: { value: 19.33, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.0.correlation.counter2: { value: 1.00, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.0.correlation.counter1: { value: 0.97, error: 0.01 } }
+  - match: { aggregations.counter_matrix_stats.fields.1.name: "counter1" }
+  - match: { aggregations.counter_matrix_stats.fields.1.count: 4 }
+  - close_to: { aggregations.counter_matrix_stats.fields.1.mean: { value: 20.00, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.1.variance: { value: 56.00, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.1.covariance.counter2: { value: 19.33, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.1.covariance.counter1: { value: 56.00, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.1.correlation.counter2: { value: 0.97, error: 0.01 } }
+  - close_to: { aggregations.counter_matrix_stats.fields.1.correlation.counter1: { value: 1.00, error: 0.01 } }

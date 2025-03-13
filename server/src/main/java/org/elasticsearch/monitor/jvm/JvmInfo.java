@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -268,7 +269,7 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        if (in.getVersion().before(Version.V_8_3_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_3_0)) {
             // Before 8.0 the no-jdk distributions could have bundledJdk false, this is always true now.
             in.readBoolean();
         }
@@ -280,7 +281,7 @@ public class JvmInfo implements ReportingService.Info {
         }
         bootClassPath = in.readString();
         classPath = in.readString();
-        systemProperties = in.readMap(StreamInput::readString, StreamInput::readString);
+        systemProperties = in.readMap(StreamInput::readString);
         mem = new Mem(in);
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
@@ -302,7 +303,7 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        if (out.getVersion().before(Version.V_8_3_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_3_0)) {
             out.writeBoolean(true);
         }
         out.writeOptionalBoolean(usingBundledJdk);
@@ -313,7 +314,7 @@ public class JvmInfo implements ReportingService.Info {
         }
         out.writeString(bootClassPath);
         out.writeString(classPath);
-        out.writeMap(this.systemProperties, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(this.systemProperties, StreamOutput::writeString);
         mem.writeTo(out);
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);
@@ -419,14 +420,14 @@ public class JvmInfo implements ReportingService.Info {
         builder.field(Fields.VM_VERSION, vmVersion);
         builder.field(Fields.VM_VENDOR, vmVendor);
         builder.field(Fields.USING_BUNDLED_JDK, usingBundledJdk);
-        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
+        builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
-        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, new ByteSizeValue(mem.heapInit));
-        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, new ByteSizeValue(mem.heapMax));
-        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, new ByteSizeValue(mem.nonHeapInit));
-        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, new ByteSizeValue(mem.nonHeapMax));
-        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, new ByteSizeValue(mem.directMemoryMax));
+        builder.humanReadableField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, ByteSizeValue.ofBytes(mem.heapInit));
+        builder.humanReadableField(Fields.HEAP_MAX_IN_BYTES, Fields.HEAP_MAX, ByteSizeValue.ofBytes(mem.heapMax));
+        builder.humanReadableField(Fields.NON_HEAP_INIT_IN_BYTES, Fields.NON_HEAP_INIT, ByteSizeValue.ofBytes(mem.nonHeapInit));
+        builder.humanReadableField(Fields.NON_HEAP_MAX_IN_BYTES, Fields.NON_HEAP_MAX, ByteSizeValue.ofBytes(mem.nonHeapMax));
+        builder.humanReadableField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, ByteSizeValue.ofBytes(mem.directMemoryMax));
         builder.endObject();
 
         builder.array(Fields.GC_COLLECTORS, gcCollectors);
@@ -502,11 +503,11 @@ public class JvmInfo implements ReportingService.Info {
         }
 
         public ByteSizeValue getHeapInit() {
-            return new ByteSizeValue(heapInit);
+            return ByteSizeValue.ofBytes(heapInit);
         }
 
         public ByteSizeValue getHeapMax() {
-            return new ByteSizeValue(heapMax);
+            return ByteSizeValue.ofBytes(heapMax);
         }
 
     }

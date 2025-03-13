@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -19,6 +20,7 @@ import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -31,11 +33,12 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Factory> {
-    public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter) -> ctx -> new DateFieldScript(
+    public static final DateFieldScript.Factory DUMMY = (fieldName, params, lookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
         fieldName,
         params,
         lookup,
         formatter,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -66,8 +69,9 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 DateFieldScript script = new DateFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
                     DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
@@ -102,8 +106,9 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
                 DateFieldScript.LeafFactory leafFactory = fromSource().newFactory(
                     "field",
                     Collections.emptyMap(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null),
-                    DateFormatter.forPattern("epoch_millis")
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, SourceProvider.fromStoredFields()),
+                    DateFormatter.forPattern("epoch_millis"),
+                    OnScriptError.FAIL
                 );
                 DateFieldScript dateFieldScript = leafFactory.newInstance(reader.leaves().get(0));
                 List<Long> results = new ArrayList<>();

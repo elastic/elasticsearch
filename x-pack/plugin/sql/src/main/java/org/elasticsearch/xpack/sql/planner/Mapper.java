@@ -45,8 +45,8 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
     }
 
     @Override
-    protected Iterable<RuleExecutor<PhysicalPlan>.Batch> batches() {
-        Batch conversion = new Batch("Mapping", new JoinMapper(), new SimpleExecMapper());
+    protected Iterable<RuleExecutor.Batch<PhysicalPlan>> batches() {
+        var conversion = new Batch<>("Mapping", new JoinMapper(), new SimpleExecMapper());
 
         return Arrays.asList(conversion);
     }
@@ -116,7 +116,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
             return join(j);
         }
 
-        private PhysicalPlan join(Join join) {
+        private static PhysicalPlan join(Join join) {
             // TODO: pick up on nested/parent-child docs
             // 2. Hash?
             // 3. Cartesian
@@ -136,7 +136,6 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
         }
 
         @SuppressWarnings("unchecked")
-        @Override
         protected final PhysicalPlan rule(UnplannedExec plan) {
             LogicalPlan subPlan = plan.plan();
             if (subPlanToken.isInstance(subPlan)) {

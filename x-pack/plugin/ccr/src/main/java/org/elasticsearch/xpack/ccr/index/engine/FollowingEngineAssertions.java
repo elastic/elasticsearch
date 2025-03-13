@@ -29,7 +29,7 @@ final class FollowingEngineAssertions {
         return true;
     }
 
-    static boolean assertPrimaryIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
+    static boolean assertPrimaryIncomingSequenceNumber(final long seqNo) {
         // sequence number should be set when operation origin is primary
         assert seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO : "primary operations on a following index must have an assigned sequence number";
         return true;

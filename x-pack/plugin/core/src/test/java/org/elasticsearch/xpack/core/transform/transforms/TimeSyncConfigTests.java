@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TimeSyncConfigTests extends AbstractSerializingTestCase<TimeSyncConfig> {
+public class TimeSyncConfigTests extends AbstractXContentSerializingTestCase<TimeSyncConfig> {
 
     public static TimeSyncConfig randomTimeSyncConfig() {
         return new TimeSyncConfig(randomAlphaOfLengthBetween(1, 10), new TimeValue(randomNonNegativeLong()));
@@ -30,6 +30,11 @@ public class TimeSyncConfigTests extends AbstractSerializingTestCase<TimeSyncCon
     @Override
     protected TimeSyncConfig createTestInstance() {
         return randomTimeSyncConfig();
+    }
+
+    @Override
+    protected TimeSyncConfig mutateInstance(TimeSyncConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

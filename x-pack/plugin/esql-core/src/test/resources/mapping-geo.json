@@ -1,0 +1,10 @@
+{
+    "properties" : {
+        "location" : {
+            "type" : "geo_point"
+        },
+        "site": {
+            "type" : "geo_shape"
+        }
+    }
+}

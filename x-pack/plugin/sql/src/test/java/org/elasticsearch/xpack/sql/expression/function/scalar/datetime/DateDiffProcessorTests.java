@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -60,32 +61,32 @@ public class DateDiffProcessorTests extends AbstractSqlWireSerializingTestCase<D
     }
 
     public void testInvalidInputs() {
-        SqlIllegalArgumentException siae = expectThrows(
+        Exception e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l(5), randomDatetimeLiteral(), randomDatetimeLiteral(), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
         );
-        assertEquals("A string is required; received [5]", siae.getMessage());
+        assertEquals("A string is required; received [5]", e.getMessage());
 
-        siae = expectThrows(
+        e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("days"), l("foo"), randomDatetimeLiteral(), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
         );
-        assertEquals("A date/datetime is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime is required; received [foo]", e.getMessage());
 
-        siae = expectThrows(
+        e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("days"), randomDatetimeLiteral(), l("foo"), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
         );
-        assertEquals("A date/datetime is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime is required; received [foo]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("invalid"), randomDatetimeLiteral(), randomDatetimeLiteral(), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
@@ -93,16 +94,16 @@ public class DateDiffProcessorTests extends AbstractSqlWireSerializingTestCase<D
         assertEquals(
             "A value of [YEAR, QUARTER, MONTH, DAYOFYEAR, DAY, WEEK, WEEKDAY, HOUR, MINUTE, "
                 + "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [invalid]",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("quertar"), randomDatetimeLiteral(), randomDatetimeLiteral(), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
         );
-        assertEquals("Received value [quertar] is not valid date part to add; did you mean [quarter, quarters]?", siae.getMessage());
+        assertEquals("Received value [quertar] is not valid date part to add; did you mean [quarter, quarters]?", e.getMessage());
     }
 
     public void testWithNulls() {
@@ -305,114 +306,114 @@ public class DateDiffProcessorTests extends AbstractSqlWireSerializingTestCase<D
         Literal dt1 = l(dateTime(-99992022, 12, 31, 20, 22, 33, 123456789, ZoneId.of("Etc/GMT-5")));
         Literal dt2 = l(dateTime(99992022, 4, 18, 8, 33, 22, 987654321, ZoneId.of("Etc/GMT+5")));
 
-        SqlIllegalArgumentException siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        Exception e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("month"), dt1, dt2, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("dayofyear"), dt1, dt2, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("day"), dt1, dt2, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("week"), dt1, dt2, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("weekday"), dt1, dt2, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("hours"), dt1, dt2, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("minute"), dt1, dt2, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("second"), dt1, dt2, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("milliseconds"), dt2, dt1, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("mcs"), dt1, dt2, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateDiff(Source.EMPTY, l("nanoseconds"), dt2, dt1, zoneId).makePipe().asProcessor().process(null)
         );
         assertEquals(
             "The DATE_DIFF function resulted in an overflow; the number of units separating two date/datetime "
                 + "instances is too large. Try to use DATE_DIFF with a less precise unit.",
-            siae.getMessage()
+            e.getMessage()
         );
     }
 }

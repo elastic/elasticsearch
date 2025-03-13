@@ -17,7 +17,6 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.engine.Engine;
@@ -25,8 +24,11 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.ESCacheHelper;
@@ -52,12 +54,7 @@ import java.util.function.Function;
  * stats in order to obtain the number of reopens.
  */
 public final class FrozenEngine extends ReadOnlyEngine {
-    public static final Setting<Boolean> INDEX_FROZEN = Setting.boolSetting(
-        "index.frozen",
-        false,
-        Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex
-    );
+
     private final SegmentsStats segmentsStats;
     private final DocsStats docsStats;
     private volatile ElasticsearchDirectoryReader lastOpenedReader;
@@ -324,6 +321,20 @@ public final class FrozenEngine extends ReadOnlyEngine {
     @Override
     public DocsStats docStats() {
         return docsStats;
+    }
+
+    @Override
+    public DenseVectorStats denseVectorStats(MappingLookup mappingLookup) {
+        // We could cache the result on first call but dense vectors on frozen tier
+        // are very unlikely, so we just don't count them in the stats.
+        return new DenseVectorStats(0);
+    }
+
+    @Override
+    public SparseVectorStats sparseVectorStats(MappingLookup mappingLookup) {
+        // We could cache the result on first call but sparse vectors on frozen tier
+        // are very unlikely, so we just don't count them in the stats.
+        return new SparseVectorStats(0);
     }
 
     synchronized boolean isReaderOpen() {

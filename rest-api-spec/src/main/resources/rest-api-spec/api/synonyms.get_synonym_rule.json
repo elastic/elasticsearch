@@ -1,0 +1,38 @@
+{
+  "synonyms.get_synonym_rule": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-synonym-rule.html",
+      "description": "Retrieves a synonym rule from a synonym set"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_synonyms/{set_id}/{rule_id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "set_id": {
+              "type": "string",
+              "description": "The id of the synonym set to retrieve the synonym rule from"
+            },
+            "rule_id": {
+              "type": "string",
+              "description": "The id of the synonym rule to retrieve"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

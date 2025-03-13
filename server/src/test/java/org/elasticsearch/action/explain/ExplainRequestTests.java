@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.explain;
 
@@ -45,7 +46,7 @@ public class ExplainRequestTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             ExplainRequest request = new ExplainRequest("index", "id");
             request.fetchSourceContext(FetchSourceContext.of(true, new String[] { "field1.*" }, new String[] { "field2.*" }));
-            request.filteringAlias(new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"));
+            request.filteringAlias(AliasFilter.of(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"));
             request.preference("the_preference");
             request.query(QueryBuilders.termQuery("field", "value"));
             request.storedFields(new String[] { "field1", "field2" });

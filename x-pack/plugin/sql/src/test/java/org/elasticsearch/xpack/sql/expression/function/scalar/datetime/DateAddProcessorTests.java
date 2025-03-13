@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -62,28 +63,28 @@ public class DateAddProcessorTests extends AbstractSqlWireSerializingTestCase<Da
     }
 
     public void testInvalidInputs() {
-        SqlIllegalArgumentException siae = expectThrows(
+        Exception e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateAdd(Source.EMPTY, l(5), l(10), randomDatetimeLiteral(), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A string is required; received [5]", siae.getMessage());
+        assertEquals("A string is required; received [5]", e.getMessage());
 
-        siae = expectThrows(
+        e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateAdd(Source.EMPTY, l("days"), l("foo"), randomDatetimeLiteral(), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
         );
-        assertEquals("A number is required; received [foo]", siae.getMessage());
+        assertEquals("A number is required; received [foo]", e.getMessage());
 
-        siae = expectThrows(
+        e = expectThrows(
             SqlIllegalArgumentException.class,
             () -> new DateAdd(Source.EMPTY, l("days"), l(10), l("foo"), randomZone()).makePipe().asProcessor().process(null)
         );
-        assertEquals("A date/datetime is required; received [foo]", siae.getMessage());
+        assertEquals("A date/datetime is required; received [foo]", e.getMessage());
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateAdd(Source.EMPTY, l("invalid"), l(10), randomDatetimeLiteral(), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
@@ -91,16 +92,16 @@ public class DateAddProcessorTests extends AbstractSqlWireSerializingTestCase<Da
         assertEquals(
             "A value of [YEAR, QUARTER, MONTH, DAYOFYEAR, DAY, WEEK, WEEKDAY, HOUR, MINUTE, "
                 + "SECOND, MILLISECOND, MICROSECOND, NANOSECOND] or their aliases is required; received [invalid]",
-            siae.getMessage()
+            e.getMessage()
         );
 
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
+        e = expectThrows(
+            InvalidArgumentException.class,
             () -> new DateAdd(Source.EMPTY, l("quertar"), l(10), randomDatetimeLiteral(), randomZone()).makePipe()
                 .asProcessor()
                 .process(null)
         );
-        assertEquals("Received value [quertar] is not valid date part to add; did you mean [quarter, quarters]?", siae.getMessage());
+        assertEquals("Received value [quertar] is not valid date part to add; did you mean [quarter, quarters]?", e.getMessage());
     }
 
     public void testWithNulls() {

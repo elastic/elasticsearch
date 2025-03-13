@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -16,7 +17,6 @@ import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,8 +32,8 @@ public class RemoveProcessorTests extends ESTestCase {
         Processor processor = new RemoveProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)),
-            Collections.emptyList(),
+            List.of(new TestTemplateService.MockTemplateScript.Factory(field)),
+            List.of(),
             false
         );
         processor.execute(ingestDocument);
@@ -46,7 +46,7 @@ public class RemoveProcessorTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", fieldName);
         String processorTag = randomAlphaOfLength(10);
-        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config, null);
         try {
             processor.execute(ingestDocument);
             fail("remove field should have failed");
@@ -62,7 +62,7 @@ public class RemoveProcessorTests extends ESTestCase {
         config.put("field", fieldName);
         config.put("ignore_missing", true);
         String processorTag = randomAlphaOfLength(10);
-        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
+        Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config, null);
         processor.execute(ingestDocument);
     }
 
@@ -107,26 +107,16 @@ public class RemoveProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
 
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "name",
-                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("name")),
-                ingestDocument
-            )
-        );
+        assertTrue(RemoveProcessor.shouldKeep("name", List.of(new TestTemplateService.MockTemplateScript.Factory("name")), ingestDocument));
+
+        assertTrue(RemoveProcessor.shouldKeep("age", List.of(new TestTemplateService.MockTemplateScript.Factory("age")), ingestDocument));
+
+        assertFalse(RemoveProcessor.shouldKeep("name", List.of(new TestTemplateService.MockTemplateScript.Factory("age")), ingestDocument));
 
         assertTrue(
             RemoveProcessor.shouldKeep(
-                "age",
-                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("age")),
-                ingestDocument
-            )
-        );
-
-        assertFalse(
-            RemoveProcessor.shouldKeep(
-                "name",
-                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("age")),
+                "address",
+                List.of(new TestTemplateService.MockTemplateScript.Factory("address.street")),
                 ingestDocument
             )
         );
@@ -134,15 +124,7 @@ public class RemoveProcessorTests extends ESTestCase {
         assertTrue(
             RemoveProcessor.shouldKeep(
                 "address",
-                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address.street")),
-                ingestDocument
-            )
-        );
-
-        assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address",
-                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address.number")),
+                List.of(new TestTemplateService.MockTemplateScript.Factory("address.number")),
                 ingestDocument
             )
         );
@@ -150,7 +132,7 @@ public class RemoveProcessorTests extends ESTestCase {
         assertTrue(
             RemoveProcessor.shouldKeep(
                 "address.street",
-                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address")),
+                List.of(new TestTemplateService.MockTemplateScript.Factory("address")),
                 ingestDocument
             )
         );
@@ -158,23 +140,19 @@ public class RemoveProcessorTests extends ESTestCase {
         assertTrue(
             RemoveProcessor.shouldKeep(
                 "address.number",
-                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address")),
+                List.of(new TestTemplateService.MockTemplateScript.Factory("address")),
                 ingestDocument
             )
         );
 
         assertTrue(
-            RemoveProcessor.shouldKeep(
-                "address",
-                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address")),
-                ingestDocument
-            )
+            RemoveProcessor.shouldKeep("address", List.of(new TestTemplateService.MockTemplateScript.Factory("address")), ingestDocument)
         );
 
         assertFalse(
             RemoveProcessor.shouldKeep(
                 "address.street",
-                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address.number")),
+                List.of(new TestTemplateService.MockTemplateScript.Factory("address.number")),
                 ingestDocument
             )
         );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -15,16 +16,11 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 
 final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
-
-    private final long recoveryId;
-    private final ShardId shardId;
     private final long globalCheckpoint;
     private final long trimAboveSeqNo;
 
     RecoveryFinalizeRecoveryRequest(StreamInput in) throws IOException {
         super(in);
-        recoveryId = in.readLong();
-        shardId = new ShardId(in);
         globalCheckpoint = in.readZLong();
         trimAboveSeqNo = in.readZLong();
     }
@@ -36,19 +32,9 @@ final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
         final long globalCheckpoint,
         final long trimAboveSeqNo
     ) {
-        super(requestSeqNo);
-        this.recoveryId = recoveryId;
-        this.shardId = shardId;
+        super(requestSeqNo, recoveryId, shardId);
         this.globalCheckpoint = globalCheckpoint;
         this.trimAboveSeqNo = trimAboveSeqNo;
-    }
-
-    public long recoveryId() {
-        return this.recoveryId;
-    }
-
-    public ShardId shardId() {
-        return shardId;
     }
 
     public long globalCheckpoint() {
@@ -62,8 +48,6 @@ final class RecoveryFinalizeRecoveryRequest extends RecoveryTransportRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(recoveryId);
-        shardId.writeTo(out);
         out.writeZLong(globalCheckpoint);
         out.writeZLong(trimAboveSeqNo);
     }

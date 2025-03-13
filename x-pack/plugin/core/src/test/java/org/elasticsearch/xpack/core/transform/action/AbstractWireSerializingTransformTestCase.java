@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -83,14 +83,14 @@ public abstract class AbstractWireSerializingTransformTestCase<T extends Writeab
         NamedWriteableRegistry registry,
         Writeable.Writer<X> writer,
         Writeable.Reader<Y> reader,
-        Version version
+        TransportVersion version
     ) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(version);
+            output.setTransportVersion(version);
             original.writeTo(output);
 
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
-                in.setVersion(version);
+                in.setTransportVersion(version);
                 return reader.read(in);
             }
         }

@@ -24,6 +24,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -36,12 +37,12 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
-import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 public abstract class AbstractJobPersistentTasksExecutor<Params extends PersistentTaskParams> extends PersistentTasksExecutor<Params> {
@@ -59,14 +60,14 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         for (String index : indices) {
             // Indices are created on demand from templates.
             // It is not an error if the index doesn't exist yet
-            if (clusterState.metadata().hasIndex(index) == false) {
+            if (clusterState.metadata().getProject().hasIndex(index) == false) {
                 if (allowMissing == false) {
                     unavailableIndices.add(index);
                 }
                 continue;
             }
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
-            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 unavailableIndices.add(index);
             }
         }
@@ -90,18 +91,18 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
 
     protected AbstractJobPersistentTasksExecutor(
         String taskName,
-        String executor,
+        String executorName,
         Settings settings,
         ClusterService clusterService,
         MlMemoryTracker memoryTracker,
         IndexNameExpressionResolver expressionResolver
     ) {
-        super(taskName, executor);
+        super(taskName, clusterService.threadPool().executor(executorName));
         this.memoryTracker = Objects.requireNonNull(memoryTracker);
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
         this.maxConcurrentJobAllocations = MachineLearning.CONCURRENT_JOB_ALLOCATIONS.get(settings);
         this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
-        this.maxLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
+        this.maxLazyMLNodes = MachineLearningField.MAX_LAZY_ML_NODES.get(settings);
         this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.useAutoMemoryPercentage = USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         this.maxNodeMemory = MAX_ML_NODE_SIZE.get(settings).getBytes();
@@ -109,7 +110,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
             .addSettingsUpdateConsumer(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, this::setMaxConcurrentJobAllocations);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, this::setMaxMachineMemoryPercent);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearningField.MAX_LAZY_ML_NODES, this::setMaxLazyMLNodes);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAutoMemoryPercentage);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_ML_NODE_SIZE, this::setMaxNodeSize);

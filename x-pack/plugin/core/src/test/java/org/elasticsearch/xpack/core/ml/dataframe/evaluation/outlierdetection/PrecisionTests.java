@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
@@ -21,7 +21,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilter;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
+public class PrecisionTests extends AbstractXContentSerializingTestCase<Precision> {
 
     @Override
     protected Precision doParseInstance(XContentParser parser) throws IOException {
@@ -31,6 +31,11 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
     @Override
     protected Precision createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Precision mutateInstance(Precision instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -48,7 +53,7 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(
+        InternalAggregations aggs = InternalAggregations.from(
             Arrays.asList(
                 mockFilter("precision_at_0.25_TP", 1L),
                 mockFilter("precision_at_0.25_FP", 4L),
@@ -68,7 +73,9 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
     }
 
     public void testEvaluate_GivenZeroTpAndFp() {
-        Aggregations aggs = new Aggregations(Arrays.asList(mockFilter("precision_at_1.0_TP", 0L), mockFilter("precision_at_1.0_FP", 0L)));
+        InternalAggregations aggs = InternalAggregations.from(
+            Arrays.asList(mockFilter("precision_at_1.0_TP", 0L), mockFilter("precision_at_1.0_FP", 0L))
+        );
 
         Precision precision = new Precision(Arrays.asList(1.0));
         EvaluationMetricResult result = precision.evaluate(aggs);

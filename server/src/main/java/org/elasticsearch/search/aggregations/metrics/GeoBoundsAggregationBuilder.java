@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -27,7 +29,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
+public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
     public static final ValuesSourceRegistry.RegistryKey<GeoBoundsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -98,18 +100,6 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
         return this;
     }
 
-    /**
-     * Get whether to wrap longitudes.
-     */
-    public boolean wrapLongitude() {
-        return wrapLongitude;
-    }
-
-    @Override
-    public BucketCardinality bucketCardinality() {
-        return BucketCardinality.NONE;
-    }
-
     @Override
     protected GeoBoundsAggregatorFactory innerBuild(
         AggregationContext context,
@@ -156,12 +146,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

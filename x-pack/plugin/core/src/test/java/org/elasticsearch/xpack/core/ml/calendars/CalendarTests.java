@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.calendars;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
@@ -20,7 +20,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
+public class CalendarTests extends AbstractXContentSerializingTestCase<Calendar> {
 
     public static Calendar testInstance() {
         return testInstance(JobTests.randomValidJobId());
@@ -42,6 +42,11 @@ public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
     @Override
     protected Calendar createTestInstance() {
         return testInstance();
+    }
+
+    @Override
+    protected Calendar mutateInstance(Calendar instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

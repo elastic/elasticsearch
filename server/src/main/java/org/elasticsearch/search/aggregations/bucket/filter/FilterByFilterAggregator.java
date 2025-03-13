@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -13,7 +14,6 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -47,6 +47,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         private final String name;
         private final List<QueryToFilterAdapter> filters = new ArrayList<>();
         private final boolean keyed;
+        private final boolean keyedBucket;
         private final AggregationContext aggCtx;
         private final Aggregator parent;
         private final CardinalityUpperBound cardinality;
@@ -57,6 +58,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         public AdapterBuilder(
             String name,
             boolean keyed,
+            boolean keyedBucket,
             String otherBucketKey,
             AggregationContext aggCtx,
             Aggregator parent,
@@ -65,12 +67,13 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         ) throws IOException {
             this.name = name;
             this.keyed = keyed;
+            this.keyedBucket = keyedBucket;
             this.aggCtx = aggCtx;
             this.parent = parent;
             this.cardinality = cardinality;
             this.metadata = metadata;
             this.rewrittenTopLevelQuery = aggCtx.searcher().rewrite(aggCtx.query());
-            this.valid = parent == null && otherBucketKey == null;
+            this.valid = parent == null && otherBucketKey == null && aggCtx.isInSortOrderExecutionRequired() == false;
         }
 
         /**
@@ -129,10 +132,10 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         }
 
         /**
-         * Build the the adapter or {@code null} if the this isn't a valid rewrite.
+         * Build the adapter or {@code null} if this isn't a valid rewrite.
          */
         public final T build() throws IOException {
-            if (false == valid) {
+            if (false == valid || aggCtx.enableRewriteToFilterByFilter() == false) {
                 return null;
             }
             class AdapterBuild implements CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> {
@@ -140,7 +143,17 @@ public class FilterByFilterAggregator extends FiltersAggregator {
 
                 @Override
                 public FilterByFilterAggregator apply(AggregatorFactories subAggregators) throws IOException {
-                    agg = new FilterByFilterAggregator(name, subAggregators, filters, keyed, aggCtx, parent, cardinality, metadata);
+                    agg = new FilterByFilterAggregator(
+                        name,
+                        subAggregators,
+                        filters,
+                        keyed,
+                        keyedBucket,
+                        aggCtx,
+                        parent,
+                        cardinality,
+                        metadata
+                    );
                     return agg;
                 }
             }
@@ -202,12 +215,13 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         AggregatorFactories factories,
         List<QueryToFilterAdapter> filters,
         boolean keyed,
+        boolean keyedBucket,
         AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, filters, keyed, null, aggCtx, parent, cardinality, metadata);
+        super(name, factories, filters, keyed, keyedBucket, null, aggCtx, parent, cardinality, metadata);
     }
 
     /**
@@ -220,10 +234,13 @@ public class FilterByFilterAggregator extends FiltersAggregator {
     @Override
     protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert scoreMode().needsScores() == false;
-        if (filters().size() == 0) {
+        if (QueryToFilterAdapter.matchesNoDocs(filters())) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         Bits live = aggCtx.getLeafReaderContext().reader().getLiveDocs();
+        if (live != null) {
+            segmentsWithDeletedDocs++;
+        }
         if (false == docCountProvider.alwaysOne()) {
             segmentsWithDocCountField++;
         }
@@ -280,13 +297,15 @@ public class FilterByFilterAggregator extends FiltersAggregator {
 
             @Override
             public void collect(int docId) throws IOException {
-                collectBucket(subCollector, docId, filterOrd);
+                collectExistingBucket(subCollector, docId, filterOrd);
             }
 
             @Override
-            public void setScorer(Scorable scorer) throws IOException {}
+            public void setScorer(Scorable scorer) {}
         }
         MatchCollector collector = new MatchCollector();
+        // create the buckets so we can call collectExistingBucket
+        grow(filters().size() + 1);
         filters().get(0).collect(aggCtx.getLeafReaderContext(), collector, live);
         for (int filterOrd = 1; filterOrd < filters().size(); filterOrd++) {
             collector.subCollector = collectableSubAggregators.getLeafCollector(aggCtx);
@@ -304,25 +323,4 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         add.accept("segments_with_doc_count_field", segmentsWithDocCountField);
     }
 
-    CheckedSupplier<Boolean, IOException> canUseMetadata(LeafReaderContext ctx) {
-        return new CheckedSupplier<Boolean, IOException>() {
-            Boolean canUse;
-
-            @Override
-            public Boolean get() throws IOException {
-                if (canUse == null) {
-                    canUse = canUse();
-                }
-                return canUse;
-            }
-
-            private boolean canUse() throws IOException {
-                if (ctx.reader().getLiveDocs() != null) {
-                    return false;
-                }
-                docCountProvider.setLeafReaderContext(ctx);
-                return docCountProvider.alwaysOne();
-            }
-        };
-    }
 }

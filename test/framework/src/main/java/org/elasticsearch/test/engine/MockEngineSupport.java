@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.engine;
 
@@ -37,6 +38,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class MockEngineSupport {
 
+    private static final Logger logger = LogManager.getLogger(Engine.class);
+
     /**
      * Allows tests to wrap an index reader randomly with a given ratio. This
      * is disabled by default ie. {@code 0.0d} since reader wrapping is insanely
@@ -58,7 +61,6 @@ public final class MockEngineSupport {
     );
 
     private final AtomicBoolean closing = new AtomicBoolean(false);
-    private final Logger logger = LogManager.getLogger(Engine.class);
     private final ShardId shardId;
     private final InFlightSearchers inFlightSearchers;
     private final MockContext mockContext;
@@ -178,7 +180,7 @@ public final class MockEngineSupport {
          * early. - good news, stuff will fail all over the place if we don't
          * get this right here
          */
-        SearcherCloseable closeable = new SearcherCloseable(searcher, logger, inFlightSearchers);
+        SearcherCloseable closeable = new SearcherCloseable(searcher, inFlightSearchers);
         return new Engine.Searcher(
             searcher.source(),
             reader,
@@ -222,12 +224,10 @@ public final class MockEngineSupport {
         private RuntimeException firstReleaseStack;
         private final Object lock = new Object();
         private final int initialRefCount;
-        private final Logger logger;
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        SearcherCloseable(final Engine.Searcher searcher, Logger logger, InFlightSearchers inFlightSearchers) {
+        SearcherCloseable(final Engine.Searcher searcher, InFlightSearchers inFlightSearchers) {
             this.searcher = searcher;
-            this.logger = logger;
             initialRefCount = searcher.getIndexReader().getRefCount();
             this.inFlightSearchers = inFlightSearchers;
             assert initialRefCount > 0

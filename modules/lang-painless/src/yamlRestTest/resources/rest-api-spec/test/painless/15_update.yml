@@ -126,8 +126,8 @@
 
 ---
 "Script Update Metadata":
-  - skip:
-      version: " - 8.3.99"
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
       reason: "update metadata introduced in 8.4.0"
 
   - do:
@@ -167,3 +167,37 @@
         id: "2"
 
   - match: { found: false }
+
+---
+"Script Write Field":
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
+      reason: "Write fields api introduced in 8.5.0"
+
+  - do:
+      index:
+        index:  test_1
+        id:     "3"
+        body:
+          foo:    bar
+          count:  1
+
+  - do:
+      update:
+        index:    test_1
+        id:       "3"
+        body:
+          script:
+            source: field('foo').transform(x -> x + '-baz'); field('nest').doc().field('bar').set(200)
+            lang: painless
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "3"
+
+  - match: { _source.foo: bar-baz }
+  - match: { _source.nest.bar: 200 }
+  - match: { found: true }

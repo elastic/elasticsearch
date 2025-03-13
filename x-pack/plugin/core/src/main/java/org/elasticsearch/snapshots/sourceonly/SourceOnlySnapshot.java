@@ -9,6 +9,7 @@ package org.elasticsearch.snapshots.sourceonly;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -23,6 +24,7 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -165,7 +167,7 @@ public class SourceOnlySnapshot {
         return new LiveDocs(reader.numDeletedDocs(), reader.getLiveDocs());
     }
 
-    private int apply(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
+    private static int apply(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
         int docID = -1;
         int newDeletes = 0;
         while ((docID = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
@@ -215,9 +217,7 @@ public class SourceOnlySnapshot {
             Codec codec = si.getCodec();
             Directory sourceDir = si.dir;
             if (si.getUseCompoundFile()) {
-                sourceDir = new LinkedFilesDirectory.CloseMePleaseWrapper(
-                    codec.compoundFormat().getCompoundReader(sourceDir, si, IOContext.DEFAULT)
-                );
+                sourceDir = new LinkedFilesDirectory.CloseMePleaseWrapper(codec.compoundFormat().getCompoundReader(sourceDir, si));
                 toClose = sourceDir;
             }
             final String segmentSuffix = "";
@@ -233,6 +233,7 @@ public class SourceOnlySnapshot {
                     si.name,
                     si.maxDoc(),
                     false,
+                    si.getHasBlocks(),
                     si.getCodec(),
                     si.getDiagnostics(),
                     si.getId(),
@@ -252,14 +253,17 @@ public class SourceOnlySnapshot {
                             false,
                             IndexOptions.NONE,
                             DocValuesType.NONE,
+                            DocValuesSkipIndexType.NONE,
                             -1,
                             fieldInfo.attributes(),
                             0,
                             0,
                             0,
                             0,
+                            VectorEncoding.FLOAT32,
                             VectorSimilarityFunction.EUCLIDEAN,
-                            fieldInfo.isSoftDeletesField()
+                            fieldInfo.isSoftDeletesField(),
+                            fieldInfo.isParentField()
                         )
                     );
                 }
@@ -319,7 +323,7 @@ public class SourceOnlySnapshot {
         }
     }
 
-    private boolean assertLiveDocs(Bits liveDocs, int deletes) {
+    private static boolean assertLiveDocs(Bits liveDocs, int deletes) {
         int actualDeletes = 0;
         for (int i = 0; i < liveDocs.length(); i++) {
             if (liveDocs.get(i) == false) {

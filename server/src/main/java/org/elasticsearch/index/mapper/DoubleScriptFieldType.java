@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -43,22 +44,25 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             DoubleFieldScript.Factory factory,
             Script script,
-            Map<String, String> meta
+            Map<String, String> meta,
+            OnScriptError onScriptError
         ) {
-            return new DoubleScriptFieldType(name, factory, script, meta);
+            return new DoubleScriptFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
-        DoubleFieldScript.Factory getParseFromSourceFactory() {
+        protected DoubleFieldScript.Factory getParseFromSourceFactory() {
             return DoubleFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        DoubleFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected DoubleFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return DoubleFieldScript.leafAdapter(parentScriptFactory);
         }
     }
@@ -67,10 +71,16 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         return new Builder(name).createRuntimeField(DoubleFieldScript.PARSE_FROM_SOURCE);
     }
 
-    DoubleScriptFieldType(String name, DoubleFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    DoubleScriptFieldType(
+        String name,
+        DoubleFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -94,6 +104,11 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
             return DocValueFormat.RAW;
         }
         return new DocValueFormat.Decimal(format);
+    }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
     }
 
     @Override

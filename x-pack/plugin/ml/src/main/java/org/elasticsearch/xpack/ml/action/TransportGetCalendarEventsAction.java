@@ -10,7 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -39,7 +40,13 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<
         JobResultsProvider jobResultsProvider,
         JobConfigProvider jobConfigProvider
     ) {
-        super(GetCalendarEventsAction.NAME, transportService, actionFilters, GetCalendarEventsAction.Request::new);
+        super(
+            GetCalendarEventsAction.NAME,
+            transportService,
+            actionFilters,
+            GetCalendarEventsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.jobResultsProvider = jobResultsProvider;
         this.jobConfigProvider = jobConfigProvider;
     }
@@ -51,16 +58,15 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<
         ActionListener<GetCalendarEventsAction.Response> listener
     ) {
         final String[] calendarId = Strings.splitStringByCommaToArray(request.getCalendarId());
-        ActionListener<Boolean> calendarExistsListener = ActionListener.wrap(r -> {
+        checkCalendarExists(calendarId, listener.delegateFailureAndWrap((outerDelegate, r) -> {
             ScheduledEventsQueryBuilder query = new ScheduledEventsQueryBuilder().start(request.getStart())
                 .end(request.getEnd())
                 .from(request.getPageParams().getFrom())
                 .size(request.getPageParams().getSize())
                 .calendarIds(calendarId);
 
-            ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(
-                events -> listener.onResponse(new GetCalendarEventsAction.Response(events)),
-                listener::onFailure
+            ActionListener<QueryPage<ScheduledEvent>> eventsListener = outerDelegate.delegateFailureAndWrap(
+                (l, events) -> l.onResponse(new GetCalendarEventsAction.Response(events))
             );
 
             if (request.getJobId() != null) {
@@ -71,25 +77,18 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<
 
                 }, jobNotFound -> {
                     // is the request Id a group?
-                    jobConfigProvider.groupExists(request.getJobId(), ActionListener.wrap(groupExists -> {
+                    jobConfigProvider.groupExists(request.getJobId(), eventsListener.delegateFailureAndWrap((delegate, groupExists) -> {
                         if (groupExists) {
-                            jobResultsProvider.scheduledEventsForJob(
-                                null,
-                                Collections.singletonList(request.getJobId()),
-                                query,
-                                eventsListener
-                            );
+                            jobResultsProvider.scheduledEventsForJob(null, Collections.singletonList(request.getJobId()), query, delegate);
                         } else {
-                            listener.onFailure(ExceptionsHelper.missingJobException(request.getJobId()));
+                            delegate.onFailure(ExceptionsHelper.missingJobException(request.getJobId()));
                         }
-                    }, listener::onFailure));
+                    }));
                 }));
             } else {
                 jobResultsProvider.scheduledEvents(query, eventsListener);
             }
-        }, listener::onFailure);
-
-        checkCalendarExists(calendarId, calendarExistsListener);
+        }));
     }
 
     private void checkCalendarExists(String[] calendarId, ActionListener<Boolean> listener) {
@@ -100,7 +99,7 @@ public class TransportGetCalendarEventsAction extends HandledTransportAction<
 
         jobResultsProvider.calendars(
             CalendarQueryBuilder.builder().calendarIdTokens(calendarId),
-            ActionListener.wrap(c -> listener.onResponse(true), listener::onFailure)
+            listener.delegateFailureAndWrap((l, c) -> l.onResponse(true))
         );
     }
 }

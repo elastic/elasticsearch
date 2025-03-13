@@ -1,0 +1,512 @@
+# This test uses the simple model defined in
+# TextExpansionQueryIT.java to create the token weights.
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: "sparse_vector query introduced in 8.15.0"
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: index-with-sparse-vector
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              source_text:
+                type: keyword
+              ml.tokens:
+                type: sparse_vector
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model:
+        model_id: "text_expansion_model"
+        body: >
+          {
+            "description": "simple model for testing",
+            "model_type": "pytorch",
+            "inference_config": {
+              "text_expansion": {
+                "tokenization": {
+                  "bert": {
+                    "with_special_tokens": false
+                  }
+                }
+              }
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model_vocabulary:
+        model_id: "text_expansion_model"
+        body: >
+          { "vocabulary": ["[PAD]", "[UNK]", "these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"] }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_trained_model_definition_part:
+        model_id: "text_expansion_model"
+        part: 0
+        body: >
+          {
+            "total_definition_length":2078,
+            "definition": "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",
+            "total_parts": 1
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: index-with-sparse-vector
+        refresh: true
+        body: |
+          {"index": { "_id": 1 }}
+          {"source_text": "my words comforter", "ml.tokens":{"my":0.5,"words":1.0,"comforter":2.0}}
+          {"index": { "_id": 2 }}
+          {"source_text": "the machine is leaking", "ml.tokens":{"the":0.5,"machine":1.0,"is":0.5,"leaking":1.0}}
+          {"index": { "_id": 3 }}
+          {"source_text": "these are my words", "ml.tokens":{"these":0.5,"are":0.5,"my":0.5,"words":1.0}}
+          {"index": { "_id": 4 }}
+          {"source_text": "the octopus comforter smells", "ml.tokens":{"the":0.5,"octopus":2.0,"comforter":2.0,"smells":1.0}}
+          {"index": { "_id": 5 }}
+          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":0.5,"octopus":2.0,"comforter":2.0,"is":0.5,"leaking":1.0}}
+          {"index": { "_id": 6 }}
+          {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}}
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      ml.start_trained_model_deployment:
+        model_id: text_expansion_model
+        wait_for: started
+
+---
+"Test sparse_vector search":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              inference_id: text_expansion_model
+              query: "octopus comforter smells"
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+
+---
+"Test sparse_vector search with pruning config - note this will not change returned results due to model limitations":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              inference_id: text_expansion_model
+              query: "octopus comforter smells"
+              prune: true
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+
+---
+"Test named, boosted sparse_vector search with pruning config - note this will not change returned results due to model limitations":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              inference_id: text_expansion_model
+              query: "octopus comforter smells"
+              prune: true
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+  - match: { hits.hits.0._score: 5.0 }
+
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              inference_id: text_expansion_model
+              query: "octopus comforter smells"
+              prune: true
+              _name: i-like-naming-my-queries
+              boost: 100.0
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+  - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
+  - match: { hits.hits.0._score: 500.0 }
+
+---
+"Test sparse_vector search with specified pruning config - note default values will not change returned results due to model limitations":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              inference_id: text_expansion_model
+              query: "octopus comforter smells"
+              prune: true
+              pruning_config:
+                tokens_freq_ratio_threshold: 5
+                tokens_weight_threshold: 0.4
+                only_score_pruned_tokens: false
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+
+---
+"Test sparse_vector search with default pruning config specified - note this will not change returned results due to model limitations":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              inference_id: text_expansion_model
+              query: "octopus comforter smells"
+              prune: true
+              pruning_config: { }
+  - match: { hits.total.value: 4 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+
+---
+"Test sparse_vector search with a pruning configuration that only keeps pruned tokens":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              inference_id: text_expansion_model
+              query: "octopus comforter smells"
+              prune: true
+              pruning_config:
+                tokens_freq_ratio_threshold: 4
+                tokens_weight_threshold: 0.4
+                only_score_pruned_tokens: true
+  - match: { hits.total.value: 0 }
+
+---
+"Test sparse_vector search with query vector":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              query_vector:
+                the: 0.5
+                comforter: 2.0
+                smells: 1.0
+                bad: 1.0
+  - match: { hits.total.value: 5 }
+  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+  - match: { hits.hits.0._score: 5.25 }
+
+---
+"Test sparse_vector search with query vector and pruning config":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              query_vector:
+                the: 0.5
+                comforter: 2.0
+                smells: 1.0
+                bad: 1.0
+              prune: true
+              pruning_config:
+                tokens_freq_ratio_threshold: 1
+                tokens_weight_threshold: 0.9
+                only_score_pruned_tokens: false
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._score: 4 }
+
+---
+"Test sparse_vector search with query vector and pruning config with only score pruned tokens":
+  - do:
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              query_vector:
+                the: 0.5
+                comforter: 2.0
+                smells: 1.0
+                bad: 1.0
+              prune: true
+              pruning_config:
+                tokens_freq_ratio_threshold: 1
+                tokens_weight_threshold: 0.4
+                only_score_pruned_tokens: true
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._score: 0.25 }
+
+---
+"Test sparse_vector requires one of query or query_vector":
+  - do:
+      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: text
+
+  - match: { status: 400 }
+
+---
+"Test sparse_vector returns an error if inference ID not specified with query":
+  - do:
+      catch: bad_request # This is for BWC, the actual error message is tested in a subsequent test
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: text
+              query: "octopus comforter smells"
+
+  - match: { status: 400 }
+
+---
+"Test sparse_vector requires an inference ID to be specified on sparse_vector fields":
+  - requires:
+      cluster_features: [ "search.semantic_sparse_vector_query_rewrite_interception_supported" ]
+      reason: "Error message changed in 8.18"
+  - do:
+      catch: /inference_id required to perform vector search on query string/
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: text
+              query: "octopus comforter smells"
+
+  - match: { status: 400 }
+
+---
+"Test sparse_vector only allows one of query or query_vector (note the error message is misleading)":
+  - requires:
+      cluster_features: [ "search.semantic_sparse_vector_query_rewrite_interception_supported" ]
+      reason: "sparse vector inference checks updated in 8.18 to support sparse_vector on semantic_text fields"
+  - do:
+      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: text
+              query: "octopus comforter smells"
+              query_vector:
+                the: 1.0
+                comforter: 1.0
+                smells: 1.0
+                bad: 1.0
+
+  - match: { status: 400 }
+
+---
+"Test sparse_vector displays error for invalid queried field type":
+  - do:
+      catch: /\[source_text\] must be type \[sparse_vector\] but is type \[keyword\]/
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: source_text
+              inference_id: text_expansion_model
+              query: "octopus comforter smells"
+
+  - match: { status: 400 }
+
+---
+"Search on a sparse_vector field with dots in the field names":
+
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: dots in field names allowed starting in in 8.16.0
+
+  - do:
+      indices.create:
+        index: index-with-sparse-vector2
+        body:
+          mappings:
+            properties:
+              ml.tokens:
+                type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      index:
+        index: index-with-sparse-vector2
+        id: "has-dots"
+        refresh: true
+        body:
+          ml:
+            tokens:
+              running: 2.4097164
+              good: 2.170997
+              run: 2.052153
+              race: 1.4575411
+              for: 1.1908325
+              5.0k: 2.489943
+
+  - match: { result: "created" }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      get:
+        index: index-with-sparse-vector2
+        id: "has-dots"
+
+  - match:
+      _source:
+        ml:
+          tokens:
+            running: 2.4097164
+            good: 2.170997
+            run: 2.052153
+            race: 1.4575411
+            for: 1.1908325
+            5.0k: 2.489943
+
+  - do:
+      search:
+        index: index-with-sparse-vector2
+        body:
+          query:
+            sparse_vector:
+              field: ml.tokens
+              query_vector:
+                5.0k: 2.489943
+
+  - match: { hits.total.value: 1 }
+
+---
+"Search on a nested sparse_vector field with dots in the field names and conflicting child fields":
+
+  - requires:
+      cluster_features: [ "gte_v8.16.0" ]
+      reason: dots in field names allowed starting in in 8.16.0
+
+  - do:
+      indices.create:
+        index: index-with-sparse-vector3
+        body:
+          mappings:
+            properties:
+              parent:
+                type: object
+                subobjects: false
+                properties:
+                  foo:
+                    type: sparse_vector
+                  foo.bar:
+                    type: sparse_vector
+
+  - match: { acknowledged: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: index-with-sparse-vector3
+        refresh: true
+        body: |
+          {"index": { "_id": "parent-foo" }}
+          {"parent.foo": { "bar.baz": 1.0 }}
+          {"index": { "_id": "parent-foo-bar" }}
+          {"parent.foo.bar": { "baz": 2.0 }}
+          {"index": { "_id": "both-docs" }}
+          {"parent.foo": { "bar.baz": 3.0 }, "parent.foo.bar": { "baz": 4.0 }}
+
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      get:
+        index: index-with-sparse-vector3
+        id: "parent-foo"
+
+  - match:
+      _source:
+        parent.foo:
+          bar.baz: 1.0
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      get:
+        index: index-with-sparse-vector3
+        id: "parent-foo-bar"
+
+  - match:
+      _source:
+        parent.foo.bar:
+          baz: 2.0
+
+  - do:
+      search:
+        index: index-with-sparse-vector3
+        body:
+          query:
+            sparse_vector:
+              field: parent.foo
+              query_vector:
+                bar.baz: 1.0
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "both-docs" }
+  - match: { hits.hits.0._score: 3.0 }
+  - match: { hits.hits.1._id: "parent-foo" }
+  - match: { hits.hits.1._score: 1.0 }
+
+  - do:
+      search:
+        index: index-with-sparse-vector3
+        body:
+          query:
+            sparse_vector:
+              field: parent.foo.bar
+              query_vector:
+                baz: 1.0
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "both-docs" }
+  - match: { hits.hits.0._score: 4.0 }
+  - match: { hits.hits.1._id: "parent-foo-bar" }
+  - match: { hits.hits.1._score: 2.0 }

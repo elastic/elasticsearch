@@ -1,0 +1,16 @@
+basic
+// tag::basic[]
+FROM employees
+| SORT emp_no ASC
+| LIMIT 5
+// end::basic[]
+| KEEP emp_no
+;
+
+emp_no:integer
+10001
+10002
+10003
+10004
+10005
+;

@@ -3,28 +3,26 @@
 The ES build can generate several types of Docker image. These are enumerated in
 the [DockerBase] enum.
 
-   * Default - this is what most people use, and is based on Ubuntu
-   * UBI - the same as the default image, but based upon [RedHat's UBI
+   * Default - this is what most people use, and is based on [RedHat's UBI
      images][ubi], specifically their minimal flavour.
+   * Wolfi - the same as the default image, but based upon [Wolfi](https://github.com/wolfi-dev)
+   * Cloud ESS - this directly extends the Wolfi image, and adds all ES plugins
+     that the ES build generates in an archive directory. It also sets an
+     environment variable that points at this directory. This allows plugins to
+     be installed from the archive instead of the internet, speeding up
+     deployment times. Furthermore this image has
+     * `filebeat` and `metricbeat` included
+     * `wget` included
+     * The `ENTRYPOINT` is just `/sbin/tini`, and the `CMD` is
+     `/app/elasticsearch.sh`. In normal use this file would be bind-mounted
+     in, but the image ships a stub version of this file so that the image
+     can still be tested.
    * Iron Bank - this is the US Department of Defence's repository of digitally
      signed, binary container images including both Free and Open-Source
      software (FOSS) and Commercial off-the-shelf (COTS). In practice, this is
      another UBI build, this time on the regular UBI image, with extra
      hardening. See below for more details.
-   * Cloud - this is mostly the same as the default image, with some notable differences:
-      * `filebeat` and `metricbeat` are included
-      * `wget` is included
-      * The `ENTRYPOINT` is just `/bin/tini`, and the `CMD` is
-        `/app/elasticsearc.sh`. In normal use this file would be bind-mounted
-        in, but the image ships a stub version of this file so that the image
-        can still be tested.
-   * Cloud ESS - this directly extends the Cloud image, and adds all ES plugins
-     that the ES build generates in an archive directory. It also sets an
-     environment variable that points at this directory. This allows plugins to
-     be installed from the archive instead of the internet, speeding up
-     deployment times.
-
-The long-term goal is for both Cloud images to be retired in favour of the
+The long-term goal is for Cloud ESS image to be retired in favour of the
 default image.
 
 
@@ -92,6 +90,33 @@ images, and combining them with a Docker manifest. The Elasticsearch Delivery
 team aren't responsible for this - rather, it happens during our unified release
 process.
 
+To build multi-architecture images on `x86_64` hosts using Docker[^1], you'll
+need [buildx](https://docs.docker.com/build/buildx/install/) and ensure that it
+supports both `linux/amd64` **and** `linux/arm64` targets.
+
+You can verify the supported targets using `docker buildx ls`. For example, the
+following output indicates that support for `linux/arm64` is missing:
+
+```shell
+$ docker buildx ls
+NAME/NODE DRIVER/ENDPOINT STATUS  BUILDKIT PLATFORMS
+default * docker
+  default default         running 20.10.21 linux/amd64, linux/386
+```
+
+On Linux `x86_64` hosts, to enable `linux-arm64` you need to install
+[qemu-user-static-binfmt](https://github.com/multiarch/qemu-user-static).
+Installation details depend on the Linux distribution but, as described in the
+[getting started docs](https://github.com/multiarch/qemu-user-static#getting-started),
+running `docker run --rm --privileged multiarch/qemu-user-static --reset -p yes`
+will add the necessary support (but will not persist across reboots):
+
+```shell
+$ docker buildx ls
+NAME/NODE DRIVER/ENDPOINT STATUS  BUILDKIT PLATFORMS
+default * docker
+  default default         running 20.10.21 linux/amd64, linux/arm64, linux/riscv64, linux/ppc64le, linux/s390x, linux/386, linux/arm/v7, linux/arm/v6
+```
 
 ## Testing
 
@@ -130,3 +155,5 @@ Ideally this import / export stuff should be completely removed.
 [DockerTests]: ../../qa/os/src/test/java/org/elasticsearch/packaging/test/DockerTests.java
 [multi-arch]: https://www.docker.com/blog/multi-arch-build-and-images-the-simple-way/
 [ubi]: https://developers.redhat.com/products/rhel/ubi
+
+[^1]: `podman/buildah` also [supports building multi-platform images](https://github.com/containers/buildah/issues/1590).

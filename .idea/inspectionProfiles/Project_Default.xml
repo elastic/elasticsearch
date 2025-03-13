@@ -2,12 +2,14 @@
   <profile version="1.0">
     <option name="myName" value="Project Default" />
     <inspection_tool class="GroovyPointlessBoolean" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="IllegalDependencyOnInternalPackage" enabled="true" level="ERROR" enabled_by_default="false">
+      <scope name="Production" level="ERROR" enabled="false" />
+      <scope name="Production minus fixtures" level="ERROR" enabled="true" />
+    </inspection_tool>
     <inspection_tool class="PointlessBooleanExpression" enabled="false" level="WARNING" enabled_by_default="false">
       <option name="m_ignoreExpressionsContainingConstants" value="true" />
     </inspection_tool>
+    <inspection_tool class="StringTemplateMigration" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="jol" enabled="false" level="WARNING" enabled_by_default="false" />
-    <inspection_tool class="IllegalDependencyOnInternalPackage" enabled="true" level="ERROR" enabled_by_default="false">
-      <scope name="Production" level="ERROR" enabled="true" />
-    </inspection_tool>
   </profile>
 </component>

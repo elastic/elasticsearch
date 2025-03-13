@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle
@@ -34,7 +35,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                 id 'elasticsearch.testclusters'
             }
 
-            class SomeClusterAwareTask extends DefaultTask implements TestClustersAware {
+            abstract class SomeClusterAwareTask extends DefaultTask implements TestClustersAware {
 
                 private Collection<ElasticsearchCluster> clusters = new HashSet<>();
 
@@ -134,7 +135,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
             esplugin {
                 name = 'test-$pluginType'
-                classname 'org.acme.TestModule'
+                classname = 'org.acme.TestModule'
                 description = "test $pluginType description"
             }
 
@@ -166,7 +167,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.output.contains("Task ':myTask' is not up-to-date because:\n" +
-                "  Input property 'clusters.myCluster\$0.nodes.\$0.$propertyName'")
+                "  Input property 'clusters.myCluster\$0.$propertyName'")
         result.output.contains("elasticsearch-keystore script executed!")
         assertEsOutputContains("myCluster", "Starting Elasticsearch process")
         assertEsOutputContains("myCluster", "Stopping node")

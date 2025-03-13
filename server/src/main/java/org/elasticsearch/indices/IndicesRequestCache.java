@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
-import org.elasticsearch.common.cache.RemovalListener;
 import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
@@ -29,8 +29,6 @@ import org.elasticsearch.index.mapper.MappingLookup;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
@@ -50,7 +48,7 @@ import java.util.concurrent.ConcurrentMap;
  * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
  * is functional.
  */
-public final class IndicesRequestCache implements RemovalListener<IndicesRequestCache.Key, BytesReference>, Closeable {
+public final class IndicesRequestCache implements Closeable {
 
     /**
      * A setting to enable or disable request caching on an index level. Its dynamic by default
@@ -75,18 +73,14 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
 
     private final ConcurrentMap<CleanupKey, Boolean> registeredClosedListeners = ConcurrentCollections.newConcurrentMap();
     private final Set<CleanupKey> keysToClean = ConcurrentCollections.newConcurrentSet();
-    private final ByteSizeValue size;
-    private final TimeValue expire;
     private final Cache<Key, BytesReference> cache;
 
     IndicesRequestCache(Settings settings) {
-        this.size = INDICES_CACHE_QUERY_SIZE.get(settings);
-        this.expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
-        long sizeInBytes = size.getBytes();
+        TimeValue expire = INDICES_CACHE_QUERY_EXPIRE.exists(settings) ? INDICES_CACHE_QUERY_EXPIRE.get(settings) : null;
         CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.<Key, BytesReference>builder()
-            .setMaximumWeight(sizeInBytes)
+            .setMaximumWeight(INDICES_CACHE_QUERY_SIZE.get(settings).getBytes())
             .weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed())
-            .removalListener(this);
+            .removalListener(notification -> notification.getKey().entity.onRemoval(notification));
         if (expire != null) {
             cacheBuilder.setExpireAfterAccess(expire);
         }
@@ -101,11 +95,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     void clear(CacheEntity entity) {
         keysToClean.add(new CleanupKey(entity, null));
         cleanCache();
-    }
-
-    @Override
-    public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
-        notification.getKey().entity.onRemoval(notification);
     }
 
     BytesReference getOrCompute(
@@ -236,12 +225,6 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         @Override
         public long ramBytesUsed() {
             return BASE_RAM_BYTES_USED + entity.ramBytesUsed() + value.length();
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            // TODO: more detailed ram usage?
-            return Collections.emptyList();
         }
 
         @Override

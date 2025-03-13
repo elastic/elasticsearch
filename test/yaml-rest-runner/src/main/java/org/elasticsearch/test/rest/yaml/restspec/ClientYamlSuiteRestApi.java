@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
@@ -28,12 +29,13 @@ public class ClientYamlSuiteRestApi {
 
     private final String location;
     private final String name;
-    private Set<Path> paths = new LinkedHashSet<>();
-    private Map<String, Boolean> params = new HashMap<>();
+    private final Set<Path> paths = new LinkedHashSet<>();
+    private final Map<String, Boolean> params = new HashMap<>();
     private Body body = Body.NOT_SUPPORTED;
     private Stability stability;
     private Visibility visibility;
     private String featureFlag;
+
     private List<String> responseMimeTypes;
     private List<String> requestMimeTypes;
 
@@ -68,7 +70,7 @@ public class ClientYamlSuiteRestApi {
         return location;
     }
 
-    void addPath(String path, String[] methods, Set<String> parts) {
+    void addPath(String path, String[] methods, Set<String> parts, boolean deprecated) {
         Objects.requireNonNull(path, name + " API: path must not be null");
         Objects.requireNonNull(methods, name + " API: methods must not be null");
         if (methods.length == 0) {
@@ -80,7 +82,7 @@ public class ClientYamlSuiteRestApi {
                 throw new IllegalArgumentException(name + " API: part [" + part + "] not contained in path [" + path + "]");
             }
         }
-        boolean add = this.paths.add(new Path(path, methods, parts));
+        boolean add = this.paths.add(new Path(path, methods, parts, deprecated));
         if (add == false) {
             throw new IllegalArgumentException(name + " API: found duplicate path [" + path + "]");
         }
@@ -193,7 +195,7 @@ public class ClientYamlSuiteRestApi {
         return pathsByRelevance;
     }
 
-    public record Path(String path, String[] methods, Set<String> parts) {
+    public record Path(String path, String[] methods, Set<String> parts, boolean deprecated) {
 
         @Override
         public boolean equals(Object o) {

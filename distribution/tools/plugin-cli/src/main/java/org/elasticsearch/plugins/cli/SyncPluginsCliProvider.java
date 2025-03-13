@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.cli;
@@ -36,10 +37,10 @@ public class SyncPluginsCliProvider implements CliToolProvider {
             @Override
             public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
                 var action = new SyncPluginsAction(terminal, env);
-                if (Files.exists(env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML)) == false) {
+                if (Files.exists(env.configDir().resolve(ELASTICSEARCH_PLUGINS_YML)) == false) {
                     return;
                 }
-                if (Build.CURRENT.type() != Build.Type.DOCKER) {
+                if (Build.current().type() != Build.Type.DOCKER) {
                     throw new UserException(
                         ExitCodes.CONFIG,
                         "Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]"

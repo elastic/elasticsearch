@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.get;
@@ -17,13 +18,15 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,7 +56,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndicesService indicesService,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        ProjectResolver projectResolver
     ) {
         super(
             GetIndexAction.NAME,
@@ -63,7 +67,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             actionFilters,
             GetIndexRequest::new,
             indexNameExpressionResolver,
-            GetIndexResponse::new
+            GetIndexResponse::new,
+            projectResolver
         );
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;
@@ -82,13 +87,11 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         Map<String, List<AliasMetadata>> aliasesResult = Map.of();
         Map<String, Settings> settings = Map.of();
         Map<String, Settings> defaultSettings = Map.of();
-        Map<String, String> dataStreams = Map.copyOf(
-            state.metadata()
-                .findDataStreams(concreteIndices)
-                .entrySet()
-                .stream()
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().getName()))
-        );
+        ProjectMetadata project = projectResolver.getProjectMetadata(state);
+        Map<String, String> dataStreams = project.findDataStreams(concreteIndices)
+            .entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().getName()));
         Feature[] features = request.features();
         boolean doneAliases = false;
         boolean doneMappings = false;
@@ -98,14 +101,17 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             switch (feature) {
                 case MAPPINGS:
                     if (doneMappings == false) {
-                        mappingsResult = state.metadata()
-                            .findMappings(concreteIndices, indicesService.getFieldFilter(), () -> checkCancellation(task));
+                        mappingsResult = project.findMappings(
+                            concreteIndices,
+                            indicesService.getFieldFilter(),
+                            () -> checkCancellation(task)
+                        );
                         doneMappings = true;
                     }
                     break;
                 case ALIASES:
                     if (doneAliases == false) {
-                        aliasesResult = state.metadata().findAllAliases(concreteIndices);
+                        aliasesResult = project.findAllAliases(concreteIndices);
                         doneAliases = true;
                     }
                     break;
@@ -115,7 +121,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                         Map<String, Settings> defaultSettingsMapBuilder = new HashMap<>();
                         for (String index : concreteIndices) {
                             checkCancellation(task);
-                            Settings indexSettings = state.metadata().index(index).getSettings();
+                            Settings indexSettings = project.index(index).getSettings();
                             if (request.humanReadable()) {
                                 indexSettings = IndexMetadata.addHumanReadableSettings(indexSettings);
                             }

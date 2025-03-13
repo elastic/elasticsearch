@@ -163,7 +163,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         int fractions = b.remainder(BigDecimal.ONE).movePointRight(9).intValueExact();
         int adjustment = 0;
         if (fractions < 0) {
-            fractions += 1e9;
+            fractions += (int) 1e9;
             adjustment = -1;
         }
         return dateTime((seconds + adjustment) * 1000).withNano(fractions);

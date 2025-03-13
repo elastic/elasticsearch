@@ -1,26 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This response is specific to the REST client. {@link org.elasticsearch.action.admin.cluster.state.ClusterStateResponse}
@@ -32,23 +27,9 @@ public class RestClusterGetSettingsResponse implements ToXContentObject {
     private final Settings transientSettings;
     private final Settings defaultSettings;
 
-    static final String PERSISTENT_FIELD = "persistent";
-    static final String TRANSIENT_FIELD = "transient";
-    static final String DEFAULTS_FIELD = "defaults";
-
-    private static final ConstructingObjectParser<RestClusterGetSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "cluster_get_settings_response",
-        true,
-        a -> {
-            Settings defaultSettings = a[2] == null ? Settings.EMPTY : (Settings) a[2];
-            return new RestClusterGetSettingsResponse((Settings) a[0], (Settings) a[1], defaultSettings);
-        }
-    );
-    static {
-        PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(PERSISTENT_FIELD));
-        PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(TRANSIENT_FIELD));
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(DEFAULTS_FIELD));
-    }
+    public static final String PERSISTENT_FIELD = "persistent";
+    public static final String TRANSIENT_FIELD = "transient";
+    public static final String DEFAULTS_FIELD = "defaults";
 
     public RestClusterGetSettingsResponse(Settings persistentSettings, Settings transientSettings, Settings defaultSettings) {
         this.persistentSettings = Objects.requireNonNullElse(persistentSettings, Settings.EMPTY);
@@ -117,10 +98,6 @@ public class RestClusterGetSettingsResponse implements ToXContentObject {
         }
         builder.endObject();
         return builder;
-    }
-
-    public static RestClusterGetSettingsResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
     }
 
     @Override

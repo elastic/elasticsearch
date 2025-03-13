@@ -8,11 +8,12 @@ package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -33,6 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * The request is returned in the REST response, and the REST client should make it available
  * to the browser.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlPrepareAuthenticationRequest, Void> PARSER = new ObjectParser<>(
@@ -52,9 +54,7 @@ public class RestSamlPrepareAuthenticationAction extends SamlBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/saml/prepare").replaces(POST, "/_xpack/security/saml/prepare", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_security/saml/prepare"));
     }
 
     @Override

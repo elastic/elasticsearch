@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -13,8 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.hamcrest.Matchers;
-
-import java.io.IOException;
 
 import static org.elasticsearch.snapshots.ShardSnapshotResultWireSerializationTests.randomShardSnapshotResult;
 import static org.hamcrest.Matchers.containsString;
@@ -35,12 +34,12 @@ public class ShardSnapshotStatusWireSerializationTests extends AbstractWireSeria
             return SnapshotsInProgress.ShardSnapshotStatus.success(nodeId, randomShardSnapshotResult());
         } else {
             final String reason = shardState.failed() ? randomAlphaOfLength(10) : null;
-            return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, reason, ShardGeneration.newGeneration());
+            return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, shardState, ShardGeneration.newGeneration(), reason);
         }
     }
 
     @Override
-    protected SnapshotsInProgress.ShardSnapshotStatus mutateInstance(SnapshotsInProgress.ShardSnapshotStatus instance) throws IOException {
+    protected SnapshotsInProgress.ShardSnapshotStatus mutateInstance(SnapshotsInProgress.ShardSnapshotStatus instance) {
         if (instance.state() == SnapshotsInProgress.ShardState.QUEUED) {
             assert instance == SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED;
             return randomValueOtherThanMany(i -> i.state() == SnapshotsInProgress.ShardState.QUEUED, this::createTestInstance);
@@ -70,26 +69,26 @@ public class ShardSnapshotStatusWireSerializationTests extends AbstractWireSeria
             return new SnapshotsInProgress.ShardSnapshotStatus(
                 instance.nodeId(),
                 newState,
-                randomAlphaOfLength(15 - instance.reason().length()),
-                instance.generation()
+                instance.generation(),
+                randomAlphaOfLength(15 - instance.reason().length())
             );
         } else {
             final String reason = newState.failed() ? randomAlphaOfLength(10) : null;
             if (newState != instance.state() && randomBoolean()) {
-                return new SnapshotsInProgress.ShardSnapshotStatus(instance.nodeId(), newState, reason, instance.generation());
+                return new SnapshotsInProgress.ShardSnapshotStatus(instance.nodeId(), newState, instance.generation(), reason);
             } else if (randomBoolean()) {
                 return new SnapshotsInProgress.ShardSnapshotStatus(
                     randomAlphaOfLength(11 - instance.nodeId().length()),
                     newState,
-                    reason,
-                    instance.generation()
+                    instance.generation(),
+                    reason
                 );
             } else {
                 return new SnapshotsInProgress.ShardSnapshotStatus(
                     instance.nodeId(),
                     newState,
-                    reason,
-                    randomValueOtherThan(instance.generation(), ShardGeneration::newGeneration)
+                    randomValueOtherThan(instance.generation(), ShardGeneration::newGeneration),
+                    reason
                 );
             }
         }

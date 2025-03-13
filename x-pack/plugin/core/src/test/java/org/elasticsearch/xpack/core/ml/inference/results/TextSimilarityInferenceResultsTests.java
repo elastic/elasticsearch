@@ -23,13 +23,23 @@ public class TextSimilarityInferenceResultsTests extends InferenceResultsTestCas
     }
 
     @Override
+    protected TextSimilarityInferenceResults mutateInstance(TextSimilarityInferenceResults instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<TextSimilarityInferenceResults> instanceReader() {
         return TextSimilarityInferenceResults::new;
     }
 
     @Override
-    void assertFieldValues(TextSimilarityInferenceResults createdInstance, IngestDocument document, String resultsField) {
-        String path = resultsField + "." + createdInstance.getResultsField();
+    void assertFieldValues(
+        TextSimilarityInferenceResults createdInstance,
+        IngestDocument document,
+        String parentField,
+        String resultsField
+    ) {
+        String path = parentField + resultsField;
         assertThat(document.getFieldValue(path, Double.class), equalTo(createdInstance.predictedValue()));
     }
 }

@@ -15,6 +15,6 @@ public class SuggestProfilesAction extends ActionType<SuggestProfilesResponse> {
     public static final SuggestProfilesAction INSTANCE = new SuggestProfilesAction();
 
     public SuggestProfilesAction() {
-        super(NAME, SuggestProfilesResponse::new);
+        super(NAME);
     }
 }

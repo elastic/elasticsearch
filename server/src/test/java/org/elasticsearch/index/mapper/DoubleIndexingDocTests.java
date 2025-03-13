@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -35,27 +36,27 @@ public class DoubleIndexingDocTests extends MapperServiceTestCase {
             iw.addDocument(doc.rootDoc());
             iw.addDocument(doc.rootDoc());
         }, reader -> {
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             TopDocs topDocs = searcher.search(mapperService.fieldType("field1").termQuery("value1", context), 10);
-            assertThat(topDocs.totalHits.value, equalTo(2L));
+            assertThat(topDocs.totalHits.value(), equalTo(2L));
 
             topDocs = searcher.search(mapperService.fieldType("field2").termQuery("1", context), 10);
-            assertThat(topDocs.totalHits.value, equalTo(2L));
+            assertThat(topDocs.totalHits.value(), equalTo(2L));
 
             topDocs = searcher.search(mapperService.fieldType("field3").termQuery("1.1", context), 10);
-            assertThat(topDocs.totalHits.value, equalTo(2L));
+            assertThat(topDocs.totalHits.value(), equalTo(2L));
 
             topDocs = searcher.search(mapperService.fieldType("field4").termQuery("2010-01-01", context), 10);
-            assertThat(topDocs.totalHits.value, equalTo(2L));
+            assertThat(topDocs.totalHits.value(), equalTo(2L));
 
             topDocs = searcher.search(mapperService.fieldType("field5").termQuery("1", context), 10);
-            assertThat(topDocs.totalHits.value, equalTo(2L));
+            assertThat(topDocs.totalHits.value(), equalTo(2L));
 
             topDocs = searcher.search(mapperService.fieldType("field5").termQuery("2", context), 10);
-            assertThat(topDocs.totalHits.value, equalTo(2L));
+            assertThat(topDocs.totalHits.value(), equalTo(2L));
 
             topDocs = searcher.search(mapperService.fieldType("field5").termQuery("3", context), 10);
-            assertThat(topDocs.totalHits.value, equalTo(2L));
+            assertThat(topDocs.totalHits.value(), equalTo(2L));
         });
     }
 }

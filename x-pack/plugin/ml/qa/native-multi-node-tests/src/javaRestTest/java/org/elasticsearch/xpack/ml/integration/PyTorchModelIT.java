@@ -12,35 +12,25 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
-import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
-import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -75,12 +65,7 @@ import static org.hamcrest.Matchers.nullValue;
  * torch.jit.save(traced_model, "simplemodel.pt")
  * ## End Python
  */
-public class PyTorchModelIT extends ESRestTestCase {
-
-    private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
-        "x_pack_rest_user",
-        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
-    );
+public class PyTorchModelIT extends PyTorchModelRestTestCase {
 
     static final String BASE_64_ENCODED_MODEL =
         "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwp"
@@ -110,46 +95,9 @@ public class PyTorchModelIT extends ESRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    private final ExecutorService executorService = Executors.newFixedThreadPool(5);
-
-    @Override
-    protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
-    }
-
-    @Before
-    public void setLogging() throws IOException {
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
-            {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "TRACE",
-                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
-                    "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
-                }}""");
-        client().performRequest(loggingSettings);
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        terminate(executorService);
-
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
-            {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.assignment": null,
-                    "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
-                    "logger.org.elasticsearch.xpack.ml.process.logging" : null,
-                    "xpack.ml.max_lazy_ml_nodes": null
-                }}""");
-        client().performRequest(loggingSettings);
-
-        new MlRestTestStateCleaner(logger, adminClient()).resetFeatures();
-        waitForPendingTasks(adminClient());
-    }
-
     public void testEvaluate() throws IOException, InterruptedException {
         String modelId = "test_evaluate";
-        createTrainedModel(modelId);
+        createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
@@ -183,7 +131,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testEvaluateWithResultFieldOverride() throws IOException {
         String modelId = "test_evaluate";
-        createTrainedModel(modelId);
+        createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
@@ -198,7 +146,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testEvaluateWithMinimalTimeout() throws IOException {
         String modelId = "test_evaluate_timeout";
-        createTrainedModel(modelId);
+        createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
@@ -216,7 +164,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testDeleteFailureDueToDeployment() throws IOException {
         String modelId = "test_deployed_model_delete";
-        createTrainedModel(modelId);
+        createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
@@ -230,18 +178,18 @@ public class PyTorchModelIT extends ESRestTestCase {
         String model = "model_starting_test";
         String modelPartial = "model_partially_started";
         String modelStarted = "model_started";
-        createTrainedModel(model);
+        createPassThroughModel(model);
         putVocabulary(List.of("once", "twice"), model);
         putModelDefinition(model);
-        createTrainedModel(modelPartial);
+        createPassThroughModel(modelPartial);
         putVocabulary(List.of("once", "twice"), modelPartial);
         putModelDefinition(modelPartial);
-        createTrainedModel(modelStarted);
+        createPassThroughModel(modelStarted);
         putVocabulary(List.of("once", "twice"), modelStarted);
         putModelDefinition(modelStarted);
 
         CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
-            startDeployment(modelId, state.toString());
+            startDeployment(modelId, state);
             Response response = getTrainedModelStats(modelId);
             var responseMap = entityAsMap(response);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
@@ -292,15 +240,79 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testLiveDeploymentStats() throws IOException {
-        String modelA = "model_a";
+    public void testRequiredMemoryEstimation() throws IOException {
+        String modelWithMetadata = "model_with_metadata";
+        createPassThroughModel(modelWithMetadata, randomLongBetween(0, 10000000), randomLongBetween(0, 10000000));
+        putVocabulary(List.of("once", "twice"), modelWithMetadata);
+        putModelDefinition(modelWithMetadata);
+        String modelNoMetadata = "model_no_metadata";
+        createPassThroughModel(modelNoMetadata);
+        putVocabulary(List.of("once", "twice"), modelNoMetadata);
+        putModelDefinition(modelNoMetadata);
 
-        createTrainedModel(modelA);
-        putVocabulary(List.of("once", "twice"), modelA);
-        putModelDefinition(modelA);
-        startDeployment(modelA, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
+            startDeployment(modelId, state);
+            Response response = getTrainedModelStats(modelId);
+            var responseMap = entityAsMap(response);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
+            assertThat(responseMap.toString(), statusState, is(not(nullValue())));
+            assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
+            assertThat(XContentMapValues.extractValue("inference_stats", stats.get(0)), is(not(nullValue())));
+            Integer numberOfAllocations = (Integer) XContentMapValues.extractValue("deployment_stats.number_of_allocations", stats.get(0));
+            assertThat(numberOfAllocations, greaterThanOrEqualTo(0));
+
+            Integer byteSize = (Integer) XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0));
+            assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
+            assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
+
+            Integer requiredNativeMemory = (Integer) XContentMapValues.extractValue(
+                "model_size_stats.required_native_memory_bytes",
+                stats.get(0)
+            );
+            assertThat(responseMap.toString(), requiredNativeMemory, is(not(nullValue())));
+
+            Response trainedModelConfigResponse = getTrainedModelConfigs(modelId);
+            List<Map<String, Object>> configs = (List<Map<String, Object>>) entityAsMap(trainedModelConfigResponse).get(
+                "trained_model_configs"
+            );
+            assertThat(configs, hasSize(1));
+            Map<String, Object> metadata = (Map<String, Object>) configs.get(0).get("metadata");
+            Integer canonicalRequiredMemory = (int) (ByteSizeValue.ofMb(240).getBytes() + 2 * RAW_MODEL_SIZE);
+            if (metadata != null) {
+                // test required memory estimation for a model with metadata memory requirements
+                assertThat(metadata, is(not(nullValue())));
+                assertThat(metadata.containsKey("per_deployment_memory_bytes"), is(true));
+                long perDeploymentMemoryBytes = ((Number) metadata.get("per_deployment_memory_bytes")).longValue();
+                assertThat(metadata.containsKey("per_allocation_memory_bytes"), is(true));
+                long perAllocationMemoryBytes = ((Number) metadata.get("per_allocation_memory_bytes")).longValue();
+                Integer expectedRequiredMemory = Math.max(
+                    canonicalRequiredMemory,
+                    (int) (perDeploymentMemoryBytes + perAllocationMemoryBytes * numberOfAllocations + RAW_MODEL_SIZE)
+                );
+                assertThat(requiredNativeMemory, equalTo(expectedRequiredMemory));
+            } else {
+                // test required memory estimation for a model without metadata memory requirements
+                assertThat(requiredNativeMemory, equalTo(canonicalRequiredMemory));
+            }
+
+            stopDeployment(modelId);
+        };
+
+        assertAtLeast.accept(modelWithMetadata, AllocationStatus.State.STARTING);
+        assertAtLeast.accept(modelNoMetadata, AllocationStatus.State.STARTING);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testLiveDeploymentStats() throws IOException {
+        String modelId = "live_deployment_stats";
+        createPassThroughModel(modelId);
+        putVocabulary(List.of("once", "twice"), modelId);
+        putModelDefinition(modelId);
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED);
         {
-            Response noInferenceCallsStatsResponse = getTrainedModelStats(modelA);
+            Response noInferenceCallsStatsResponse = getTrainedModelStats(modelId);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
                 "trained_model_stats"
             );
@@ -321,17 +333,17 @@ public class PyTorchModelIT extends ESRestTestCase {
             }
         }
 
-        infer("once", modelA);
-        infer("twice", modelA);
+        infer("once", modelId);
+        infer("twice", modelId);
         // By making this request 3 times at least one of the responses must come from the cache because the cluster has 2 ML nodes
-        infer("three times", modelA);
-        infer("three times", modelA);
-        infer("three times", modelA);
+        infer("three times", modelId);
+        infer("three times", modelId);
+        infer("three times", modelId);
         {
-            Response postInferStatsResponse = getTrainedModelStats(modelA);
+            Response postInferStatsResponse = getTrainedModelStats(modelId);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(postInferStatsResponse).get("trained_model_stats");
             assertThat(stats, hasSize(1));
-            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
+            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelId));
             assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
             List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
                 "deployment_stats.nodes",
@@ -361,13 +373,13 @@ public class PyTorchModelIT extends ESRestTestCase {
         String badModel = "bad_model";
         String poorlyFormattedModelBase64 = "cG9vcmx5IGZvcm1hdHRlZCBtb2RlbAo=";
         int length = Base64.getDecoder().decode(poorlyFormattedModelBase64).length;
-        createTrainedModel(badModel);
+        createPassThroughModel(badModel);
         putVocabulary(List.of("once", "twice"), badModel);
         Request request = new Request("PUT", "_ml/trained_models/" + badModel + "/definition/0");
-        request.setJsonEntity("""
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(length, poorlyFormattedModelBase64));
+        request.setJsonEntity(Strings.format("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""", length, poorlyFormattedModelBase64));
         client().performRequest(request);
-        startDeployment(badModel, AllocationStatus.State.STARTING.toString());
+        startDeployment(badModel, AllocationStatus.State.STARTING);
         assertBusy(() -> {
             Response noInferenceCallsStatsResponse = getTrainedModelStats(badModel);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
@@ -380,35 +392,20 @@ public class PyTorchModelIT extends ESRestTestCase {
         });
     }
 
-    private void assertAtLeastOneOfTheseIsNotNull(String name, List<Map<String, Object>> nodes) {
-        assertTrue("all nodes have null value for [" + name + "] in " + nodes, nodes.stream().anyMatch(n -> n.get(name) != null));
-    }
-
-    private void assertAtLeastOneOfTheseIsNonZero(String name, List<Map<String, Object>> nodes) {
-        assertTrue("all nodes have null or zero value for [" + name + "] in " + nodes, nodes.stream().anyMatch(n -> {
-            Object o = n.get(name);
-            if (o instanceof Number) {
-                return ((Number) o).longValue() != 0;
-            } else {
-                return false;
-            }
-        }));
-    }
-
     @SuppressWarnings("unchecked")
     public void testGetDeploymentStats_WithWildcard() throws IOException {
         String modelFoo = "foo";
-        createTrainedModel(modelFoo);
+        createPassThroughModel(modelFoo);
         putVocabulary(List.of("once", "twice"), modelFoo);
         putModelDefinition(modelFoo);
 
         String modelBar = "bar";
-        createTrainedModel(modelBar);
+        createPassThroughModel(modelBar);
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
-        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED);
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED);
         infer("once", modelFoo);
         infer("once", modelBar);
         {
@@ -431,16 +428,16 @@ public class PyTorchModelIT extends ESRestTestCase {
     public void testGetDeploymentStats_WithStartedStoppedDeployments() throws IOException {
         String modelFoo = "foo";
         String modelBar = "foo-2";
-        createTrainedModel(modelFoo);
+        createPassThroughModel(modelFoo);
         putVocabulary(List.of("once", "twice"), modelFoo);
         putModelDefinition(modelFoo);
 
-        createTrainedModel(modelBar);
+        createPassThroughModel(modelBar);
         putVocabulary(List.of("once", "twice"), modelBar);
         putModelDefinition(modelBar);
 
-        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED.toString());
-        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelFoo, AllocationStatus.State.FULLY_ALLOCATED);
+        startDeployment(modelBar, AllocationStatus.State.FULLY_ALLOCATED);
         infer("once", modelFoo);
         infer("once", modelBar);
 
@@ -488,9 +485,86 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(ex.getMessage(), containsString("Could not find trained model [missing_model]"));
     }
 
+    @SuppressWarnings("unchecked")
+    public void testInferWithMultipleDocs() throws IOException {
+        String modelId = "infer_multi_docs";
+        // Use the text embedding model from SemanticSearchIT so
+        // that each response can be linked to the originating request.
+        // The test ensures the responses are returned in the same order
+        // as the requests
+        createTextEmbeddingModel(modelId);
+        putModelDefinition(modelId, TextEmbeddingQueryIT.BASE_64_ENCODED_MODEL, TextEmbeddingQueryIT.RAW_MODEL_SIZE);
+        putVocabulary(
+            List.of("these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"),
+            modelId
+        );
+
+        if (randomBoolean()) {
+            // Set an allocation awareness attribute that doesn't exist on the ML nodes.
+            // It shouldn't make any difference to the result of the test.
+            // The setting is cleared in the cleanup method of these tests.
+            Request clusterSettings = new Request("PUT", "_cluster/settings");
+            clusterSettings.setJsonEntity("""
+                {"persistent" : {
+                        "cluster.routing.allocation.awareness.attributes": "rack"
+                    }}""");
+            client().performRequest(clusterSettings);
+        }
+
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED);
+
+        List<String> inputs = List.of(
+            "my words",
+            "the machine is leaking",
+            "washing machine",
+            "these are my words",
+            "the octopus comforter smells",
+            "the octopus comforter is leaking",
+            "washing machine smells"
+        );
+
+        List<List<Double>> expectedEmbeddings = new ArrayList<>();
+
+        // Generate the text embeddings one at a time using the _infer API
+        // then index them for search
+        for (var input : inputs) {
+            Response inference = infer(input, modelId);
+            List<Map<String, Object>> responseMap = (List<Map<String, Object>>) entityAsMap(inference).get("inference_results");
+            Map<String, Object> inferenceResult = responseMap.get(0);
+            List<Double> embedding = (List<Double>) inferenceResult.get("predicted_value");
+            expectedEmbeddings.add(embedding);
+        }
+
+        // Now do the same with all documents sent at once
+        var docsBuilder = new StringBuilder();
+        int numInputs = inputs.size();
+        for (int i = 0; i < numInputs - 1; i++) {
+            docsBuilder.append("{\"input\":\"").append(inputs.get(i)).append("\"},");
+        }
+        docsBuilder.append("{\"input\":\"").append(inputs.get(numInputs - 1)).append("\"}");
+
+        {
+            Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
+            request.setJsonEntity(String.format(Locale.ROOT, """
+                {  "docs": [%s] }
+                """, docsBuilder));
+            Response response = client().performRequest(request);
+            var responseMap = entityAsMap(response);
+            List<Map<String, Object>> inferenceResults = (List<Map<String, Object>>) responseMap.get("inference_results");
+            assertThat(inferenceResults, hasSize(numInputs));
+
+            // Check the result order matches the input order by comparing
+            // the to the pre-calculated embeddings
+            for (int i = 0; i < numInputs; i++) {
+                List<Double> embedding = (List<Double>) inferenceResults.get(i).get("predicted_value");
+                assertArrayEquals(expectedEmbeddings.get(i).toArray(), embedding.toArray());
+            }
+        }
+    }
+
     public void testGetPytorchModelWithDefinition() throws IOException {
         String model = "should-fail-get";
-        createTrainedModel(model);
+        createPassThroughModel(model);
         putVocabulary(List.of("once", "twice"), model);
         putModelDefinition(model);
         Exception ex = expectThrows(
@@ -502,11 +576,11 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testStartDeploymentWithTruncatedDefinition() throws IOException {
         String model = "should-fail-get";
-        createTrainedModel(model);
+        createPassThroughModel(model);
         putVocabulary(List.of("once", "twice"), model);
         Request request = new Request("PUT", "_ml/trained_models/" + model + "/definition/0");
-        request.setJsonEntity("""
-            {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
+        request.setJsonEntity(Strings.format("""
+            {"total_definition_length":%s2,"definition": "%s","total_parts": 1}""", RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
         client().performRequest(request);
         Exception ex = expectThrows(Exception.class, () -> startDeployment(model));
         assertThat(
@@ -517,7 +591,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testInferencePipelineAgainstUnallocatedModel() throws IOException {
         String model = "not-deployed";
-        createTrainedModel(model);
+        createPassThroughModel(model);
         putVocabulary(List.of("once", "twice"), model);
         putModelDefinition(model);
 
@@ -545,13 +619,13 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThat(
             response,
             allOf(
-                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("Model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
                 containsString("error"),
                 not(containsString("warning"))
             )
         );
 
-        client().performRequest(putPipeline("my_pipeline", """
+        putPipeline("my_pipeline", """
             {"processors": [
                   {
                     "inference": {
@@ -559,7 +633,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                     }
                   }
                 ]
-            }"""));
+            }""");
 
         Request request = new Request("PUT", "undeployed_model_index/_doc/1?pipeline=my_pipeline&refresh=true");
         request.setJsonEntity("""
@@ -568,7 +642,7 @@ public class PyTorchModelIT extends ESRestTestCase {
                   }
             """);
         Exception ex = expectThrows(Exception.class, () -> client().performRequest(request));
-        assertThat(ex.getMessage(), containsString("Trained model [not-deployed] is not deployed."));
+        assertThat(ex.getMessage(), containsString("Model [not-deployed] must be deployed to use."));
     }
 
     public void testTruncation() throws IOException {
@@ -595,7 +669,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         putVocabulary(List.of("once", "twice", "thrice"), modelId);
         putModelDefinition(modelId);
-        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED);
 
         String input = "once twice thrice";
         var e = expectThrows(ResponseException.class, () -> EntityUtils.toString(infer("once twice thrice", modelId).getEntity()));
@@ -604,8 +678,9 @@ public class PyTorchModelIT extends ESRestTestCase {
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
-        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
+        // We set timeout to 20s as we've seen this test time out on some busy workers.
+        request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=20s");
+        request.setJsonEntity(Strings.format("""
             {
               "docs": [
                 {
@@ -621,18 +696,18 @@ public class PyTorchModelIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(input));
+            }""", input));
         client().performRequest(request);
     }
 
     public void testStopUsedDeploymentByIngestProcessor() throws IOException {
         String modelId = "test_stop_used_deployment_by_ingest_processor";
-        createTrainedModel(modelId);
+        createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
 
-        client().performRequest(putPipeline("my_pipeline", """
+        putPipeline("my_pipeline", Strings.format("""
             {
               "processors": [
                 {
@@ -641,23 +716,91 @@ public class PyTorchModelIT extends ESRestTestCase {
                   }
                 }
               ]
-            }""".formatted(modelId)));
+            }""", modelId));
         ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
         assertThat(
             EntityUtils.toString(ex.getResponse().getEntity()),
             containsString(
-                "Cannot stop deployment for model [test_stop_used_deployment_by_ingest_processor] as it is referenced by"
+                "Cannot stop deployment [test_stop_used_deployment_by_ingest_processor] as it is referenced by"
                     + " ingest processors; use force to stop the deployment"
             )
         );
 
-        stopDeployment(modelId, true);
+        stopDeployment(modelId, true, false);
+    }
+
+    public void testStopWithModelAliasUsedDeploymentByIngestProcessor() throws IOException {
+        String modelId = "test_stop_model_alias_used_deployment_by_ingest_processor";
+        String modelAlias = "used_model_alias";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        client().performRequest(new Request("PUT", Strings.format("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+
+        putPipeline("my_pipeline", Strings.format("""
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s"
+                  }
+                }
+              ]
+            }""", modelAlias));
+        ResponseException ex = expectThrows(ResponseException.class, () -> stopDeployment(modelId));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                "Cannot stop deployment [test_stop_model_alias_used_deployment_by_ingest_processor] as it has a "
+                    + "model_alias [used_model_alias] that is still referenced"
+                    + " by ingest processors; use force to stop the deployment"
+            )
+        );
+        stopDeployment(modelId, true, false);
+    }
+
+    public void testInferenceProcessorWithModelAlias() throws IOException {
+        String modelId = "test_model_alias_infer";
+        String modelAlias = "pytorch_model_alias";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+        client().performRequest(new Request("PUT", Strings.format("_ml/trained_models/%s/model_aliases/%s", modelId, modelAlias)));
+
+        String source = Strings.format("""
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "%s"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """, modelAlias);
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("\"ml\":{\"inference\":{\"predicted_value\":[[1.0,1.0]]"),
+                containsString(modelId),
+                not(containsString("warning"))
+            )
+        );
     }
 
     public void testPipelineWithBadProcessor() throws IOException {
         String model = "deployed";
-        createTrainedModel(model);
+        createPassThroughModel(model);
         putVocabulary(List.of("once", "twice"), model);
         putModelDefinition(model);
         startDeployment(model);
@@ -714,7 +857,7 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {
         String modelId = "test_delete_model_with_used_deployment";
-        createTrainedModel(modelId);
+        createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
         startDeployment(modelId);
@@ -741,25 +884,25 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
         // The setting is cleared in the cleanup method of these tests.
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                     "xpack.ml.max_lazy_ml_nodes": 5
                 }}""");
-        client().performRequest(loggingSettings);
+        client().performRequest(clusterSettings);
 
-        String modelId1 = "model_1";
-        createTrainedModel(modelId1);
+        String modelId1 = "stopping_triggers_rebalance_1";
+        createPassThroughModel(modelId1);
         putModelDefinition(modelId1);
         putVocabulary(List.of("these", "are", "my", "words"), modelId1);
 
-        String modelId2 = "model_2";
-        createTrainedModel(modelId2);
+        String modelId2 = "stopping_triggers_rebalance_2";
+        createPassThroughModel(modelId2);
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1);
-        startDeployment(modelId2, AllocationStatus.State.STARTING.toString(), 1, 1);
+        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED, 100, 1, Priority.NORMAL);
+        startDeployment(modelId2, modelId2, AllocationStatus.State.STARTING, 1, 1, Priority.NORMAL);
 
         // Check second model did not get any allocations
         assertAllocationCount(modelId2, 0);
@@ -773,13 +916,13 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testNotifications() throws IOException {
         String modelId1 = "test_notifications_1";
-        createTrainedModel(modelId1);
+        createPassThroughModel(modelId1);
         putModelDefinition(modelId1);
         putVocabulary(List.of("these", "are", "my", "words"), modelId1);
         startDeployment(modelId1);
 
         String modelId2 = "test_notifications_2";
-        createTrainedModel(modelId2);
+        createPassThroughModel(modelId2);
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
         startDeployment(modelId2);
@@ -794,13 +937,13 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     public void testStartDeployment_TooManyAllocations() throws IOException {
         String modelId = "test_start_deployment_too_many_allocations";
-        createTrainedModel(modelId);
+        createPassThroughModel(modelId);
         putModelDefinition(modelId);
         putVocabulary(List.of("these", "are", "my", "words"), modelId);
 
         ResponseException ex = expectThrows(
             ResponseException.class,
-            () -> startDeployment(modelId, AllocationStatus.State.STARTED.toString(), 100, 1)
+            () -> startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 100, 1, Priority.NORMAL)
         );
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
         assertThat(
@@ -819,24 +962,24 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         // Enable lazy starting so that the deployments start even if they cannot get fully allocated.
         // The setting is cleared in the cleanup method of these tests.
-        Request loggingSettings = new Request("PUT", "_cluster/settings");
-        loggingSettings.setJsonEntity("""
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
             {"persistent" : {
                     "xpack.ml.max_lazy_ml_nodes": 5
                 }}""");
-        client().performRequest(loggingSettings);
+        client().performRequest(clusterSettings);
 
-        String modelId1 = "model_1";
-        createTrainedModel(modelId1);
+        String modelId1 = "start_no_processors_left_lazy_start_1";
+        createPassThroughModel(modelId1);
         putModelDefinition(modelId1);
         putVocabulary(List.of("these", "are", "my", "words"), modelId1);
 
-        String modelId2 = "model_2";
-        createTrainedModel(modelId2);
+        String modelId2 = "start_no_processors_left_lazy_start_2";
+        createPassThroughModel(modelId2);
         putModelDefinition(modelId2);
         putVocabulary(List.of("these", "are", "my", "words"), modelId2);
 
-        startDeployment(modelId1, AllocationStatus.State.STARTED.toString(), 100, 1);
+        startDeployment(modelId1, modelId1, AllocationStatus.State.STARTED, 100, 1, Priority.NORMAL);
 
         {
             Request request = new Request(
@@ -877,198 +1020,136 @@ public class PyTorchModelIT extends ESRestTestCase {
         stopDeployment(modelId2);
     }
 
-    @SuppressWarnings("unchecked")
-    private void assertAllocationCount(String modelId, int expectedAllocationCount) throws IOException {
-        Response response = getTrainedModelStats(modelId);
-        var responseMap = entityAsMap(response);
-        List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
-        assertThat(stats, hasSize(1));
-        int allocations = (int) XContentMapValues.extractValue("deployment_stats.allocation_status.allocation_count", stats.get(0));
-        assertThat(allocations, equalTo(expectedAllocationCount));
+    public void testUpdateDeployment_GivenMissingModel() throws IOException {
+        ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment("missing", 4));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        assertThat(EntityUtils.toString(ex.getResponse().getEntity()), containsString("No known model deployment with id [missing]"));
     }
 
-    private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
-        int inferenceCount = 0;
-        for (var node : nodes) {
-            inferenceCount += (Integer) node.get("inference_count");
+    public void testUpdateDeployment_GivenAllocationsAreIncreased() throws Exception {
+        String modelId = "update_deployment_allocations_increased";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        assertAllocationCount(modelId, 1);
+
+        updateDeployment(modelId, 2);
+
+        assertBusy(() -> assertAllocationCount(modelId, 2));
+        assertSystemNotificationsContain("Rebalanced trained model allocations because [model deployment updated]");
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsPossible() throws Exception {
+        Request clusterSettings = new Request("PUT", "_cluster/settings");
+        clusterSettings.setJsonEntity("""
+            {"persistent" : {
+                    "xpack.ml.max_lazy_ml_nodes": 5
+                }}""");
+        client().performRequest(clusterSettings);
+
+        String modelId = "update_deployment_allocations_increased_scaling_possible";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        assertAllocationCount(modelId, 1);
+
+        updateDeployment(modelId, 42);
+
+        assertBusy(() -> {
+            int allocationCount = getAllocationCount(modelId);
+            assertThat(allocationCount, greaterThanOrEqualTo(2));
+        });
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreIncreasedOverResources_AndScalingIsNotPossible() throws Exception {
+        String modelId = "update_deployment_allocations_increased_scaling_not_possible";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        assertAllocationCount(modelId, 1);
+
+        ResponseException ex = expectThrows(ResponseException.class, () -> updateDeployment(modelId, 257));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString("Could not update deployment because there are not enough resources to provide all requested allocations")
+        );
+        assertAllocationCount(modelId, 1);
+    }
+
+    public void testUpdateDeployment_GivenAllocationsAreDecreased() throws Exception {
+        String modelId = "update_deployment_allocations_decreased";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 2, 1, Priority.NORMAL);
+
+        assertBusy(() -> assertAllocationCount(modelId, 2));
+
+        updateDeployment(modelId, 1);
+
+        assertBusy(() -> assertAllocationCount(modelId, 1));
+    }
+
+    public void testStartMultipleLowPriorityDeployments() throws Exception {
+        String modelId1 = "start_multiple_low_priority_deployments_1";
+        String modelId2 = "start_multiple_low_priority_deployments_2";
+        String modelId3 = "start_multiple_low_priority_deployments_3";
+        String modelId4 = "start_multiple_low_priority_deployments_4";
+        for (String modelId : List.of(modelId1, modelId2, modelId3, modelId4)) {
+            createPassThroughModel(modelId);
+            putModelDefinition(modelId);
+            putVocabulary(List.of("these", "are", "my", "words"), modelId);
+            startDeployment(modelId, modelId, AllocationStatus.State.STARTED, 1, 1, Priority.LOW);
+            assertAllocationCount(modelId, 1);
         }
-        return inferenceCount;
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDeploymentThreadsIncludedInUsage() throws IOException {
+        String modelId = "deployment_threads_in_usage";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        Request request = new Request("GET", "/_xpack/usage");
+        var usage = entityAsMap(client().performRequest(request).getEntity());
+
+        var ml = (Map<String, Object>) usage.get("ml");
+        assertNotNull(usage.toString(), ml);
+        var inference = (Map<String, Object>) ml.get("inference");
+        var deployments = (Map<String, Object>) inference.get("deployments");
+        var deploymentStats = (List<Map<String, Object>>) deployments.get("stats_by_model");
+        for (var stat : deploymentStats) {
+            assertThat(stat.toString(), (Integer) stat.get("num_threads"), greaterThanOrEqualTo(1));
+            assertThat(stat.toString(), (Integer) stat.get("num_allocations"), greaterThanOrEqualTo(1));
+        }
+    }
+
+    public void testInferEmptyInput() throws IOException {
+        String modelId = "empty_input";
+        createPassThroughModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=30s");
+        request.setJsonEntity("""
+            {  "docs": [] }
+            """);
+
+        var inferenceResponse = client().performRequest(request);
+        assertThat(EntityUtils.toString(inferenceResponse.getEntity()), equalTo("{\"inference_results\":[]}"));
     }
 
     private void putModelDefinition(String modelId) throws IOException {
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        String body = """
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL);
-        request.setJsonEntity(body);
-        client().performRequest(request);
-    }
-
-    private void putVocabulary(List<String> vocabulary, String modelId) throws IOException {
-        List<String> vocabularyWithPad = new ArrayList<>();
-        vocabularyWithPad.add(BertTokenizer.PAD_TOKEN);
-        vocabularyWithPad.add(BertTokenizer.UNKNOWN_TOKEN);
-        vocabularyWithPad.addAll(vocabulary);
-        String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
-
-        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/vocabulary");
-        request.setJsonEntity("""
-            { "vocabulary": [%s] }
-            """.formatted(quotedWords));
-        client().performRequest(request);
-    }
-
-    private void createTrainedModel(String modelId) throws IOException {
-        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
-        request.setJsonEntity("""
-            {
-               "description": "simple model for testing",
-               "model_type": "pytorch",
-               "inference_config": {
-                 "pass_through": {
-                   "tokenization": {
-                     "bert": {
-                       "with_special_tokens": false
-                     }
-                   }
-                 }
-               }
-             }""");
-        client().performRequest(request);
-    }
-
-    private Response startDeployment(String modelId) throws IOException {
-        return startDeployment(modelId, AllocationStatus.State.STARTED.toString());
-    }
-
-    private Response startDeployment(String modelId, String waitForState) throws IOException {
-        return startDeployment(modelId, waitForState, 1, 1);
-    }
-
-    private Response startDeployment(String modelId, String waitForState, int numberOfAllocations, int threadsPerAllocation)
-        throws IOException {
-        Request request = new Request(
-            "POST",
-            "/_ml/trained_models/"
-                + modelId
-                + "/deployment/_start?timeout=40s&wait_for="
-                + waitForState
-                + "&threads_per_allocation="
-                + threadsPerAllocation
-                + "&number_of_allocations="
-                + numberOfAllocations
-        );
-        return client().performRequest(request);
-    }
-
-    private void stopDeployment(String modelId) throws IOException {
-        stopDeployment(modelId, false);
-    }
-
-    private void stopDeployment(String modelId, boolean force) throws IOException {
-        String endpoint = "/_ml/trained_models/" + modelId + "/deployment/_stop";
-        if (force) {
-            endpoint += "?force=true";
-        }
-        Request request = new Request("POST", endpoint);
-        client().performRequest(request);
-    }
-
-    private Response getTrainedModelStats(String modelId) throws IOException {
-        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/_stats");
-        return client().performRequest(request);
-    }
-
-    private Response infer(String input, String modelId, TimeValue timeout) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer?timeout=" + timeout.toString());
-        request.setJsonEntity("""
-            {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
-        return client().performRequest(request);
-    }
-
-    private Response infer(String input, String modelId) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
-            {  "docs": [{"input":"%s"}] }
-            """.formatted(input));
-        return client().performRequest(request);
-    }
-
-    private Response infer(String input, String modelId, String resultsField) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/_infer");
-        request.setJsonEntity("""
-            {
-              "docs": [ { "input": "%s" } ],
-              "inference_config": {
-                "pass_through": {
-                  "results_field": "%s"
-                }
-              }
-            }""".formatted(input, resultsField));
-        return client().performRequest(request);
-    }
-
-    private Response deleteModel(String modelId, boolean force) throws IOException {
-        Request request = new Request("DELETE", "/_ml/trained_models/" + modelId + "?force=" + force);
-        return client().performRequest(request);
-    }
-
-    private void assertThatTrainedModelAssignmentMetadataIsEmpty() throws IOException {
-        Request getTrainedModelAssignmentMetadataRequest = new Request(
-            "GET",
-            "_cluster/state?filter_path=metadata.trained_model_assignment"
-        );
-        Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(
-            EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()),
-            containsString("\"trained_model_assignment\":{}")
-        );
-
-        getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
-        getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
-    }
-
-    private void assertNotificationsContain(String modelId, String... auditMessages) throws IOException {
-        client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
-        Request search = new Request("POST", ".ml-notifications-*/_search");
-        search.setJsonEntity("""
-            {
-                "size": 100,
-                "query": {
-                  "bool": {
-                    "filter": [
-                      {"term": {"job_id": "%s"}},
-                      {"term": {"job_type": "inference"}}
-                    ]
-                  }
-                }
-            }
-            """.formatted(modelId));
-        String response = EntityUtils.toString(client().performRequest(search).getEntity());
-        for (String msg : auditMessages) {
-            assertThat(response, containsString(msg));
-        }
-    }
-
-    private void assertSystemNotificationsContain(String... auditMessages) throws IOException {
-        client().performRequest(new Request("POST", ".ml-notifications-*/_refresh"));
-        Request search = new Request("POST", ".ml-notifications-*/_search");
-        search.setJsonEntity("""
-            {
-                "size": 100,
-                "query": {
-                  "bool": {
-                    "filter": [
-                      {"term": {"job_type": "system"}}
-                    ]
-                  }
-                }
-            }
-            """);
-        String response = EntityUtils.toString(client().performRequest(search).getEntity());
-        for (String msg : auditMessages) {
-            assertThat(response, containsString(msg));
-        }
+        putModelDefinition(modelId, BASE_64_ENCODED_MODEL, RAW_MODEL_SIZE);
     }
 }

@@ -35,6 +35,11 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         return createRandom();
     }
 
+    @Override
+    protected TargetMeanEncoding mutateInstance(TargetMeanEncoding instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static TargetMeanEncoding createRandom() {
         return createRandom(randomBoolean() ? randomBoolean() : null);
     }

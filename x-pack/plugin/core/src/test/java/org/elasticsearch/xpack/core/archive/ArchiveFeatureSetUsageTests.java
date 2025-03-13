@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.core.archive;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class ArchiveFeatureSetUsageTests extends AbstractWireSerializingTestCase<ArchiveFeatureSetUsage> {
 
     @Override
@@ -20,7 +18,7 @@ public class ArchiveFeatureSetUsageTests extends AbstractWireSerializingTestCase
     }
 
     @Override
-    protected ArchiveFeatureSetUsage mutateInstance(ArchiveFeatureSetUsage instance) throws IOException {
+    protected ArchiveFeatureSetUsage mutateInstance(ArchiveFeatureSetUsage instance) {
         boolean available = instance.available();
         int numArchiveIndices = instance.getNumberOfArchiveIndices();
         switch (between(0, 1)) {

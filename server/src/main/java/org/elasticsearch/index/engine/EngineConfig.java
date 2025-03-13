@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
@@ -22,8 +23,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.codec.CodecProvider;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -51,6 +55,7 @@ public final class EngineConfig {
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
+    private final MapperService mapperService;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
@@ -58,7 +63,7 @@ public final class EngineConfig {
     private final MergePolicy mergePolicy;
     private final Analyzer analyzer;
     private final Similarity similarity;
-    private final CodecService codecService;
+    private final CodecProvider codecProvider;
     private final Engine.EventListener eventListener;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
@@ -73,6 +78,7 @@ public final class EngineConfig {
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final Comparator<LeafReader> leafSorter;
+    private final boolean useCompoundFile;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -92,11 +98,16 @@ public final class EngineConfig {
      * This setting is also settable on the node and the index level, it's commonly used in hot/cold node archs where index is likely
      * allocated on both `kind` of nodes.
      */
-    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
+    public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", settings -> {
+        IndexMode indexMode = IndexSettings.MODE.get(settings);
+        return indexMode.getDefaultCodec();
+    }, s -> {
         switch (s) {
-            case "default":
-            case "best_compression":
-            case "lucene_default":
+            case CodecService.DEFAULT_CODEC:
+            case CodecService.LEGACY_DEFAULT_CODEC:
+            case CodecService.BEST_COMPRESSION_CODEC:
+            case CodecService.LEGACY_BEST_COMPRESSION_CODEC:
+            case CodecService.LUCENE_DEFAULT_CODEC:
                 return s;
             default:
                 if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
@@ -106,9 +117,32 @@ public final class EngineConfig {
                 }
                 return s;
         }
-    }, Property.IndexScope, Property.NodeScope);
+    }, Property.IndexScope, Property.NodeScope, Property.ServerlessPublic);
+
+    // don't convert to Setting<> and register... we only set this in tests and register via a test plugin
+    public static final String USE_COMPOUND_FILE = "index.use_compound_file";
+
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting(
+        "index.optimize_auto_generated_id",
+        true,
+        Property.IndexScope,
+        Property.Dynamic,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
 
     private final TranslogConfig translogConfig;
+
+    private final LongSupplier relativeTimeInNanosSupplier;
+
+    @Nullable
+    private final Engine.IndexCommitListener indexCommitListener;
+
+    private final boolean promotableToPrimary;
 
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
@@ -122,7 +156,7 @@ public final class EngineConfig {
         MergePolicy mergePolicy,
         Analyzer analyzer,
         Similarity similarity,
-        CodecService codecService,
+        CodecProvider codecProvider,
         Engine.EventListener eventListener,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
@@ -136,7 +170,11 @@ public final class EngineConfig {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Comparator<LeafReader> leafSorter
+        Comparator<LeafReader> leafSorter,
+        LongSupplier relativeTimeInNanosSupplier,
+        Engine.IndexCommitListener indexCommitListener,
+        boolean promotableToPrimary,
+        MapperService mapperService
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -146,9 +184,10 @@ public final class EngineConfig {
         this.mergePolicy = mergePolicy;
         this.analyzer = analyzer;
         this.similarity = similarity;
-        this.codecService = codecService;
+        this.codecProvider = codecProvider;
         this.eventListener = eventListener;
-        codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.codecName = indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.mapperService = mapperService;
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
@@ -176,6 +215,11 @@ public final class EngineConfig {
         this.primaryTermSupplier = primaryTermSupplier;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.leafSorter = leafSorter;
+        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.indexCommitListener = indexCommitListener;
+        this.promotableToPrimary = promotableToPrimary;
+        // always use compound on flush - reduces # of file-handles on refresh
+        this.useCompoundFile = indexSettings.getSettings().getAsBoolean(USE_COMPOUND_FILE, true);
     }
 
     /**
@@ -216,7 +260,22 @@ public final class EngineConfig {
      * </p>
      */
     public Codec getCodec() {
-        return codecService.codec(codecName);
+        return codecProvider.codec(codecName);
+    }
+
+    /**
+     * @return the {@link CodecProvider}
+     */
+    public CodecProvider getCodecProvider() {
+        return codecProvider;
+    }
+
+    /**
+     * @return the {@link CodecProvider}
+     */
+    @Deprecated // to avoid breaking serverless, just temporary
+    public CodecProvider getCodecService() {
+        return codecProvider;
     }
 
     /**
@@ -373,5 +432,32 @@ public final class EngineConfig {
     @Nullable
     public Comparator<LeafReader> getLeafSorter() {
         return leafSorter;
+    }
+
+    public LongSupplier getRelativeTimeInNanosSupplier() {
+        return relativeTimeInNanosSupplier;
+    }
+
+    @Nullable
+    public Engine.IndexCommitListener getIndexCommitListener() {
+        return indexCommitListener;
+    }
+
+    /**
+     * @return whether the engine should be configured so that it can be promoted to primary in future
+     */
+    public boolean isPromotableToPrimary() {
+        return promotableToPrimary;
+    }
+
+    /**
+     * @return whether the Engine's index writer should pack newly written segments in a compound file. Default is true.
+     */
+    public boolean getUseCompoundFile() {
+        return useCompoundFile;
+    }
+
+    public MapperService getMapperService() {
+        return mapperService;
     }
 }

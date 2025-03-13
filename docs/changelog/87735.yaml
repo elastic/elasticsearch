@@ -1,5 +1,0 @@
-pr: 87735
-summary: Use desired nodes during data tier allocation decisions
-area: Allocation
-type: enhancement
-issues: []

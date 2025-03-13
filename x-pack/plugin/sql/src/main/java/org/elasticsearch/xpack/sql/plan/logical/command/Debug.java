@@ -30,7 +30,6 @@ import java.util.Map.Entry;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
 
 public class Debug extends Command {
 
@@ -80,11 +79,11 @@ public class Debug extends Command {
     @Override
     public void execute(SqlSession session, ActionListener<Page> listener) {
         switch (type) {
-            case ANALYZED -> session.debugAnalyzedPlan(plan, wrap(i -> handleInfo(i, listener), listener::onFailure));
+            case ANALYZED -> session.debugAnalyzedPlan(plan, listener.delegateFailureAndWrap((l, i) -> handleInfo(i, l)));
             case OPTIMIZED -> session.analyzedPlan(
                 plan,
                 true,
-                wrap(analyzedPlan -> handleInfo(session.optimizer().debugOptimize(analyzedPlan), listener), listener::onFailure)
+                listener.delegateFailureAndWrap((l, analyzedPlan) -> handleInfo(session.optimizer().debugOptimize(analyzedPlan), l))
             );
         }
     }
@@ -106,7 +105,7 @@ public class Debug extends Command {
                     sb.append(entry.getKey().name());
                     sb.append("***");
                     for (Transformation tf : entry.getValue()) {
-                        sb.append(tf.ruleName());
+                        sb.append(tf.name());
                         sb.append("\n");
                         sb.append(NodeUtils.diffString(tf.before(), tf.after()));
                         sb.append("\n");
@@ -127,7 +126,7 @@ public class Debug extends Command {
                     int counter = 0;
                     for (Transformation tf : entry.getValue()) {
                         if (tf.hasChanged()) {
-                            plans.put(tf.ruleName() + "#" + ++counter, tf.after());
+                            plans.put(tf.name() + "#" + ++counter, tf.after());
                         }
                     }
                 }

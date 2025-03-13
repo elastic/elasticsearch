@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -31,6 +32,35 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 
 public class IncludeExcludeTests extends ESTestCase {
+
+    public static IncludeExclude randomIncludeExclude() {
+        switch (randomInt(7)) {
+            case 0:
+                return new IncludeExclude("incl*de", null, null, null);
+            case 1:
+                return new IncludeExclude("incl*de", "excl*de", null, null);
+            case 2:
+                return new IncludeExclude("incl*de", null, null, new TreeSet<>(Set.of(newBytesRef("exclude"))));
+            case 3:
+                return new IncludeExclude(null, "excl*de", null, null);
+            case 4:
+                return new IncludeExclude(null, "excl*de", new TreeSet<>(Set.of(newBytesRef("include"))), null);
+            case 5:
+                return new IncludeExclude(null, null, new TreeSet<>(Set.of(newBytesRef("include"))), null);
+            case 6:
+                return new IncludeExclude(
+                    null,
+                    null,
+                    new TreeSet<>(Set.of(newBytesRef("include"))),
+                    new TreeSet<>(Set.of(newBytesRef("exclude")))
+                );
+            case 7:
+                return new IncludeExclude(null, null, null, new TreeSet<>(Set.of(newBytesRef("exclude"))));
+            default:
+                throw new IllegalArgumentException("got unexpected parameter, expected 0 <= x <= 7");
+        }
+    }
+
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(null, null, new TreeSet<>(Set.of(new BytesRef("foo"))), null);
         OrdinalsFilter filter = inexcl.convertToOrdinalsFilter(DocValueFormat.RAW);
@@ -58,12 +88,9 @@ public class IncludeExcludeTests extends ESTestCase {
 
             @Override
             public long nextOrd() {
-                if (consumed) {
-                    return SortedSetDocValues.NO_MORE_ORDS;
-                } else {
-                    consumed = true;
-                    return 0;
-                }
+                assert consumed == false;
+                consumed = true;
+                return 0;
             }
 
             @Override
@@ -356,4 +383,5 @@ public class IncludeExcludeTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(regex, null, values, null));
         expectThrows(IllegalArgumentException.class, () -> new IncludeExclude(null, regex, null, values));
     }
+
 }

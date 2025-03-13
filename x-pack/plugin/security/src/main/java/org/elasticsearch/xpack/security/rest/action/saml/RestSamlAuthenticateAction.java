@@ -11,12 +11,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -35,6 +36,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * A REST handler that attempts to authenticate a user based on the provided SAML response/assertion.
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements RestRequestFilter {
     private static final Logger logger = LogManager.getLogger(RestSamlAuthenticateAction.class);
 
@@ -70,11 +72,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/saml/authenticate")
-                .replaces(POST, "/_xpack/security/saml/authenticate", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(POST, "/_security/saml/authenticate"));
     }
 
     @Override
@@ -112,7 +110,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
         }
     }
 
-    private byte[] decodeBase64(String content) {
+    private static byte[] decodeBase64(String content) {
         content = content.replaceAll("\\s+", "");
         try {
             return Base64.getDecoder().decode(content);

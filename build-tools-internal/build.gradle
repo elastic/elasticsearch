@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
@@ -35,6 +36,10 @@ gradlePlugin {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
     }
+    buildComplete {
+      id = 'elasticsearch.build-complete'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchBuildCompletePlugin'
+    }
     distro {
       id = 'elasticsearch.distro'
       implementationClass = 'org.elasticsearch.gradle.internal.distribution.ElasticsearchDistributionPlugin'
@@ -50,6 +55,10 @@ gradlePlugin {
     docsTest {
       id = 'elasticsearch.docs-test'
       implementationClass = 'org.elasticsearch.gradle.internal.doc.DocsTestPlugin'
+    }
+    draArtifacts {
+      id = 'elasticsearch.dra-artifacts'
+      implementationClass = 'org.elasticsearch.gradle.internal.dra.DraResolvePlugin'
     }
     globalBuildInfo {
       id = 'elasticsearch.global-build-info'
@@ -103,13 +112,25 @@ gradlePlugin {
       id = 'elasticsearch.internal-test-rerun'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
     }
+    javaToolChainPlugin {
+      id = 'elasticsearch.java-toolchain'
+      implementationClass = 'org.elasticsearch.gradle.internal.toolchain.JavaToolChainResolverPlugin'
+    }
     javaDoc {
       id = 'elasticsearch.java-doc'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin'
     }
+    javaBase {
+      id = 'elasticsearch.java-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin'
+    }
     java {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
+    }
+    legacyInternalJavaRestTest {
+      id = 'elasticsearch.legacy-java-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin'
     }
     internalJavaRestTest {
       id = 'elasticsearch.internal-java-rest-test'
@@ -122,6 +143,14 @@ gradlePlugin {
     javaModulePath {
       id = 'elasticsearch.java-module'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaModulePathPlugin'
+    }
+    mrjar {
+      id = 'elasticsearch.mrjar'
+      implementationClass = 'org.elasticsearch.gradle.internal.MrjarPlugin'
+    }
+    embeddedProvider {
+      id = 'elasticsearch.embedded-providers'
+      implementationClass = 'org.elasticsearch.gradle.internal.EmbeddedProviderPlugin'
     }
     releaseTools {
       id = 'elasticsearch.release-tools'
@@ -143,9 +172,17 @@ gradlePlugin {
       id = 'elasticsearch.standalone-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneTestPlugin'
     }
+    stringTemplate {
+       id = 'elasticsearch.string-templates'
+       implementationClass = 'org.elasticsearch.gradle.internal.StringTemplatePlugin'
+    }
     testFixtures {
       id = 'elasticsearch.test.fixtures'
       implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
+    }
+    deployTestFixtures {
+      id = 'elasticsearch.deploy-test-fixtures'
+      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesDeployPlugin'
     }
     testBase {
       id = 'elasticsearch.test-base'
@@ -163,9 +200,21 @@ gradlePlugin {
       id = 'elasticsearch.validate-rest-spec'
       implementationClass = 'org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin'
     }
+    legacyYamlRestCompatTest {
+      id = 'elasticsearch.legacy-yaml-rest-compat-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.LegacyYamlRestCompatTestPlugin'
+    }
     yamlRestCompatTest {
       id = 'elasticsearch.yaml-rest-compat-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.compat.compat.YamlRestCompatTestPlugin'
+    }
+    legacyYamlRestTest {
+      id = 'elasticsearch.legacy-yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin'
+    }
+    cacheTestFixtures {
+        id = 'elasticsearch.cache-test-fixtures'
+        implementationClass = 'org.elasticsearch.gradle.internal.packer.CacheTestFixtureResourcesPlugin'
     }
     yamlRestTest {
       id = 'elasticsearch.internal-yaml-rest-test'
@@ -179,8 +228,10 @@ gradlePlugin {
  *****************************************************************************/
 
 def minCompilerJava = versions.get("minimumCompilerJava")
-targetCompatibility = minCompilerJava
-sourceCompatibility = minCompilerJava
+java {
+  targetCompatibility = minCompilerJava
+  sourceCompatibility = minCompilerJava
+}
 
 if (JavaVersion.current() < JavaVersion.toVersion(minCompilerJava)) {
   throw new GradleException("Java ${minCompilerJava} is required to build Elasticsearch but current Java is version ${JavaVersion.current()}.")
@@ -195,6 +246,7 @@ sourceSets {
 
 tasks.withType(JavaCompile).configureEach {
   options.encoding = 'UTF-8'
+  options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
 tasks.named('licenseHeaders').configure {
@@ -215,14 +267,12 @@ configurations {
 }
 
 dependencies {
-  constraints {
-      integTestImplementation('org.ow2.asm:asm:9.3')
-  }
   components.all(JacksonAlignmentRule)
   constraints {
     // ensuring brought asm version brought in by spock is up-to-date
     testImplementation buildLibs.asm
     integTestImplementation buildLibs.asm
+    api(buildLibs.snakeyaml)
   }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform(buildLibs.jackson.platform)
@@ -232,13 +282,13 @@ dependencies {
   api "org.elasticsearch:build-conventions:$version"
   api "org.elasticsearch.gradle:build-tools:$version"
 
-  // same version as http client transitive dep
-  api buildLibs.commons.codec
   api buildLibs.apache.compress
   api buildLibs.nebula.info
   api buildLibs.apache.rat
   api buildLibs.jna
   api buildLibs.shadow.plugin
+  api buildLibs.gradle.enterprise
+
   // for our ide tweaking
   api buildLibs.idea.ext
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
@@ -248,11 +298,17 @@ dependencies {
   // needs to match the jackson minor version in use
   api buildLibs.json.schema.validator
   api buildLibs.jackson.dataformat.yaml
+  api buildLibs.antlrst4
   api buildLibs.asm
   api buildLibs.asm.tree
-  api buildLibs.httpclient
-  api buildLibs.httpcore
+  api buildLibs.httpclient5
+  api buildLibs.httpcore5
+
   compileOnly buildLibs.checkstyle
+  compileOnly buildLibs.reflections
+
+  implementation buildLibs.javaparser
+
   runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation buildLibs.checkstyle
   testImplementation buildLibs.wiremock
@@ -293,6 +349,7 @@ dependencies {
   testImplementation buildLibs.spock.junit4
   testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
+
 }
 
 tasks.named('test').configure {
@@ -316,6 +373,22 @@ tasks.register("bootstrapPerformanceTests", Copy) {
           testGitCommit:GitInfo.gitInfo(root).revision,
           mainWrapper:"${ -> resolveMainWrapperVersion()}".toString(),
           branchWrapper:"${-> gradle.gradleVersion}".toString()])
+}
+
+tasks.named("jar") {
+  exclude("classpath.index")
+}
+
+spotless {
+  java {
+
+    // workaround for https://github.com/diffplug/spotless/issues/2317
+    //toggleOffOn()
+    target project.fileTree("src/main/java") {
+      include '**/*.java'
+      exclude '**/DockerBase.java'
+    }
+  }
 }
 
 def resolveMainWrapperVersion() {

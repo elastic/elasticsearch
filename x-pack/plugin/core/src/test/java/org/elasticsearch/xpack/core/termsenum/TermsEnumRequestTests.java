@@ -7,15 +7,18 @@
 
 package org.elasticsearch.xpack.core.termsenum;
 
+import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -28,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 
-public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnumRequest> {
+public class TermsEnumRequestTests extends AbstractXContentSerializingTestCase<TermsEnumRequest> {
     private NamedXContentRegistry xContentRegistry;
     private NamedWriteableRegistry namedWriteableRegistry;
 
@@ -93,7 +96,7 @@ public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnum
     @Override
     protected TermsEnumRequest mutateInstance(TermsEnumRequest instance) throws IOException {
         List<Consumer<TermsEnumRequest>> mutators = new ArrayList<>();
-        mutators.add(request -> { request.field(randomAlphaOfLengthBetween(3, 10)); });
+        mutators.add(request -> { request.field(randomValueOtherThan(request.field(), () -> randomAlphaOfLengthBetween(3, 10))); });
         mutators.add(request -> {
             String[] indices = ArrayUtils.concat(instance.indices(), generateRandomStringArray(5, 10, false, false));
             request.indices(indices);
@@ -112,5 +115,39 @@ public class TermsEnumRequestTests extends AbstractSerializingTestCase<TermsEnum
         Consumer<TermsEnumRequest> mutator = randomFrom(mutators);
         mutator.accept(mutatedInstance);
         return mutatedInstance;
+    }
+
+    public void testValidation() {
+        TermsEnumRequest request = new TermsEnumRequest();
+        ActionRequestValidationException validationException = request.validate();
+        assertEquals(1, validationException.validationErrors().size());
+        assertEquals("field cannot be null", validationException.validationErrors().get(0));
+
+        request.field("field");
+        validationException = request.validate();
+        assertNull(validationException);
+
+        request.timeout(null);
+        validationException = request.validate();
+        assertEquals(1, validationException.validationErrors().size());
+        assertEquals("Timeout cannot be null", validationException.validationErrors().get(0));
+
+        request.timeout(TimeValue.timeValueSeconds(61));
+        validationException = request.validate();
+        assertEquals(1, validationException.validationErrors().size());
+        assertEquals("Timeout cannot be > 1 minute", validationException.validationErrors().get(0));
+
+        request.timeout(TimeValue.timeValueSeconds(10));
+        request.string(randomAlphaOfLengthBetween(1, IndexWriter.MAX_TERM_LENGTH));
+        validationException = request.validate();
+        assertNull(validationException);
+
+        request.string(randomAlphaOfLengthBetween(IndexWriter.MAX_TERM_LENGTH + 1, IndexWriter.MAX_TERM_LENGTH + 100));
+        validationException = request.validate();
+        assertEquals(1, validationException.validationErrors().size());
+        assertEquals(
+            "prefix string larger than 32766 characters, which is the maximum allowed term length for keyword fields.",
+            validationException.validationErrors().get(0)
+        );
     }
 }

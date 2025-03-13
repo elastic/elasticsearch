@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,15 +12,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
@@ -210,8 +212,26 @@ public class MultiFieldTests extends MapperServiceTestCase {
         );
     }
 
+    public void testSourcePathFields() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("subfield1").field("type", "text").endObject();
+            b.startObject("subfield2").field("type", "text").endObject();
+            b.endObject();
+        }));
+        Mapper mapper = mapperService.mappingLookup().getMapper("field");
+        assertThat(mapper, instanceOf(FieldMapper.class));
+        final Set<String> fieldsUsingSourcePath = new HashSet<>();
+        ((FieldMapper) mapper).sourcePathUsedBy().forEachRemaining(mapper1 -> fieldsUsingSourcePath.add(mapper1.fullPath()));
+        assertThat(fieldsUsingSourcePath, equalTo(Set.of("field.subfield1", "field.subfield2")));
+
+        assertThat(mapperService.mappingLookup().sourcePaths("field.subfield1"), equalTo(Set.of("field")));
+        assertThat(mapperService.mappingLookup().sourcePaths("field.subfield2"), equalTo(Set.of("field")));
+    }
+
     public void testUnknownLegacyFieldsUnderKnownRootField() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", "keyword");
             b.startObject("fields");
@@ -223,7 +243,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
     }
 
     public void testUnmappedLegacyFieldsUnderKnownRootField() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", "keyword");
             b.startObject("fields");
@@ -235,7 +255,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
     }
 
     public void testFieldsUnderUnknownRootField() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", "unknown");
             b.startObject("fields");
@@ -248,7 +268,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
     }
 
     public void testFieldsUnderUnmappedRootField() throws Exception {
-        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+        MapperService service = createMapperService(IndexVersion.fromId(5000099), Settings.EMPTY, () -> false, mapping(b -> {
             b.startObject("name");
             b.field("type", CompletionFieldMapper.CONTENT_TYPE);
             b.startObject("fields");

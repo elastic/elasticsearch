@@ -23,13 +23,14 @@ public class DeleteTrainedModelAssignmentAction extends ActionType<AcknowledgedR
     public static final String NAME = "cluster:internal/xpack/ml/model_allocation/delete";
 
     private DeleteTrainedModelAssignmentAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
         private final String modelId;
 
         public Request(String modelId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, "model_id");
         }
 

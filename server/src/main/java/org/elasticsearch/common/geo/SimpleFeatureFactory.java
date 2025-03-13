@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
@@ -178,16 +180,14 @@ public class SimpleFeatureFactory {
     }
 
     private static byte[] writeCommands(final int[] commands, final int type, final int length) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
+        try (BytesStreamOutput output = new BytesStreamOutput(); CountingStreamOutput counting = new CountingStreamOutput()) {
             for (int i = 0; i < length; i++) {
-                output.writeVInt(commands[i]);
+                counting.writeVInt(commands[i]);
             }
-            final int dataSize = output.size();
-            output.reset();
             output.writeVInt(24);
             output.writeVInt(type);
             output.writeVInt(34);
-            output.writeVInt(dataSize);
+            output.writeVInt(Math.toIntExact(counting.size()));
             for (int i = 0; i < length; i++) {
                 output.writeVInt(commands[i]);
             }

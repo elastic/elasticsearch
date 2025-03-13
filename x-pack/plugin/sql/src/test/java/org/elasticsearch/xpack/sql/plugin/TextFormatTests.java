@@ -28,7 +28,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_DATE_NANOS;
 import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.TEXT;
 
 public class TextFormatTests extends ESTestCase {
@@ -179,7 +179,7 @@ public class TextFormatTests extends ESTestCase {
             PLAIN_TEXT.format(
                 req(),
                 new BasicFormatter(emptyList(), emptyList(), TEXT),
-                new SqlQueryResponse(StringUtils.EMPTY, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, null, emptyList())
+                new SqlQueryResponse(StringUtils.EMPTY, Mode.JDBC, INTRODUCING_DATE_NANOS, false, null, emptyList())
             ).v1()
         );
     }
@@ -188,9 +188,9 @@ public class TextFormatTests extends ESTestCase {
         return new SqlQueryResponse(
             StringUtils.EMPTY,
             Mode.JDBC,
-            DATE_NANOS_SUPPORT_VERSION,
+            INTRODUCING_DATE_NANOS,
             false,
-            singletonList(new ColumnInfo("index", "name", "keyword")),
+            singletonList(new ColumnInfo("org/elasticsearch/xpack/sql/index", "name", "keyword")),
             emptyList()
         );
     }
@@ -198,29 +198,29 @@ public class TextFormatTests extends ESTestCase {
     private static SqlQueryResponse regularData() {
         // headers
         List<ColumnInfo> headers = new ArrayList<>();
-        headers.add(new ColumnInfo("index", "string", "keyword"));
-        headers.add(new ColumnInfo("index", "number", "integer"));
+        headers.add(new ColumnInfo("org/elasticsearch/xpack/sql/index", "string", "keyword"));
+        headers.add(new ColumnInfo("org/elasticsearch/xpack/sql/index", "number", "integer"));
 
         // values
         List<List<Object>> values = new ArrayList<>();
         values.add(asList("Along The River Bank", 11 * 60 + 48));
         values.add(asList("Mind Train", 4 * 60 + 40));
 
-        return new SqlQueryResponse(null, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, headers, values);
+        return new SqlQueryResponse(null, Mode.JDBC, INTRODUCING_DATE_NANOS, false, headers, values);
     }
 
     private static SqlQueryResponse escapedData() {
         // headers
         List<ColumnInfo> headers = new ArrayList<>();
-        headers.add(new ColumnInfo("index", "first", "keyword"));
-        headers.add(new ColumnInfo("index", "\"special\"", "keyword"));
+        headers.add(new ColumnInfo("org/elasticsearch/xpack/sql/index", "first", "keyword"));
+        headers.add(new ColumnInfo("org/elasticsearch/xpack/sql/index", "\"special\"", "keyword"));
 
         // values
         List<List<Object>> values = new ArrayList<>();
         values.add(asList("normal", "\"quo\"ted\",\n"));
         values.add(asList("commas", "a,b,c,\n,d,e,\t\n"));
 
-        return new SqlQueryResponse(null, Mode.JDBC, DATE_NANOS_SUPPORT_VERSION, false, headers, values);
+        return new SqlQueryResponse(null, Mode.JDBC, INTRODUCING_DATE_NANOS, false, headers, values);
     }
 
     private static RestRequest req() {

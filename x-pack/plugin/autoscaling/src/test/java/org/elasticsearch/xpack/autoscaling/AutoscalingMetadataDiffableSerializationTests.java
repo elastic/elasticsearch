@@ -11,13 +11,12 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
-import java.io.IOException;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -25,7 +24,7 @@ import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAuto
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingMetadata;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
 
-public class AutoscalingMetadataDiffableSerializationTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
+public class AutoscalingMetadataDiffableSerializationTests extends ChunkedToXContentDiffableSerializationTestCase<Metadata.ClusterCustom> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -38,12 +37,12 @@ public class AutoscalingMetadataDiffableSerializationTests extends SimpleDiffabl
     }
 
     @Override
-    protected AutoscalingMetadata doParseInstance(final XContentParser parser) throws IOException {
+    protected AutoscalingMetadata doParseInstance(final XContentParser parser) {
         return AutoscalingMetadata.parse(parser);
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<Metadata.ClusterCustom> instanceReader() {
         return AutoscalingMetadata::new;
     }
 
@@ -53,12 +52,12 @@ public class AutoscalingMetadataDiffableSerializationTests extends SimpleDiffabl
     }
 
     @Override
-    protected Metadata.Custom makeTestChanges(final Metadata.Custom testInstance) {
+    protected Metadata.ClusterCustom makeTestChanges(final Metadata.ClusterCustom testInstance) {
         return mutateInstance(testInstance);
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(final Metadata.Custom instance) {
+    protected Metadata.ClusterCustom mutateInstance(final Metadata.ClusterCustom instance) {
         final AutoscalingMetadata metadata = (AutoscalingMetadata) instance;
         final SortedMap<String, AutoscalingPolicyMetadata> policies = new TreeMap<>(metadata.policies());
         if (policies.size() == 0 || randomBoolean()) {
@@ -75,8 +74,7 @@ public class AutoscalingMetadataDiffableSerializationTests extends SimpleDiffabl
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<Metadata.ClusterCustom>> diffReader() {
         return AutoscalingMetadata.AutoscalingMetadataDiff::new;
     }
-
 }

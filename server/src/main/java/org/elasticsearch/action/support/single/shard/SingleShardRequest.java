@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.single.shard;
@@ -19,8 +20,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
-public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends ActionRequest implements IndicesRequest {
+public abstract class SingleShardRequest<Request extends SingleShardRequest<Request>> extends ActionRequest
+    implements
+        IndicesRequest.RemoteClusterShardRequest {
 
     public static final IndicesOptions INDICES_OPTIONS = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
 
@@ -83,6 +88,11 @@ public abstract class SingleShardRequest<Request extends SingleShardRequest<Requ
     @Override
     public String[] indices() {
         return new String[] { index };
+    }
+
+    @Override
+    public List<ShardId> shards() {
+        return Collections.singletonList(this.internalShardId);
     }
 
     @Override

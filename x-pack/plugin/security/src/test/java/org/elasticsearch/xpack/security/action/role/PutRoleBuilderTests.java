@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.action.role;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -26,7 +25,8 @@ public class PutRoleBuilderTests extends ESTestCase {
         Path path = getDataPath("roles2xformat.json");
         byte[] bytes = Files.readAllBytes(path);
         String roleString = new String(bytes, Charset.defaultCharset());
-        try (Client client = new NoOpClient("testBWCFieldPermissions")) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpClient(threadPool);
             ElasticsearchParseException e = expectThrows(
                 ElasticsearchParseException.class,
                 () -> new PutRoleRequestBuilder(client).source("role1", new BytesArray(roleString), XContentType.JSON)

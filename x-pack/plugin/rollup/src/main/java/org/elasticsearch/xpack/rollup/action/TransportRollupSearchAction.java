@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
@@ -22,13 +22,15 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -38,6 +40,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -49,7 +52,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
@@ -73,8 +75,12 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_KEY;
+import static org.elasticsearch.xpack.rollup.Rollup.DEPRECATION_MESSAGE;
 
 public class TransportRollupSearchAction extends TransportAction<SearchRequest, SearchResponse> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportRollupSearchAction.class);
 
     private final Client client;
     private final NamedWriteableRegistry registry;
@@ -95,7 +101,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         ClusterService clusterService,
         IndexNameExpressionResolver resolver
     ) {
-        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
+        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
@@ -105,7 +111,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
         transportService.registerRequestHandler(
             actionName,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             false,
             true,
             SearchRequest::new,
@@ -115,8 +121,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
 
     @Override
     protected void doExecute(Task task, SearchRequest request, ActionListener<SearchResponse> listener) {
+        DEPRECATION_LOGGER.warn(DeprecationCategory.API, DEPRECATION_KEY, DEPRECATION_MESSAGE);
         String[] indices = resolver.concreteIndexNames(clusterService.state(), request);
-        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().indices());
+        RollupSearchContext rollupSearchContext = separateIndices(indices, clusterService.state().getMetadata().getProject().indices());
 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
@@ -128,7 +135,8 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         bigArrays,
                         scriptService,
                         ((CancellableTask) task)::isCancelled,
-                        request.source().aggregations()
+                        request.source().aggregations(),
+                        b -> {}
                     );
                 }
 
@@ -143,7 +151,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                     );
                 }
             };
-            listener.onResponse(processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
+            ActionListener.respondAndRelease(listener, processResponses(rollupSearchContext, msearchResponse, reduceContextBuilder));
         }, listener::onFailure));
     }
 
@@ -154,14 +162,16 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     ) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both
-            return RollupResponseTranslator.combineResponses(msearchResponse.getResponses(), reduceContextBuilder);
+            return RollupResponseTranslator.combineResponses(msearchResponse, reduceContextBuilder);
         } else if (rollupContext.hasLiveIndices()) {
             // Only live
             assert msearchResponse.getResponses().length == 1;
-            return RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            var res = RollupResponseTranslator.verifyResponse(msearchResponse.getResponses()[0]);
+            res.mustIncRef();
+            return res;
         } else if (rollupContext.hasRollupIndices()) {
             // Only rollup
-            return RollupResponseTranslator.translateResponse(msearchResponse.getResponses(), reduceContextBuilder);
+            return RollupResponseTranslator.translateResponse(msearchResponse, reduceContextBuilder);
         }
         throw new RuntimeException("MSearch response was empty, cannot unroll RollupSearch results");
     }
@@ -209,7 +219,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         Set<RollupJobCaps> validatedCaps = new HashSet<>();
         sourceAgg.getAggregatorFactories()
             .forEach(agg -> validatedCaps.addAll(RollupJobIdentifierUtils.findBestJobs(agg, context.getJobCaps())));
-        List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).collect(Collectors.toList());
+        List<String> jobIds = validatedCaps.stream().map(RollupJobCaps::getJobID).toList();
 
         for (AggregationBuilder agg : sourceAgg.getAggregatorFactories()) {
 
@@ -270,12 +280,11 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         NamedWriteableRegistry namedWriteableRegistry,
         Writeable.Reader<SearchSourceBuilder> reader
     ) throws IOException {
-        Writeable.Writer<SearchSourceBuilder> writer = (out, value) -> value.writeTo(out);
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setVersion(Version.CURRENT);
-            writer.write(output, original);
+            output.setTransportVersion(TransportVersion.current());
+            original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setVersion(Version.CURRENT);
+                in.setTransportVersion(TransportVersion.current());
                 return reader.read(in);
             }
         }
@@ -453,6 +462,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         channel.sendResponse(response);
                     } catch (Exception e) {
                         onFailure(e);
+                    } finally {
+                        // TODO - avoid the implicit incref elsewhere and then replace this whole thing with a ChannelActionListener
+                        response.decRef();
                     }
                 }
 

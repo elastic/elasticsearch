@@ -18,16 +18,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.Strings.hasText;
 import static org.elasticsearch.xpack.ql.TestUtils.assertNoSearchContexts;
+import static org.elasticsearch.xpack.sql.qa.rest.RemoteClusterAwareSqlRestTestCase.AUTH_PASS;
+import static org.elasticsearch.xpack.sql.qa.rest.RemoteClusterAwareSqlRestTestCase.AUTH_USER;
 
 public abstract class CliIntegrationTestCase extends ESRestTestCase {
     /**
      * Read an address for Elasticsearch suitable for the CLI from the system properties.
      */
-    public static String elasticsearchAddress() {
-        String cluster = System.getProperty("tests.rest.cluster");
+    public String elasticsearchAddress() {
         // CLI only supports a single node at a time so we just give it one.
-        return cluster.split(",")[0];
+        return getTestRestCluster().split(",")[0];
     }
 
     private EmbeddedCli cli;
@@ -37,7 +39,7 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
      */
     @Before
     public void startCli() throws IOException {
-        cli = new EmbeddedCli(CliIntegrationTestCase.elasticsearchAddress(), true, securityConfig());
+        cli = new EmbeddedCli(elasticsearchAddress(), true, securityConfig());
     }
 
     @After
@@ -54,6 +56,10 @@ public abstract class CliIntegrationTestCase extends ESRestTestCase {
      * Override to add security configuration to the cli.
      */
     protected SecurityConfig securityConfig() {
+        if (hasText(AUTH_USER) && hasText(AUTH_PASS)) {
+            return new SecurityConfig(false, AUTH_USER, AUTH_PASS, null, null);
+        }
+
         return null;
     }
 

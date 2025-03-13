@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.datastreams;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -36,7 +38,7 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/data_stream/modify";
 
     private ModifyDataStreamsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
@@ -60,16 +62,17 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            actions = in.readList(DataStreamAction::new);
+            actions = in.readCollectionAsList(DataStreamAction::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(actions);
+            out.writeCollection(actions);
         }
 
-        public Request(List<DataStreamAction> actions) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, List<DataStreamAction> actions) {
+            super(masterNodeTimeout, ackTimeout);
             this.actions = Collections.unmodifiableList(actions);
         }
 
@@ -97,13 +100,22 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
             return null;
         }
 
+        public interface Factory {
+            Request create(List<DataStreamAction> actions);
+        }
+
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<Request, Factory> PARSER = new ConstructingObjectParser<>(
             "data_stream_actions",
-            args -> new Request(((List<DataStreamAction>) args[0]))
+            false,
+            (args, factory) -> factory.create((List<DataStreamAction>) args[0])
         );
         static {
-            PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), DataStreamAction.PARSER, new ParseField("actions"));
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.constructorArg(),
+                (p, c) -> DataStreamAction.PARSER.parse(p, null),
+                new ParseField("actions")
+            );
         }
 
         @Override

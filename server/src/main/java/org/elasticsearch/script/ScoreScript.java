@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,12 +22,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A script used for adjusting the score on a per document basis.
  */
 public abstract class ScoreScript extends DocBasedScript {
-
     /** A helper to take in an explanation from a script and turn it into an {@link org.apache.lucene.search.Explanation}  */
     public static class ExplanationHolder {
         private String description;
@@ -51,6 +53,7 @@ public abstract class ScoreScript extends DocBasedScript {
     }
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
+    @SuppressWarnings("unchecked")
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.warn(
             DeprecationCategory.SCRIPTING,
@@ -66,7 +69,7 @@ public abstract class ScoreScript extends DocBasedScript {
                 + "is deprecated in favor of directly accessing [doc]."
         );
         return value;
-    }, "_source", value -> ((SourceLookup) value).source());
+    }, "_source", value -> ((Supplier<Source>) value).get().source());
 
     public static final String[] PARAMETERS = new String[] { "explanation" };
 
@@ -80,6 +83,8 @@ public abstract class ScoreScript extends DocBasedScript {
     private int shardId = -1;
     private String indexName = null;
 
+    private ScriptTermStats termStats = null;
+
     public ScoreScript(Map<String, Object> params, SearchLookup searchLookup, DocReader docReader) {
         // searchLookup parameter is ignored but part of the ScriptFactory contract. It is part of that contract because it's required
         // for expressions. Expressions should eventually be transitioned to using DocReader.
@@ -88,13 +93,13 @@ public abstract class ScoreScript extends DocBasedScript {
         if (docReader == null) {
             assert params == null;
             this.params = null;
-            ;
             this.docBase = 0;
         } else {
             params = new HashMap<>(params);
             params.putAll(docReader.docAsMap());
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
-            this.docBase = ((DocValuesDocReader) docReader).getLeafReaderContext().docBase;
+            LeafReaderContext leafReaderContext = ((DocValuesDocReader) docReader).getLeafReaderContext();
+            this.docBase = leafReaderContext.docBase;
         }
     }
 
@@ -109,6 +114,11 @@ public abstract class ScoreScript extends DocBasedScript {
     public void setDocument(int docid) {
         super.setDocument(docid);
         this.docId = docid;
+    }
+
+    /** Get the current document. */
+    public int docId() {
+        return docId;
     }
 
     public void setScorer(Scorable scorer) {
@@ -187,13 +197,32 @@ public abstract class ScoreScript extends DocBasedScript {
         this.indexName = indexName;
     }
 
+    /**
+     * Starting a name with underscore, so that the user cannot access this function directly through a script.
+     */
+    public void _setTermStats(ScriptTermStats termStats) {
+        this.termStats = termStats;
+    }
+
+    /**
+     * Accessed as _termStats in the painless script.
+     */
+    public ScriptTermStats get_termStats() {
+        assert termStats != null : "termStats is not available";
+        return termStats;
+    }
+
     /** A factory to construct {@link ScoreScript} instances. */
     public interface LeafFactory {
-
         /**
          * Return {@code true} if the script needs {@code _score} calculated, or {@code false} otherwise.
          */
         boolean needs_score();
+
+        /**
+         * Return {@code true} if the script needs {@code _termStats} calculated, or {@code false} otherwise.
+         */
+        boolean needs_termStats();
 
         ScoreScript newInstance(DocReader reader) throws IOException;
     }

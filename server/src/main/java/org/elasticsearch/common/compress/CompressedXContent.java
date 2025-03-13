@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.compress;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -17,8 +18,10 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -45,7 +48,7 @@ import java.util.zip.Inflater;
  * memory. Note that the compressed string might still sometimes need to be
  * decompressed in order to perform equality checks or to compute hash codes.
  */
-public final class CompressedXContent {
+public final class CompressedXContent implements Writeable {
 
     private static final ThreadLocal<InflaterAndBuffer> inflater = ThreadLocal.withInitial(InflaterAndBuffer::new);
 
@@ -162,17 +165,9 @@ public final class CompressedXContent {
      * @return compressed x-content normalized to not contain any whitespaces
      */
     public static CompressedXContent fromJSON(String json) throws IOException {
-        return new CompressedXContent(new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.copyCurrentStructure(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json));
-            }
-
-            @Override
-            public boolean isFragment() {
-                return false;
-            }
-        });
+        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, json)) {
+            return new CompressedXContent((ToXContentObject) (builder, params) -> builder.copyCurrentStructure(parser));
+        }
     }
 
     public CompressedXContent(String str) throws IOException {
@@ -209,7 +204,7 @@ public final class CompressedXContent {
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
         final String sha256;
         final byte[] compressedData;
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             sha256 = in.readString();
             compressedData = in.readByteArray();
         } else {
@@ -220,8 +215,9 @@ public final class CompressedXContent {
         return new CompressedXContent(compressedData, sha256);
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
             out.writeString(sha256);
         } else {
             int crc32 = crc32FromCompressed(bytes);

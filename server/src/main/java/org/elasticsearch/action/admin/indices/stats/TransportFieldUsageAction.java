@@ -1,29 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -40,6 +41,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
     FieldUsageShardResponse> {
 
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportFieldUsageAction(
@@ -47,6 +49,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indexServices,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -56,9 +59,10 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
             actionFilters,
             indexNameExpressionResolver,
             FieldUsageStatsRequest::new,
-            ThreadPool.Names.SAME
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indicesService = indexServices;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -67,20 +71,17 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
     }
 
     @Override
-    protected FieldUsageStatsResponse newResponse(
+    protected ResponseFactory<FieldUsageStatsResponse, FieldUsageShardResponse> getResponseFactory(
         FieldUsageStatsRequest request,
-        int totalShards,
-        int successfulShards,
-        int failedShards,
-        List<FieldUsageShardResponse> fieldUsages,
-        List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        final Map<String, List<FieldUsageShardResponse>> combined = new HashMap<>();
-        for (FieldUsageShardResponse response : fieldUsages) {
-            combined.computeIfAbsent(response.shardRouting.shardId().getIndexName(), i -> new ArrayList<>()).add(response);
-        }
-        return new FieldUsageStatsResponse(totalShards, successfulShards, shardFailures.size(), shardFailures, combined);
+        return (totalShards, successfulShards, failedShards, fieldUsages, shardFailures) -> {
+            final Map<String, List<FieldUsageShardResponse>> combined = new HashMap<>();
+            for (FieldUsageShardResponse response : fieldUsages) {
+                combined.computeIfAbsent(response.shardRouting.shardId().getIndexName(), i -> new ArrayList<>()).add(response);
+            }
+            return new FieldUsageStatsResponse(totalShards, successfulShards, shardFailures.size(), shardFailures, combined);
+        };
     }
 
     @Override
@@ -109,7 +110,7 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ShardsIterator shards(ClusterState clusterState, FieldUsageStatsRequest request, String[] concreteIndices) {
-        return clusterState.routingTable().allActiveShards(concreteIndices);
+        return clusterState.routingTable(projectResolver.getProjectId()).allActiveShards(concreteIndices);
     }
 
     @Override
@@ -119,6 +120,6 @@ public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, FieldUsageStatsRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

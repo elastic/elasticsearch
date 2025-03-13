@@ -128,7 +128,7 @@ public class XmlTextStructureFinder implements TextStructureFinder {
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
 
         if (mappingsAndFieldStats.v2() != null) {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());

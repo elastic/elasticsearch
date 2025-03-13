@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class SnapshotUpgradeTaskParamsTests extends AbstractSerializingTestCase<SnapshotUpgradeTaskParams> {
+public class SnapshotUpgradeTaskParamsTests extends AbstractXContentSerializingTestCase<SnapshotUpgradeTaskParams> {
 
     @Override
     protected SnapshotUpgradeTaskParams doParseInstance(XContentParser parser) throws IOException {
@@ -23,6 +23,11 @@ public class SnapshotUpgradeTaskParamsTests extends AbstractSerializingTestCase<
     @Override
     protected SnapshotUpgradeTaskParams createTestInstance() {
         return new SnapshotUpgradeTaskParams(randomAlphaOfLength(10), randomAlphaOfLength(20));
+    }
+
+    @Override
+    protected SnapshotUpgradeTaskParams mutateInstance(SnapshotUpgradeTaskParams instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

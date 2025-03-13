@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -81,56 +82,6 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
      * Constructs a new fuzzy query.
      *
      * @param fieldName  The name of the field
-     * @param value The value of the text
-     */
-    public FuzzyQueryBuilder(String fieldName, int value) {
-        this(fieldName, (Object) value);
-    }
-
-    /**
-     * Constructs a new fuzzy query.
-     *
-     * @param fieldName  The name of the field
-     * @param value The value of the text
-     */
-    public FuzzyQueryBuilder(String fieldName, long value) {
-        this(fieldName, (Object) value);
-    }
-
-    /**
-     * Constructs a new fuzzy query.
-     *
-     * @param fieldName  The name of the field
-     * @param value The value of the text
-     */
-    public FuzzyQueryBuilder(String fieldName, float value) {
-        this(fieldName, (Object) value);
-    }
-
-    /**
-     * Constructs a new fuzzy query.
-     *
-     * @param fieldName  The name of the field
-     * @param value The value of the text
-     */
-    public FuzzyQueryBuilder(String fieldName, double value) {
-        this(fieldName, (Object) value);
-    }
-
-    /**
-     * Constructs a new fuzzy query.
-     *
-     * @param fieldName  The name of the field
-     * @param value The value of the text
-     */
-    public FuzzyQueryBuilder(String fieldName, boolean value) {
-        this(fieldName, (Object) value);
-    }
-
-    /**
-     * Constructs a new fuzzy query.
-     *
-     * @param fieldName  The name of the field
      * @param value The value of the term
      */
     public FuzzyQueryBuilder(String fieldName, Object value) {
@@ -192,17 +143,9 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         return this;
     }
 
-    public int prefixLength() {
-        return this.prefixLength;
-    }
-
     public FuzzyQueryBuilder maxExpansions(int maxExpansions) {
         this.maxExpansions = maxExpansions;
         return this;
-    }
-
-    public int maxExpansions() {
-        return this.maxExpansions;
     }
 
     public FuzzyQueryBuilder transpositions(boolean transpositions) {
@@ -217,10 +160,6 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     public FuzzyQueryBuilder rewrite(String rewrite) {
         this.rewrite = rewrite;
         return this;
-    }
-
-    public String rewrite() {
-        return this.rewrite;
     }
 
     @Override
@@ -319,7 +258,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         if (context != null) {
             MappedFieldType fieldType = context.getFieldType(fieldName);
             if (fieldType == null) {
-                return new MatchNoneQueryBuilder();
+                return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
             }
         }
         return super.doRewrite(context);
@@ -332,12 +271,15 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             throw new IllegalStateException("Rewrite first");
         }
         String rewrite = this.rewrite;
-        Query query = fieldType.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
-        if (query instanceof MultiTermQuery) {
-            MultiTermQuery.RewriteMethod rewriteMethod = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
-            QueryParsers.setRewriteMethod((MultiTermQuery) query, rewriteMethod);
-        }
-        return query;
+        return fieldType.fuzzyQuery(
+            value,
+            fuzziness,
+            prefixLength,
+            maxExpansions,
+            transpositions,
+            context,
+            QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE)
+        );
     }
 
     @Override
@@ -357,7 +299,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

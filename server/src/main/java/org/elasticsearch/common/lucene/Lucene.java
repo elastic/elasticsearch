@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene;
@@ -19,6 +20,8 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -69,6 +72,7 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -84,9 +88,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene92";
+
+    public static final String LATEST_CODEC = "Lucene101";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -100,16 +106,12 @@ public class Lucene {
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
-    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), EMPTY_SCORE_DOCS);
+    public static final TotalHits TOTAL_HITS_EQUAL_TO_ZERO = new TotalHits(0, TotalHits.Relation.EQUAL_TO);
+    public static final TotalHits TOTAL_HITS_GREATER_OR_EQUAL_TO_ZERO = new TotalHits(0, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+
+    public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(TOTAL_HITS_EQUAL_TO_ZERO, EMPTY_SCORE_DOCS);
 
     private Lucene() {}
-
-    /**
-     * Reads the segments infos, failing if it fails to load
-     */
-    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
-        return SegmentInfos.readLatestCommit(directory);
-    }
 
     /**
      * Returns an iterable that allows to iterate over all files in this segments info
@@ -135,20 +137,26 @@ public class Lucene {
     }
 
     /**
+     * Reads the segments infos, failing if it fails to load
+     */
+    public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
+        return SegmentInfos.readLatestCommit(directory, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
+    }
+
+    /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit) throws IOException {
-        // Using commit.getSegmentsFileName() does NOT work here, have to
-        // manually create the segment filename
+        // Using commit.getSegmentsFileName() does NOT work here, have to manually create the segment filename
         String filename = IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS, "", commit.getGeneration());
-        return SegmentInfos.readCommit(commit.getDirectory(), filename);
+        return readSegmentInfos(filename, commit.getDirectory());
     }
 
     /**
      * Reads the segments infos from the given segments file name, failing if it fails to load
      */
     private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
-        return SegmentInfos.readCommit(directory, segmentsFileName);
+        return SegmentInfos.readCommit(directory, segmentsFileName, IndexVersions.MINIMUM_READONLY_COMPATIBLE.luceneVersion().major);
     }
 
     /**
@@ -184,7 +192,18 @@ public class Lucene {
                 throw new IllegalStateException("no commit found in the directory");
             }
         }
+        // Need to figure out what the parent field is that, so that validation in IndexWriter doesn't fail
+        // if no parent field is configured, but FieldInfo says there is a parent field.
+        String parentField = null;
         final IndexCommit cp = getIndexCommit(si, directory);
+        try (var reader = DirectoryReader.open(cp)) {
+            var topLevelFieldInfos = FieldInfos.getMergedFieldInfos(reader);
+            for (FieldInfo fieldInfo : topLevelFieldInfos) {
+                if (fieldInfo.isParentField()) {
+                    parentField = fieldInfo.getName();
+                }
+            }
+        }
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
@@ -192,6 +211,7 @@ public class Lucene {
                     .setIndexCommit(cp)
                     .setCommitOnClose(false)
                     .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
+                    .setParentField(parentField)
             )
         ) {
             // do nothing and close this will kick off IndexFileDeleter which will remove all pending files
@@ -236,7 +256,7 @@ public class Lucene {
 
             @Override
             protected Object doBody(String segmentFileName) throws IOException {
-                try (IndexInput input = directory.openInput(segmentFileName, IOContext.READ)) {
+                try (IndexInput input = directory.openInput(segmentFileName, IOContext.READONCE)) {
                     CodecUtil.checksumEntireFile(input);
                 }
                 return null;
@@ -387,8 +407,8 @@ public class Lucene {
     private static final Class<?> GEO_DISTANCE_SORT_TYPE_CLASS = LatLonDocValuesField.newDistanceSort("some_geo_field", 0, 0).getClass();
 
     public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
-        out.writeVLong(totalHits.value);
-        out.writeEnum(totalHits.relation);
+        out.writeVLong(totalHits.value());
+        out.writeEnum(totalHits.relation());
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
@@ -772,9 +792,7 @@ public class Lucene {
 
             @Override
             public boolean get(int index) {
-                if (index < 0 || index >= maxDoc) {
-                    throw new IndexOutOfBoundsException(index + " is out of bounds: [" + 0 + "-" + maxDoc + "[");
-                }
+                Objects.checkIndex(index, maxDoc);
                 if (index < previous) {
                     throw new IllegalArgumentException(
                         "This Bits instance can only be consumed in order. "
@@ -879,24 +897,26 @@ public class Lucene {
             }
         }
 
-        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
-            super(in, new SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader leaf) {
-                    final SegmentReader segmentReader = segmentReader(leaf);
-                    final Bits hardLiveDocs = segmentReader.getHardLiveDocs();
-                    if (hardLiveDocs == null) {
-                        return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
-                    }
-                    // Once soft-deletes is enabled, we no longer hard-update or hard-delete documents directly.
-                    // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
-                    // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
-                    // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
-                    final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
-                    assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
-                    return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+        private static final SubReaderWrapper ALL_LIVE_DOCS_SUB_READER_WRAPPER = new SubReaderWrapper() {
+            @Override
+            public LeafReader wrap(LeafReader leaf) {
+                final SegmentReader segmentReader = segmentReader(leaf);
+                final Bits hardLiveDocs = segmentReader.getHardLiveDocs();
+                if (hardLiveDocs == null) {
+                    return new LeafReaderWithLiveDocs(leaf, null, leaf.maxDoc());
                 }
-            });
+                // Once soft-deletes is enabled, we no longer hard-update or hard-delete documents directly.
+                // Two scenarios that we have hard-deletes: (1) from old segments where soft-deletes was disabled,
+                // (2) when IndexWriter hits non-aborted exceptions. These two cases, IW flushes SegmentInfos
+                // before exposing the hard-deletes, thus we can use the hard-delete count of SegmentInfos.
+                final int numDocs = segmentReader.maxDoc() - segmentReader.getSegmentInfo().getDelCount();
+                assert numDocs == popCount(hardLiveDocs) : numDocs + " != " + popCount(hardLiveDocs);
+                return new LeafReaderWithLiveDocs(segmentReader, hardLiveDocs, numDocs);
+            }
+        };
+
+        DirectoryReaderWithAllLiveDocs(DirectoryReader in) throws IOException {
+            super(in, ALL_LIVE_DOCS_SUB_READER_WRAPPER);
         }
 
         @Override

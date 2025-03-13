@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cloud.gce;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
@@ -192,22 +192,22 @@ public class GCEFixture extends AbstractHttpFixture {
             jsonBuilder().startObject()
                 .field(
                     "error",
-                    MapBuilder.<String, Object>newMapBuilder()
-                        .put(
+                    Map.<String, Object>ofEntries(
+                        Map.entry(
                             "errors",
-                            Collections.singletonList(
-                                MapBuilder.<String, Object>newMapBuilder()
-                                    .put("domain", "global")
-                                    .put("reason", "required")
-                                    .put("message", message)
-                                    .put("locationType", "header")
-                                    .put("location", code)
-                                    .immutableMap()
+                            List.of(
+                                Map.<String, Object>ofEntries(
+                                    Map.entry("domain", "global"),
+                                    Map.entry("reason", "required"),
+                                    Map.entry("message", message),
+                                    Map.entry("locationType", "header"),
+                                    Map.entry("location", code)
+                                )
                             )
-                        )
-                        .put("code", status.getStatus())
-                        .put("message", message)
-                        .immutableMap()
+                        ),
+                        Map.entry("code", status.getStatus()),
+                        Map.entry("message", message)
+                    )
                 )
                 .endObject()
         );

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.settings;
@@ -12,12 +13,12 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,7 +43,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -64,6 +64,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -78,6 +79,10 @@ import static org.elasticsearch.core.TimeValue.parseTimeValue;
 public final class Settings implements ToXContentFragment, Writeable, Diffable<Settings> {
 
     public static final Settings EMPTY = new Settings(Map.of(), null);
+
+    public static final String FLAT_SETTINGS_PARAM = "flat_settings";
+
+    public static final MapParams FLAT_SETTINGS_TRUE = new MapParams(Map.of(FLAT_SETTINGS_PARAM, "true"));
 
     /** The raw settings from the full key to raw string value. */
     private final NavigableMap<String, Object> settings;
@@ -237,7 +242,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         if (prefix.isEmpty()) {
             return this;
         }
-        // create the the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
+        // create the next prefix right after the given prefix, and use it as exclusive upper bound for the sub-map to filter by prefix
         // below
         char[] toPrefixCharArr = prefix.toCharArray();
         toPrefixCharArr[toPrefixCharArr.length - 1]++;
@@ -283,6 +288,28 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     public String get(String setting, String defaultValue) {
         String retVal = get(setting);
         return retVal == null ? defaultValue : retVal;
+    }
+
+    /**
+     * Returns the values for the given settings pattern.
+     *
+     * Either a concrete setting name, or a pattern containing a single glob is supported.
+     *
+     * @param settingPattern name of a setting or a setting name pattern containing a glob
+     * @return zero or more values for any settings in this settings object that match the given pattern
+     */
+    public Stream<String> getValues(String settingPattern) {
+        int globIndex = settingPattern.indexOf(".*.");
+        Stream<String> settingNames;
+        if (globIndex == -1) {
+            settingNames = Stream.of(settingPattern);
+        } else {
+            String prefix = settingPattern.substring(0, globIndex + 1);
+            String suffix = settingPattern.substring(globIndex + 2);
+            Settings subSettings = getByPrefix(prefix);
+            settingNames = subSettings.names().stream().map(k -> prefix + k + suffix);
+        }
+        return settingNames.map(this::getAsList).flatMap(List::stream).filter(Objects::nonNull);
     }
 
     /**
@@ -519,13 +546,21 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     /**
      * Returns a parsed version.
      */
-    public Version getAsVersion(String setting, Version defaultVersion) throws SettingsException {
+    public <T extends VersionId<T>> T getAsVersionId(String setting, IntFunction<T> parseVersion) throws SettingsException {
+        return getAsVersionId(setting, parseVersion, null);
+    }
+
+    /**
+     * Returns a parsed version.
+     */
+    public <T extends VersionId<T>> T getAsVersionId(String setting, IntFunction<T> parseVersion, T defaultVersion)
+        throws SettingsException {
         String sValue = get(setting);
         if (sValue == null) {
             return defaultVersion;
         }
         try {
-            return Version.fromId(Integer.parseInt(sValue));
+            return parseVersion.apply(Integer.parseInt(sValue));
         } catch (Exception e) {
             throw new SettingsException("Failed to parse version setting [" + setting + "] with value [" + sValue + "]", e);
         }
@@ -633,7 +668,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
-        out.writeMap(settings, StreamOutput::writeString, Settings::writeSettingValue);
+        out.writeMap(settings, Settings::writeSettingValue);
     }
 
     private static void writeSettingValue(StreamOutput streamOutput, Object value) throws IOException {
@@ -662,7 +697,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Settings settings = SettingsFilter.filterSettings(params, this);
-        if (params.paramAsBoolean("flat_settings", false) == false) {
+        if (params.paramAsBoolean(FLAT_SETTINGS_PARAM, false) == false) {
             toXContentFlat(builder, settings);
         } else {
             toXContent(builder, settings);
@@ -807,7 +842,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
     }
 
-    public static final Set<String> FORMAT_PARAMS = Set.of("settings_filter", "flat_settings");
+    public static final Set<String> FORMAT_PARAMS = Set.of("settings_filter", FLAT_SETTINGS_PARAM);
 
     /**
      * Returns {@code true} if this settings object contains no settings
@@ -1025,8 +1060,15 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
             return this;
         }
 
-        public Builder put(String setting, Version version) {
-            put(setting, version.id);
+        /**
+         * Sets the setting with the provided setting key and the {@code VersionId} value.
+         *
+         * @param setting The setting key
+         * @param version The version value
+         * @return The builder
+         */
+        public Builder put(String setting, VersionId<?> version) {
+            put(setting, version.id());
             return this;
         }
 
@@ -1137,8 +1179,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
 
         private void processLegacyLists(Map<String, Object> map) {
-            String[] array = map.keySet().toArray(new String[map.size()]);
-            for (String key : array) {
+            for (String key : map.keySet().toArray(String[]::new)) {
                 if (key.endsWith(".0")) { // let's only look at the head of the list and convert in order starting there.
                     int counter = 0;
                     String prefix = key.substring(0, key.lastIndexOf('.'));
@@ -1504,7 +1545,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         }
 
         @Override
-        public SecureString getString(String setting) throws GeneralSecurityException {
+        public SecureString getString(String setting) {
             return delegate.getString(addPrefix.apply(setting));
         }
 
@@ -1522,18 +1563,16 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         public void close() throws IOException {
             delegate.close();
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new IllegalStateException("Unsupported operation");
+        }
     }
 
     @Override
     public String toString() {
-        try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            builder.startObject();
-            toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        return Strings.toString(this, FLAT_SETTINGS_TRUE);
     }
 
     private static String toString(Object o) {
@@ -1551,7 +1590,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
      * @param s string to intern
      * @return interned string
      */
-    static String internKeyOrValue(String s) {
+    public static String internKeyOrValue(String s) {
         return settingLiteralDeduplicator.deduplicate(s);
     }
 

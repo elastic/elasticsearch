@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.example.customsettings;
 
@@ -17,7 +18,7 @@ import static org.elasticsearch.example.customsettings.ExampleCustomSettingsConf
  * <p>
  * It's a JUnit test class that extends {@link ESTestCase} which provides useful methods for testing.
  * <p>
- * The tests can be executed in the IDE or using the command: ./gradlew :example-plugins:custom-settings:test
+ * The tests can be executed in the IDE or using the command: ./gradlew :custom-settings:test
  */
 public class ExampleCustomSettingsConfigTests extends ESTestCase {
 

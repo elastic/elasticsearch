@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 
 import java.io.IOException;
@@ -40,10 +41,14 @@ public class WordPieceAnalyzer extends Analyzer {
         this.unknownToken = unknownToken;
     }
 
+    protected Tokenizer createTokenizer() {
+        return new WhitespaceTokenizer(512);
+    }
+
     @Override
     protected TokenStreamComponents createComponents(String fieldName) {
         try {
-            WhitespaceTokenizer tokenizer = new WhitespaceTokenizer(512);
+            Tokenizer tokenizer = createTokenizer();
             innerTokenFilter = WordPieceTokenFilter.build(
                 doLowerCase,
                 doTokenizeCjKChars,

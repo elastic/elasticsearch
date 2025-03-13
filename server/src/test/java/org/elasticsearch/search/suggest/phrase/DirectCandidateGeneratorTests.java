@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.phrase;
@@ -210,8 +211,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                     )
                 );
                 assertThat(candidateSet.candidates.length, equalTo(1));
-                assertThat(candidateSet.candidates[0].termStats.docFreq, equalTo(numDocs - 1));
-                assertThat(candidateSet.candidates[0].termStats.totalTermFreq, equalTo((long) numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.docFreq(), equalTo(numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.totalTermFreq(), equalTo((long) numDocs - 1));
 
                 // test that it doesn't overflow
                 assertThat(generator.thresholdTermFrequency(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));
@@ -226,8 +227,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
                     )
                 );
                 assertThat(candidateSet.candidates.length, equalTo(1));
-                assertThat(candidateSet.candidates[0].termStats.docFreq, equalTo(numDocs - 1));
-                assertThat(candidateSet.candidates[0].termStats.totalTermFreq, equalTo((long) numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.docFreq(), equalTo(numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.totalTermFreq(), equalTo((long) numDocs - 1));
 
                 // test that it doesn't overflow
                 assertThat(generator.thresholdTermFrequency(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));

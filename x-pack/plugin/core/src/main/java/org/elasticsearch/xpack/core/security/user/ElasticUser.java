@@ -6,19 +6,17 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
-
 /**
  * The reserved {@code elastic} superuser. Has full permission/access to the cluster/indices and can
  * run as any other user.
  */
-public class ElasticUser extends User {
+public class ElasticUser extends ReservedUser {
 
     public static final String NAME = UsernamesField.ELASTIC_NAME;
     // used for testing in a different package
     public static final String ROLE_NAME = UsernamesField.ELASTIC_ROLE;
 
     public ElasticUser(boolean enabled) {
-        super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
+        super(NAME, ROLE_NAME, enabled);
     }
 }

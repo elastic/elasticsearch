@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 /**
  * A {@link ValuesSource} builder for {@link CompositeAggregationBuilder}
@@ -55,9 +56,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.userValueTypeHint = ValueType.readFromStream(in);
         }
         this.missingBucket = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            this.missingOrder = MissingOrder.readFromStream(in);
-        }
+        this.missingOrder = MissingOrder.readFromStream(in);
         this.order = SortOrder.readFromStream(in);
         this.format = in.readOptionalString();
     }
@@ -77,9 +76,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             userValueTypeHint.writeTo(out);
         }
         out.writeBoolean(missingBucket);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            missingOrder.writeTo(out);
-        }
+        missingOrder.writeTo(out);
         order.writeTo(out);
         out.writeOptionalString(format);
         innerWriteTo(out);
@@ -324,5 +321,13 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
      */
     protected ZoneId timeZone() {
         return null;
+    }
+
+    /**
+     * Return false if this composite source does not support parallel collection.
+     * As a result, a request including such aggregation is always executed sequentially despite concurrency is enabled for the query phase.
+     */
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return true;
     }
 }

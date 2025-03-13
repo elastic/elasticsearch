@@ -69,9 +69,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSn
     }
 
     private void updatePreference(String tier) {
-        client().admin()
-            .indices()
-            .updateSettings(new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTier.TIER_PREFERENCE, tier)))
+        indicesAdmin().updateSettings(new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTier.TIER_PREFERENCE, tier)))
             .actionGet();
     }
 }

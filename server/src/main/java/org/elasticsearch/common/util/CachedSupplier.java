@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -17,21 +18,41 @@ import java.util.function.Supplier;
  */
 public final class CachedSupplier<T> implements Supplier<T> {
 
-    private Supplier<T> supplier;
+    private volatile Supplier<T> supplier;
+    // result does not need to be volatile as we only read it after reading that the supplier got nulled out. Since we null out the
+    // supplier after setting the result, total store order from an observed volatile write is sufficient to make a plain read safe.
     private T result;
-    private boolean resultSet;
 
-    public CachedSupplier(Supplier<T> supplier) {
+    public static <R> CachedSupplier<R> wrap(Supplier<R> supplier) {
+        if (supplier instanceof CachedSupplier<R> c) {
+            // no need to wrap a cached supplier again
+            return c;
+        }
+        return new CachedSupplier<>(supplier);
+    }
+
+    private CachedSupplier(Supplier<T> supplier) {
         this.supplier = supplier;
     }
 
     @Override
-    public synchronized T get() {
-        if (resultSet == false) {
-            result = supplier.get();
-            resultSet = true;
+    public T get() {
+        if (supplier == null) {
+            return result;
         }
-        return result;
+        return initResult();
+    }
+
+    private synchronized T initResult() {
+        var s = supplier;
+        if (s != null) {
+            T res = s.get();
+            result = res;
+            supplier = null;
+            return res;
+        } else {
+            return result;
+        }
     }
 
 }

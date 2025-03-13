@@ -6,29 +6,33 @@ setup:
       index:
           index:  test
           id:     "1"
-          body:   { id: 1, foo: bar, age: 18 }
+          body:   { id: 1, foo: bar, age: 18, birth: "2022-01-01" }
 
   - do:
       index:
           index:  test
           id:     "42"
-          body:   { id: 42, foo: bar, age: 18 }
+          body:   { id: 42, foo: bar, age: 18, birth: "2022-02-01" }
 
   - do:
         index:
             index:  test
             id:     "172"
-            body:   { id: 172, foo: bar, age: 24 }
+            body:   { id: 172, foo: bar, age: 24, birth: "2022-03-01" }
 
   - do:
       indices.create:
         index:  test2
+        body:
+          settings:
+            index:
+              number_of_shards: 2
 
   - do:
       index:
         index:  test2
         id:     "45"
-        body:   { id: 45, foo: bar, age: 19 }
+        body:   { id: 45, foo: bar, age: 19, birth: "2023-01-01" }
 
   - do:
       indices.refresh:
@@ -36,8 +40,8 @@ setup:
 
 ---
 "basic":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: "point in time is introduced in server in 7.13"
   - do:
       open_point_in_time:
@@ -135,8 +139,8 @@ setup:
 
 ---
 "point-in-time with slicing":
-  - skip:
-      version: " - 7.14.99"
+  - requires:
+      cluster_features: ["gte_v7.15.0"]
       reason: "support for slicing was added in 7.15"
   - do:
       open_point_in_time:
@@ -165,8 +169,8 @@ setup:
 
 ---
 "wildcard":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "point in time is introduced in 7.10"
   - do:
       open_point_in_time:
@@ -200,8 +204,8 @@ setup:
 
 ---
 "msearch":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: "point in time is introduced in 7.10"
   - do:
       open_point_in_time:
@@ -230,6 +234,35 @@ setup:
           - { query: { match: { foo: bar }}, pit: { id: "$point_in_time_id" }}
           - index: index2
           - { query: { match_all: {}}, pit: { id: "$point_in_time_id" }}
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_id"
+
+---
+"point-in-time with index filter":
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "support for index filter was added in 8.12"
+  - do:
+      open_point_in_time:
+        index: test*
+        keep_alive: 5m
+        body: { index_filter: { range: { birth: { gte: "2023-01-01" }}}}
+  - set: {id: point_in_time_id}
+
+  - do:
+      search:
+        body:
+          size: 1
+          pit:
+            id: "$point_in_time_id"
+
+  - match: {hits.total.value: 1 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: test2 }
+  - match: {hits.hits.0._id: "45" }
 
   - do:
       close_point_in_time:

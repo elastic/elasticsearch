@@ -1,25 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -43,37 +45,35 @@ public class SearchIndexNameMatcherTests extends ESTestCase {
     }
 
     private static IndexMetadata.Builder indexBuilder(String index) {
-        Settings.Builder settings = settings(Version.CURRENT).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
-        return IndexMetadata.builder(index).settings(settings);
+        return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0));
     }
 
     public void testLocalIndex() {
-        assertTrue(matcher.test("index1"));
-        assertTrue(matcher.test("ind*x1"));
-        assertFalse(matcher.test("index2"));
+        assertThat(matcher, trueWith("index1"));
+        assertThat(matcher, trueWith("ind*x1"));
+        assertThat(matcher, falseWith("index2"));
 
-        assertTrue(matcher.test("alias"));
-        assertTrue(matcher.test("*lias"));
+        assertThat(matcher, trueWith("alias"));
+        assertThat(matcher, trueWith("*lias"));
 
-        assertFalse(matcher.test("cluster:index1"));
+        assertThat(matcher, falseWith("cluster:index1"));
     }
 
     public void testRemoteIndex() {
-        assertTrue(remoteMatcher.test("cluster:index1"));
-        assertTrue(remoteMatcher.test("cluster:ind*x1"));
-        assertTrue(remoteMatcher.test("*luster:ind*x1"));
-        assertFalse(remoteMatcher.test("cluster:index2"));
+        assertThat(remoteMatcher, trueWith("cluster:index1"));
+        assertThat(remoteMatcher, trueWith("cluster:ind*x1"));
+        assertThat(remoteMatcher, trueWith("*luster:ind*x1"));
+        assertThat(remoteMatcher, falseWith("cluster:index2"));
 
-        assertTrue(remoteMatcher.test("cluster:alias"));
-        assertTrue(remoteMatcher.test("cluster:*lias"));
+        assertThat(remoteMatcher, trueWith("cluster:alias"));
+        assertThat(remoteMatcher, trueWith("cluster:*lias"));
 
-        assertFalse(remoteMatcher.test("index1"));
-        assertFalse(remoteMatcher.test("alias"));
+        assertThat(remoteMatcher, falseWith("index1"));
+        assertThat(remoteMatcher, falseWith("alias"));
 
-        assertFalse(remoteMatcher.test("*index1"));
-        assertFalse(remoteMatcher.test("*alias"));
-        assertFalse(remoteMatcher.test("cluster*"));
-        assertFalse(remoteMatcher.test("cluster*index1"));
+        assertThat(remoteMatcher, falseWith("*index1"));
+        assertThat(remoteMatcher, falseWith("*alias"));
+        assertThat(remoteMatcher, falseWith("cluster*"));
+        assertThat(remoteMatcher, falseWith("cluster*index1"));
     }
 }

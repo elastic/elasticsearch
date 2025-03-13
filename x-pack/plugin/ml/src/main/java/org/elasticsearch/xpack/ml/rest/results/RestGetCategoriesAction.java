@@ -7,9 +7,10 @@
 package org.elasticsearch.xpack.ml.rest.results;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,34 +25,19 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.core.ml.action.GetCategoriesAction.Request.CATEGORY_ID;
+import static org.elasticsearch.xpack.core.ml.job.config.Job.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetCategoriesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}")
-                .replaces(
-                    GET,
-                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}",
-                    RestApiVersion.V_7
-                )
-                .build(),
-            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}")
-                .replaces(
-                    POST,
-                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories/{" + CATEGORY_ID + "}",
-                    RestApiVersion.V_7
-                )
-                .build(),
-            Route.builder(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories")
-                .replaces(GET, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories", RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories")
-                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/categories", RestApiVersion.V_7)
-                .build()
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID + "}/results/categories/{" + CATEGORY_ID + "}"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID + "}/results/categories/{" + CATEGORY_ID + "}"),
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + ID + "}/results/categories"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + ID + "}/results/categories")
         );
     }
 

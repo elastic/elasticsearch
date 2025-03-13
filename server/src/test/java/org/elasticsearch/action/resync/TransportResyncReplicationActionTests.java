@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.resync;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -16,6 +17,8 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -33,6 +36,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ReplicationGroup;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -47,9 +51,9 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.nio.charset.Charset;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -63,7 +67,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -85,9 +88,10 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
     }
 
     public void testResyncDoesNotBlockOnPrimaryAction() throws Exception {
+        ProjectId projectId = randomProjectIdOrDefault();
         try (ClusterService clusterService = createClusterService(threadPool)) {
             final String indexName = randomAlphaOfLength(5);
-            setState(clusterService, state(indexName, true, ShardRoutingState.STARTED));
+            setState(clusterService, state(projectId, indexName, true, ShardRoutingState.STARTED));
 
             setState(
                 clusterService,
@@ -102,7 +106,7 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
             try (
                 TcpTransport transport = new Netty4Transport(
                     Settings.EMPTY,
-                    Version.CURRENT,
+                    TransportVersion.current(),
                     threadPool,
                     new NetworkService(emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
@@ -125,11 +129,14 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 transportService.acceptIncomingRequests();
                 final ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
 
-                final IndexMetadata indexMetadata = clusterService.state().metadata().index(indexName);
+                final IndexMetadata indexMetadata = clusterService.state().metadata().getProject(projectId).index(indexName);
                 final Index index = indexMetadata.getIndex();
                 final ShardId shardId = new ShardId(index, 0);
-                final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable().shardRoutingTable(shardId);
-                final ShardRouting primaryShardRouting = clusterService.state().routingTable().shardRoutingTable(shardId).primaryShard();
+                final IndexShardRoutingTable shardRoutingTable = clusterService.state().routingTable(projectId).shardRoutingTable(shardId);
+                final ShardRouting primaryShardRouting = clusterService.state()
+                    .routingTable(projectId)
+                    .shardRoutingTable(shardId)
+                    .primaryShard();
                 final String allocationId = primaryShardRouting.allocationId().getId();
                 final long primaryTerm = indexMetadata.primaryTerm(shardId.id());
 
@@ -141,18 +148,19 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 when(indexShard.getPendingPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getOperationPrimaryTerm()).thenReturn(primaryTerm);
                 when(indexShard.getActiveOperationsCount()).then(i -> acquiredPermits.get());
+                when(indexShard.isPrimaryMode()).then(i -> true);
                 doAnswer(invocation -> {
                     @SuppressWarnings("unchecked")
                     ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
                     acquiredPermits.incrementAndGet();
                     callback.onResponse(acquiredPermits::decrementAndGet);
                     return null;
-                }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), anyString(), any(), eq(true));
+                }).when(indexShard).acquirePrimaryOperationPermit(anyActionListener(), any(Executor.class), eq(true));
                 when(indexShard.getReplicationGroup()).thenReturn(
                     new ReplicationGroup(
                         shardRoutingTable,
-                        clusterService.state().metadata().index(index).inSyncAllocationIds(shardId.id()),
-                        shardRoutingTable.getAllAllocationIds(),
+                        clusterService.state().metadata().getProject(projectId).index(index).inSyncAllocationIds(shardId.id()),
+                        shardRoutingTable.getPromotableAllocationIds(),
                         0
                     )
                 );
@@ -172,7 +180,8 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                     shardStateAction,
                     new ActionFilters(new HashSet<>()),
                     new IndexingPressure(Settings.EMPTY),
-                    EmptySystemIndices.INSTANCE
+                    EmptySystemIndices.INSTANCE,
+                    TestProjectResolvers.DEFAULT_PROJECT_ONLY
                 );
 
                 assertThat(action.globalBlockLevel(), nullValue());
@@ -181,12 +190,11 @@ public class TransportResyncReplicationActionTests extends ESTestCase {
                 final Task task = mock(Task.class);
                 when(task.getId()).thenReturn(randomNonNegativeLong());
 
-                final byte[] bytes = "{}".getBytes(Charset.forName("UTF-8"));
                 final ResyncReplicationRequest request = new ResyncReplicationRequest(
                     shardId,
                     42L,
                     100,
-                    new Translog.Operation[] { new Translog.Index("id", 0, primaryTerm, 0L, bytes, null, -1) }
+                    new Translog.Operation[] { TranslogOperationsUtils.indexOp("id", 0, primaryTerm) }
                 );
 
                 final PlainActionFuture<ResyncReplicationResponse> listener = new PlainActionFuture<>();

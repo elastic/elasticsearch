@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -15,12 +16,14 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.LookupField;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -54,12 +57,10 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
             }
             """;
         var mapperService = createMapperService(mapping);
-        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo", List.of("f1", "f2")).endObject();
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
+        Source source = Source.fromMap(Map.of("foo", List.of("f1", "f2")), randomFrom(XContentType.values()));
         MappedFieldType fieldType = mapperService.fieldType("foo_lookup_field");
         ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null);
-        DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", sourceLookup);
+        DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", source, -1);
         assertNotNull(doc);
         assertThat(doc.getName(), equalTo("foo_lookup_field"));
         assertThat(doc.getValues(), empty());
@@ -111,11 +112,10 @@ public class LookupRuntimeFieldTypeTests extends MapperServiceTestCase {
             source.field("foo", List.of());
         }
         source.endObject();
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
+        Source s = Source.fromBytes(BytesReference.bytes(source), XContentType.JSON);
         MappedFieldType fieldType = mapperService.fieldType("foo_lookup_field");
         ValueFetcher valueFetcher = fieldType.valueFetcher(createSearchExecutionContext(mapperService), null);
-        DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", sourceLookup);
+        DocumentField doc = valueFetcher.fetchDocumentField("foo_lookup_field", s, -1);
         assertNull(doc);
     }
 

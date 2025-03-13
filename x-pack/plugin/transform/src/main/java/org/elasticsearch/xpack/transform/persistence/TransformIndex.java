@@ -9,30 +9,43 @@ package org.elasticsearch.xpack.transform.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
+import org.elasticsearch.xpack.transform.Transform;
+import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -54,7 +67,7 @@ public final class TransformIndex {
      *                 Returns {@code true} if the given index was created by the transform and {@code false} otherwise.
      */
     public static void isDestinationIndexCreatedByTransform(Client client, String destIndex, ActionListener<Boolean> listener) {
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(destIndex)
+        GetIndexRequest getIndexRequest = new GetIndexRequest(Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT).indices(destIndex)
             // We only need mappings, more specifically its "_meta" part
             .features(GetIndexRequest.Feature.MAPPINGS);
         executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, GetIndexAction.INSTANCE, getIndexRequest, ActionListener.wrap(getIndexResponse -> {
@@ -92,12 +105,89 @@ public final class TransformIndex {
 
     public static void createDestinationIndex(
         Client client,
-        TransformConfig transformConfig,
+        TransformAuditor auditor,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterState clusterState,
+        TransformConfig config,
+        Settings destIndexSettings,
+        Map<String, String> destIndexMappings,
+        ActionListener<Boolean> listener
+    ) {
+        final String destinationIndex = config.getDestination().getIndex();
+        String[] dest = indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), destinationIndex);
+
+        // <3> Final listener
+        ActionListener<Boolean> setUpDestinationAliasesListener = ActionListener.wrap(r -> {
+            String message = "Set up aliases ["
+                + config.getDestination().getAliases().stream().map(DestAlias::getAlias).collect(joining(", "))
+                + "] for destination index ["
+                + destinationIndex
+                + "].";
+            auditor.info(config.getId(), message);
+
+            listener.onResponse(r);
+        }, listener::onFailure);
+
+        // <2> Set up destination index aliases, regardless whether the destination index was created by the transform or by the user
+        ActionListener<Boolean> createDestinationIndexListener = ActionListener.wrap(createdDestinationIndex -> {
+            if (createdDestinationIndex) {
+                String message = TransformEffectiveSettings.isDeduceMappingsDisabled(config.getSettings())
+                    ? "Created destination index [" + destinationIndex + "]."
+                    : "Created destination index [" + destinationIndex + "] with deduced mappings.";
+                auditor.info(config.getId(), message);
+            }
+            setUpDestinationAliases(client, config, setUpDestinationAliasesListener);
+        }, listener::onFailure);
+
+        if (dest.length == 0) {
+            TransformDestIndexSettings generatedDestIndexSettings = createTransformDestIndexSettings(
+                destIndexSettings,
+                TransformEffectiveSettings.isDeduceMappingsDisabled(config.getSettings()) ? emptyMap() : destIndexMappings,
+                config.getId(),
+                Clock.systemUTC()
+            );
+
+            // <1> Create destination index
+            createDestinationIndex(client, config, generatedDestIndexSettings, createDestinationIndexListener);
+        } else {
+            auditor.info(config.getId(), "Using existing destination index [" + destinationIndex + "].");
+            // <1'> Audit existing destination index' stats
+            ClientHelper.executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                ClientHelper.TRANSFORM_ORIGIN,
+                client.admin().indices().prepareStats(dest).clear().setDocs(true).request(),
+                ActionListener.<IndicesStatsResponse>wrap(r -> {
+                    var docsStats = r.getTotal().docs;
+                    if (docsStats != null && docsStats.getCount() > 0L) {
+                        auditor.warning(
+                            config.getId(),
+                            "Non-empty destination index ["
+                                + destinationIndex
+                                + "]. "
+                                + "Contains ["
+                                + docsStats.getCount()
+                                + "] total documents."
+                        );
+                    }
+                    createDestinationIndexListener.onResponse(false);
+                }, e -> {
+                    String message = "Unable to determine destination index stats, error: " + e.getMessage();
+                    logger.warn(message, e);
+                    auditor.warning(config.getId(), message);
+                    createDestinationIndexListener.onResponse(false);
+                }),
+                client.admin().indices()::stats
+            );
+        }
+    }
+
+    static void createDestinationIndex(
+        Client client,
+        TransformConfig config,
         TransformDestIndexSettings destIndexSettings,
         ActionListener<Boolean> listener
     ) {
-        CreateIndexRequest request = new CreateIndexRequest(transformConfig.getDestination().getIndex());
-
+        CreateIndexRequest request = new CreateIndexRequest(config.getDestination().getIndex());
         request.settings(destIndexSettings.getSettings());
         request.mapping(destIndexSettings.getMappings());
         for (Alias alias : destIndexSettings.getAliases()) {
@@ -105,29 +195,81 @@ public final class TransformIndex {
         }
 
         ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
+            config.getHeaders(),
             TRANSFORM_ORIGIN,
             client,
-            CreateIndexAction.INSTANCE,
+            TransportCreateIndexAction.TYPE,
             request,
-            ActionListener.wrap(createIndexResponse -> { listener.onResponse(true); }, e -> {
+            ActionListener.wrap(createIndexResponse -> {
+                listener.onResponse(true);
+            }, e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                    // Already existing index is ok, it could have been created by the indexing process of the running transform.
+                    listener.onResponse(false);
+                    return;
+                }
                 String message = TransformMessages.getMessage(
                     TransformMessages.FAILED_TO_CREATE_DESTINATION_INDEX,
-                    transformConfig.getDestination().getIndex(),
-                    transformConfig.getId()
+                    config.getDestination().getIndex(),
+                    config.getId()
                 );
-                logger.error(message);
+                logger.error(message, e);
                 listener.onFailure(new RuntimeException(message, e));
             })
         );
     }
 
-    public static TransformDestIndexSettings createTransformDestIndexSettings(Map<String, String> mappings, String id, Clock clock) {
+    static void setUpDestinationAliases(Client client, TransformConfig config, ActionListener<Boolean> listener) {
+        // No aliases configured to be set up, just move on
+        if (config.getDestination().getAliases() == null || config.getDestination().getAliases().isEmpty()) {
+            listener.onResponse(true);
+            return;
+        }
+
+        IndicesAliasesRequest request = new IndicesAliasesRequest(
+            Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT,
+            Transform.HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT
+        );
+        for (DestAlias destAlias : config.getDestination().getAliases()) {
+            if (destAlias.isMoveOnCreation()) {
+                request.addAliasAction(IndicesAliasesRequest.AliasActions.remove().alias(destAlias.getAlias()).index("*"));
+            }
+        }
+        for (DestAlias destAlias : config.getDestination().getAliases()) {
+            request.addAliasAction(
+                IndicesAliasesRequest.AliasActions.add().alias(destAlias.getAlias()).index(config.getDestination().getIndex())
+            );
+        }
+
+        ClientHelper.executeWithHeadersAsync(
+            config.getHeaders(),
+            TRANSFORM_ORIGIN,
+            client,
+            TransportIndicesAliasesAction.TYPE,
+            request,
+            ActionListener.wrap(aliasesResponse -> {
+                listener.onResponse(true);
+            }, e -> {
+                String message = TransformMessages.getMessage(
+                    TransformMessages.FAILED_TO_SET_UP_DESTINATION_ALIASES,
+                    config.getDestination().getIndex(),
+                    config.getId()
+                );
+                logger.error(message, e);
+                listener.onFailure(new RuntimeException(message, e));
+            })
+        );
+    }
+
+    public static TransformDestIndexSettings createTransformDestIndexSettings(
+        Settings settings,
+        Map<String, String> mappings,
+        String id,
+        Clock clock
+    ) {
         Map<String, Object> indexMappings = new HashMap<>();
         indexMappings.put(PROPERTIES, createMappingsFromStringMap(mappings));
         indexMappings.put(META, createMetadata(id, clock));
-
-        Settings settings = createSettings();
 
         // transform does not create aliases, however the user might customize this in future
         Set<Alias> aliases = null;
@@ -135,14 +277,14 @@ public final class TransformIndex {
     }
 
     /*
-     * Return meta data that stores some useful information about the transform index, stored as "_meta":
+     * Return metadata that stores some useful information about the transform index, stored as "_meta":
      *
      * {
      *   "created_by" : "transform",
      *   "_transform" : {
      *     "transform" : "id",
      *     "version" : {
-     *       "created" : "8.0.0"
+     *       "created" : "10.0.0"
      *     },
      *     "creation_date_in_millis" : 1584025695202
      *   }
@@ -155,22 +297,14 @@ public final class TransformIndex {
 
         Map<String, Object> transformMetadata = new HashMap<>();
         transformMetadata.put(TransformField.CREATION_DATE_MILLIS, clock.millis());
-        transformMetadata.put(TransformField.VERSION.getPreferredName(), Map.of(TransformField.CREATED, Version.CURRENT.toString()));
+        transformMetadata.put(
+            TransformField.VERSION.getPreferredName(),
+            Map.of(TransformField.CREATED, TransformConfigVersion.CURRENT.toString())
+        );
         transformMetadata.put(TransformField.TRANSFORM, id);
 
         metadata.put(TransformField.META_FIELDNAME, transformMetadata);
         return metadata;
-    }
-
-    /**
-     * creates generated index settings, hardcoded at the moment, in future this might be customizable or generation could
-     * be based on source settings.
-     */
-    private static Settings createSettings() {
-        return Settings.builder() // <1>
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .build();
     }
 
     /**

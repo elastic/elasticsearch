@@ -21,6 +21,8 @@ public class BertTokenization extends Tokenization {
 
     public static final ParseField NAME = new ParseField("bert");
 
+    public static final String MASK_TOKEN = "[MASK]";
+
     public static ConstructingObjectParser<BertTokenization, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<BertTokenization, Void> parser = new ConstructingObjectParser<>(
             "bert_tokenization",
@@ -59,12 +61,22 @@ public class BertTokenization extends Tokenization {
     }
 
     @Override
+    Tokenization buildWindowingTokenization(int updatedMaxSeqLength, int updatedSpan) {
+        return new BertTokenization(this.doLowerCase, this.withSpecialTokens, updatedMaxSeqLength, Truncate.NONE, updatedSpan);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
     }
 
     XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         return builder;
+    }
+
+    @Override
+    public String getMaskToken() {
+        return MASK_TOKEN;
     }
 
     @Override

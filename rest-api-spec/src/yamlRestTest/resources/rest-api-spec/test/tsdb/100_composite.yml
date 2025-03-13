@@ -1,7 +1,13 @@
+---
 setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: "tsdb indexing changed in 8.2.0"
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
   - do:
       indices.create:
@@ -62,9 +68,9 @@ setup:
 
 ---
 composite aggregation on tsid:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -90,31 +96,31 @@ composite aggregation on tsid:
 
   - match:  { hits.total.value: 8 }
   - length: { aggregations.tsids.buckets: 4 }
-  - match:  { aggregations.tsids.buckets.0.key.tsid.k8s\.pod\.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match:  { aggregations.tsids.buckets.0.key.tsid.metricset: "pod" }
+
+  - match:  { aggregations.tsids.buckets.0.key.tsid: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ" }
   - match:  { aggregations.tsids.buckets.0.key.date:  1619635800000}
   - match:  { aggregations.tsids.buckets.0.doc_count: 3 }
-  - match:  { aggregations.tsids.buckets.1.key.tsid.k8s\.pod\.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
-  - match:  { aggregations.tsids.buckets.1.key.tsid.metricset: "pod" }
+
+  - match:  { aggregations.tsids.buckets.1.key.tsid: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ" }
   - match:  { aggregations.tsids.buckets.1.key.date:  1619635860000}
   - match:  { aggregations.tsids.buckets.1.doc_count: 1 }
-  - match:  { aggregations.tsids.buckets.2.key.tsid.k8s\.pod\.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match:  { aggregations.tsids.buckets.2.key.tsid.metricset: "pod" }
-  - match:  { aggregations.tsids.buckets.2.key.date:  1619635800000}
+
+  - match:  { aggregations.tsids.buckets.2.key.tsid: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" }
+  - match:  { aggregations.tsids.buckets.2.key.date: 1619635800000 }
   - match:  { aggregations.tsids.buckets.2.doc_count: 3 }
-  - match:  { aggregations.tsids.buckets.3.key.tsid.k8s\.pod\.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match:  { aggregations.tsids.buckets.3.key.tsid.metricset: "pod" }
+
+  - match:  { aggregations.tsids.buckets.3.key.tsid: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" }
   - match:  { aggregations.tsids.buckets.3.key.date:  1619635860000}
   - match:  { aggregations.tsids.buckets.3.doc_count: 1 }
-  - match:  { aggregations.tsids.after_key.tsid.k8s\.pod\.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match:  { aggregations.tsids.after_key.tsid.metricset: "pod" }
+
+  - match:  { aggregations.tsids.after_key.tsid: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" }
   - match:  { aggregations.tsids.after_key.date:  1619635860000}
 
 ---
 composite aggregation on tsid with after:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -138,17 +144,17 @@ composite aggregation on tsid with after:
                     }
                 ]
                 after: {
-                  tsid: { k8s.pod.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9", metricset: "pod" },
+                  tsid: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o",
                   date: 1619635800000
                 }
 
   - match:  { hits.total.value: 8 }
   - length: { aggregations.tsids.buckets: 1 }
-  - match:  { aggregations.tsids.buckets.0.key.tsid.k8s\.pod\.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match:  { aggregations.tsids.buckets.0.key.tsid.metricset: "pod" }
+
+  - match:  { aggregations.tsids.buckets.0.key.tsid: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" }
   - match:  { aggregations.tsids.buckets.0.key.date:  1619635860000}
   - match:  { aggregations.tsids.buckets.0.doc_count: 1 }
-  - match:  { aggregations.tsids.after_key.tsid.k8s\.pod\.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
-  - match:  { aggregations.tsids.after_key.tsid.metricset: "pod" }
+
+  - match:  { aggregations.tsids.after_key.tsid: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" }
   - match:  { aggregations.tsids.after_key.date:  1619635860000}
 

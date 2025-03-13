@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex.remote;
@@ -49,7 +50,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 Request reindex = new Request("POST", "/_reindex");
                 if (randomBoolean()) {
                     // Reindex using the external version_type
-                    reindex.setJsonEntity("""
+                    reindex.setJsonEntity(String.format(java.util.Locale.ROOT, """
                         {
                           "source":{
                             "index": "test",
@@ -62,10 +63,10 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                             "index": "test",
                             "version_type": "external"
                           }
-                        }""".formatted(oldEsPort));
+                        }""", oldEsPort));
                 } else {
                     // Reindex using the default internal version_type
-                    reindex.setJsonEntity("""
+                    reindex.setJsonEntity(String.format(java.util.Locale.ROOT, """
                         {
                           "source":{
                             "index": "test",
@@ -77,7 +78,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                           "dest": {
                             "index": "test"
                           }
-                        }""".formatted(oldEsPort));
+                        }""", oldEsPort));
                 }
                 reindex.addParameter("refresh", "true");
                 reindex.addParameter("pretty", "true");

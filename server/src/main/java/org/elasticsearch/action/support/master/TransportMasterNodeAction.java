@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.master;
@@ -18,23 +19,23 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ActionWithReservedState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -44,11 +45,8 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.core.Strings.format;
@@ -57,18 +55,19 @@ import static org.elasticsearch.core.Strings.format;
  * A base class for operations that needs to be performed on the master node.
  */
 public abstract class TransportMasterNodeAction<Request extends MasterNodeRequest<Request>, Response extends ActionResponse> extends
-    HandledTransportAction<Request, Response> {
+    HandledTransportAction<Request, Response>
+    implements
+        ActionWithReservedState<Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportMasterNodeAction.class);
 
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
-    protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final Writeable.Reader<Response> responseReader;
 
-    protected final String executor;
+    protected final Executor executor;
 
     protected TransportMasterNodeAction(
         String actionName,
@@ -77,22 +76,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
-        this(
-            actionName,
-            true,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            request,
-            indexNameExpressionResolver,
-            response,
-            executor
-        );
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, response, executor);
     }
 
     protected TransportMasterNodeAction(
@@ -103,15 +90,13 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
-        String executor
+        Executor executor
     ) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor;
         this.responseReader = response;
     }
@@ -121,10 +106,9 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
     private void executeMasterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
-        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+        if (task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled()) {
             throw new TaskCancelledException("Task was cancelled");
         }
-
         masterOperation(task, request, state, listener);
     }
 
@@ -149,71 +133,36 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
     }
 
-    /**
-     * Override this method if the master node action also has an {@link ReservedClusterStateHandler}
-     * interaction.
-     * <p>
-     * We need to check if certain settings or entities are allowed to be modified by the master node
-     * action, depending on if they are set as reserved in 'operator' mode (file based settings, modules, plugins).
-     *
-     * @return an Optional of the {@link ReservedClusterStateHandler} name
-     */
-    protected Optional<String> reservedStateHandlerName() {
-        return Optional.empty();
-    }
-
-    /**
-     * Override this method to return the keys of the cluster state or cluster entities that are modified by
-     * the Request object.
-     * <p>
-     * This method is used by the reserved state handler logic (see {@link ReservedClusterStateHandler})
-     * to verify if the keys don't conflict with an existing key set as reserved.
-     *
-     * @param request the TransportMasterNode request
-     * @return set of String keys intended to be modified/set/deleted by this request
-     */
-    protected Set<String> modifiedKeys(Request request) {
-        return Collections.emptySet();
-    }
-
-    // package private for testing
-    void validateForImmutableState(Request request, ClusterState state) {
+    @FixForMultiProject // this is overridden for project-specific reserved metadata checks. A common subclass needs to exist for this.
+    protected void validateForReservedState(Request request, ClusterState state) {
         Optional<String> handlerName = reservedStateHandlerName();
         assert handlerName.isPresent();
 
-        Set<String> modified = modifiedKeys(request);
-        List<String> errors = new ArrayList<>();
-
-        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
-            Set<String> conflicts = metadata.conflicts(handlerName.get(), modified);
-            if (conflicts.isEmpty() == false) {
-                errors.add(format("[%s] set as read-only by [%s]", String.join(", ", conflicts), metadata.namespace()));
-            }
-        }
-
-        if (errors.isEmpty() == false) {
-            throw new IllegalArgumentException(
-                format("Failed to process request [%s] with errors: [%s]", request, String.join(", ", errors))
-            );
-        }
+        validateForReservedState(
+            state.metadata().reservedStateMetadata().values(),
+            handlerName.get(),
+            modifiedKeys(request),
+            request.toString()
+        );
     }
 
     // package private for testing
-    boolean supportsImmutableState() {
+    boolean supportsReservedState() {
         return reservedStateHandlerName().isPresent();
     }
 
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
-        if (supportsImmutableState()) {
-            validateForImmutableState(request, state);
+        if (supportsReservedState()) {
+            validateForReservedState(request, state);
         }
         logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());
         }
-        new AsyncSingleAction(task, request, listener).doStart(state);
+        request.mustIncRef();
+        new AsyncSingleAction(task, request, ActionListener.runBefore(listener, request::decRef)).doStart(state);
     }
 
     class AsyncSingleAction {
@@ -236,6 +185,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 listener.onFailure(new TaskCancelledException("Task was cancelled"));
                 return;
             }
+            final long currentStateVersion = clusterState.version();
             try {
                 final DiscoveryNodes nodes = clusterState.nodes();
                 if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
@@ -247,7 +197,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                             listener.onFailure(blockException);
                         } else {
                             logger.debug("can't execute due to a cluster block, retrying", blockException);
-                            retry(clusterState, blockException, newState -> {
+                            retry(currentStateVersion, blockException, newState -> {
                                 try {
                                     ClusterBlockException newException = checkBlockIfStateRecovered(request, newState);
                                     return (newException == null || newException.retryable() == false);
@@ -269,27 +219,33 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                     ),
                                     t
                                 );
-                                retryOnMasterChange(clusterState, t);
+                                retryOnNextState(currentStateVersion, t);
                             } else {
                                 logger.debug("unexpected exception during publication", t);
                                 delegatedListener.onFailure(t);
                             }
                         });
-                        threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
+                        executor.execute(ActionRunnable.wrap(delegate, l -> executeMasterOperation(task, request, clusterState, l)));
                     }
                 } else {
                     if (nodes.getMasterNode() == null) {
                         logger.debug("no known master node, scheduling a retry");
-                        retryOnMasterChange(clusterState, null);
+                        retryOnNextState(currentStateVersion, null);
+                    } else if (clusterState.term() < request.masterTerm()) {
+                        logger.debug(
+                            "request routed to master in term [{}] but local term is [{}], waiting for local term bump",
+                            request.masterTerm(),
+                            clusterState.term()
+                        );
+                        retry(currentStateVersion, null, cs -> request.masterTerm() <= cs.term());
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
                         transportService.sendRequest(
                             masterNode,
                             actionName,
-                            request,
-                            new ActionListenerResponseHandler<Response>(listener, responseReader) {
+                            new TermOverridingMasterNodeRequest(request, clusterState.term()),
+                            new ActionListenerResponseHandler<>(listener, responseReader, executor) {
                                 @Override
                                 public void handleException(final TransportException exp) {
                                     Throwable cause = exp.unwrapCause();
@@ -303,7 +259,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                                             nodes.getMasterNode(),
                                             exp.getDetailedMessage()
                                         );
-                                        retryOnMasterChange(clusterState, cause);
+                                        retryOnNextState(currentStateVersion, cause);
                                     } else {
                                         logger.trace(
                                             () -> format("failure when forwarding request [%s] to master [%s]", actionName, masterNode),
@@ -322,22 +278,28 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             }
         }
 
-        private void retryOnMasterChange(ClusterState state, Throwable failure) {
-            retry(state, failure, MasterNodeChangePredicate.build(state));
+        private void retryOnNextState(long currentStateVersion, Throwable failure) {
+            retry(currentStateVersion, failure, ClusterStateObserver.NON_NULL_MASTER_PREDICATE);
         }
 
-        private void retry(ClusterState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
+        private void retry(long currentStateVersion, final Throwable failure, final Predicate<ClusterState> statePredicate) {
             if (observer == null) {
-                final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
-                if (remainingTimeoutMS <= 0) {
-                    logger.debug(() -> "timed out before retrying [" + actionName + "] after failure", failure);
-                    listener.onFailure(new MasterNotDiscoveredException(failure));
-                    return;
+                final TimeValue timeout;
+                if (request.masterNodeTimeout().millis() < 0) {
+                    timeout = null;
+                } else {
+                    final long remainingTimeoutMS = request.masterNodeTimeout().millis() - (threadPool.relativeTimeInMillis() - startTime);
+                    if (remainingTimeoutMS <= 0) {
+                        logger.debug(() -> "timed out before retrying [" + actionName + "] after failure", failure);
+                        listener.onFailure(new MasterNotDiscoveredException(failure));
+                        return;
+                    }
+                    timeout = TimeValue.timeValueMillis(remainingTimeoutMS);
                 }
                 this.observer = new ClusterStateObserver(
-                    state,
-                    clusterService,
-                    TimeValue.timeValueMillis(remainingTimeoutMS),
+                    currentStateVersion,
+                    clusterService.getClusterApplierService(),
+                    timeout,
                     logger,
                     threadPool.getThreadContext()
                 );
@@ -359,11 +321,25 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     logger.debug(() -> format("timed out while retrying [%s] after failure (timeout [%s])", actionName, timeout), failure);
                     listener.onFailure(new MasterNotDiscoveredException(failure));
                 }
+
+                @Override
+                public String toString() {
+                    return Strings.format(
+                        "listener for [%s] retrying after cluster state version [%d]",
+                        AsyncSingleAction.this,
+                        currentStateVersion
+                    );
+                }
             }, clusterState -> isTaskCancelled() || statePredicate.test(clusterState));
         }
 
         private boolean isTaskCancelled() {
-            return task instanceof CancellableTask && ((CancellableTask) task).isCancelled();
+            return task instanceof CancellableTask cancellableTask && cancellableTask.isCancelled();
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format("execution of [%s]", task);
         }
     }
 }

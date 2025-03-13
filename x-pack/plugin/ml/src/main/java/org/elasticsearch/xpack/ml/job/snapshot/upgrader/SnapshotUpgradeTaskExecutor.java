@@ -68,7 +68,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         MlMemoryTracker memoryTracker,
         IndexNameExpressionResolver expressionResolver,
         Client client,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        AnomalyDetectionAuditor auditor
     ) {
         super(
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
@@ -79,7 +80,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             expressionResolver
         );
         this.autodetectProcessManager = autodetectProcessManager;
-        this.auditor = new AnomalyDetectionAuditor(client, clusterService);
+        this.auditor = auditor;
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
         this.client = client;
         this.licenseState = licenseState;
@@ -197,7 +198,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 client,
                 clusterState,
                 MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
-                resultsMappingUpdateHandler
+                resultsMappingUpdateHandler,
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
             ),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
@@ -209,7 +211,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                     client,
                     clusterState,
                     MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
-                    resultsMappingUpdateHandler
+                    resultsMappingUpdateHandler,
+                    AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
                 );
             }
         );
@@ -326,6 +329,6 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             );
 
         });
-        jobResultsProvider.getModelSnapshot(jobId, snapshotId, modelSnapshotListener::onResponse, modelSnapshotListener::onFailure);
+        jobResultsProvider.getModelSnapshot(jobId, snapshotId, false, modelSnapshotListener::onResponse, modelSnapshotListener::onFailure);
     }
 }

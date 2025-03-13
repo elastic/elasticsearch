@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.junit.Before;
 
@@ -33,7 +33,7 @@ public class OutlierDetectionStatsTests extends AbstractBWCSerializationTestCase
     }
 
     @Override
-    protected OutlierDetectionStats mutateInstanceForVersion(OutlierDetectionStats instance, Version version) {
+    protected OutlierDetectionStats mutateInstanceForVersion(OutlierDetectionStats instance, TransportVersion version) {
         return instance;
     }
 
@@ -55,6 +55,11 @@ public class OutlierDetectionStatsTests extends AbstractBWCSerializationTestCase
     @Override
     protected OutlierDetectionStats createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected OutlierDetectionStats mutateInstance(OutlierDetectionStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static OutlierDetectionStats createRandom() {

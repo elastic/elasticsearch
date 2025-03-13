@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -12,9 +13,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -22,10 +26,30 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class BucketsAggregatorTests extends AggregatorTestCase {
+
+    private List<AggregationContext> toRelease = new ArrayList<>();
+
+    @Override
+    protected AggregationContext createAggregationContext(IndexReader indexSearcher, Query query, MappedFieldType... fieldTypes)
+        throws IOException {
+        AggregationContext context = super.createAggregationContext(indexSearcher, query, fieldTypes);
+        // Generally, we should avoid doing this, but this test doesn't do anything with reduction, so it should be safe here
+        toRelease.add(context);
+        return context;
+    }
+
+    @After
+    public void releaseContext() {
+        Releasables.close(toRelease);
+        toRelease.clear();
+    }
 
     public BucketsAggregator buildMergeAggregator() throws IOException {
         try (Directory directory = newDirectory()) {
@@ -36,10 +60,8 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
-
                 AggregationContext context = createAggregationContext(
-                    indexSearcher,
+                    indexReader,
                     null,
                     new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                 );
@@ -51,7 +73,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
                     }
 
                     @Override
-                    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+                    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) {
                         return new InternalAggregation[0];
                     }
 

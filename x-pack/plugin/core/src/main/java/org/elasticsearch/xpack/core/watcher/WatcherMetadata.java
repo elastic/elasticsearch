@@ -6,21 +6,25 @@
  */
 package org.elasticsearch.xpack.core.watcher;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Objects;
 
-public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
+
+public class WatcherMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "watcher";
 
@@ -40,8 +44,8 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.MINIMUM_COMPATIBLE;
     }
 
     @Override
@@ -53,8 +57,8 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
         this(streamInput.readBoolean());
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, streamInput);
     }
 
     @Override
@@ -82,7 +86,7 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
         return Objects.hash(manuallyStopped);
     }
 
-    public static Metadata.Custom fromXContent(XContentParser parser) throws IOException {
+    public static Metadata.ProjectCustom fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         Boolean manuallyStopped = null;
         String currentFieldName = null;
@@ -105,9 +109,8 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Field.MANUALLY_STOPPED.getPreferredName(), manuallyStopped);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return chunk((b, p) -> b.field(Field.MANUALLY_STOPPED.getPreferredName(), manuallyStopped));
     }
 
     interface Field {

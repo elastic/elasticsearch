@@ -1,0 +1,22 @@
+{
+  "properties" : {
+    "language" : {
+      "properties" : {
+        "id": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
+        },
+        "code": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

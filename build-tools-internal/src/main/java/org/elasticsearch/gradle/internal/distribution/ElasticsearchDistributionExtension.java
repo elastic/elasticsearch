@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.distribution;
@@ -19,7 +20,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
 
 public class ElasticsearchDistributionExtension {
     private static final Pattern CONFIG_BIN_REGEX_PATTERN = Pattern.compile("([^\\/]+\\/)?(config|bin)\\/.*");
@@ -36,7 +37,7 @@ public class ElasticsearchDistributionExtension {
         return project.getConfigurations().detachedConfiguration(dep);
     }
 
-    public void copyModule(TaskProvider<AbstractCopyTask> copyTask, Project module) {
+    public void copyModule(TaskProvider<? extends AbstractCopyTask> copyTask, Project module) {
         copyTask.configure(sync -> {
             var moduleConfig = moduleZip(module);
             sync.dependsOn(moduleConfig);

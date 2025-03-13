@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 
 import java.util.function.BiFunction;
 
@@ -36,8 +36,8 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         String[] settingsKeys = instance.getSettingsKeys();
 
         switch (between(0, 3)) {
-            case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> settingsKeys = new String[] { randomAlphaOfLengthBetween(1, 10) };
             case 3 -> targetIndexNameSupplier = (index, state) -> randomAlphaOfLengthBetween(11, 15) + index;
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -59,7 +59,7 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
 
@@ -67,7 +67,7 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         String targetIndex = indexPrefix + indexName;
 
         IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndex)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
 
@@ -84,7 +84,7 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         );
 
         ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
-        IndexMetadata newTargetIndexMetadata = newClusterState.metadata().index(targetIndex);
+        IndexMetadata newTargetIndexMetadata = newClusterState.metadata().getProject().index(targetIndex);
         assertThat(newTargetIndexMetadata.getLifecyclePolicyName(), is(policyName));
     }
 }

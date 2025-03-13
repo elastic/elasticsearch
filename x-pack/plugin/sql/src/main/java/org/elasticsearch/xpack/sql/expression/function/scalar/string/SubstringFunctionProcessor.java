@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -59,11 +60,11 @@ public class SubstringFunctionProcessor implements Processor {
         Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);
         Check.isFixedNumberAndInRange(length, "length", 0L, (long) Integer.MAX_VALUE);
 
-        return StringFunctionUtils.substring(
-            input instanceof Character ? input.toString() : (String) input,
-            ((Number) start).intValue() - 1, // SQL is 1-based when it comes to string manipulation
-            ((Number) length).intValue()
-        );
+        String s = input instanceof Character ? input.toString() : (String) input;
+        int strStart = ((Number) start).intValue() - 1;  // SQL is 1-based when it comes to string manipulation
+        strStart = Math.min(Math.max(0, strStart), s.length()); // sanitise string start index
+
+        return Strings.substring(s, strStart, strStart + ((Number) length).intValue());
     }
 
     protected Processor input() {

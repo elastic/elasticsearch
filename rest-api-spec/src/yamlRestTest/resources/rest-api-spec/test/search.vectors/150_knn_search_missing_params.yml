@@ -1,0 +1,139 @@
+setup:
+  - requires:
+      cluster_features: "gte_v8.13.0"
+      reason: '[k] and [num_candidates] were made optional for kNN search in 8.13.0'
+  - do:
+      indices.create:
+        index: knn_search_test_index
+        body:
+          mappings:
+            properties:
+                  vector:
+                    type: dense_vector
+                    dims: 5
+                    index: true
+                    similarity: l2_norm
+
+  - do:
+      index:
+        index: knn_search_test_index
+        id: "1"
+        body:
+          vector: [1.0, -10.5, 1.3, 0.593, 41]
+
+  - do:
+      index:
+        index: knn_search_test_index
+        id: "2"
+        body:
+          vector: [-0.5, 100.0, -13, 14.8, -156.0]
+
+  - do:
+      index:
+        index: knn_search_test_index
+        id: "3"
+        body:
+          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+
+  - do:
+      indices.refresh: {}
+
+---
+"kNN with missing k param using default size":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: knn_search_test_index
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            num_candidates: 10
+
+  - match: {hits.total: 3}
+
+---
+"kNN with missing k param using provided size":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: knn_search_test_index
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            num_candidates: 10
+          size: 2
+
+  - match: {hits.total: 2}
+
+---
+"kNN search with missing num_candidates param":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: knn_search_test_index
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            k: 2
+
+  - match: {hits.total: 2}
+
+---
+"kNN search with missing both k and num_candidates param - default size":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: knn_search_test_index
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+
+  - match: {hits.total: 3}
+
+
+---
+"kNN search with missing both k and num_candidates param - provided size":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: knn_search_test_index
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+          size: 2
+
+  - match: {hits.total: 2}
+
+---
+"kNN search with missing k, and num_candidates < size":
+
+  - do:
+      catch: bad_request
+      search:
+        index: knn_search_test_index
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            num_candidates: 2
+          size: 10
+
+---
+"kNN search with missing k, default size, and invalid num_candidates":
+
+  - do:
+      catch: bad_request
+      search:
+        index: knn_search_test_index
+        body:
+          knn:
+            field: vector
+            query_vector: [-0.5, 90.0, -10, 14.8, -156.0]
+            num_candidates: 2

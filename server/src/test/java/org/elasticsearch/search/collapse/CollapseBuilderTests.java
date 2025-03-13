@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.collapse;
 
@@ -26,7 +27,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.AfterClass;
@@ -41,7 +42,7 @@ import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBuilder> {
+public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<CollapseBuilder> {
     private static NamedWriteableRegistry namedWriteableRegistry;
     private static NamedXContentRegistry xContentRegistry;
 
@@ -152,7 +153,9 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 Collections.emptyMap(),
                 null,
                 false,
-                null
+                null,
+                null,
+                false
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
@@ -169,10 +172,12 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
                 Collections.emptyMap(),
                 null,
                 false,
-                null
+                null,
+                null,
+                false
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
-            builder.setInnerHits(new InnerHitBuilder());
+            builder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
                 exc.getMessage(),
@@ -192,7 +197,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
 
             keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
-            kbuilder.setInnerHits(new InnerHitBuilder());
+            kbuilder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
                 exc.getMessage(),

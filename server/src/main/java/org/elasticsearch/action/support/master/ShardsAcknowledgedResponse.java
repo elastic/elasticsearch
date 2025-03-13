@@ -1,40 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-
 public class ShardsAcknowledgedResponse extends AcknowledgedResponse {
 
-    protected static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
-
-    protected static <T extends ShardsAcknowledgedResponse> void declareAcknowledgedAndShardsAcknowledgedFields(
-        ConstructingObjectParser<T, Void> objectParser
-    ) {
-        declareAcknowledgedField(objectParser);
-        objectParser.declareField(
-            constructorArg(),
-            (parser, context) -> parser.booleanValue(),
-            SHARDS_ACKNOWLEDGED,
-            ObjectParser.ValueType.BOOLEAN
-        );
-    }
+    public static final ParseField SHARDS_ACKNOWLEDGED = new ParseField("shards_acknowledged");
 
     public static final ShardsAcknowledgedResponse NOT_ACKNOWLEDGED = new ShardsAcknowledgedResponse(false, false);
     private static final ShardsAcknowledgedResponse SHARDS_NOT_ACKNOWLEDGED = new ShardsAcknowledgedResponse(true, false);

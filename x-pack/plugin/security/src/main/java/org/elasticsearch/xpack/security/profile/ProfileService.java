@@ -9,34 +9,36 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
-import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.TransportGetAction;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportMultiSearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -46,11 +48,11 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -58,27 +60,35 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.ResultsAndErrors;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.DomainConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
@@ -89,43 +99,34 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
 public class ProfileService {
     private static final Logger logger = LogManager.getLogger(ProfileService.class);
     private static final String DOC_ID_PREFIX = "profile_";
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
     private static final int DIFFERENTIATOR_UPPER_LIMIT = 9;
+    private static final long ACTIVATE_INTERVAL_IN_MS = TimeValue.timeValueSeconds(30).millis();
 
     private final Settings settings;
     private final Clock clock;
     private final Client client;
     private final SecurityIndexManager profileIndex;
-    private final ClusterService clusterService;
     private final Function<String, DomainConfig> domainConfigLookup;
-    private final ThreadPool threadPool;
+    private final Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
 
-    public ProfileService(
-        Settings settings,
-        Clock clock,
-        Client client,
-        SecurityIndexManager profileIndex,
-        ClusterService clusterService,
-        Function<String, DomainConfig> domainConfigLookup,
-        ThreadPool threadPool
-    ) {
+    public ProfileService(Settings settings, Clock clock, Client client, SecurityIndexManager profileIndex, Realms realms) {
         this.settings = settings;
         this.clock = clock;
         this.client = client;
         this.profileIndex = profileIndex;
-        this.clusterService = clusterService;
-        this.domainConfigLookup = domainConfigLookup;
-        this.threadPool = threadPool;
+        this.domainConfigLookup = realms::getDomainConfig;
+        this.realmRefLookup = realms::getRealmRef;
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {
@@ -150,19 +151,21 @@ public class ProfileService {
         }));
     }
 
-    public void getProfileSubjects(Collection<String> uids, ActionListener<MultiProfileSubjectResponse> listener) {
+    public void getProfileSubjects(Collection<String> uids, ActionListener<ResultsAndErrors<Map.Entry<String, Subject>>> listener) {
         getVersionedDocuments(uids, listener.map(resultsAndErrors -> {
             if (resultsAndErrors != null) {
-                return new MultiProfileSubjectResponse(
+                // convert the list of profile document to a list of "uid to subject" entries
+                return new ResultsAndErrors<>(
                     resultsAndErrors.results()
                         .stream()
                         .map(VersionedDocument::doc)
                         .filter(ProfileDocument::enabled)
-                        .collect(Collectors.toMap(ProfileDocument::uid, profileDoc -> profileDoc.user().toSubject())),
-                    Set.copyOf(errorUidsExcludingNotFound(resultsAndErrors.errors()))
+                        .map(doc -> Map.entry(doc.uid(), doc.user().toSubject()))
+                        .toList(),
+                    resultsAndErrors.errors()
                 );
             } else {
-                return new MultiProfileSubjectResponse(Map.of(), Set.of());
+                return new ResultsAndErrors<>(List.of(), Map.of());
             }
         }));
     }
@@ -188,7 +191,7 @@ public class ProfileService {
             return;
         }
 
-        if (User.isInternal(subject.getUser())) {
+        if (subject.getUser() instanceof InternalUser) {
             listener.onFailure(
                 new IllegalStateException("profile should not be created for internal user [" + subject.getUser().principal() + "]")
             );
@@ -247,20 +250,16 @@ public class ProfileService {
     public void suggestProfile(SuggestProfilesRequest request, TaskId parentTaskId, ActionListener<SuggestProfilesResponse> listener) {
         tryFreezeAndCheckIndex(listener.map(response -> {
             assert response == null : "only null response can reach here";
-            return new SuggestProfilesResponse(
-                new SuggestProfilesResponse.ProfileHit[] {},
-                0,
-                new TotalHits(0, TotalHits.Relation.EQUAL_TO)
-            );
-        })).ifPresent(frozenProfileIndex -> {
-            final SearchRequest searchRequest = buildSearchRequest(request, parentTaskId);
+            return new SuggestProfilesResponse(new SuggestProfilesResponse.ProfileHit[] {}, 0, Lucene.TOTAL_HITS_EQUAL_TO_ZERO);
+        }), SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
+            final SearchRequest searchRequest = buildSearchRequestForSuggest(request, parentTaskId);
 
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    getActionOrigin(),
-                    SearchAction.INSTANCE,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
                         final SearchHits searchHits = searchResponse.getHits();
@@ -301,11 +300,128 @@ public class ProfileService {
             listener.onFailure(e);
             return;
         }
-        doUpdate(buildUpdateRequest(uid, builder, refreshPolicy, -1, -1), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
+        doUpdate(buildUpdateRequest(uid, builder, refreshPolicy), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
+    }
+
+    public void resolveProfileUidsForApiKeys(Collection<ApiKey> apiKeyInfos, ActionListener<Collection<String>> listener) {
+        List<Subject> subjects = apiKeyInfos.stream().map(this::getApiKeyCreatorSubject).filter(Objects::nonNull).distinct().toList();
+        searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
+            if (resultsAndErrors == null) {
+                // profile index does not exist
+                listener.onResponse(null);
+            } else if (resultsAndErrors.errors().isEmpty()) {
+                assert subjects.size() == resultsAndErrors.results().size();
+                Map<Subject, String> profileUidLookup = resultsAndErrors.results()
+                    .stream()
+                    .filter(t -> Objects.nonNull(t.v2()))
+                    .map(t -> new Tuple<>(t.v1(), t.v2().uid()))
+                    .collect(Collectors.toUnmodifiableMap(Tuple::v1, Tuple::v2));
+                listener.onResponse(apiKeyInfos.stream().map(apiKeyInfo -> {
+                    Subject subject = getApiKeyCreatorSubject(apiKeyInfo);
+                    return subject == null ? null : profileUidLookup.get(subject);
+                }).toList());
+            } else {
+                final ElasticsearchStatusException exception = new ElasticsearchStatusException(
+                    "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
+                    RestStatus.INTERNAL_SERVER_ERROR
+                );
+                resultsAndErrors.errors().values().forEach(exception::addSuppressed);
+                listener.onFailure(exception);
+            }
+        }, listener::onFailure));
+    }
+
+    public void searchProfilesForSubjects(List<Subject> subjects, ActionListener<SubjectSearchResultsAndErrors<Profile>> listener) {
+        searchVersionedDocumentsForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
+            if (resultsAndErrors == null) {
+                // profile index does not exist
+                listener.onResponse(null);
+                return;
+            }
+            listener.onResponse(new SubjectSearchResultsAndErrors<>(resultsAndErrors.results().stream().map(t -> {
+                if (t.v2() != null) {
+                    return new Tuple<>(t.v1(), t.v2().toProfile(Set.of()));
+                } else {
+                    return new Tuple<>(t.v1(), (Profile) null);
+                }
+            }).toList(), resultsAndErrors.errors()));
+        }, listener::onFailure));
+    }
+
+    public void usageStats(ActionListener<Map<String, Object>> listener) {
+        tryFreezeAndCheckIndex(listener.map(response -> { // index does not exist
+            assert response == null : "only null response can reach here";
+            return Map.of("total", 0L, "enabled", 0L, "recent", 0L);
+        }), SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
+            final MultiSearchRequest multiSearchRequest = client.prepareMultiSearch()
+                .add(
+                    client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                        .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.existsQuery("user_profile.uid")))
+                        .setSize(0)
+                        .setTrackTotalHits(true)
+                        .request()
+                )
+                .add(
+                    client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                        .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true)))
+                        .setSize(0)
+                        .setTrackTotalHits(true)
+                        .request()
+                )
+                .add(
+                    client.prepareSearch(SECURITY_PROFILE_ALIAS)
+                        .setQuery(
+                            QueryBuilders.boolQuery()
+                                .filter(QueryBuilders.termQuery("user_profile.enabled", true))
+                                .filter(
+                                    QueryBuilders.rangeQuery("user_profile.last_synchronized")
+                                        .gt(Instant.now().minus(30, ChronoUnit.DAYS).toEpochMilli())
+                                )
+                        )
+                        .setSize(0)
+                        .setTrackTotalHits(true)
+                        .request()
+                )
+                .request();
+
+            frozenProfileIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportMultiSearchAction.TYPE,
+                    multiSearchRequest,
+                    ActionListener.wrap(multiSearchResponse -> {
+                        final MultiSearchResponse.Item[] items = multiSearchResponse.getResponses();
+                        assert items.length == 3;
+                        final Map<String, Object> usage = new HashMap<>();
+                        if (items[0].isFailure()) {
+                            logger.debug("error on counting total profiles", items[0].getFailure());
+                            usage.put("total", 0L);
+                        } else {
+                            usage.put("total", items[0].getResponse().getHits().getTotalHits().value());
+                        }
+                        if (items[1].isFailure()) {
+                            logger.debug("error on counting enabled profiles", items[0].getFailure());
+                            usage.put("enabled", 0L);
+                        } else {
+                            usage.put("enabled", items[1].getResponse().getHits().getTotalHits().value());
+                        }
+                        if (items[2].isFailure()) {
+                            logger.debug("error on counting recent profiles", items[0].getFailure());
+                            usage.put("recent", 0L);
+                        } else {
+                            usage.put("recent", items[2].getResponse().getHits().getTotalHits().value());
+                        }
+                        listener.onResponse(usage);
+                    }, listener::onFailure)
+                )
+            );
+        });
     }
 
     // package private for testing
-    SearchRequest buildSearchRequest(SuggestProfilesRequest request, TaskId parentTaskId) {
+    SearchRequest buildSearchRequestForSuggest(SuggestProfilesRequest request, TaskId parentTaskId) {
         final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
         if (Strings.hasText(request.getName())) {
             query.must(
@@ -347,24 +463,30 @@ public class ProfileService {
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+        tryFreezeAndCheckIndex(listener, PRIMARY_SHARDS).ifPresent(frozenProfileIndex -> {
             final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> executeAsyncWithOrigin(client, getActionOrigin(), GetAction.INSTANCE, getRequest, ActionListener.wrap(response -> {
-                    if (false == response.isExists()) {
-                        logger.debug("profile with uid [{}] does not exist", uid);
-                        listener.onResponse(null);
-                        return;
-                    }
-                    listener.onResponse(
-                        new VersionedDocument(
-                            buildProfileDocument(response.getSourceAsBytesRef()),
-                            response.getPrimaryTerm(),
-                            response.getSeqNo()
-                        )
-                    );
-                }, listener::onFailure))
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportGetAction.TYPE,
+                    getRequest,
+                    ActionListener.wrap(response -> {
+                        if (false == response.isExists()) {
+                            logger.debug("profile with uid [{}] does not exist", uid);
+                            listener.onResponse(null);
+                            return;
+                        }
+                        listener.onResponse(
+                            new VersionedDocument(
+                                buildProfileDocument(response.getSourceAsBytesRef()),
+                                response.getPrimaryTerm(),
+                                response.getSeqNo()
+                            )
+                        );
+                    }, listener::onFailure)
+                )
             );
         });
     }
@@ -374,10 +496,10 @@ public class ProfileService {
             listener.onResponse(ResultsAndErrors.empty());
             return;
         }
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+        tryFreezeAndCheckIndex(listener, PRIMARY_SHARDS).ifPresent(frozenProfileIndex -> {
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> new OriginSettingClient(client, getActionOrigin()).prepareMultiGet()
+                () -> new OriginSettingClient(client, SECURITY_PROFILE_ORIGIN).prepareMultiGet()
                     .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
                     .execute(ActionListener.wrap(multiGetResponse -> {
                         List<VersionedDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);
@@ -386,6 +508,7 @@ public class ProfileService {
                         for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
                             final String profileUid = docIdToUid(itemResponse.getId());
                             if (itemResponse.isFailed()) {
+                                logger.debug("Failed to retrieve profile [{}]", profileUid);
                                 errors.put(profileUid, itemResponse.getFailure().getFailure());
                             } else if (itemResponse.getResponse() != null) {
                                 if (itemResponse.getResponse().isExists()) {
@@ -406,18 +529,7 @@ public class ProfileService {
                                 logger.error("Inconsistent mget item response [{}] [{}]", itemResponse.getIndex(), itemResponse.getId());
                             }
                         }
-                        final ResultsAndErrors<VersionedDocument> resultsAndErrors = new ResultsAndErrors<>(retrievedDocs, errors);
-                        if (logger.isDebugEnabled() && false == resultsAndErrors.errors().isEmpty()) {
-                            Exception loggedException = null;
-                            final List<String> errorUids = errorUidsExcludingNotFound(resultsAndErrors.errors());
-                            for (String uid : errorUids) {
-                                loggedException = ExceptionsHelper.useOrSuppress(loggedException, resultsAndErrors.errors().get(uid));
-                            }
-                            if (loggedException != null) {
-                                logger.debug(() -> format("Failed to retrieve profiles %s", errorUids), loggedException);
-                            }
-                        }
-                        listener.onResponse(resultsAndErrors);
+                        listener.onResponse(new ResultsAndErrors<>(retrievedDocs, errors));
                     }, listener::onFailure))
             );
         });
@@ -425,71 +537,105 @@ public class ProfileService {
 
     // Package private for testing
     void searchVersionedDocumentForSubject(Subject subject, ActionListener<VersionedDocument> listener) {
-        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
-            final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("user_profile.user.username.keyword", subject.getUser().principal()));
-            if (subject.getRealm().getDomain() == null) {
-                boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
-                if (false == isFileOrNativeRealm(subject.getRealm().getType())) {
-                    boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()));
-                }
-            } else {
-                logger.debug(
-                    () -> format(
-                        "searching existing profile document for user [%s] from any of the realms [%s] under domain [%s]",
-                        subject.getUser().principal(),
-                        collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
-                        subject.getRealm().getDomain().name()
-                    )
-                );
-                subject.getRealm().getDomain().realms().forEach(realmIdentifier -> {
-                    final BoolQueryBuilder perRealmQuery = QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery("user_profile.user.realm.type", realmIdentifier.getType()));
-                    if (false == isFileOrNativeRealm(realmIdentifier.getType())) {
-                        perRealmQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", realmIdentifier.getName()));
-                    }
-                    boolQuery.should(perRealmQuery);
-                });
-                boolQuery.minimumShouldMatch(1);
+        searchVersionedDocumentsForSubjects(List.of(subject), ActionListener.wrap(resultsAndErrors -> {
+            if (resultsAndErrors == null) {
+                // profile index does not exist
+                listener.onResponse(null);
+                return;
             }
 
-            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS).setQuery(boolQuery).request();
-            frozenProfileIndex.checkIndexVersionThenExecute(
-                listener::onFailure,
-                () -> executeAsyncWithOrigin(
+            assert resultsAndErrors.results().size() + resultsAndErrors.errors().size() == 1
+                : "a single subject must have either a single result or error";
+            if (resultsAndErrors.results().size() == 1) {
+                listener.onResponse(resultsAndErrors.results().iterator().next().v2());
+            } else if (resultsAndErrors.errors().size() == 1) {
+                final Exception exception = resultsAndErrors.errors().values().iterator().next();
+                logger.error(exception.getMessage());
+                listener.onFailure(exception);
+            } else {
+                assert false : "a single subject must have either a single result or error";
+                listener.onFailure(new ElasticsearchException("a single subject must have either a single result or error"));
+            }
+
+        }, listener::onFailure));
+    }
+
+    private void searchVersionedDocumentsForSubjects(
+        List<Subject> subjects,
+        ActionListener<SubjectSearchResultsAndErrors<VersionedDocument>> listener
+    ) {
+        if (subjects.isEmpty()) {
+            listener.onResponse(new SubjectSearchResultsAndErrors<>(List.of(), Map.of()));
+            return;
+        }
+        tryFreezeAndCheckIndex(listener, SEARCH_SHARDS).ifPresent(frozenProfileIndex -> {
+            frozenProfileIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                final MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
+                subjects.forEach(subject -> multiSearchRequest.add(buildSearchRequestForSubject(subject)));
+                executeAsyncWithOrigin(
                     client,
-                    getActionOrigin(),
-                    SearchAction.INSTANCE,
-                    searchRequest,
-                    ActionListener.wrap(searchResponse -> {
-                        final SearchHits searchHits = searchResponse.getHits();
-                        final SearchHit[] hits = searchHits.getHits();
-                        if (hits.length < 1) {
-                            logger.debug(
-                                "profile does not exist for username [{}] and realm name [{}]",
-                                subject.getUser().principal(),
-                                subject.getRealm().getName()
-                            );
-                            listener.onResponse(null);
-                        } else if (hits.length == 1) {
-                            final SearchHit hit = hits[0];
-                            final ProfileDocument profileDocument = buildProfileDocument(hit.getSourceRef());
-                            if (subject.canAccessResourcesOf(profileDocument.user().toSubject())) {
-                                listener.onResponse(new VersionedDocument(profileDocument, hit.getPrimaryTerm(), hit.getSeqNo()));
-                            } else {
-                                final String errorMessage = org.elasticsearch.core.Strings.format(
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportMultiSearchAction.TYPE,
+                    multiSearchRequest,
+                    ActionListener.wrap(
+                        multiSearchResponse -> listener.onResponse(convertSubjectMultiSearchResponse(multiSearchResponse, subjects)),
+                        listener::onFailure
+                    )
+                );
+            });
+        });
+    }
+
+    private static SubjectSearchResultsAndErrors<VersionedDocument> convertSubjectMultiSearchResponse(
+        MultiSearchResponse multiSearchResponse,
+        List<Subject> subjects
+    ) throws IOException {
+        final MultiSearchResponse.Item[] items = multiSearchResponse.getResponses();
+        assert items.length == subjects.size() : "size of responses does not match size of subjects";
+        final List<Tuple<Subject, VersionedDocument>> versionedDocs = new ArrayList<>(items.length);
+        final Map<Subject, Exception> errors = new HashMap<>();
+        for (int i = 0; i < items.length; i++) {
+            final MultiSearchResponse.Item item = items[i];
+            final Subject subject = subjects.get(i);
+            if (item.isFailure()) {
+                errors.put(subject, item.getFailure());
+            } else {
+                final SearchHits searchHits = item.getResponse().getHits();
+                final SearchHit[] hits = searchHits.getHits();
+                if (hits.length < 1) {
+                    logger.debug(
+                        "profile does not exist for username [{}] and realm name [{}]",
+                        subject.getUser().principal(),
+                        subject.getRealm().getName()
+                    );
+                    versionedDocs.add(new Tuple<>(subject, null));
+                } else if (hits.length == 1) {
+                    final SearchHit hit = hits[0];
+                    final ProfileDocument profileDocument = buildProfileDocument(hit.getSourceRef());
+                    if (subject.canAccessResourcesOf(profileDocument.user().toSubject())) {
+                        versionedDocs.add(
+                            new Tuple<>(subject, new VersionedDocument(profileDocument, hit.getPrimaryTerm(), hit.getSeqNo()))
+                        );
+                    } else {
+                        assert false : "this should not happen";
+                        errors.put(
+                            subject,
+                            new ElasticsearchException(
+                                format(
                                     "profile [%s] matches search criteria but is not accessible to "
                                         + "the current subject with username [%s] and realm name [%s]",
                                     profileDocument.uid(),
                                     subject.getUser().principal(),
                                     subject.getRealm().getName()
-                                );
-                                logger.error(errorMessage);
-                                assert false : "this should not happen";
-                                listener.onFailure(new ElasticsearchException(errorMessage));
-                            }
-                        } else {
-                            final String errorMessage = org.elasticsearch.core.Strings.format(
+                                )
+                            )
+                        );
+                    }
+                } else {
+                    errors.put(
+                        subject,
+                        new ElasticsearchException(
+                            format(
                                 "multiple [%s] profiles [%s] found for user [%s] from realm [%s]%s",
                                 hits.length,
                                 Arrays.stream(hits)
@@ -502,14 +648,43 @@ public class ProfileService {
                                 subject.getRealm().getDomain() == null
                                     ? ""
                                     : (" under domain [" + subject.getRealm().getDomain().name() + "]")
-                            );
-                            logger.error(errorMessage);
-                            listener.onFailure(new ElasticsearchException(errorMessage));
-                        }
-                    }, listener::onFailure)
+                            )
+                        )
+                    );
+                }
+            }
+        }
+        return new SubjectSearchResultsAndErrors<>(versionedDocs, errors);
+    }
+
+    private SearchRequest buildSearchRequestForSubject(Subject subject) {
+        final BoolQueryBuilder boolQuery = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery("user_profile.user.username.keyword", subject.getUser().principal()));
+        if (subject.getRealm().getDomain() == null) {
+            boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.type", subject.getRealm().getType()));
+            if (false == isFileOrNativeRealm(subject.getRealm().getType())) {
+                boolQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", subject.getRealm().getName()));
+            }
+        } else {
+            logger.debug(
+                () -> format(
+                    "searching existing profile document for user [%s] from any of the realms [%s] under domain [%s]",
+                    subject.getUser().principal(),
+                    collectionToCommaDelimitedString(subject.getRealm().getDomain().realms()),
+                    subject.getRealm().getDomain().name()
                 )
             );
-        });
+            subject.getRealm().getDomain().realms().forEach(realmIdentifier -> {
+                final BoolQueryBuilder perRealmQuery = QueryBuilders.boolQuery()
+                    .filter(QueryBuilders.termQuery("user_profile.user.realm.type", realmIdentifier.getType()));
+                if (false == isFileOrNativeRealm(realmIdentifier.getType())) {
+                    perRealmQuery.filter(QueryBuilders.termQuery("user_profile.user.realm.name", realmIdentifier.getName()));
+                }
+                boolQuery.should(perRealmQuery);
+            });
+            boolQuery.minimumShouldMatch(1);
+        }
+        return client.prepareSearch(SECURITY_PROFILE_ALIAS).setQuery(boolQuery).seqNoAndPrimaryTerm(true).request();
     }
 
     private static final Pattern VALID_LITERAL_USERNAME = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9-]{0,255}$");
@@ -548,32 +723,33 @@ public class ProfileService {
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .request()
         );
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                getActionOrigin(),
-                BulkAction.INSTANCE,
-                bulkRequest,
-                TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
-                    assert docId.equals(indexResponse.getId());
-                    final VersionedDocument versionedDocument = new VersionedDocument(
-                        profileDocument,
-                        indexResponse.getPrimaryTerm(),
-                        indexResponse.getSeqNo()
-                    );
-                    listener.onResponse(versionedDocument.toProfile(Set.of()));
-                }, e -> {
-                    if (e instanceof VersionConflictEngineException) {
-                        // Document already exists with the specified ID, get the document with the ID
-                        // and check whether it is the right profile for the subject
-                        getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }))
-            )
-        );
+        profileIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportBulkAction.TYPE,
+                    bulkRequest,
+                    TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                        assert docId.equals(indexResponse.getId());
+                        final VersionedDocument versionedDocument = new VersionedDocument(
+                            profileDocument,
+                            indexResponse.getPrimaryTerm(),
+                            indexResponse.getSeqNo()
+                        );
+                        listener.onResponse(versionedDocument.toProfile(Set.of()));
+                    }, e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            // Document already exists with the specified ID, get the document with the ID
+                            // and check whether it is the right profile for the subject
+                            getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }))
+                )
+            );
     }
 
     // Package private for test
@@ -593,7 +769,7 @@ public class ProfileService {
                         .schedule(
                             () -> getOrCreateProfileWithBackoff(subject, profileDocument, backoff, listener),
                             backoffTimeValue,
-                            ThreadPool.Names.GENERIC
+                            client.threadPool().generic()
                         );
                 } else {
                     // Retry has depleted. This can only happen when the document or the profile index itself gets deleted
@@ -630,7 +806,7 @@ public class ProfileService {
     void maybeIncrementDifferentiatorAndCreateNewProfile(Subject subject, ProfileDocument profileDocument, ActionListener<Profile> listener)
         throws IOException {
         final String uid = profileDocument.uid();
-        final int index = uid.lastIndexOf("_");
+        final int index = uid.lastIndexOf('_');
         if (index == -1) {
             listener.onFailure(new ElasticsearchException("profile uid [{}] does not contain any underscore character", uid));
             return;
@@ -695,23 +871,99 @@ public class ProfileService {
         }
     }
 
-    private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)
+    private Subject getApiKeyCreatorSubject(ApiKey apiKeyInfo) {
+        if (apiKeyInfo.getUsername() == null) {
+            logger.debug("encountered api key with id [{}] of the \"null\" username", apiKeyInfo.getId());
+            return null;
+        }
+        RealmConfig.RealmIdentifier realmIdentifier = apiKeyInfo.getRealmIdentifier();
+        if (realmIdentifier == null) {
+            logger.debug(
+                "encountered api key with id [{}] of the username [{}] that has a \"null\" realm type or realm name",
+                apiKeyInfo.getId(),
+                apiKeyInfo.getUsername()
+            );
+            return null;
+        }
+        Authentication.RealmRef realmRef = realmRefLookup.apply(realmIdentifier);
+        if (realmRef == null) {
+            logger.debug(
+                "encountered api key with id [{}] of the username [{}] from realm [{}], "
+                    + "where that realm is not currently configured on the local node",
+                apiKeyInfo.getId(),
+                apiKeyInfo.getUsername(),
+                realmIdentifier
+            );
+            return null;
+        }
+        return new Subject(new User(apiKeyInfo.getUsername(), Strings.EMPTY_ARRAY), realmRef);
+    }
+
+    // package private for testing
+    void updateProfileForActivate(Subject subject, VersionedDocument currentVersionedDocumentBySearch, ActionListener<Profile> listener)
         throws IOException {
-        final ProfileDocument profileDocument = updateWithSubject(versionedDocument.doc, subject);
+        final ProfileDocument newProfileDocument = updateWithSubject(currentVersionedDocumentBySearch.doc, subject);
+
+        if (shouldSkipUpdateForActivate(currentVersionedDocumentBySearch.doc, newProfileDocument)) {
+            logger.debug(
+                "skip user profile activate update because last_synchronized [{}] is within grace period",
+                currentVersionedDocumentBySearch.doc.lastSynchronized()
+            );
+            listener.onResponse(currentVersionedDocumentBySearch.toProfile(Set.of()));
+            return;
+        }
 
         doUpdate(
             buildUpdateRequest(
-                profileDocument.uid(),
-                wrapProfileDocumentWithoutApplicationData(profileDocument),
-                RefreshPolicy.WAIT_UNTIL,
-                versionedDocument.primaryTerm,
-                versionedDocument.seqNo
+                newProfileDocument.uid(),
+                wrapProfileDocumentWithoutApplicationData(newProfileDocument),
+                RefreshPolicy.WAIT_UNTIL
             ),
-            listener.map(
-                updateResponse -> new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
-                    .toProfile(Set.of())
-            )
+            ActionListener.wrap(updateResponse -> {
+                listener.onResponse(
+                    new VersionedDocument(newProfileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo()).toProfile(
+                        Set.of()
+                    )
+                );
+            }, updateException -> {
+                // The document may have been updated concurrently by another thread. Get it and check whether the updated content
+                // already has what is required by this thread. If so, simply return the updated profile.
+                if (ExceptionsHelper.unwrapCause(updateException) instanceof VersionConflictEngineException) {
+                    getVersionedDocument(currentVersionedDocumentBySearch.doc.uid(), ActionListener.wrap(versionedDocumentByGet -> {
+                        if (shouldSkipUpdateForActivate(versionedDocumentByGet.doc, newProfileDocument)) {
+                            logger.debug(
+                                "suppress version conflict for activate update because last_synchronized [{}] is within grace period",
+                                versionedDocumentByGet.doc.lastSynchronized()
+                            );
+                            listener.onResponse(versionedDocumentByGet.toProfile(Set.of()));
+                        } else {
+                            listener.onFailure(updateException);
+                        }
+                    }, getException -> {
+                        getException.addSuppressed(updateException);
+                        listener.onFailure(getException);
+                    }));
+                } else {
+                    listener.onFailure(updateException);
+                }
+            })
         );
+    }
+
+    // If the profile content does not change and it is recently updated within last 30 seconds, do not update it again
+    // to avoid potential excessive version conflicts
+    boolean shouldSkipUpdateForActivate(ProfileDocument currentProfileDocument, ProfileDocument newProfileDocument) {
+        assert newProfileDocument.enabled() : "new profile document must be enabled";
+        if (newProfileDocument.user().equals(currentProfileDocument.user())
+            && newProfileDocument.enabled() == currentProfileDocument.enabled()
+            && newProfileDocument.lastSynchronized() - currentProfileDocument.lastSynchronized() < ACTIVATE_INTERVAL_IN_MS) {
+            return true;
+        }
+        return false;
+    }
+
+    private UpdateRequest buildUpdateRequest(String uid, XContentBuilder builder, RefreshPolicy refreshPolicy) {
+        return buildUpdateRequest(uid, builder, refreshPolicy, -1, -1);
     }
 
     private UpdateRequest buildUpdateRequest(
@@ -737,29 +989,21 @@ public class ProfileService {
 
     // Package private for testing
     void doUpdate(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener) {
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                getActionOrigin(),
-                UpdateAction.INSTANCE,
-                updateRequest,
-                ActionListener.wrap(updateResponse -> {
-                    assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
-                        || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
-                    listener.onResponse(updateResponse);
-                }, listener::onFailure)
-            )
-        );
-    }
-
-    private String getActionOrigin() {
-        // profile origin and user is not available before v8.3.0
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(VERSION_SECURITY_PROFILE_ORIGIN)) {
-            return SECURITY_PROFILE_ORIGIN;
-        } else {
-            return SECURITY_ORIGIN;
-        }
+        profileIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportUpdateAction.TYPE,
+                    updateRequest,
+                    ActionListener.wrap(updateResponse -> {
+                        assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                            || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
+                        listener.onResponse(updateResponse);
+                    }, listener::onFailure)
+                )
+            );
     }
 
     private static String uidToDocId(String uid) {
@@ -807,17 +1051,17 @@ public class ProfileService {
      * Freeze the profile index check its availability and return it if everything is ok.
      * Otherwise it calls the listener with null and returns an empty Optional.
      */
-    private <T> Optional<SecurityIndexManager> tryFreezeAndCheckIndex(ActionListener<T> listener) {
-        final SecurityIndexManager frozenProfileIndex = profileIndex.freeze();
-        if (false == frozenProfileIndex.indexExists()) {
+    private <T> Optional<IndexState> tryFreezeAndCheckIndex(ActionListener<T> listener, SecurityIndexManager.Availability availability) {
+        final IndexState projectSecurityIndex = profileIndex.forCurrentProject();
+        if (false == projectSecurityIndex.indexExists()) {
             logger.debug("profile index does not exist");
             listener.onResponse(null);
             return Optional.empty();
-        } else if (false == frozenProfileIndex.isAvailable()) {
-            listener.onFailure(frozenProfileIndex.getUnavailableReason());
+        } else if (false == projectSecurityIndex.isAvailable(availability)) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(availability));
             return Optional.empty();
         }
-        return Optional.of(frozenProfileIndex);
+        return Optional.of(projectSecurityIndex);
     }
 
     private static ProfileDocument updateWithSubject(ProfileDocument doc, Subject subject) {
@@ -837,14 +1081,6 @@ public class ProfileService {
             doc.labels(),
             doc.applicationData()
         );
-    }
-
-    private static List<String> errorUidsExcludingNotFound(Map<String, Exception> errors) {
-        return errors.entrySet()
-            .stream()
-            .filter(entry -> entry.getValue() != null && false == entry.getValue() instanceof ResourceNotFoundException)
-            .map(Map.Entry::getKey)
-            .toList();
     }
 
     // Package private for testing
@@ -875,5 +1111,5 @@ public class ProfileService {
 
     }
 
-    public record MultiProfileSubjectResponse(Map<String, Subject> profileUidToSubject, Set<String> failureProfileUids) {}
+    public record SubjectSearchResultsAndErrors<T>(List<Tuple<Subject, T>> results, Map<Subject, Exception> errors) {}
 }

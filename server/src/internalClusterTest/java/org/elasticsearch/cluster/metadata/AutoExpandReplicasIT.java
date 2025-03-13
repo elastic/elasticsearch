@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -34,9 +35,7 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(indexName)
+                indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                     .setNames("index.number_of_replicas")
                     .get()
                     .getSetting(indexName, "index.number_of_replicas"),
@@ -44,13 +43,11 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
             );
         });
 
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._id", "non-existing-node"));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._id", "non-existing-node"), indexName);
 
         assertBusy(() -> {
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(indexName)
+                indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                     .setNames("index.number_of_replicas")
                     .get()
                     .getSetting(indexName, "index.number_of_replicas"),
@@ -59,13 +56,11 @@ public class AutoExpandReplicasIT extends ESIntegTestCase {
         });
 
         // Remove the setting
-        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.require._id", ""));
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._id", ""), indexName);
 
         assertBusy(() -> {
             assertThat(
-                client().admin()
-                    .indices()
-                    .prepareGetSettings(indexName)
+                indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                     .setNames("index.number_of_replicas")
                     .get()
                     .getSetting(indexName, "index.number_of_replicas"),

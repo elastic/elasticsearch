@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.time.Instant;
@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ExponentialAverageCalculationContextTests extends AbstractSerializingTestCase<ExponentialAverageCalculationContext> {
+public class ExponentialAverageCalculationContextTests extends AbstractXContentSerializingTestCase<ExponentialAverageCalculationContext> {
 
     public static ExponentialAverageCalculationContext createRandom() {
         return new ExponentialAverageCalculationContext(
@@ -29,6 +29,11 @@ public class ExponentialAverageCalculationContextTests extends AbstractSerializi
     @Override
     public ExponentialAverageCalculationContext createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected ExponentialAverageCalculationContext mutateInstance(ExponentialAverageCalculationContext instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

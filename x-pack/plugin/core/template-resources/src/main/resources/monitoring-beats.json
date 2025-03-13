@@ -1,0 +1,1332 @@
+{
+  "index_patterns": [
+    ".monitoring-beats-${xpack.monitoring.template.version}-*"
+  ],
+  "settings": {
+    "index.auto_expand_replicas": "0-1",
+    "index.codec": "best_compression",
+    "index.format": 7,
+    "index.number_of_replicas": 0,
+    "index.number_of_shards": 1
+  },
+  "version": ${xpack.monitoring.template.release.version},
+  "mappings": {
+    "_doc": {
+      "dynamic": false,
+      "properties": {
+        "beats_state": {
+          "properties": {
+            "beat": {
+              "properties": {
+                "host": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "type": {
+                  "type": "keyword"
+                },
+                "uuid": {
+                  "type": "keyword"
+                },
+                "version": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "state": {
+              "properties": {
+                "beat": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "host": {
+                  "properties": {
+                    "architecture": {
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "hostname": {
+                      "type": "keyword"
+                    },
+                    "os": {
+                      "properties": {
+                        "build": {
+                          "type": "keyword"
+                        },
+                        "family": {
+                          "type": "keyword"
+                        },
+                        "platform": {
+                          "type": "keyword"
+                        },
+                        "version": {
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                },
+                "input": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "names": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "module": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "names": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "service": {
+                  "properties": {
+                    "id": {
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "type": "keyword"
+                    },
+                    "version": {
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "timestamp": {
+              "format": "date_time",
+              "type": "date"
+            }
+          }
+        },
+        "beats_stats": {
+          "properties": {
+            "beat": {
+              "properties": {
+                "host": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "type": {
+                  "type": "keyword"
+                },
+                "uuid": {
+                  "type": "keyword"
+                },
+                "version": {
+                  "type": "keyword"
+                }
+              }
+            },
+            "metrics": {
+              "properties": {
+                "beat": {
+                  "properties": {
+                    "cgroup": {
+                      "properties": {
+                        "cpu": {
+                          "properties": {
+                            "id": {
+                              "type": "keyword"
+                            },
+                            "cfs": {
+                              "properties": {
+                                "period": {
+                                  "properties": {
+                                    "us": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "quota": {
+                                  "properties": {
+                                    "us": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "stats": {
+                              "properties": {
+                                "periods": {
+                                  "type": "long"
+                                },
+                                "throttled": {
+                                  "properties": {
+                                    "periods": {
+                                      "type": "long"
+                                    },
+                                    "ns": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "cpuacct": {
+                          "properties": {
+                            "id": {
+                              "type": "keyword"
+                            },
+                            "total": {
+                              "properties": {
+                                "ns": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "memory": {
+                          "properties": {
+                            "id": {
+                              "type": "keyword"
+                            },
+                            "mem": {
+                              "properties": {
+                                "limit": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "usage": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "cpu": {
+                      "properties": {
+                        "system": {
+                          "properties": {
+                            "ticks": {
+                              "type": "long"
+                            },
+                            "time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "properties": {
+                            "value": {
+                              "type": "long"
+                            },
+                            "ticks": {
+                              "type": "long"
+                            },
+                            "time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "user": {
+                          "properties": {
+                            "ticks": {
+                              "type": "long"
+                            },
+                            "time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "info": {
+                      "properties": {
+                        "ephemeral_id": {
+                          "type": "keyword"
+                        },
+                        "uptime": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "version": {
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "memstats": {
+                      "properties": {
+                        "gc_next": {
+                          "type": "long"
+                        },
+                        "memory_alloc": {
+                          "type": "long"
+                        },
+                        "memory_total": {
+                          "type": "long"
+                        },
+                        "rss": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "handles": {
+                      "properties": {
+                        "open": {
+                          "type": "long"
+                        },
+                        "limit": {
+                          "properties": {
+                            "hard": {
+                              "type": "long"
+                            },
+                            "soft": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "apm-server": {
+                  "properties": {
+                    "acm": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "timeout": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "ok": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "agentcfg": {
+                      "properties": {
+                        "elasticsearch": {
+                          "properties": {
+                            "cache": {
+                              "properties": {
+                                "entries": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "refresh": {
+                                  "properties": {
+                                    "failures": {
+                                      "type": "long"
+                                    },
+                                    "successes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "fetch": {
+                              "properties": {
+                                "es": {
+                                  "type": "long"
+                                },
+                                "fallback": {
+                                  "type": "long"
+                                },
+                                "invalid": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "jaeger": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "collect": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "sampling": {
+                              "properties": {
+                                "event": {
+                                  "properties": {
+                                    "received": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "otlp": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "http": {
+                          "properties": {
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "processor": {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "metric": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "span": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "stream": {
+                          "properties": {
+                            "accepted": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "invalid": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "transaction": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "root": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "timeout": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "ok": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "sampling": {
+                      "properties": {
+                        "tail": {
+                          "properties": {
+                            "dynamic_service_groups": {
+                              "type": "long"
+                            },
+                            "events": {
+                              "properties": {
+                                "dropped": {
+                                  "type": "long"
+                                },
+                                "failed_writes": {
+                                  "type": "long"
+                                },
+                                "head_unsampled": {
+                                  "type": "long"
+                                },
+                                "processed": {
+                                  "type": "long"
+                                },
+                                "sampled": {
+                                  "type": "long"
+                                },
+                                "stored": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "storage": {
+                              "properties": {
+                                "lsm_size": {
+                                  "type": "long"
+                                },
+                                "value_log_size": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "transactions_dropped": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "server": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "concurrency": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "timeout": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "ok": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "libbeat": {
+                  "properties": {
+                    "config": {
+                      "properties": {
+                        "module": {
+                          "properties": {
+                            "running": {
+                              "type": "long"
+                            },
+                            "starts": {
+                              "type": "long"
+                            },
+                            "stops": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "reloads": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "output": {
+                      "properties": {
+                        "events": {
+                          "properties": {
+                            "acked": {
+                              "type": "long"
+                            },
+                            "active": {
+                              "type": "long"
+                            },
+                            "batches": {
+                              "type": "long"
+                            },
+                            "dropped": {
+                              "type": "long"
+                            },
+                            "duplicates": {
+                              "type": "long"
+                            },
+                            "failed": {
+                              "type": "long"
+                            },
+                            "total": {
+                              "type": "long"
+                            },
+                            "toomany": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "read": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "type": {
+                          "type": "keyword"
+                        },
+                        "write": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "pipeline": {
+                      "properties": {
+                        "clients": {
+                          "type": "long"
+                        },
+                        "events": {
+                          "properties": {
+                            "active": {
+                              "type": "long"
+                            },
+                            "dropped": {
+                              "type": "long"
+                            },
+                            "failed": {
+                              "type": "long"
+                            },
+                            "filtered": {
+                              "type": "long"
+                            },
+                            "published": {
+                              "type": "long"
+                            },
+                            "retry": {
+                              "type": "long"
+                            },
+                            "total": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "queue": {
+                          "properties": {
+                            "acked": {
+                              "type": "long"
+                            },
+                            "max_events": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "system": {
+                  "properties": {
+                    "load": {
+                      "properties": {
+                        "1": {
+                          "type": "double"
+                        },
+                        "15": {
+                          "type": "double"
+                        },
+                        "5": {
+                          "type": "double"
+                        },
+                        "norm": {
+                          "properties": {
+                            "1": {
+                              "type": "double"
+                            },
+                            "15": {
+                              "type": "double"
+                            },
+                            "5": {
+                              "type": "double"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "elasticsearch": {
+                      "properties": {
+                        "bulk_requests": {
+                          "properties": {
+                            "available": {
+                              "type": "long"
+                            },
+                            "completed": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "indexers": {
+                          "properties": {
+                            "active": {
+                              "type": "long"
+                            },
+                            "created": {
+                              "type": "long"
+                            },
+                            "destroyed": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "tags": {
+              "type": "keyword"
+            },
+            "timestamp": {
+              "format": "date_time",
+              "type": "date"
+            }
+          }
+        },
+        "cluster_uuid": {
+          "type": "keyword"
+        },
+        "interval_ms": {
+          "type": "long"
+        },
+        "source_node": {
+          "properties": {
+            "host": {
+              "type": "keyword"
+            },
+            "ip": {
+              "type": "keyword"
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "transport_address": {
+              "type": "keyword"
+            },
+            "uuid": {
+              "type": "keyword"
+            }
+          }
+        },
+        "timestamp": {
+          "format": "date_time",
+          "type": "date"
+        },
+        "type": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}

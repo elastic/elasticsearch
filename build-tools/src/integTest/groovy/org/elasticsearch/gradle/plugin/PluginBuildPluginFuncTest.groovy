@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.plugin
@@ -75,7 +76,7 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
             }
 
             dependencies {
-                consume project(path:':', configuration:'${PluginBuildPlugin.EXPLODED_BUNDLE_CONFIG}')
+                consume project(path:':', configuration:'${BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG}')
             }
 
             tasks.register("resolveModule", Copy) {
@@ -119,12 +120,13 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
         props.get("version") == "1.2.3"
         props.get("description") == "test plugin"
         props.get("classname") == "com.acme.plugin.TestPlugin"
-        props.get("modulename") == ""
         props.get("java.version") == Integer.toString(Runtime.version().feature())
         props.get("elasticsearch.version") == VersionProperties.elasticsearchVersion.toString()
-        props.get("extended.plugins") == ""
-        props.get("has.native.controller") == "false"
-        props.size() == 9
+
+        props.get("has.native.controller") == null
+        props.get("extended.plugins") == null
+        props.get("modulename") == null
+        props.size() == 6
     }
 
     def "module name is inferred by plugin properties"() {

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -33,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -246,21 +246,23 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         postScheduledEvents(calendarId, events);
 
         // Wait until the notification that the process was updated is indexed
-        assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                .setSize(1)
-                .addSort("timestamp", SortOrder.DESC)
-                .setQuery(
-                    QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery("job_id", job.getId()))
-                        .filter(QueryBuilders.termQuery("level", "info"))
-                )
-                .get();
-            SearchHit[] hits = searchResponse.getHits().getHits();
-            assertThat(hits.length, equalTo(1));
-            assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Updated calendars in running process"));
-        });
-
+        assertBusy(
+            () -> assertResponse(
+                client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+                    .setSize(1)
+                    .addSort("timestamp", SortOrder.DESC)
+                    .setQuery(
+                        QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                            .filter(QueryBuilders.termQuery("level", "info"))
+                    ),
+                searchResponse -> {
+                    SearchHit[] hits = searchResponse.getHits().getHits();
+                    assertThat(hits.length, equalTo(1));
+                    assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Updated calendars in running process"));
+                }
+            )
+        );
         // write some more buckets of data that cover the scheduled event period
         postData(
             job.getId(),
@@ -333,20 +335,22 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         client().execute(UpdateJobAction.INSTANCE, jobUpdateRequest).actionGet();
 
         // Wait until the notification that the job was updated is indexed
-        assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                .setSize(1)
-                .addSort("timestamp", SortOrder.DESC)
-                .setQuery(
-                    QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery("job_id", job.getId()))
-                        .filter(QueryBuilders.termQuery("level", "info"))
-                )
-                .get();
-            SearchHit[] hits = searchResponse.getHits().getHits();
-            assertThat(hits.length, equalTo(1));
-            assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Job updated: [groups]"));
-        });
+        assertBusy(
+            () -> assertResponse(
+                prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).setSize(1)
+                    .addSort("timestamp", SortOrder.DESC)
+                    .setQuery(
+                        QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                            .filter(QueryBuilders.termQuery("level", "info"))
+                    ),
+                searchResponse -> {
+                    SearchHit[] hits = searchResponse.getHits().getHits();
+                    assertThat(hits.length, equalTo(1));
+                    assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Job updated: [groups]"));
+                }
+            )
+        );
 
         // write some more buckets of data that cover the scheduled event period
         postData(
@@ -420,20 +424,22 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         postScheduledEvents(calendarId, postOpenJobEvents);
 
         // Wait until the notification that the job was updated is indexed
-        assertBusy(() -> {
-            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                .setSize(1)
-                .addSort("timestamp", SortOrder.DESC)
-                .setQuery(
-                    QueryBuilders.boolQuery()
-                        .filter(QueryBuilders.termQuery("job_id", job.getId()))
-                        .filter(QueryBuilders.termQuery("level", "info"))
-                )
-                .get();
-            SearchHit[] hits = searchResponse.getHits().getHits();
-            assertThat(hits.length, equalTo(1));
-            assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Updated calendars in running process"));
-        });
+        assertBusy(
+            () -> assertResponse(
+                prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX).setSize(1)
+                    .addSort("timestamp", SortOrder.DESC)
+                    .setQuery(
+                        QueryBuilders.boolQuery()
+                            .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                            .filter(QueryBuilders.termQuery("level", "info"))
+                    ),
+                searchResponse -> {
+                    SearchHit[] hits = searchResponse.getHits().getHits();
+                    assertThat(hits.length, equalTo(1));
+                    assertThat(hits[0].getSourceAsMap().get("message"), equalTo("Updated calendars in running process"));
+                }
+            )
+        );
 
         // write some buckets of data
         postData(

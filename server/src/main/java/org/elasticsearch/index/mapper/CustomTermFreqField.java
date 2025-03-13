@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -21,11 +22,13 @@ import org.apache.lucene.index.IndexOptions;
  */
 public final class CustomTermFreqField extends Field {
 
-    private static final FieldType FIELD_TYPE = new FieldType();
+    private static final FieldType FIELD_TYPE;
     static {
-        FIELD_TYPE.setTokenized(false);
-        FIELD_TYPE.setOmitNorms(true);
-        FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
+        final FieldType ft = new FieldType();
+        ft.setTokenized(false);
+        ft.setOmitNorms(true);
+        ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS);
+        FIELD_TYPE = Mapper.freezeAndDeduplicateFieldType(ft);
     }
 
     private final int fieldValue;

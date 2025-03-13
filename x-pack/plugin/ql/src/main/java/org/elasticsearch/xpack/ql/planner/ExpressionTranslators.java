@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.ql.planner;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
@@ -35,6 +39,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullE
 import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
@@ -50,17 +55,26 @@ import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class ExpressionTranslators {
 
@@ -115,23 +129,31 @@ public final class ExpressionTranslators {
         }
 
         public static Query doTranslate(RegexMatch e, TranslatorHandler handler) {
-            Query q = null;
-            String targetFieldName = null;
+            Query q;
+            Expression field = e.field();
 
-            if (e.field() instanceof FieldAttribute) {
-                targetFieldName = handler.nameOf(((FieldAttribute) e.field()).exactAttribute());
-                if (e instanceof Like l) {
-                    q = new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
-                }
-
-                if (e instanceof RLike rl) {
-                    q = new RegexQuery(e.source(), targetFieldName, rl.pattern().asJavaRegex(), rl.caseInsensitive());
-                }
+            if (field instanceof FieldAttribute fa) {
+                return handler.wrapFunctionQuery(e, fa, () -> translateField(e, handler.nameOf(fa.exactAttribute())));
+            } else if (field instanceof MetadataAttribute ma) {
+                q = translateField(e, handler.nameOf(ma));
             } else {
                 q = new ScriptQuery(e.source(), e.asScript());
             }
 
-            return wrapIfNested(q, e.field());
+            return wrapIfNested(q, field);
+        }
+
+        private static Query translateField(RegexMatch e, String targetFieldName) {
+            if (e instanceof Like l) {
+                return new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
+            }
+            if (e instanceof WildcardLike l) {
+                return new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
+            }
+            if (e instanceof RLike rl) {
+                return new RegexQuery(e.source(), targetFieldName, rl.pattern().asJavaRegex(), rl.caseInsensitive());
+            }
+            return null;
         }
     }
 
@@ -176,10 +198,10 @@ public final class ExpressionTranslators {
         @Override
         protected Query asQuery(org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic e, TranslatorHandler handler) {
             if (e instanceof And) {
-                return and(e.source(), toQuery(e.left(), handler), toQuery(e.right(), handler));
+                return and(e.source(), handler.asQuery(e.left()), handler.asQuery(e.right()));
             }
             if (e instanceof Or) {
-                return or(e.source(), toQuery(e.left(), handler), toQuery(e.right(), handler));
+                return or(e.source(), handler.asQuery(e.left()), handler.asQuery(e.right()));
             }
 
             return null;
@@ -198,7 +220,7 @@ public final class ExpressionTranslators {
             Query wrappedQuery = handler.asQuery(not.field());
             Query q = wrappedQuery instanceof ScriptQuery
                 ? new ScriptQuery(not.source(), not.asScript())
-                : new NotQuery(not.source(), wrappedQuery);
+                : wrappedQuery.negate(not.source());
 
             return wrapIfNested(q, e);
         }
@@ -261,9 +283,9 @@ public final class ExpressionTranslators {
         }
 
         static Query translate(BinaryComparison bc, TranslatorHandler handler) {
-            FieldAttribute field = checkIsFieldAttribute(bc.left());
+            TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
-            String name = handler.nameOf(field);
+            String name = handler.nameOf(attribute);
             Object value = valueOf(bc.right());
             String format = null;
             boolean isDateLiteralComparison = false;
@@ -284,10 +306,22 @@ public final class ExpressionTranslators {
                 }
                 format = formatter.pattern();
                 isDateLiteralComparison = true;
+            } else if (attribute.dataType() == IP && value instanceof BytesRef bytesRef) {
+                value = DocValueFormat.IP.format(bytesRef);
+            } else if (attribute.dataType() == VERSION) {
+                // VersionStringFieldMapper#indexedValueForSearch() only accepts as input String or BytesRef with the String (i.e. not
+                // encoded) representation of the version as it'll do the encoding itself.
+                if (value instanceof BytesRef bytesRef) {
+                    value = new Version(bytesRef).toString();
+                } else if (value instanceof Version version) {
+                    value = version.toString();
+                }
+            } else if (attribute.dataType() == UNSIGNED_LONG && value instanceof Long ul) {
+                value = unsignedLongAsNumber(ul);
             }
 
             ZoneId zoneId = null;
-            if (DataTypes.isDateTime(field.dataType())) {
+            if (DataTypes.isDateTime(attribute.dataType())) {
                 zoneId = bc.zoneId();
             }
             if (bc instanceof GreaterThan) {
@@ -303,9 +337,7 @@ public final class ExpressionTranslators {
                 return new RangeQuery(source, name, null, false, value, true, format, zoneId);
             }
             if (bc instanceof Equals || bc instanceof NullEquals || bc instanceof NotEquals) {
-                // equality should always be against an exact match
-                // (which is important for strings)
-                name = field.exactAttribute().name();
+                name = pushableAttributeName(attribute);
 
                 Query query;
                 if (isDateLiteralComparison) {
@@ -384,16 +416,19 @@ public final class ExpressionTranslators {
             return handler.wrapFunctionQuery(in, in.value(), () -> translate(in, handler));
         }
 
+        private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
+            return DataTypes.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        }
+
         private static Query translate(In in, TranslatorHandler handler) {
-            FieldAttribute field = checkIsFieldAttribute(in.value());
-            boolean isDateTimeComparison = DataTypes.isDateTime(field.dataType());
+            TypedAttribute attribute = checkIsPushableAttribute(in.value());
 
             Set<Object> terms = new LinkedHashSet<>();
             List<Query> queries = new ArrayList<>();
 
             for (Expression rhs : in.list()) {
                 if (DataTypes.isNull(rhs.dataType()) == false) {
-                    if (isDateTimeComparison) {
+                    if (needsTypeSpecificValueHandling(attribute.dataType())) {
                         // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                         Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs, in.zoneId()), handler);
 
@@ -409,7 +444,7 @@ public final class ExpressionTranslators {
             }
 
             if (terms.isEmpty() == false) {
-                String fieldName = field.exactAttribute().name();
+                String fieldName = pushableAttributeName(attribute);
                 queries.add(new TermsQuery(in.source(), fieldName, terms));
             }
 
@@ -461,6 +496,15 @@ public final class ExpressionTranslators {
         if (right == null) {
             return left;
         }
-        return new BoolQuery(source, isAnd, left, right);
+        List<Query> queries;
+        // check if either side is already a bool query to an extra bool query
+        if (left instanceof BoolQuery bool && bool.isAnd() == isAnd) {
+            queries = CollectionUtils.combine(bool.queries(), right);
+        } else if (right instanceof BoolQuery bool && bool.isAnd() == isAnd) {
+            queries = CollectionUtils.combine(bool.queries(), left);
+        } else {
+            queries = Arrays.asList(left, right);
+        }
+        return new BoolQuery(source, isAnd, queries);
     }
 }

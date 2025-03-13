@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -12,8 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -30,6 +29,10 @@ public class CompoundProcessor implements Processor {
     public static final String ON_FAILURE_PROCESSOR_TAG_FIELD = "on_failure_processor_tag";
     public static final String ON_FAILURE_PIPELINE_FIELD = "on_failure_pipeline";
 
+    public static final String PROCESSOR_TYPE_EXCEPTION_HEADER = "processor_type";
+    public static final String PROCESSOR_TAG_EXCEPTION_HEADER = "processor_tag";
+    public static final String PIPELINE_ORIGIN_EXCEPTION_HEADER = "pipeline_origin";
+
     private final boolean ignoreFailure;
     private final List<Processor> processors;
     private final List<Processor> onFailureProcessors;
@@ -37,32 +40,28 @@ public class CompoundProcessor implements Processor {
     private final LongSupplier relativeTimeProvider;
     private final boolean isAsync;
 
-    CompoundProcessor(LongSupplier relativeTimeProvider, boolean ignoreFailure, Processor... processor) {
-        this(ignoreFailure, Arrays.asList(processor), Collections.emptyList(), relativeTimeProvider);
+    public CompoundProcessor(Processor... processors) {
+        this(false, List.of(processors), List.of());
     }
 
-    public CompoundProcessor(Processor... processor) {
-        this(false, Arrays.asList(processor), Collections.emptyList());
-    }
-
+    @SuppressWarnings("this-escape")
     public CompoundProcessor(boolean ignoreFailure, List<Processor> processors, List<Processor> onFailureProcessors) {
         this(ignoreFailure, processors, onFailureProcessors, System::nanoTime);
     }
 
+    @SuppressWarnings("this-escape")
     CompoundProcessor(
         boolean ignoreFailure,
         List<Processor> processors,
         List<Processor> onFailureProcessors,
         LongSupplier relativeTimeProvider
     ) {
-        super();
         this.ignoreFailure = ignoreFailure;
-        this.processors = processors;
-        this.onFailureProcessors = onFailureProcessors;
+        this.processors = List.copyOf(processors);
+        this.onFailureProcessors = List.copyOf(onFailureProcessors);
         this.relativeTimeProvider = relativeTimeProvider;
-        this.processorsWithMetrics = new ArrayList<>(processors.size());
+        this.processorsWithMetrics = List.copyOf(processors.stream().map(p -> new Tuple<>(p, new IngestMetric())).toList());
         this.isAsync = flattenProcessors().stream().anyMatch(Processor::isAsync);
-        processors.forEach(p -> processorsWithMetrics.add(new Tuple<>(p, new IngestMetric())));
     }
 
     List<Tuple<Processor, IngestMetric>> getProcessorsWithMetrics() {
@@ -147,8 +146,9 @@ public class CompoundProcessor implements Processor {
         innerExecute(0, ingestDocument, handler);
     }
 
-    void innerExecute(int currentProcessor, IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        if (currentProcessor == processorsWithMetrics.size()) {
+    void innerExecute(int currentProcessor, IngestDocument ingestDocument, final BiConsumer<IngestDocument, Exception> handler) {
+        assert currentProcessor <= processorsWithMetrics.size();
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute() || ingestDocument.isTerminate()) {
             handler.accept(ingestDocument, null);
             return;
         }
@@ -156,15 +156,17 @@ public class CompoundProcessor implements Processor {
         Tuple<Processor, IngestMetric> processorWithMetric;
         Processor processor;
         IngestMetric metric;
-        long startTimeInNanos = 0;
         // iteratively execute any sync processors
-        while (currentProcessor < processorsWithMetrics.size() && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false) {
+        while (currentProcessor < processorsWithMetrics.size()
+            && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false
+            && ingestDocument.isReroute() == false
+            && ingestDocument.isTerminate() == false) {
             processorWithMetric = processorsWithMetrics.get(currentProcessor);
             processor = processorWithMetric.v1();
             metric = processorWithMetric.v2();
-            startTimeInNanos = relativeTimeProvider.getAsLong();
             metric.preIngest();
 
+            final long startTimeInNanos = relativeTimeProvider.getAsLong();
             try {
                 ingestDocument = processor.execute(ingestDocument);
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
@@ -174,7 +176,8 @@ public class CompoundProcessor implements Processor {
                     return;
                 }
             } catch (Exception e) {
-                metric.postIngest(relativeTimeProvider.getAsLong() - startTimeInNanos);
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
                 executeOnFailureOuter(currentProcessor, ingestDocument, handler, processor, metric, e);
                 return;
             }
@@ -182,36 +185,38 @@ public class CompoundProcessor implements Processor {
             currentProcessor++;
         }
 
-        if (currentProcessor >= processorsWithMetrics.size()) {
+        assert currentProcessor <= processorsWithMetrics.size();
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute() || ingestDocument.isTerminate()) {
             handler.accept(ingestDocument, null);
-        } else {
-            final int finalCurrentProcessor = currentProcessor + 1;
-            final int nextProcessor = currentProcessor + 1;
-            final long finalStartTimeInNanos = startTimeInNanos;
-            final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
-            final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
-            final IngestDocument finalIngestDocument = ingestDocument;
-            finalMetric.preIngest();
-            try {
-                finalProcessor.execute(ingestDocument, (result, e) -> {
-                    long ingestTimeInNanos = relativeTimeProvider.getAsLong() - finalStartTimeInNanos;
-                    finalMetric.postIngest(ingestTimeInNanos);
+            return;
+        }
 
-                    if (e != null) {
-                        executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
-                    } else {
-                        if (result != null) {
-                            innerExecute(nextProcessor, result, handler);
-                        } else {
-                            handler.accept(null, null);
-                        }
-                    }
-                });
-            } catch (Exception e) {
+        // n.b. read 'final' on these variable names as hungarian notation -- we need final variables because of the lambda
+        final int finalCurrentProcessor = currentProcessor;
+        final int nextProcessor = currentProcessor + 1;
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        final IngestMetric finalMetric = processorsWithMetrics.get(currentProcessor).v2();
+        final Processor finalProcessor = processorsWithMetrics.get(currentProcessor).v1();
+        final IngestDocument finalIngestDocument = ingestDocument;
+        finalMetric.preIngest();
+        try {
+            finalProcessor.execute(ingestDocument, (result, e) -> {
                 long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
                 finalMetric.postIngest(ingestTimeInNanos);
-                executeOnFailureOuter(currentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
-            }
+                if (e != null) {
+                    executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
+                } else {
+                    if (result != null) {
+                        innerExecute(nextProcessor, result, handler);
+                    } else {
+                        handler.accept(null, null);
+                    }
+                }
+            });
+        } catch (Exception e) {
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            finalMetric.postIngest(ingestTimeInNanos);
+            executeOnFailureOuter(finalCurrentProcessor, finalIngestDocument, handler, finalProcessor, finalMetric, e);
         }
     }
 
@@ -287,9 +292,9 @@ public class CompoundProcessor implements Processor {
     }
 
     private static void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {
-        List<String> processorTypeHeader = cause.getHeader("processor_type");
-        List<String> processorTagHeader = cause.getHeader("processor_tag");
-        List<String> processorOriginHeader = cause.getHeader("pipeline_origin");
+        List<String> processorTypeHeader = cause.getHeader(PROCESSOR_TYPE_EXCEPTION_HEADER);
+        List<String> processorTagHeader = cause.getHeader(PROCESSOR_TAG_EXCEPTION_HEADER);
+        List<String> processorOriginHeader = cause.getHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER);
         String failedProcessorType = (processorTypeHeader != null) ? processorTypeHeader.get(0) : null;
         String failedProcessorTag = (processorTagHeader != null) ? processorTagHeader.get(0) : null;
         String failedPipelineId = (processorOriginHeader != null) ? processorOriginHeader.get(0) : null;
@@ -311,7 +316,7 @@ public class CompoundProcessor implements Processor {
     }
 
     static IngestProcessorException newCompoundProcessorException(Exception e, Processor processor, IngestDocument document) {
-        if (e instanceof IngestProcessorException ipe && ipe.getHeader("processor_type") != null) {
+        if (e instanceof IngestProcessorException ipe && ipe.getHeader(PROCESSOR_TYPE_EXCEPTION_HEADER) != null) {
             return ipe;
         }
 
@@ -319,16 +324,16 @@ public class CompoundProcessor implements Processor {
 
         String processorType = processor.getType();
         if (processorType != null) {
-            exception.addHeader("processor_type", processorType);
+            exception.addHeader(PROCESSOR_TYPE_EXCEPTION_HEADER, processorType);
         }
         String processorTag = processor.getTag();
         if (processorTag != null) {
-            exception.addHeader("processor_tag", processorTag);
+            exception.addHeader(PROCESSOR_TAG_EXCEPTION_HEADER, processorTag);
         }
         if (document != null) {
             List<String> pipelineStack = document.getPipelineStack();
-            if (pipelineStack.size() > 1) {
-                exception.addHeader("pipeline_origin", pipelineStack);
+            if (pipelineStack.isEmpty() == false) {
+                exception.addHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER, pipelineStack);
             }
         }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.cache.bitset;
@@ -24,6 +25,8 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
@@ -43,6 +46,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.lucene.util.BitSets;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -91,8 +95,18 @@ public final class BitsetFilterCache
             throw new IllegalArgumentException("listener must not be null");
         }
         this.index = indexSettings.getIndex();
-        this.loadRandomAccessFiltersEagerly = indexSettings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
+        this.loadRandomAccessFiltersEagerly = shouldLoadRandomAccessFiltersEagerly(indexSettings);
         this.listener = listener;
+    }
+
+    static boolean shouldLoadRandomAccessFiltersEagerly(IndexSettings settings) {
+        boolean loadFiltersEagerlySetting = settings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
+        boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
+        if (isStateless) {
+            return loadFiltersEagerlySetting && DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE);
+        } else {
+            return loadFiltersEagerlySetting;
+        }
     }
 
     public static BitSet bitsetFromQuery(Query query, LeafReaderContext context) throws IOException {
@@ -104,7 +118,7 @@ public final class BitsetFilterCache
         if (s == null) {
             return null;
         } else {
-            return BitSet.of(s.iterator(), context.reader().maxDoc());
+            return BitSets.of(s.iterator(), context.reader().maxDoc());
         }
     }
 
@@ -267,7 +281,7 @@ public final class BitsetFilterCache
             MappingLookup lookup = mapperService.mappingLookup();
             NestedLookup nestedLookup = lookup.nestedLookup();
             if (nestedLookup != NestedLookup.EMPTY) {
-                warmUp.add(Queries.newNonNestedFilter());
+                warmUp.add(Queries.newNonNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated()));
                 warmUp.addAll(nestedLookup.getNestedParentFilters().values());
             }
 
@@ -288,7 +302,7 @@ public final class BitsetFilterCache
                                     );
                             }
                         } catch (Exception e) {
-                            indexShard.warmerService().logger().warn(() -> "failed to load " + "bitset for [" + filterToWarm + "]", e);
+                            indexShard.warmerService().logger().warn(() -> "failed to load bitset for [" + filterToWarm + "]", e);
                         } finally {
                             latch.countDown();
                         }
@@ -322,5 +336,13 @@ public final class BitsetFilterCache
          * @param accountable the bitsets ram representation
          */
         void onRemoval(ShardId shardId, Accountable accountable);
+
+        Listener NOOP = new Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        };
     }
 }

@@ -31,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.security.cert.CertPathBuilderException;
+import java.security.cert.CertificateException;
 import java.util.HashSet;
 import java.util.List;
 
@@ -103,11 +104,13 @@ public class SslClientAuthenticationTests extends SecurityIntegTestCase {
             restClient.performRequest(new Request("GET", "/"));
             fail("Expected SSLHandshakeException");
         } catch (IOException e) {
-            Throwable t = ExceptionsHelper.unwrap(e, CertPathBuilderException.class);
-            assertThat(t, instanceOf(CertPathBuilderException.class));
             if (inFipsJvm()) {
-                assertThat(t.getMessage(), containsString("Unable to find certificate chain"));
+                Throwable t = ExceptionsHelper.unwrap(e, CertificateException.class);
+                assertThat(t, instanceOf(CertificateException.class));
+                assertThat(t.getMessage(), containsString("Unable to construct a valid chain"));
             } else {
+                Throwable t = ExceptionsHelper.unwrap(e, CertPathBuilderException.class);
+                assertThat(t, instanceOf(CertPathBuilderException.class));
                 assertThat(t.getMessage(), containsString("unable to find valid certification path to requested target"));
             }
         }

@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.core.Nullable;
+
 import java.nio.file.Path;
 import java.security.KeyStore;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -21,7 +23,6 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 
 import static org.elasticsearch.common.ssl.KeyStoreUtil.inferKeyStoreType;
-import static org.elasticsearch.common.ssl.SslConfiguration.ORDERED_PROTOCOL_ALGORITHM_MAP;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.CERTIFICATE;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.CERTIFICATE_AUTHORITIES;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.CIPHERS;
@@ -42,6 +43,7 @@ import static org.elasticsearch.common.ssl.SslConfigurationKeys.TRUSTSTORE_LEGAC
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.TRUSTSTORE_PATH;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.TRUSTSTORE_SECURE_PASSWORD;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.TRUSTSTORE_TYPE;
+import static org.elasticsearch.common.ssl.SslConfigurationKeys.TRUST_RESTRICTIONS_X509_FIELDS;
 import static org.elasticsearch.common.ssl.SslConfigurationKeys.VERIFICATION_MODE;
 
 /**
@@ -58,13 +60,9 @@ import static org.elasticsearch.common.ssl.SslConfigurationKeys.VERIFICATION_MOD
  */
 public abstract class SslConfigurationLoader {
 
-    static final List<String> DEFAULT_PROTOCOLS = Collections.unmodifiableList(
-        ORDERED_PROTOCOL_ALGORITHM_MAP.containsKey("TLSv1.3")
-            ? Arrays.asList("TLSv1.3", "TLSv1.2", "TLSv1.1")
-            : Arrays.asList("TLSv1.2", "TLSv1.1")
-    );
+    static final List<String> DEFAULT_PROTOCOLS = List.of("TLSv1.3", "TLSv1.2");
 
-    private static final List<String> JDK12_CIPHERS = List.of(
+    private static final List<String> PRE_JDK24_CIPHERS = List.of(
         // TLSv1.3 cipher has PFS, AEAD, hardware support
         "TLS_AES_256_GCM_SHA384",
         "TLS_AES_128_GCM_SHA256",
@@ -113,8 +111,46 @@ public abstract class SslConfigurationLoader {
         "TLS_RSA_WITH_AES_128_CBC_SHA"
     );
 
-    static final List<String> DEFAULT_CIPHERS = JDK12_CIPHERS;
+    private static final List<String> JDK24_CIPHERS = List.of(
+        // TLSv1.3 cipher has PFS, AEAD, hardware support
+        "TLS_AES_256_GCM_SHA384",
+        "TLS_AES_128_GCM_SHA256",
+
+        // TLSv1.3 cipher has PFS, AEAD
+        "TLS_CHACHA20_POLY1305_SHA256",
+
+        // PFS, AEAD, hardware support
+        "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+
+        // PFS, AEAD, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+
+        // PFS, AEAD
+        "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+        "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+
+        // PFS, hardware support
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+
+        // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+
+        // PFS, hardware support
+        "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+
+        // PFS, hardware support
+        "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA"
+    );
+
+    static final List<String> DEFAULT_CIPHERS = Runtime.version().feature() < 24 ? PRE_JDK24_CIPHERS : JDK24_CIPHERS;
     private static final char[] EMPTY_PASSWORD = new char[0];
+    public static final List<X509Field> GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS = List.of(X509Field.SAN_OTHERNAME_COMMONNAME);
 
     private final String settingPrefix;
 
@@ -124,6 +160,7 @@ public abstract class SslConfigurationLoader {
     private SslClientAuthenticationMode defaultClientAuth;
     private List<String> defaultCiphers;
     private List<String> defaultProtocols;
+    private List<X509Field> defaultRestrictedTrustFields;
 
     private Function<KeyStore, KeyStore> keyStoreFilter;
 
@@ -147,6 +184,7 @@ public abstract class SslConfigurationLoader {
         this.defaultClientAuth = SslClientAuthenticationMode.OPTIONAL;
         this.defaultProtocols = DEFAULT_PROTOCOLS;
         this.defaultCiphers = DEFAULT_CIPHERS;
+        this.defaultRestrictedTrustFields = GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS;
     }
 
     /**
@@ -204,6 +242,10 @@ public abstract class SslConfigurationLoader {
         this.keyStoreFilter = keyStoreFilter;
     }
 
+    public void setDefaultRestrictedTrustFields(List<X509Field> x509Fields) {
+        this.defaultRestrictedTrustFields = x509Fields;
+    }
+
     /**
      * Clients of this class should implement this method to determine whether there are any settings for a given prefix.
      * This is used to populate {@link SslConfiguration#explicitlyConfigured()}.
@@ -255,9 +297,14 @@ public abstract class SslConfigurationLoader {
         final List<String> ciphers = resolveListSetting(CIPHERS, Function.identity(), defaultCiphers);
         final SslVerificationMode verificationMode = resolveSetting(VERIFICATION_MODE, SslVerificationMode::parse, defaultVerificationMode);
         final SslClientAuthenticationMode clientAuth = resolveSetting(CLIENT_AUTH, SslClientAuthenticationMode::parse, defaultClientAuth);
+        final List<X509Field> trustRestrictionsX509Fields = resolveListSetting(
+            TRUST_RESTRICTIONS_X509_FIELDS,
+            X509Field::parseForRestrictedTrust,
+            defaultRestrictedTrustFields
+        );
 
         final SslKeyConfig keyConfig = buildKeyConfig(basePath);
-        final SslTrustConfig trustConfig = buildTrustConfig(basePath, verificationMode, keyConfig);
+        final SslTrustConfig trustConfig = buildTrustConfig(basePath, verificationMode, keyConfig, Set.copyOf(trustRestrictionsX509Fields));
 
         if (protocols == null || protocols.isEmpty()) {
             throw new SslConfigException("no protocols configured in [" + settingPrefix + PROTOCOLS + "]");
@@ -266,10 +313,24 @@ public abstract class SslConfigurationLoader {
             throw new SslConfigException("no cipher suites configured in [" + settingPrefix + CIPHERS + "]");
         }
         final boolean isExplicitlyConfigured = hasSettings(settingPrefix);
-        return new SslConfiguration(isExplicitlyConfigured, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
+        return new SslConfiguration(
+            settingPrefix,
+            isExplicitlyConfigured,
+            trustConfig,
+            keyConfig,
+            verificationMode,
+            clientAuth,
+            ciphers,
+            protocols
+        );
     }
 
-    protected SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
+    protected SslTrustConfig buildTrustConfig(
+        Path basePath,
+        SslVerificationMode verificationMode,
+        SslKeyConfig keyConfig,
+        @Nullable Set<X509Field> restrictedTrustFields
+    ) {
         final List<String> certificateAuthorities = resolveListSetting(CERTIFICATE_AUTHORITIES, Function.identity(), null);
         final String trustStorePath = resolveSetting(TRUSTSTORE_PATH, Function.identity(), null);
 
@@ -321,7 +382,7 @@ public abstract class SslConfigurationLoader {
             }
             if (certificatePath == null) {
                 throw new SslConfigException(
-                    "cannot specify [" + settingPrefix + KEYSTORE_PATH + "] without also setting [" + settingPrefix + CERTIFICATE + "]"
+                    "cannot specify [" + settingPrefix + KEY + "] without also setting [" + settingPrefix + CERTIFICATE + "]"
                 );
             }
             final char[] password = resolvePasswordSetting(KEY_SECURE_PASSPHRASE, KEY_LEGACY_PASSPHRASE);

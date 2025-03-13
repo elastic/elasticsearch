@@ -1,21 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -130,6 +135,7 @@ public class BigArraysTests extends ESTestCase {
             ref[i] = randomFrom(pool);
             array = bigArrays.grow(array, i + 1);
             array.set(i, ref[i]);
+            assertEquals(ref[i], array.getAndSet(i, ref[i]));
         }
         for (int i = 0; i < totalLen; ++i) {
             assertSame(ref[i], array.get(i));
@@ -242,6 +248,81 @@ public class BigArraysTests extends ESTestCase {
         array2.close();
     }
 
+    public void testSerializeDoubleArray() throws Exception {
+        int len = randomIntBetween(1, 100_000);
+        DoubleArray array1 = bigArrays.newDoubleArray(len, randomBoolean());
+        for (int i = 0; i < len; ++i) {
+            array1.set(i, randomDouble());
+        }
+        if (randomBoolean()) {
+            len = randomIntBetween(len, len * 3 / 2);
+            array1 = bigArrays.resize(array1, len);
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        array1.writeTo(out);
+        final DoubleArray array2 = bigArrays.newDoubleArray(len, randomBoolean());
+        array2.fillWith(out.bytes().streamInput());
+        for (int i = 0; i < len; i++) {
+            assertThat(array2.get(i), equalTo(array1.get(i)));
+        }
+        final DoubleArray array3 = DoubleArray.readFrom(out.bytes().streamInput());
+        assertThat(array3.size(), equalTo((long) len));
+        for (int i = 0; i < len; i++) {
+            assertThat(array3.get(i), equalTo(array1.get(i)));
+        }
+        Releasables.close(array1, array2, array3);
+    }
+
+    public void testSerializeLongArray() throws Exception {
+        int len = randomIntBetween(1, 100_000);
+        LongArray array1 = bigArrays.newLongArray(len, randomBoolean());
+        for (int i = 0; i < len; ++i) {
+            array1.set(i, randomLong());
+        }
+        if (randomBoolean()) {
+            len = randomIntBetween(len, len * 3 / 2);
+            array1 = bigArrays.resize(array1, len);
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        array1.writeTo(out);
+        final LongArray array2 = bigArrays.newLongArray(len, randomBoolean());
+        array2.fillWith(out.bytes().streamInput());
+        for (int i = 0; i < len; i++) {
+            assertThat(array2.get(i), equalTo(array1.get(i)));
+        }
+        final LongArray array3 = LongArray.readFrom(out.bytes().streamInput());
+        assertThat(array3.size(), equalTo((long) len));
+        for (int i = 0; i < len; i++) {
+            assertThat(array3.get(i), equalTo(array1.get(i)));
+        }
+        Releasables.close(array1, array2, array3);
+    }
+
+    public void testSerializeIntArray() throws Exception {
+        int len = randomIntBetween(1, 100_000);
+        IntArray array1 = bigArrays.newIntArray(len, randomBoolean());
+        for (int i = 0; i < len; ++i) {
+            array1.set(i, randomInt());
+        }
+        if (randomBoolean()) {
+            len = randomIntBetween(len, len * 3 / 2);
+            array1 = bigArrays.resize(array1, len);
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        array1.writeTo(out);
+        final IntArray array2 = bigArrays.newIntArray(len, randomBoolean());
+        array2.fillWith(out.bytes().streamInput());
+        for (int i = 0; i < len; i++) {
+            assertThat(array2.get(i), equalTo(array1.get(i)));
+        }
+        final IntArray array3 = IntArray.readFrom(out.bytes().streamInput());
+        assertThat(array3.size(), equalTo((long) len));
+        for (int i = 0; i < len; i++) {
+            assertThat(array3.get(i), equalTo(array1.get(i)));
+        }
+        Releasables.close(array1, array2, array3);
+    }
+
     public void testByteArrayBulkGet() {
         final byte[] array1 = new byte[randomIntBetween(1, 4000000)];
         random().nextBytes(array1);
@@ -272,6 +353,40 @@ public class BigArraysTests extends ESTestCase {
             assertEquals(array1[i], array2.get(i));
         }
         array2.close();
+    }
+
+    public void testByteIterator() throws Exception {
+        final byte[] bytes = new byte[randomIntBetween(1, 4000000)];
+        random().nextBytes(bytes);
+        ByteArray array = bigArrays.newByteArray(bytes.length, randomBoolean());
+        array.fillWith(new ByteArrayStreamInput(bytes));
+        for (int i = 0; i < bytes.length; i++) {
+            assertEquals(bytes[i], array.get(i));
+        }
+        BytesRefIterator it = array.iterator();
+        BytesRef ref;
+        int offset = 0;
+        while ((ref = it.next()) != null) {
+            for (int i = 0; i < ref.length; i++) {
+                assertEquals(bytes[offset], ref.bytes[ref.offset + i]);
+                offset++;
+            }
+        }
+        assertThat(offset, equalTo(bytes.length));
+        int newLen = randomIntBetween(bytes.length, bytes.length + 100_000);
+        array = bigArrays.resize(array, newLen);
+        it = array.iterator();
+        offset = 0;
+        while ((ref = it.next()) != null) {
+            for (int i = 0; i < ref.length; i++) {
+                if (offset < bytes.length) {
+                    assertEquals(bytes[offset], ref.bytes[ref.offset + i]);
+                }
+                offset++;
+            }
+        }
+        assertThat(offset, equalTo(newLen));
+        array.close();
     }
 
     public void testByteArrayEquals() {
@@ -359,6 +474,7 @@ public class BigArraysTests extends ESTestCase {
         for (String type : Arrays.asList("Byte", "Int", "Long", "Float", "Double", "Object")) {
             final int maxSize = randomIntBetween(1 << 8, 1 << 14);
             HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 Settings.builder()
                     .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                     .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
@@ -411,42 +527,46 @@ public class BigArraysTests extends ESTestCase {
      */
     public void testPreallocate() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        try (HierarchyCircuitBreakerService realBreakers = new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings)) {
-            BigArrays unPreAllocated = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), realBreakers);
-            long toPreallocate = randomLongBetween(4000, 10000);
-            CircuitBreaker realBreaker = realBreakers.getBreaker(CircuitBreaker.REQUEST);
-            assertThat(realBreaker.getUsed(), equalTo(0L));
-            try (
-                PreallocatedCircuitBreakerService prealloctedBreakerService = new PreallocatedCircuitBreakerService(
-                    realBreakers,
-                    CircuitBreaker.REQUEST,
-                    toPreallocate,
-                    "test"
-                )
-            ) {
+        HierarchyCircuitBreakerService realBreakers = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            List.of(),
+            clusterSettings
+        );
+        BigArrays unPreAllocated = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), realBreakers);
+        long toPreallocate = randomLongBetween(4000, 10000);
+        CircuitBreaker realBreaker = realBreakers.getBreaker(CircuitBreaker.REQUEST);
+        assertThat(realBreaker.getUsed(), equalTo(0L));
+        try (
+            PreallocatedCircuitBreakerService prealloctedBreakerService = new PreallocatedCircuitBreakerService(
+                realBreakers,
+                CircuitBreaker.REQUEST,
+                toPreallocate,
+                "test"
+            )
+        ) {
+            assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+            BigArrays preallocated = unPreAllocated.withBreakerService(prealloctedBreakerService);
+
+            // We don't grab any bytes just making a new BigArrays
+            assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+
+            List<BigArray> arrays = new ArrayList<>();
+            for (int i = 0; i < 30; i++) {
+                // We're well under the preallocation so grabbing a little array doesn't allocate anything
+                arrays.add(preallocated.newLongArray(1));
                 assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
-                BigArrays preallocated = unPreAllocated.withBreakerService(prealloctedBreakerService);
-
-                // We don't grab any bytes just making a new BigArrays
-                assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
-
-                List<BigArray> arrays = new ArrayList<>();
-                for (int i = 0; i < 30; i++) {
-                    // We're well under the preallocation so grabbing a little array doesn't allocate anything
-                    arrays.add(preallocated.newLongArray(1));
-                    assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
-                }
-
-                // Allocating a large array *does* allocate some bytes
-                arrays.add(preallocated.newLongArray(1024));
-                long expectedMin = (PageCacheRecycler.LONG_PAGE_SIZE + arrays.size()) * Long.BYTES;
-                assertThat(realBreaker.getUsed(), greaterThanOrEqualTo(expectedMin));
-                // 64 should be enough room for each BigArray object
-                assertThat(realBreaker.getUsed(), lessThanOrEqualTo(expectedMin + 64 * arrays.size()));
-                Releasables.close(arrays);
             }
-            assertThat(realBreaker.getUsed(), equalTo(0L));
+
+            // Allocating a large array *does* allocate some bytes
+            arrays.add(preallocated.newLongArray(1024));
+            long expectedMin = (PageCacheRecycler.LONG_PAGE_SIZE + arrays.size()) * Long.BYTES;
+            assertThat(realBreaker.getUsed(), greaterThanOrEqualTo(expectedMin));
+            // 64 should be enough room for each BigArray object
+            assertThat(realBreaker.getUsed(), lessThanOrEqualTo(expectedMin + 64 * arrays.size()));
+            Releasables.close(arrays);
         }
+        assertThat(realBreaker.getUsed(), equalTo(0L));
     }
 
     private List<BigArraysHelper> bigArrayCreators(final long maxSize, final boolean withBreaking) {
@@ -491,6 +611,7 @@ public class BigArraysTests extends ESTestCase {
 
     private BigArrays newBigArraysInstance(final long maxSize, final boolean withBreaking) {
         HierarchyCircuitBreakerService hcbs = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.builder()
                 .put(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), maxSize, ByteSizeUnit.BYTES)
                 .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)

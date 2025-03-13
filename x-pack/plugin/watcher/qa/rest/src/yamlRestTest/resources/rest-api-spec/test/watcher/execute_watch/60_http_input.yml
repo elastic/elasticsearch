@@ -56,3 +56,56 @@ setup:
   - is_true: watch_record.result.input.payload.cluster_name
   # not part of the extract keys, should not occur
   - is_false: watch_record.result.input.payload.status
+---
+"HTTP input redacts sensitive info":
+
+  - do:
+      cluster.state: {}
+  - set: { metadata.cluster_uuid : cluster_uuid }
+  - set: { master_node: master }
+
+  - do:
+      nodes.info: {}
+  - set: { nodes.$master.http.publish_address: http_host }
+
+  - do:
+      watcher.execute_watch:
+        body: >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule": {
+                  "interval": "1s"
+                }
+              },
+              "input" : {
+                "http": {
+                  "request": {
+                    "url": "http://${http_host}/_cluster/health",
+                    "headers" : {
+                        "authorization" : "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
+                    },
+                    "auth" : {
+                      "basic" : {
+                        "username" : "x_pack_rest_user",
+                        "password" : "x-pack-test-password"
+                      }
+                    }
+                  }
+                }
+              },
+              "actions": {
+                "log": {
+                  "logging": {
+                    "text": "executed at {{ctx.execution_time}}"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.result.input.payload._status_code: 200 }
+  - match: { watch_record.input.http.request.auth.basic.password: "::es_redacted::"}
+  - match: { watch_record.input.http.request.headers.authorization: "::es_redacted::"}
+  - match: { watch_record.result.input.http.request.auth.basic.password: "::es_redacted::"}
+  - match: { watch_record.result.input.http.request.headers.authorization: "::es_redacted::"}

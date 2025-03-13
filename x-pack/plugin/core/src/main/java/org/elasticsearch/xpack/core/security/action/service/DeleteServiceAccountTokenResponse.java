@@ -18,7 +18,7 @@ import java.util.Objects;
 
 public class DeleteServiceAccountTokenResponse extends ActionResponse implements ToXContentObject {
 
-    private boolean found;
+    private final boolean found;
 
     public DeleteServiceAccountTokenResponse(boolean found) {
         this.found = found;

@@ -1,51 +1,55 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 
 public final class RoutingNodesHelper {
 
     private RoutingNodesHelper() {}
 
-    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
-        List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : routingNodes) {
-            shards.addAll(routingNode.shardsWithState(state));
+    public static int numberOfShardsWithState(RoutingNodes nodes, ShardRoutingState state) {
+        assert state != ShardRoutingState.UNASSIGNED : "unassigned state is not supported here, use nodes.unassigned().size() instead";
+        int count = 0;
+        for (RoutingNode routingNode : nodes) {
+            count += routingNode.numberOfShardsWithState(state);
         }
-        if (state == ShardRoutingState.UNASSIGNED) {
-            routingNodes.unassigned().forEach(shards::add);
-        }
-        return shards;
+        return count;
     }
 
-    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState... state) {
-        List<ShardRouting> shards = new ArrayList<>();
-        for (RoutingNode routingNode : routingNodes) {
-            shards.addAll(routingNode.shardsWithState(index, state));
-        }
-        for (ShardRoutingState s : state) {
-            if (s == ShardRoutingState.UNASSIGNED) {
-                for (ShardRouting unassignedShard : routingNodes.unassigned()) {
-                    if (unassignedShard.index().getName().equals(index)) {
-                        shards.add(unassignedShard);
-                    }
-                }
-                break;
-            }
-        }
-        return shards;
+    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, ShardRoutingState state) {
+        return state == ShardRoutingState.UNASSIGNED
+            ? iterableAsArrayList(routingNodes.unassigned())
+            : routingNodes.stream().flatMap(routingNode -> routingNode.shardsWithState(state)).toList();
+    }
+
+    public static List<ShardRouting> shardsWithState(RoutingNodes routingNodes, String index, ShardRoutingState states) {
+        return shardsWithState(routingNodes, states).stream()
+            .filter(shardRouting -> Objects.equals(shardRouting.getIndexName(), index))
+            .toList();
+    }
+
+    public static Stream<ShardRouting> assignedShardsIn(RoutingNodes routingNodes) {
+        return routingNodes.stream().flatMap(RoutingNodesHelper::assignedShardsIn);
+    }
+
+    public static Stream<ShardRouting> assignedShardsIn(RoutingNode routingNode) {
+        return StreamSupport.stream(routingNode.spliterator(), false);
     }
 
     /**
@@ -64,7 +68,6 @@ public final class RoutingNodesHelper {
         for (ShardRouting shardRouting : shards) {
             routingNode.add(shardRouting);
         }
-
         return routingNode;
     }
 }

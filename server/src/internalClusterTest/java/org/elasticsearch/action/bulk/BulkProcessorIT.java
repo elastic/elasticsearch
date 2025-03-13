@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -33,7 +34,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,7 +55,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setConcurrentRequests(randomIntBetween(0, 1))
                 .setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .build()
         ) {
 
@@ -83,7 +83,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setConcurrentRequests(randomIntBetween(0, 10))
                 .setBulkActions(numDocs + randomIntBetween(1, 100))
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .build()
         ) {
 
@@ -115,7 +115,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setConcurrentRequests(randomIntBetween(0, 10))
                 .setBulkActions(numDocs + randomIntBetween(1, 100))
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .setFlushCondition(flushEnabled::get)
                 .build()
         ) {
@@ -159,7 +159,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setBulkActions(bulkActions)
                 // set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .build()
         ) {
 
@@ -202,7 +202,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
             .setConcurrentRequests(randomIntBetween(0, 1))
             .setBulkActions(numDocs)
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
+            .setBulkSize(ByteSizeValue.of(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
             .build();
 
         MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
@@ -226,12 +226,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
 
     public void testBulkProcessorConcurrentRequestsReadOnlyIndex() throws Exception {
         createIndex("test-ro");
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("test-ro")
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true))
-        );
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true), "test-ro");
         ensureGreen();
 
         int bulkActions = randomIntBetween(10, 100);
@@ -255,7 +250,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setBulkActions(bulkActions)
                 // set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .build()
         ) {
 

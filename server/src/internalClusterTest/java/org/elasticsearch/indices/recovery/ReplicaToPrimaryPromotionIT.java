@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.recovery;
 
@@ -43,20 +44,24 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
             refresh(indexName);
         }
 
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), numOfDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0), numOfDocs);
         ensureGreen(indexName);
 
         // sometimes test with a closed index
         final IndexMetadata.State indexState = randomFrom(IndexMetadata.State.OPEN, IndexMetadata.State.CLOSE);
         if (indexState == IndexMetadata.State.CLOSE) {
-            CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose(indexName).get();
+            CloseIndexResponse closeIndexResponse = indicesAdmin().prepareClose(indexName).get();
             assertThat("close index not acked - " + closeIndexResponse, closeIndexResponse.isAcknowledged(), equalTo(true));
             ensureGreen(indexName);
         }
 
         // pick up a data node that contains a random primary shard
-        ClusterState state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
-        final int numShards = state.metadata().index(indexName).getNumberOfShards();
+        ClusterState state = client(internalCluster().getMasterName()).admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState();
+        final int numShards = state.metadata().getProject().index(indexName).getNumberOfShards();
         final ShardRouting primaryShard = state.routingTable().index(indexName).shard(randomIntBetween(0, numShards - 1)).primaryShard();
         final DiscoveryNode randomNode = state.nodes().resolveNode(primaryShard.currentNodeId());
 
@@ -64,7 +69,7 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         internalCluster().stopNode(randomNode.getName());
         ensureYellowAndNoInitializingShards(indexName);
 
-        state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
+        state = client(internalCluster().getMasterName()).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexName);
         for (int i = 0; i < indexRoutingTable.size(); i++) {
             for (ShardRouting shardRouting : indexRoutingTable.shard(i).activeShards()) {
@@ -73,9 +78,9 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         }
 
         if (indexState == IndexMetadata.State.CLOSE) {
-            assertAcked(client().admin().indices().prepareOpen(indexName));
+            assertAcked(indicesAdmin().prepareOpen(indexName));
             ensureYellowAndNoInitializingShards(indexName);
         }
-        assertHitCount(client().prepareSearch(indexName).setSize(0).get(), numOfDocs);
+        assertHitCount(prepareSearch(indexName).setSize(0), numOfDocs);
     }
 }

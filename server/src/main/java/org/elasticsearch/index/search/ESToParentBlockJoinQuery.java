@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -54,8 +54,8 @@ public final class ESToParentBlockJoinQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query innerRewrite = query.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query innerRewrite = query.rewrite(searcher);
         if (innerRewrite != query) {
             // Right now ToParentBlockJoinQuery always rewrites to a ToParentBlockJoinQuery
             // so the else block will never be used. It is useful in the case that
@@ -69,7 +69,7 @@ public final class ESToParentBlockJoinQuery extends Query {
                 return innerRewrite;
             }
         }
-        return super.rewrite(reader);
+        return super.rewrite(searcher);
     }
 
     @Override

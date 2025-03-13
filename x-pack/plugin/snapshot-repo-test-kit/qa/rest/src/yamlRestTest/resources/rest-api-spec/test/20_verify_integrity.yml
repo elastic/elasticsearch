@@ -1,0 +1,35 @@
+---
+setup:
+  - do:
+      snapshot.create_repository:
+        repository: test_repo
+        body:
+          type: fs
+          settings:
+            location: "test_repo_loc"
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index":{}}'
+          - '{}'
+
+  - do:
+      snapshot.create:
+        repository: test_repo
+        snapshot: snap
+        wait_for_completion: true
+
+---
+"Integrity verification":
+  - do:
+      snapshot.repository_verify_integrity:
+        repository: test_repo
+
+  - match: {results.result: pass}
+  - match: {results.status.snapshots.total: 1}
+  - match: {results.status.snapshots.verified: 1}
+  - match: {results.status.indices.total: 1}
+  - match: {results.status.indices.verified: 1}

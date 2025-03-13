@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.slice;
+
+import com.carrotsearch.hppc.BitMixer;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -14,6 +17,7 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -23,7 +27,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.QueryUtils;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 
@@ -80,13 +83,14 @@ public class DocValuesSliceQueryTests extends ESTestCase {
             searcher.search(query1, new Collector() {
                 @Override
                 public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+                    StoredFields storedFields = context.reader().storedFields();
                     return new LeafCollector() {
                         @Override
                         public void setScorer(Scorable scorer) throws IOException {}
 
                         @Override
                         public void collect(int doc) throws IOException {
-                            Document d = context.reader().document(doc, Collections.singleton("uuid"));
+                            Document d = storedFields.document(doc, Collections.singleton("uuid"));
                             String uuid = d.get("uuid");
                             assertThat(keys.contains(uuid), equalTo(true));
                             keys.remove(uuid);

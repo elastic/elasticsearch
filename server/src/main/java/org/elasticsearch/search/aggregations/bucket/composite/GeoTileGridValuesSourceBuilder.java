@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -82,7 +83,8 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
                 ValuesSource.GeoPoint geoPoint = (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource();
                 // is specified in the builder.
                 final MappedFieldType fieldType = valuesSourceConfig.fieldType();
-                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(geoPoint, precision, boundingBox);
+                // TODO: support adding circuit breaker in composite
+                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(geoPoint, precision, boundingBox, cb -> {});
                 return new CompositeValuesSourceConfig(
                     name,
                     fieldType,
@@ -158,7 +160,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
         builder.field("precision", precision);
         if (geoBoundingBox.isUnbounded() == false) {
             builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
-            geoBoundingBox.toXContentFragment(builder, true);
+            geoBoundingBox.toXContentFragment(builder);
             builder.endObject();
         }
     }

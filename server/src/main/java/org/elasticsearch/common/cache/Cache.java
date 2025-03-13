@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.cache;
 
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Tuple;
 
 import java.lang.reflect.Array;
@@ -19,6 +19,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -102,8 +103,8 @@ public class Cache<K, V> {
         this.entriesExpireAfterAccess = true;
     }
 
-    // pkg-private for testing
-    long getExpireAfterAccessNanos() {
+    // public for testing
+    public long getExpireAfterAccessNanos() {
         return this.expireAfterAccessNanos;
     }
 
@@ -178,10 +179,10 @@ public class Cache<K, V> {
      */
     private final class CacheSegment {
         // read/write lock protecting mutations to the segment
-        ReadWriteLock segmentLock = new ReentrantReadWriteLock();
+        final ReadWriteLock segmentLock = new ReentrantReadWriteLock();
 
-        ReleasableLock readLock = new ReleasableLock(segmentLock.readLock());
-        ReleasableLock writeLock = new ReleasableLock(segmentLock.writeLock());
+        final Lock readLock = segmentLock.readLock();
+        final Lock writeLock = segmentLock.writeLock();
 
         Map<K, CompletableFuture<Entry<K, V>>> map;
 
@@ -196,8 +197,11 @@ public class Cache<K, V> {
          */
         Entry<K, V> get(K key, long now, boolean eagerEvict) {
             CompletableFuture<Entry<K, V>> future;
-            try (ReleasableLock ignored = readLock.acquire()) {
+            readLock.lock();
+            try {
                 future = map == null ? null : map.get(key);
+            } finally {
+                readLock.unlock();
             }
             if (future != null) {
                 Entry<K, V> entry;
@@ -213,8 +217,11 @@ public class Cache<K, V> {
                 if (isExpired(entry, now)) {
                     misses.increment();
                     if (eagerEvict) {
-                        try (ReleasableLock ignored = lruLock.acquire()) {
+                        lruLock.lock();
+                        try {
                             evictEntry(entry);
+                        } finally {
+                            lruLock.unlock();
                         }
                     }
                     return null;
@@ -240,7 +247,8 @@ public class Cache<K, V> {
         Tuple<Entry<K, V>, Entry<K, V>> put(K key, V value, long now) {
             Entry<K, V> entry = new Entry<>(key, value, now);
             Entry<K, V> existing = null;
-            try (ReleasableLock ignored = writeLock.acquire()) {
+            writeLock.lock();
+            try {
                 try {
                     if (map == null) {
                         map = new HashMap<>();
@@ -252,6 +260,8 @@ public class Cache<K, V> {
                 } catch (ExecutionException | InterruptedException e) {
                     throw new IllegalStateException(e);
                 }
+            } finally {
+                writeLock.unlock();
             }
             return Tuple.tuple(entry, existing);
         }
@@ -263,7 +273,8 @@ public class Cache<K, V> {
          */
         void remove(K key) {
             CompletableFuture<Entry<K, V>> future;
-            try (ReleasableLock ignored = writeLock.acquire()) {
+            writeLock.lock();
+            try {
                 if (map == null) {
                     future = null;
                 } else {
@@ -272,6 +283,8 @@ public class Cache<K, V> {
                         map = null;
                     }
                 }
+            } finally {
+                writeLock.unlock();
             }
             if (future != null) {
                 evictions.increment();
@@ -290,7 +303,8 @@ public class Cache<K, V> {
         void remove(K key, V value, boolean notify) {
             CompletableFuture<Entry<K, V>> future;
             boolean removed = false;
-            try (ReleasableLock ignored = writeLock.acquire()) {
+            writeLock.lock();
+            try {
                 future = map == null ? null : map.get(key);
                 try {
                     if (future != null) {
@@ -307,6 +321,8 @@ public class Cache<K, V> {
                 } catch (ExecutionException | InterruptedException e) {
                     throw new IllegalStateException(e);
                 }
+            } finally {
+                writeLock.unlock();
             }
 
             if (future != null && removed) {
@@ -333,7 +349,7 @@ public class Cache<K, V> {
     Entry<K, V> tail;
 
     // lock protecting mutations to the LRU list
-    private final ReleasableLock lruLock = new ReleasableLock(new ReentrantLock());
+    private final ReentrantLock lruLock = new ReentrantLock();
 
     /**
      * Returns the value to which the specified key is mapped, or null if this map contains no mapping for the key.
@@ -380,15 +396,18 @@ public class Cache<K, V> {
             // need a mechanism to ensure that load is invoked at most once, but we are not invoking load while holding
             // the segment lock; to do this, we atomically put a future in the map that can load the value, and then
             // get the value from this future on the thread that won the race to place the future into the segment map
-            CacheSegment segment = getCacheSegment(key);
+            final CacheSegment segment = getCacheSegment(key);
             CompletableFuture<Entry<K, V>> future;
             CompletableFuture<Entry<K, V>> completableFuture = new CompletableFuture<>();
 
-            try (ReleasableLock ignored = segment.writeLock.acquire()) {
+            segment.writeLock.lock();
+            try {
                 if (segment.map == null) {
                     segment.map = new HashMap<>();
                 }
                 future = segment.map.putIfAbsent(key, completableFuture);
+            } finally {
+                segment.writeLock.unlock();
             }
 
             BiFunction<? super Entry<K, V>, Throwable, ? extends V> handler = (ok, ex) -> {
@@ -396,7 +415,8 @@ public class Cache<K, V> {
                     promote(ok, now);
                     return ok.value;
                 } else {
-                    try (ReleasableLock ignored = segment.writeLock.acquire()) {
+                    segment.writeLock.lock();
+                    try {
                         CompletableFuture<Entry<K, V>> sanity = segment.map == null ? null : segment.map.get(key);
                         if (sanity != null && sanity.isCompletedExceptionally()) {
                             segment.map.remove(key);
@@ -404,6 +424,8 @@ public class Cache<K, V> {
                                 segment.map = null;
                             }
                         }
+                    } finally {
+                        segment.writeLock.unlock();
                     }
                     return null;
                 }
@@ -461,13 +483,16 @@ public class Cache<K, V> {
         CacheSegment segment = getCacheSegment(key);
         Tuple<Entry<K, V>, Entry<K, V>> tuple = segment.put(key, value, now);
         boolean replaced = false;
-        try (ReleasableLock ignored = lruLock.acquire()) {
+        lruLock.lock();
+        try {
             if (tuple.v2() != null && tuple.v2().state == State.EXISTING) {
                 if (unlink(tuple.v2())) {
                     replaced = true;
                 }
             }
             promote(tuple.v1(), now);
+        } finally {
+            lruLock.unlock();
         }
         if (replaced) {
             removalListener.onRemoval(
@@ -479,8 +504,11 @@ public class Cache<K, V> {
     private void notifyWithInvalidated(CompletableFuture<Entry<K, V>> f) {
         try {
             Entry<K, V> entry = f.get();
-            try (ReleasableLock ignored = lruLock.acquire()) {
+            lruLock.lock();
+            try {
                 delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
+            } finally {
+                lruLock.unlock();
             }
         } catch (ExecutionException e) {
             // ok
@@ -521,12 +549,13 @@ public class Cache<K, V> {
         Entry<K, V> h;
 
         boolean[] haveSegmentLock = new boolean[NUMBER_OF_SEGMENTS];
+        lruLock.lock();
         try {
-            for (int i = 0; i < NUMBER_OF_SEGMENTS; i++) {
-                segments[i].segmentLock.writeLock().lock();
-                haveSegmentLock[i] = true;
-            }
-            try (ReleasableLock ignored = lruLock.acquire()) {
+            try {
+                for (int i = 0; i < NUMBER_OF_SEGMENTS; i++) {
+                    segments[i].segmentLock.writeLock().lock();
+                    haveSegmentLock[i] = true;
+                }
                 h = head;
                 for (CacheSegment segment : segments) {
                     segment.map = null;
@@ -539,13 +568,15 @@ public class Cache<K, V> {
                 head = tail = null;
                 count = 0;
                 weight = 0;
-            }
-        } finally {
-            for (int i = NUMBER_OF_SEGMENTS - 1; i >= 0; i--) {
-                if (haveSegmentLock[i]) {
-                    segments[i].segmentLock.writeLock().unlock();
+            } finally {
+                for (int i = NUMBER_OF_SEGMENTS - 1; i >= 0; i--) {
+                    if (haveSegmentLock[i]) {
+                        segments[i].segmentLock.writeLock().unlock();
+                    }
                 }
             }
+        } finally {
+            lruLock.unlock();
         }
         while (h != null) {
             removalListener.onRemoval(new RemovalNotification<>(h.key, h.value, RemovalNotification.RemovalReason.INVALIDATED));
@@ -558,8 +589,11 @@ public class Cache<K, V> {
      */
     public void refresh() {
         long now = now();
-        try (ReleasableLock ignored = lruLock.acquire()) {
+        lruLock.lock();
+        try {
             evict(now);
+        } finally {
+            lruLock.unlock();
         }
     }
 
@@ -589,7 +623,7 @@ public class Cache<K, V> {
      * @return an LRU-ordered {@link Iterable} over the keys in the cache
      */
     public Iterable<K> keys() {
-        return () -> new Iterator<K>() {
+        return () -> new Iterator<>() {
             private final CacheIterator iterator = new CacheIterator(head);
 
             @Override
@@ -617,7 +651,7 @@ public class Cache<K, V> {
      * @return an LRU-ordered {@link Iterable} over the values in the cache
      */
     public Iterable<V> values() {
-        return () -> new Iterator<V>() {
+        return () -> new Iterator<>() {
             private final CacheIterator iterator = new CacheIterator(head);
 
             @Override
@@ -647,7 +681,8 @@ public class Cache<K, V> {
      */
     public void forEach(BiConsumer<K, V> consumer) {
         for (CacheSegment segment : segments) {
-            try (ReleasableLock ignored = segment.readLock.acquire()) {
+            segment.readLock.lock();
+            try {
                 if (segment.map == null) {
                     continue;
                 }
@@ -661,6 +696,8 @@ public class Cache<K, V> {
                         throw new IllegalStateException(e);
                     }
                 }
+            } finally {
+                segment.readLock.unlock();
             }
         }
     }
@@ -692,9 +729,12 @@ public class Cache<K, V> {
             if (entry != null) {
                 CacheSegment segment = getCacheSegment(entry.key);
                 segment.remove(entry.key, entry.value, false);
-                try (ReleasableLock ignored = lruLock.acquire()) {
+                lruLock.lock();
+                try {
                     current = null;
                     delete(entry, RemovalNotification.RemovalReason.INVALIDATED);
+                } finally {
+                    lruLock.unlock();
                 }
             }
         }
@@ -736,7 +776,8 @@ public class Cache<K, V> {
 
     private void promote(Entry<K, V> entry, long now) {
         boolean promoted = true;
-        try (ReleasableLock ignored = lruLock.acquire()) {
+        lruLock.lock();
+        try {
             switch (entry.state) {
                 case DELETED -> promoted = false;
                 case EXISTING -> relinkAtHead(entry);
@@ -745,6 +786,8 @@ public class Cache<K, V> {
             if (promoted) {
                 evict(now);
             }
+        } finally {
+            lruLock.unlock();
         }
     }
 

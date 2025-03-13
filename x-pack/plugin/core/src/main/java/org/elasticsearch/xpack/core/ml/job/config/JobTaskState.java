@@ -6,41 +6,53 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.utils.MlTaskState;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class JobTaskState implements PersistentTaskState {
+public class JobTaskState implements PersistentTaskState, MlTaskState {
 
     public static final String NAME = MlTasks.JOB_TASK_NAME;
 
-    private static ParseField STATE = new ParseField("state");
-    private static ParseField ALLOCATION_ID = new ParseField("allocation_id");
-    private static ParseField REASON = new ParseField("reason");
+    private static final ParseField STATE = new ParseField("state");
+    private static final ParseField ALLOCATION_ID = new ParseField("allocation_id");
+    private static final ParseField REASON = new ParseField("reason");
+    private static final ParseField LAST_STATE_CHANGE_TIME = new ParseField("last_state_change_time");
 
     private static final ConstructingObjectParser<JobTaskState, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        args -> new JobTaskState((JobState) args[0], (Long) args[1], (String) args[2])
+        args -> new JobTaskState((JobState) args[0], (Long) args[1], (String) args[2], (Instant) args[3])
     );
 
     static {
         PARSER.declareString(constructorArg(), JobState::fromString, STATE);
         PARSER.declareLong(constructorArg(), ALLOCATION_ID);
         PARSER.declareString(optionalConstructorArg(), REASON);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> TimeUtils.parseTimeFieldToInstant(p, LAST_STATE_CHANGE_TIME.getPreferredName()),
+            LAST_STATE_CHANGE_TIME,
+            ObjectParser.ValueType.VALUE
+        );
     }
 
     public static JobTaskState fromXContent(XContentParser parser) {
@@ -54,26 +66,49 @@ public class JobTaskState implements PersistentTaskState {
     private final JobState state;
     private final long allocationId;
     private final String reason;
+    private final Instant lastStateChangeTime;
 
-    public JobTaskState(JobState state, long allocationId, @Nullable String reason) {
+    public JobTaskState(JobState state, long allocationId, @Nullable String reason, @Nullable Instant lastStateChangeTime) {
         this.state = Objects.requireNonNull(state);
         this.allocationId = allocationId;
         this.reason = reason;
+        // Round to millisecond to avoid serialization round trip differences
+        this.lastStateChangeTime = (lastStateChangeTime != null) ? Instant.ofEpochMilli(lastStateChangeTime.toEpochMilli()) : null;
     }
 
     public JobTaskState(StreamInput in) throws IOException {
         state = JobState.fromStream(in);
         allocationId = in.readLong();
         reason = in.readOptionalString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            lastStateChangeTime = in.readOptionalInstant();
+        } else {
+            lastStateChangeTime = null;
+        }
     }
 
     public JobState getState() {
         return state;
     }
 
+    public long getAllocationId() {
+        return allocationId;
+    }
+
     @Nullable
     public String getReason() {
         return reason;
+    }
+
+    @Override
+    @Nullable
+    public Instant getLastStateChangeTime() {
+        return lastStateChangeTime;
+    }
+
+    @Override
+    public boolean isFailed() {
+        return JobState.FAILED.equals(state);
     }
 
     /**
@@ -101,11 +136,9 @@ public class JobTaskState implements PersistentTaskState {
         state.writeTo(out);
         out.writeLong(allocationId);
         out.writeOptionalString(reason);
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeOptionalInstant(lastStateChangeTime);
+        }
     }
 
     @Override
@@ -116,6 +149,13 @@ public class JobTaskState implements PersistentTaskState {
         if (reason != null) {
             builder.field(REASON.getPreferredName(), reason);
         }
+        if (lastStateChangeTime != null) {
+            builder.timestampFieldsFromUnixEpochMillis(
+                LAST_STATE_CHANGE_TIME.getPreferredName(),
+                LAST_STATE_CHANGE_TIME.getPreferredName() + "_string",
+                lastStateChangeTime.toEpochMilli()
+            );
+        }
         builder.endObject();
         return builder;
     }
@@ -125,11 +165,14 @@ public class JobTaskState implements PersistentTaskState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         JobTaskState that = (JobTaskState) o;
-        return state == that.state && Objects.equals(allocationId, that.allocationId) && Objects.equals(reason, that.reason);
+        return state == that.state
+            && Objects.equals(allocationId, that.allocationId)
+            && Objects.equals(reason, that.reason)
+            && Objects.equals(lastStateChangeTime, that.lastStateChangeTime);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(state, allocationId, reason);
+        return Objects.hash(state, allocationId, reason, lastStateChangeTime);
     }
 }

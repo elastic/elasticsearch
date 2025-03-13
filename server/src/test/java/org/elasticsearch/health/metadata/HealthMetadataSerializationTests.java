@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.metadata;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 
 import java.util.List;
@@ -51,14 +53,25 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         return randomHealthMetadata();
     }
 
+    @Override
+    protected ClusterState.Custom mutateInstance(ClusterState.Custom instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private static HealthMetadata randomHealthMetadata() {
-        return new HealthMetadata(randomDiskMetadata());
+        return new HealthMetadata(randomDiskMetadata(), randomShardLimitsMetadata());
+    }
+
+    private static HealthMetadata.ShardLimits randomShardLimitsMetadata() {
+        return randomBoolean() ? new HealthMetadata.ShardLimits(randomIntBetween(1, 10000), randomIntBetween(1, 10000)) : null;
     }
 
     private static HealthMetadata.Disk randomDiskMetadata() {
         return new HealthMetadata.Disk(
             randomRelativeByteSizeValue(),
+            ByteSizeValue.ofGb(randomIntBetween(10, 999)),
             randomRelativeByteSizeValue(),
+            ByteSizeValue.ofGb(randomIntBetween(10, 999)),
             randomRelativeByteSizeValue(),
             ByteSizeValue.ofGb(randomIntBetween(10, 999))
         );
@@ -72,21 +85,47 @@ public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializ
         }
     }
 
-    static HealthMetadata.Disk mutateDiskMetadata(HealthMetadata.Disk base) {
+    static HealthMetadata.Disk mutate(HealthMetadata.Disk base) {
         RelativeByteSizeValue highWatermark = base.highWatermark();
+        ByteSizeValue highWatermarkMaxHeadRoom = base.highMaxHeadroom();
         RelativeByteSizeValue floodStageWatermark = base.floodStageWatermark();
+        ByteSizeValue floodStageWatermarkMaxHeadRoom = base.floodStageMaxHeadroom();
         RelativeByteSizeValue floodStageWatermarkFrozen = base.frozenFloodStageWatermark();
         ByteSizeValue floodStageWatermarkFrozenMaxHeadRoom = base.frozenFloodStageMaxHeadroom();
-        switch (randomInt(3)) {
+        switch (randomInt(5)) {
             case 0 -> highWatermark = randomRelativeByteSizeValue();
-            case 1 -> floodStageWatermark = randomRelativeByteSizeValue();
-            case 2 -> floodStageWatermarkFrozen = randomRelativeByteSizeValue();
-            case 3 -> ByteSizeValue.ofGb(randomIntBetween(10, 999));
+            case 1 -> highWatermarkMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
+            case 2 -> floodStageWatermark = randomRelativeByteSizeValue();
+            case 3 -> floodStageWatermarkMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
+            case 4 -> floodStageWatermarkFrozen = randomRelativeByteSizeValue();
+            case 5 -> floodStageWatermarkFrozenMaxHeadRoom = ByteSizeValue.ofGb(randomIntBetween(10, 999));
         }
-        return new HealthMetadata.Disk(highWatermark, floodStageWatermark, floodStageWatermarkFrozen, floodStageWatermarkFrozenMaxHeadRoom);
+        return new HealthMetadata.Disk(
+            highWatermark,
+            highWatermarkMaxHeadRoom,
+            floodStageWatermark,
+            floodStageWatermarkMaxHeadRoom,
+            floodStageWatermarkFrozen,
+            floodStageWatermarkFrozenMaxHeadRoom
+        );
+    }
+
+    static HealthMetadata.ShardLimits mutate(HealthMetadata.ShardLimits base) {
+        if (base == null) {
+            return null;
+        }
+        if (randomBoolean()) {
+            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNode(randomIntBetween(1, 10000)).build();
+        } else {
+            return HealthMetadata.ShardLimits.newBuilder(base).maxShardsPerNodeFrozen(randomIntBetween(1, 10000)).build();
+        }
     }
 
     private HealthMetadata mutate(HealthMetadata base) {
-        return new HealthMetadata(mutateDiskMetadata(base.getDiskMetadata()));
+        return new HealthMetadata(mutate(base.getDiskMetadata()), mutate(base.getShardLimitsMetadata()));
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), ignored -> 1);
     }
 }

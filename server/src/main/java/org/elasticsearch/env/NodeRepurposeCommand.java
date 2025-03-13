@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
@@ -87,14 +88,14 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
 
         final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
-        if (indexPaths.isEmpty() && metadata.indices().isEmpty()) {
+        if (indexPaths.isEmpty() && metadata.getProject().indices().isEmpty()) {
             terminal.println(Terminal.Verbosity.NORMAL, NO_DATA_TO_CLEAN_UP_FOUND);
             return;
         }
 
         final Set<String> indexUUIDs = Sets.union(
             indexUUIDsFor(indexPaths),
-            metadata.indices().values().stream().map(IndexMetadata::getIndexUUID).collect(Collectors.toSet())
+            metadata.getProject().indices().values().stream().map(IndexMetadata::getIndexUUID).collect(Collectors.toSet())
         );
 
         outputVerboseInformation(terminal, indexPaths, indexUUIDs, metadata);
@@ -170,7 +171,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     private static String toIndexName(String uuid, Metadata metadata) {
         if (metadata != null) {
-            for (Map.Entry<String, IndexMetadata> indexMetadata : metadata.indices().entrySet()) {
+            for (Map.Entry<String, IndexMetadata> indexMetadata : metadata.getProject().indices().entrySet()) {
                 if (indexMetadata.getValue().getIndexUUID().equals(uuid)) {
                     return indexMetadata.getValue().getIndex().getName();
                 }

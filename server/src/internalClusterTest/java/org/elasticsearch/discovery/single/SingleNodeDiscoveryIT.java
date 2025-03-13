@@ -1,27 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.single;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.JoinHelper;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -77,22 +75,21 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 return null;
             }
         };
-        try (
-            InternalTestCluster other = new InternalTestCluster(
-                randomLong(),
-                createTempDir(),
-                false,
-                false,
-                1,
-                1,
-                internalCluster().getClusterName(),
-                configurationSource,
-                0,
-                "other",
-                Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-                Function.identity()
-            )
-        ) {
+        final InternalTestCluster other = new InternalTestCluster(
+            randomLong(),
+            createTempDir(),
+            false,
+            false,
+            1,
+            1,
+            internalCluster().getClusterName(),
+            configurationSource,
+            0,
+            "other",
+            Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+            Function.identity()
+        );
+        try {
             other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             final ClusterState second = other.getInstance(ClusterService.class).state();
@@ -100,28 +97,12 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             assertThat(second.nodes().getSize(), equalTo(1));
             assertThat(first.nodes().getMasterNodeId(), not(equalTo(second.nodes().getMasterNodeId())));
             assertThat(first.metadata().clusterUUID(), not(equalTo(second.metadata().clusterUUID())));
+        } finally {
+            other.close();
         }
     }
 
     public void testCannotJoinNodeWithSingleNodeDiscovery() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
-
-                @Override
-                public boolean innerMatch(final LogEvent event) {
-                    return event.getThrown() != null
-                        && event.getThrown().getClass() == RemoteTransportException.class
-                        && event.getThrown().getCause() != null
-                        && event.getThrown().getCause().getClass() == IllegalStateException.class
-                        && event.getThrown()
-                            .getCause()
-                            .getMessage()
-                            .contains("cannot join node with [discovery.type] set to [single-node]");
-                }
-            }
-        );
         final TransportService service = internalCluster().getInstance(TransportService.class);
         final int port = service.boundAddress().publishAddress().getPort();
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
@@ -144,34 +125,44 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
                 return null;
             }
         };
-        try (
-            InternalTestCluster other = new InternalTestCluster(
-                randomLong(),
-                createTempDir(),
-                false,
-                false,
-                1,
-                1,
-                internalCluster().getClusterName(),
-                configurationSource,
-                0,
-                "other",
-                Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-                Function.identity()
-            )
-        ) {
+        final InternalTestCluster other = new InternalTestCluster(
+            randomLong(),
+            createTempDir(),
+            false,
+            false,
+            1,
+            1,
+            internalCluster().getClusterName(),
+            configurationSource,
+            0,
+            "other",
+            Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
+            Function.identity()
+        );
+        try (var mockLog = MockLog.capture(JoinHelper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
 
-            Logger clusterLogger = LogManager.getLogger(JoinHelper.class);
-            Loggers.addAppender(clusterLogger, mockAppender);
-            try {
-                other.beforeTest(random());
-                final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
-                assertThat(first.nodes().getSize(), equalTo(1));
-                assertBusy(() -> mockAppender.assertAllExpectationsMatched());
-            } finally {
-                Loggers.removeAppender(clusterLogger, mockAppender);
-                mockAppender.stop();
-            }
+                    @Override
+                    public boolean innerMatch(final LogEvent event) {
+                        return event.getThrown() != null
+                            && event.getThrown().getClass() == RemoteTransportException.class
+                            && event.getThrown().getCause() != null
+                            && event.getThrown().getCause().getClass() == IllegalStateException.class
+                            && event.getThrown()
+                                .getCause()
+                                .getMessage()
+                                .contains("cannot join node with [discovery.type] set to [single-node]");
+                    }
+                }
+            );
+
+            other.beforeTest(random());
+            final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
+            assertThat(first.nodes().getSize(), equalTo(1));
+            mockLog.awaitAllExpectationsMatched();
+        } finally {
+            other.close();
         }
     }
 

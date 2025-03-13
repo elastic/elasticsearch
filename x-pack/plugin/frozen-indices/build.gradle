@@ -1,12 +1,14 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'frozen-indices'
-  description 'A plugin for the frozen indices functionality'
-  classname 'org.elasticsearch.xpack.frozen.FrozenIndices'
+  name = 'frozen-indices'
+  description = 'A plugin for the frozen indices functionality'
+  classname = 'org.elasticsearch.xpack.frozen.FrozenIndices'
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-frozen-indices'
+base {
+  archivesName = 'x-pack-frozen-indices'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

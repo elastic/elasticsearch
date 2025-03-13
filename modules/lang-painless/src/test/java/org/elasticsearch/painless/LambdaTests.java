@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -149,28 +150,19 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testCapturesAreReadOnly() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> {
-                exec(
-                    "List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();"
-                );
-            }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();");
+        });
         assertTrue(expected.getMessage().contains("is read-only"));
     }
 
     /** Lambda parameters shouldn't be able to mask a variable already in scope */
     public void testNoParamMasking() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> {
-                exec(
-                    "int x = 0; List l = new ArrayList(); l.add(1); l.add(1); "
-                        + "return l.stream().mapToInt(x -> { x += 1; return x }).sum();"
-                );
-            }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec(
+                "int x = 0; List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> { x += 1; return x }).sum();"
+            );
+        });
         assertTrue(expected.getMessage().contains("already defined"));
     }
 
@@ -190,36 +182,30 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testWrongArity() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            false,
-            () -> { exec("Optional.empty().orElseGet(x -> x);"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, false, () -> {
+            exec("Optional.empty().orElseGet(x -> x);");
+        });
         assertTrue(expected.getMessage().contains("Incorrect number of parameters"));
     }
 
     public void testWrongArityDef() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("def y = Optional.empty(); return y.orElseGet(x -> x);"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def y = Optional.empty(); return y.orElseGet(x -> x);");
+        });
         assertTrue(expected.getMessage(), expected.getMessage().contains("due to an incorrect number of arguments"));
     }
 
     public void testWrongArityNotEnough() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            false,
-            () -> { exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(() -> 5).sum();"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, false, () -> {
+            exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(() -> 5).sum();");
+        });
         assertTrue(expected.getMessage().contains("Incorrect number of parameters"));
     }
 
     public void testWrongArityNotEnoughDef() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> { exec("def l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(() -> 5).sum();"); }
-        );
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
+            exec("def l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(() -> 5).sum();");
+        });
         assertTrue(expected.getMessage(), expected.getMessage().contains("due to an incorrect number of arguments"));
     }
 
@@ -284,19 +270,17 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testReturnVoid() {
-        Throwable expected = expectScriptThrows(
-            ClassCastException.class,
-            () -> { exec("StringBuilder b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(i -> b.setLength(i))"); }
-        );
+        Throwable expected = expectScriptThrows(ClassCastException.class, () -> {
+            exec("StringBuilder b = new StringBuilder(); List l = [1, 2]; l.stream().mapToLong(i -> b.setLength(i))");
+        });
         assertThat(expected.getMessage(), containsString("Cannot cast from [void] to [long]."));
     }
 
     public void testReturnVoidDef() {
         // If we can catch the error at compile time we do
-        Exception expected = expectScriptThrows(
-            ClassCastException.class,
-            () -> { exec("StringBuilder b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(i -> b.setLength(i))"); }
-        );
+        Exception expected = expectScriptThrows(ClassCastException.class, () -> {
+            exec("StringBuilder b = new StringBuilder(); def l = [1, 2]; l.stream().mapToLong(i -> b.setLength(i))");
+        });
         assertThat(expected.getMessage(), containsString("Cannot cast from [void] to [def]."));
 
         // Otherwise we convert the void into a null

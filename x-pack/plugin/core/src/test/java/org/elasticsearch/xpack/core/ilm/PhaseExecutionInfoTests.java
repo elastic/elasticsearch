@@ -11,16 +11,16 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.List;
 
-public class PhaseExecutionInfoTests extends AbstractSerializingTestCase<PhaseExecutionInfo> {
+public class PhaseExecutionInfoTests extends AbstractXContentSerializingTestCase<PhaseExecutionInfo> {
 
     static PhaseExecutionInfo randomPhaseExecutionInfo(String phaseName) {
         return new PhaseExecutionInfo(
@@ -54,7 +54,7 @@ public class PhaseExecutionInfoTests extends AbstractSerializingTestCase<PhaseEx
     }
 
     @Override
-    protected PhaseExecutionInfo mutateInstance(PhaseExecutionInfo instance) throws IOException {
+    protected PhaseExecutionInfo mutateInstance(PhaseExecutionInfo instance) {
         String policyName = instance.getPolicyName();
         Phase phase = instance.getPhase();
         long version = instance.getVersion();
@@ -71,7 +71,7 @@ public class PhaseExecutionInfoTests extends AbstractSerializingTestCase<PhaseEx
 
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            Arrays.asList(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
+            List.of(new NamedWriteableRegistry.Entry(LifecycleAction.class, MockAction.NAME, MockAction::new))
         );
     }
 

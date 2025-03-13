@@ -1,0 +1,2 @@
+org.apache.httpcomponents.httpclient:
+  - outbound_network # for URLHttpClient

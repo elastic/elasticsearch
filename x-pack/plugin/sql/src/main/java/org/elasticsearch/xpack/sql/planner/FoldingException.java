@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.sql.SqlClientException;
@@ -46,11 +45,6 @@ public class FoldingException extends SqlClientException {
 
     public int getColumnNumber() {
         return column;
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
     }
 
     @Override

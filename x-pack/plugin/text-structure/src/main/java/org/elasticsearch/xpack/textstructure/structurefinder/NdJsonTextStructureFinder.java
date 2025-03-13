@@ -44,9 +44,10 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
 
         List<String> sampleMessages = Arrays.asList(sample.split("\n"));
         for (String sampleMessage : sampleMessages) {
-            XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, sampleMessage);
-            sampleRecords.add(parser.mapOrdered());
-            timeoutChecker.check("NDJSON parsing");
+            try (XContentParser parser = jsonXContent.createParser(XContentParserConfiguration.EMPTY, sampleMessage)) {
+                sampleRecords.add(parser.mapOrdered());
+                timeoutChecker.check("NDJSON parsing");
+            }
         }
 
         TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.NDJSON).setCharset(charsetName)
@@ -87,7 +88,7 @@ public class NdJsonTextStructureFinder implements TextStructureFinder {
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
 
         Map<String, Object> fieldMappings = mappingsAndFieldStats.v1();
         if (timeField != null) {

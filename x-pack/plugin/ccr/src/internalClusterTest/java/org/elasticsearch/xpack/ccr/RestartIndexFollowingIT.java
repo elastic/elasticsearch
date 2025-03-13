@@ -9,25 +9,32 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
+import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
-import java.util.Locale;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -68,18 +75,17 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         final long firstBatchNumDocs = randomIntBetween(10, 200);
         logger.info("Indexing [{}] docs as first batch", firstBatchNumDocs);
         for (int i = 0; i < firstBatchNumDocs; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex("index1").setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
-        );
+        assertBusy(() -> assertHitCount(followerClient().prepareSearch("index2"), firstBatchNumDocs));
 
         getFollowerCluster().fullRestart();
         ensureFollowerGreen("index2");
 
         final long secondBatchNumDocs = randomIntBetween(10, 200);
+        logger.info("Indexing [{}] docs as second batch", secondBatchNumDocs);
         for (int i = 0; i < secondBatchNumDocs; i++) {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
@@ -88,24 +94,38 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         ensureLeaderGreen("index1");
 
         final long thirdBatchNumDocs = randomIntBetween(10, 200);
+        logger.info("Indexing [{}] docs as third batch", thirdBatchNumDocs);
         for (int i = 0; i < thirdBatchNumDocs; i++) {
             leaderClient().prepareIndex("index1").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(
-            () -> assertThat(
-                followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)
-            )
-        );
+        var totalDocs = firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs;
+        final AtomicBoolean resumeAfterDisconnectionOnce = new AtomicBoolean(false);
+        assertBusy(() -> {
+            if (resumeAfterDisconnectionOnce.get() == false && isFollowerStoppedBecauseOfRemoteClusterDisconnection("index2")) {
+                assertTrue(resumeAfterDisconnectionOnce.compareAndSet(false, true));
+                if (randomBoolean()) {
+                    logger.info("shard follow task has been stopped because of remote cluster disconnection, resuming");
+                    pauseFollow("index2");
+                    assertAcked(followerClient().execute(ResumeFollowAction.INSTANCE, resumeFollow("index2")).actionGet());
+                } else {
+                    logger.info("shard follow task has been stopped because of remote cluster disconnection, recreating");
+                    assertAcked(followerClient().admin().indices().prepareDelete("index2"));
+                    followerClient().execute(PutFollowAction.INSTANCE, putFollow("index1", "index2", ActiveShardCount.ALL)).actionGet();
+                }
+            }
+            assertHitCount(followerClient().prepareSearch("index2"), totalDocs);
+        }, 30L, TimeUnit.SECONDS);
 
         cleanRemoteCluster();
-        assertAcked(followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request("index2")).actionGet());
+        assertAcked(
+            followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(TEST_REQUEST_TIMEOUT, "index2")).actionGet()
+        );
         assertAcked(followerClient().admin().indices().prepareClose("index2"));
 
         final ActionFuture<AcknowledgedResponse> unfollowFuture = followerClient().execute(
             UnfollowAction.INSTANCE,
-            new UnfollowAction.Request("index2")
+            new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "index2")
         );
         final ElasticsearchException elasticsearchException = expectThrows(ElasticsearchException.class, unfollowFuture::actionGet);
         assertThat(elasticsearchException.getMessage(), containsString("no such remote cluster"));
@@ -115,7 +135,8 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     private void setupRemoteCluster() throws Exception {
         var remoteMaxPendingConnectionListeners = getRemoteMaxPendingConnectionListeners();
 
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
         String address = getLeaderCluster().getAnyMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", address));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
@@ -130,7 +151,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     }
 
     private boolean isRemoteConnected() throws Exception {
-        var infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        var infos = followerClient().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest()).get().getInfos();
         return infos.size() == 1 && infos.get(0).isConnected();
     }
 
@@ -141,15 +162,28 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     }
 
     private void cleanRemoteCluster() throws Exception {
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
         updateSettingsRequest.persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", (String) null));
         assertAcked(followerClient().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         assertBusy(() -> {
-            List<RemoteConnectionInfo> infos = followerClient().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest())
+            List<RemoteConnectionInfo> infos = followerClient().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest())
                 .get()
                 .getInfos();
             assertThat(infos.size(), equalTo(0));
+        });
+    }
+
+    private boolean isFollowerStoppedBecauseOfRemoteClusterDisconnection(String indexName) {
+        var request = new FollowStatsAction.StatsRequest();
+        request.setIndices(new String[] { indexName });
+        var response = followerClient().execute(FollowStatsAction.INSTANCE, request).actionGet();
+        return response.getStatsResponses().stream().map(r -> r.status().getFatalException()).filter(Objects::nonNull).anyMatch(e -> {
+            if (e.getCause() instanceof IllegalStateException ise) {
+                return ise.getMessage().contains("Unable to open any connections to remote cluster");
+            }
+            return false;
         });
     }
 }

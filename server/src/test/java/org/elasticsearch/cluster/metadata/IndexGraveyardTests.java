@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -13,8 +14,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,7 +60,7 @@ public class IndexGraveyardTests extends ESTestCase {
         final IndexGraveyard graveyard = createRandom();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        graveyard.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(graveyard).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         if (graveyard.getTombstones().size() > 0) {
             // check that date properly printed
@@ -70,9 +73,14 @@ public class IndexGraveyardTests extends ESTestCase {
                 )
             );
         }
-        XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
-        parser.nextToken(); // the beginning of the parser
-        assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+            parser.nextToken(); // the beginning of the parser
+            assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
+        }
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createRandom(), graveyard -> graveyard.getTombstones().size() + 2);
     }
 
     public void testAddTombstones() {

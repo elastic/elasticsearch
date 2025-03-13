@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.gce;
@@ -12,8 +13,6 @@ import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -24,6 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.SeedHostsProvider;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -31,9 +32,7 @@ import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
 
-import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.Strings.format;
 
 public class GceSeedHostsProvider implements SeedHostsProvider {
@@ -43,12 +42,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
     /**
      * discovery.gce.tags: The gce discovery can filter machines to include in the cluster based on tags.
      */
-    public static final Setting<List<String>> TAGS_SETTING = Setting.listSetting(
-        "discovery.gce.tags",
-        emptyList(),
-        Function.identity(),
-        Property.NodeScope
-    );
+    public static final Setting<List<String>> TAGS_SETTING = Setting.stringListSetting("discovery.gce.tags", Property.NodeScope);
 
     static final class Status {
         private static final String TERMINATED = "TERMINATED";

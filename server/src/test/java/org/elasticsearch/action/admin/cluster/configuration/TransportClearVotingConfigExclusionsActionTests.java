@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
@@ -18,13 +17,13 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -37,10 +36,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterState.builder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -58,14 +56,15 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
     private static VotingConfigExclusion otherNode1Exclusion, otherNode2Exclusion;
 
     private TransportService transportService;
+    private TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator reconfigurator;
 
     @BeforeClass
     public static void createThreadPoolAndClusterService() {
         threadPool = new TestThreadPool("test", Settings.EMPTY);
-        localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
-        otherNode1 = new DiscoveryNode("other1", "other1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        localNode = DiscoveryNodeUtils.create("local");
+        otherNode1 = DiscoveryNodeUtils.builder("other1").name("other1").roles(emptySet()).build();
         otherNode1Exclusion = new VotingConfigExclusion(otherNode1);
-        otherNode2 = new DiscoveryNode("other2", "other2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        otherNode2 = DiscoveryNodeUtils.builder("other2").name("other2").roles(emptySet()).build();
         otherNode2Exclusion = new VotingConfigExclusion(otherNode2);
         clusterService = createClusterService(threadPool, localNode);
     }
@@ -87,13 +86,14 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             null,
             emptySet()
         );
+        reconfigurator = new TransportAddVotingConfigExclusionsActionTests.FakeReconfigurator();
 
         new TransportClearVotingConfigExclusionsAction(
             transportService,
             clusterService,
             threadPool,
             new ActionFilters(emptySet()),
-            TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext())
+            reconfigurator
         ); // registers action
 
         transportService.start();
@@ -114,66 +114,63 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         setState(clusterService, builder);
     }
 
-    public void testClearsVotingConfigExclusions() throws InterruptedException {
+    public void testClearsVotingConfigExclusions() {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<ActionResponse.Empty> responseHolder = new SetOnce<>();
 
-        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest(
+            TEST_REQUEST_TIMEOUT
+        );
         clearVotingConfigExclusionsRequest.setWaitForRemoval(false);
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             clearVotingConfigExclusionsRequest,
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertNotNull(r);
+                assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
                 countDownLatch.countDown();
             })
         );
-
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertNotNull(responseHolder.get());
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
+        safeAwait(countDownLatch);
     }
 
-    public void testTimesOutIfWaitingForNodesThatAreNotRemoved() throws InterruptedException {
+    public void testTimesOutIfWaitingForNodesThatAreNotRemoved() {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<TransportException> responseHolder = new SetOnce<>();
 
-        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
+        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest(
+            TEST_REQUEST_TIMEOUT
+        );
         clearVotingConfigExclusionsRequest.setTimeout(TimeValue.timeValueMillis(100));
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
             clearVotingConfigExclusionsRequest,
             expectError(e -> {
-                responseHolder.set(e);
+                assertThat(
+                    clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
+                    containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
+                );
+                final Throwable rootCause = e.getRootCause();
+                assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
+                assertThat(
+                    rootCause.getMessage(),
+                    startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set ?wait_for_removal=false. [")
+                );
                 countDownLatch.countDown();
             })
         );
-
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(
-            clusterService.getClusterApplierService().state().getVotingConfigExclusions(),
-            containsInAnyOrder(otherNode1Exclusion, otherNode2Exclusion)
-        );
-        final Throwable rootCause = responseHolder.get().getRootCause();
-        assertThat(rootCause, instanceOf(ElasticsearchTimeoutException.class));
-        assertThat(
-            rootCause.getMessage(),
-            startsWith("timed out waiting for removal of nodes; if nodes should not be removed, set ?wait_for_removal=false. [")
-        );
+        safeAwait(countDownLatch);
     }
 
-    public void testSucceedsIfNodesAreRemovedWhileWaiting() throws InterruptedException {
+    public void testSucceedsIfNodesAreRemovedWhileWaiting() {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
-        final SetOnce<ActionResponse.Empty> responseHolder = new SetOnce<>();
 
         transportService.sendRequest(
             localNode,
-            ClearVotingConfigExclusionsAction.NAME,
-            new ClearVotingConfigExclusionsRequest(),
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
+            new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT),
             expectSuccess(r -> {
-                responseHolder.set(r);
+                assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
                 countDownLatch.countDown();
             })
         );
@@ -182,12 +179,30 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         builder.nodes(DiscoveryNodes.builder(clusterService.state().nodes()).remove(otherNode1).remove(otherNode2));
         setState(clusterService, builder);
 
-        assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
-        assertThat(clusterService.getClusterApplierService().state().getVotingConfigExclusions(), empty());
+        safeAwait(countDownLatch);
+    }
+
+    public void testCannotClearVotingConfigurationWhenItIsDisabled() {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+
+        reconfigurator.disableUserVotingConfigModifications();
+
+        transportService.sendRequest(
+            localNode,
+            TransportClearVotingConfigExclusionsAction.TYPE.name(),
+            new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT),
+            expectError(e -> {
+                final Throwable rootCause = e.getRootCause();
+                assertThat(rootCause, instanceOf(IllegalStateException.class));
+                assertThat(rootCause.getMessage(), startsWith("Unable to modify the voting configuration"));
+                countDownLatch.countDown();
+            })
+        );
+        safeAwait(countDownLatch);
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectSuccess(Consumer<ActionResponse.Empty> onResponse) {
-        return responseHandler(onResponse, e -> { throw new AssertionError("unexpected", e); });
+        return responseHandler(onResponse, ESTestCase::fail);
     }
 
     private TransportResponseHandler<ActionResponse.Empty> expectError(Consumer<TransportException> onException) {
@@ -198,7 +213,18 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
         Consumer<ActionResponse.Empty> onResponse,
         Consumer<TransportException> onException
     ) {
-        return new TransportResponseHandler<ActionResponse.Empty>() {
+        return new TransportResponseHandler<>() {
+
+            @Override
+            public ActionResponse.Empty read(StreamInput in) {
+                return ActionResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public Executor executor() {
+                return TransportResponseHandler.TRANSPORT_WORKER;
+            }
+
             @Override
             public void handleResponse(ActionResponse.Empty response) {
                 onResponse.accept(response);
@@ -207,11 +233,6 @@ public class TransportClearVotingConfigExclusionsActionTests extends ESTestCase 
             @Override
             public void handleException(TransportException exp) {
                 onException.accept(exp);
-            }
-
-            @Override
-            public ActionResponse.Empty read(StreamInput in) {
-                return ActionResponse.Empty.INSTANCE;
             }
         };
     }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
@@ -26,13 +25,13 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/update";
 
     private UpdateJobAction() {
-        super(NAME, PutJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<UpdateJobAction.Request> implements ToXContentObject {
 
         public static UpdateJobAction.Request parseRequest(String jobId, XContentParser parser) {
-            JobUpdate update = JobUpdate.EXTERNAL_PARSER.apply(parser, null).setJobId(jobId).build();
+            JobUpdate update = JobUpdate.PARSER.apply(parser, null).setJobId(jobId).build();
             return new UpdateJobAction.Request(jobId, update);
         }
 
@@ -47,6 +46,7 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
         }
 
         private Request(String jobId, JobUpdate update, boolean isInternal) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.jobId = jobId;
             this.update = update;
             this.isInternal = isInternal;
@@ -76,11 +76,6 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
 
         public boolean isInternal() {
             return isInternal;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

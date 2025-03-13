@@ -20,16 +20,16 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 
 /**
- * After we performed the index rollover we wait for the the configured number of shards for the rolled over index (ie. newly created
+ * After we performed the index rollover we wait for the configured number of shards for the rolled over index (ie. newly created
  * index) to become available.
  */
 public class WaitForActiveShardsStep extends ClusterStateWaitStep {
@@ -50,43 +50,48 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         Metadata metadata = clusterState.metadata();
-        IndexMetadata originalIndexMeta = metadata.index(index);
+        IndexMetadata originalIndexMeta = metadata.getProject().index(index);
 
         if (originalIndexMeta == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
+            String errorMessage = Strings.format(
                 "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(),
+                getKey().action(),
                 index.getName()
             );
             // Index must have been since deleted
             logger.debug(errorMessage);
-            return new Result(false, new Info(errorMessage));
+            return new Result(false, new SingleMessageFieldInfo(errorMessage));
         }
 
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(originalIndexMeta.getSettings());
         if (indexingComplete) {
-            String message = String.format(
-                Locale.ROOT,
+            String message = Strings.format(
                 "index [%s] has lifecycle complete set, skipping [%s]",
                 originalIndexMeta.getIndex().getName(),
                 WaitForActiveShardsStep.NAME
             );
             logger.trace(message);
-            return new Result(true, new Info(message));
+            return new Result(true, new SingleMessageFieldInfo(message));
         }
 
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(index.getName());
         final String rolledIndexName;
         final String waitForActiveShardsSettingValue;
-        if (indexAbstraction.getParentDataStream() != null) {
-            DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
-            IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
+        DataStream dataStream = indexAbstraction.getParentDataStream();
+        if (dataStream != null) {
+            IndexAbstraction dataStreamAbstraction = metadata.getProject().getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
-            if (dataStreamAbstraction.getWriteIndex() == null) {
+            // Determine which write index we care about right now:
+            final Index rolledIndex;
+            if (dataStream.isFailureStoreIndex(index.getName())) {
+                rolledIndex = dataStream.getWriteFailureIndex();
+            } else {
+                rolledIndex = dataStream.getWriteIndex();
+            }
+            if (rolledIndex == null) {
                 return getErrorResultOnNullMetadata(getKey(), index);
             }
-            IndexMetadata rolledIndexMeta = metadata.index(dataStreamAbstraction.getWriteIndex());
+            IndexMetadata rolledIndexMeta = metadata.getProject().index(rolledIndex);
             rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
         } else {
@@ -101,12 +106,12 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                 );
             }
 
-            IndexAbstraction aliasAbstraction = metadata.getIndicesLookup().get(rolloverAlias);
+            IndexAbstraction aliasAbstraction = metadata.getProject().getIndicesLookup().get(rolloverAlias);
             assert aliasAbstraction.getType() == IndexAbstraction.Type.ALIAS : rolloverAlias + " must be an alias but it is not";
 
             Index aliasWriteIndex = aliasAbstraction.getWriteIndex();
             if (aliasWriteIndex != null) {
-                IndexMetadata writeIndexImd = metadata.index(aliasWriteIndex);
+                IndexMetadata writeIndexImd = metadata.getProject().index(aliasWriteIndex);
                 rolledIndexName = writeIndexImd.getIndex().getName();
                 waitForActiveShardsSettingValue = writeIndexImd.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
             } else {
@@ -124,12 +129,19 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
                     return getErrorResultOnNullMetadata(getKey(), index);
                 }
                 rolledIndexName = tmpRolledIndex.getName();
-                waitForActiveShardsSettingValue = metadata.index(rolledIndexName).getSettings().get("index.write.wait_for_active_shards");
+                waitForActiveShardsSettingValue = metadata.getProject()
+                    .index(rolledIndexName)
+                    .getSettings()
+                    .get("index.write.wait_for_active_shards");
             }
         }
 
         ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsSettingValue);
-        boolean enoughShardsActive = activeShardCount.enoughShardsActive(clusterState, rolledIndexName);
+        boolean enoughShardsActive = activeShardCount.enoughShardsActive(
+            clusterState.metadata().getProject(),
+            clusterState.routingTable(),
+            rolledIndexName
+        );
 
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(rolledIndexName);
         int currentActiveShards = 0;
@@ -140,16 +152,15 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     }
 
     private static Result getErrorResultOnNullMetadata(StepKey key, Index originalIndex) {
-        String errorMessage = String.format(
-            Locale.ROOT,
+        String errorMessage = Strings.format(
             "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]",
             originalIndex.getName(),
-            key.getAction()
+            key.action()
         );
 
         // Index must have been since deleted
         logger.debug(errorMessage);
-        return new Result(false, new Info(errorMessage));
+        return new Result(false, new SingleMessageFieldInfo(errorMessage));
     }
 
     static final class ActiveShardsInfo implements ToXContentObject {
@@ -209,42 +220,6 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         @Override
         public int hashCode() {
             return Objects.hash(currentActiveShardsCount, targetActiveShardsCount, enoughShardsActive, message);
-        }
-    }
-
-    static final class Info implements ToXContentObject {
-
-        private final String message;
-
-        static final ParseField MESSAGE = new ParseField("message");
-
-        Info(String message) {
-            this.message = message;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MESSAGE.getPreferredName(), message);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Info info = (Info) o;
-            return Objects.equals(message, info.message);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(message);
         }
     }
 }

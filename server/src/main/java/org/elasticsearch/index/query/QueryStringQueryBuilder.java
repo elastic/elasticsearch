@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -12,7 +13,8 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,7 +46,7 @@ import java.util.TreeMap;
  * (using {@link #field(String)}), will run the parsed query against the provided fields, and combine
  * them using Dismax.
  */
-public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
+public final class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQueryBuilder> {
 
     public static final String NAME = "query_string";
 
@@ -59,30 +61,32 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     public static final boolean DEFAULT_FUZZY_TRANSPOSITIONS = FuzzyQuery.defaultTranspositions;
 
-    private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField FIELDS_FIELD = new ParseField("fields");
-    private static final ParseField DEFAULT_FIELD_FIELD = new ParseField("default_field");
-    private static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
-    private static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
-    private static final ParseField QUOTE_ANALYZER_FIELD = new ParseField("quote_analyzer");
-    private static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
-    private static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
-    private static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increments");
-    private static final ParseField ESCAPE_FIELD = new ParseField("escape");
-    private static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
-    private static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
-    private static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
-    private static final ParseField PHRASE_SLOP_FIELD = new ParseField("phrase_slop");
-    private static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
-    private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
-    private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
-    private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
-    private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
-    private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
-    private static final ParseField TYPE_FIELD = new ParseField("type");
-    private static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
-    private static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField BOOST_FIELD = new ParseField("boost");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final ParseField DEFAULT_FIELD_FIELD = new ParseField("default_field");
+    public static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
+    public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
+    public static final ParseField QUOTE_ANALYZER_FIELD = new ParseField("quote_analyzer");
+    public static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
+    public static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
+    public static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increments");
+    public static final ParseField ESCAPE_FIELD = new ParseField("escape");
+    public static final ParseField FUZZINESS_FIELD = new ParseField("fuzziness");
+    public static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
+    public static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
+    public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
+    public static final ParseField PHRASE_SLOP_FIELD = new ParseField("phrase_slop");
+    public static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
+    public static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
+    public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
+    public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
+    public static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
+    public static final ParseField LENIENT_FIELD = new ParseField("lenient");
+    public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField GENERATE_SYNONYMS_PHRASE_QUERY = new ParseField("auto_generate_synonyms_phrase_query");
+    public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
 
     private final String queryString;
 
@@ -192,7 +196,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(this.queryString);
         out.writeOptionalString(this.defaultField);
-        out.writeMap(this.fieldsAndWeights, StreamOutput::writeString, StreamOutput::writeFloat);
+        out.writeMap(this.fieldsAndWeights, StreamOutput::writeFloat);
         this.defaultOperator.writeTo(out);
         out.writeOptionalString(this.analyzer);
         out.writeOptionalString(this.quoteAnalyzer);
@@ -967,7 +971,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 }

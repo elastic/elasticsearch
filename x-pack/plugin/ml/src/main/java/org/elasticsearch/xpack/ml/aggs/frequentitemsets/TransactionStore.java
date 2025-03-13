@@ -194,6 +194,10 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
         this.bigArrays = bigArrays;
     }
 
+    BigArrays getBigArrays() {
+        return bigArrays;
+    }
+
     /**
      * Get the total number of items
      *
@@ -207,6 +211,13 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
      * @return total count of transactions
      */
     abstract long getTotalTransactionCount();
+
+    /**
+     * Get the number of filtered transactions
+     *
+     * @return count of filtered transactions
+     */
+    abstract long getFilteredTransactionCount();
 
     abstract BytesRefArray getItems();
 

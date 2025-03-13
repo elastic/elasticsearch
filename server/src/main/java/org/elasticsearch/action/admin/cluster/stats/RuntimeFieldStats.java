@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -38,7 +39,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.count = in.readInt();
         this.indexCount = in.readInt();
-        this.scriptLangs = in.readSet(StreamInput::readString);
+        this.scriptLangs = in.readCollectionAsSet(StreamInput::readString);
         this.scriptLessCount = in.readLong();
         this.shadowedCount = in.readLong();
         this.fieldScriptStats = new FieldScriptStats(in);
@@ -53,7 +54,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeInt(count);
         out.writeInt(indexCount);
-        out.writeCollection(scriptLangs, StreamOutput::writeString);
+        out.writeStringCollection(scriptLangs);
         out.writeLong(scriptLessCount);
         out.writeLong(shadowedCount);
         fieldScriptStats.writeTo(out);

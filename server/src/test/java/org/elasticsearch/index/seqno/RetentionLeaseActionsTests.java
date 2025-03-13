@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -19,7 +20,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -38,11 +38,7 @@ import static org.hamcrest.Matchers.hasToString;
 public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
 
     public void testAddAction() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -50,7 +46,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         final long retainingSequenceNumber = randomBoolean() ? RETAIN_ALL : randomNonNegativeLong();
         final String source = randomAlphaOfLength(8);
         client().execute(
-            RetentionLeaseActions.Add.INSTANCE,
+            RetentionLeaseActions.ADD,
             new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source)
         ).actionGet();
 
@@ -73,11 +69,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testAddAlreadyExists() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -85,7 +77,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         final long retainingSequenceNumber = randomBoolean() ? RETAIN_ALL : randomNonNegativeLong();
         final String source = randomAlphaOfLength(8);
         client().execute(
-            RetentionLeaseActions.Add.INSTANCE,
+            RetentionLeaseActions.ADD,
             new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source)
         ).actionGet();
 
@@ -96,7 +88,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         final RetentionLeaseAlreadyExistsException e = expectThrows(
             RetentionLeaseAlreadyExistsException.class,
             () -> client().execute(
-                RetentionLeaseActions.Add.INSTANCE,
+                RetentionLeaseActions.ADD,
                 new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, nextRetainingSequenceNumber, source)
             ).actionGet()
         );
@@ -104,11 +96,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRenewAction() throws InterruptedException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -122,10 +110,10 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
          * Immediately before the renewal of the lease, we sleep long enough to ensure that an estimated time interval has elapsed, and
          * sample the thread pool to ensure the clock has in fact advanced.
          */
-        final TimeValue estimatedTimeInterval = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(getInstanceFromNode(Node.class).settings());
+        final TimeValue estimatedTimeInterval = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(node().settings());
 
         client().execute(
-            RetentionLeaseActions.Add.INSTANCE,
+            RetentionLeaseActions.ADD,
             new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source)
         ).actionGet();
 
@@ -168,7 +156,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         } while (threadPool.absoluteTimeInMillis() <= timestampUpperBound);
 
         client().execute(
-            RetentionLeaseActions.Renew.INSTANCE,
+            RetentionLeaseActions.RENEW,
             new RetentionLeaseActions.RenewRequest(indexService.getShard(0).shardId(), id, nextRetainingSequenceNumber, source)
         ).actionGet();
 
@@ -195,11 +183,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRenewNotFound() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -210,7 +194,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         final RetentionLeaseNotFoundException e = expectThrows(
             RetentionLeaseNotFoundException.class,
             () -> client().execute(
-                RetentionLeaseActions.Renew.INSTANCE,
+                RetentionLeaseActions.RENEW,
                 new RetentionLeaseActions.RenewRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source)
             ).actionGet()
         );
@@ -218,11 +202,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveAction() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -230,14 +210,12 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         final long retainingSequenceNumber = randomBoolean() ? RETAIN_ALL : randomNonNegativeLong();
         final String source = randomAlphaOfLength(8);
         client().execute(
-            RetentionLeaseActions.Add.INSTANCE,
+            RetentionLeaseActions.ADD,
             new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source)
         ).actionGet();
 
-        client().execute(
-            RetentionLeaseActions.Remove.INSTANCE,
-            new RetentionLeaseActions.RemoveRequest(indexService.getShard(0).shardId(), id)
-        ).actionGet();
+        client().execute(RetentionLeaseActions.REMOVE, new RetentionLeaseActions.RemoveRequest(indexService.getShard(0).shardId(), id))
+            .actionGet();
 
         final IndicesStatsResponse stats = client().execute(IndicesStatsAction.INSTANCE, new IndicesStatsRequest().indices("index"))
             .actionGet();
@@ -253,11 +231,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveNotFound() {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
 
@@ -266,7 +240,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         final RetentionLeaseNotFoundException e = expectThrows(
             RetentionLeaseNotFoundException.class,
             () -> client().execute(
-                RetentionLeaseActions.Remove.INSTANCE,
+                RetentionLeaseActions.REMOVE,
                 new RetentionLeaseActions.RemoveRequest(indexService.getShard(0).shardId(), id)
             ).actionGet()
         );
@@ -274,11 +248,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testAddUnderBlock() throws InterruptedException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
         final String id = randomAlphaOfLength(8);
@@ -287,7 +257,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         runActionUnderBlockTest(
             indexService,
             (shardId, actionLatch) -> client().execute(
-                RetentionLeaseActions.Add.INSTANCE,
+                RetentionLeaseActions.ADD,
                 new RetentionLeaseActions.AddRequest(shardId, id, retainingSequenceNumber, source),
                 new ActionListener<>() {
 
@@ -323,11 +293,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRenewUnderBlock() throws InterruptedException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
         final String id = randomAlphaOfLength(8);
@@ -340,10 +306,10 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
          * Immediately before the renewal of the lease, we sleep long enough to ensure that an estimated time interval has elapsed, and
          * sample the thread pool to ensure the clock has in fact advanced.
          */
-        final TimeValue estimatedTimeInterval = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(getInstanceFromNode(Node.class).settings());
+        final TimeValue estimatedTimeInterval = ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.get(node().settings());
 
         client().execute(
-            RetentionLeaseActions.Add.INSTANCE,
+            RetentionLeaseActions.ADD,
             new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source)
         ).actionGet();
 
@@ -388,7 +354,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         runActionUnderBlockTest(
             indexService,
             (shardId, actionLatch) -> client().execute(
-                RetentionLeaseActions.Renew.INSTANCE,
+                RetentionLeaseActions.RENEW,
                 new RetentionLeaseActions.RenewRequest(shardId, id, nextRetainingSequenceNumber, source),
                 new ActionListener<>() {
 
@@ -429,11 +395,7 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveUnderBlock() throws InterruptedException {
-        final Settings settings = Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .build();
+        final Settings settings = indexSettings(1, 0).put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build();
         final IndexService indexService = createIndex("index", settings);
         ensureGreen("index");
         final String id = randomAlphaOfLength(8);
@@ -441,14 +403,14 @@ public class RetentionLeaseActionsTests extends ESSingleNodeTestCase {
         final String source = randomAlphaOfLength(8);
 
         client().execute(
-            RetentionLeaseActions.Add.INSTANCE,
+            RetentionLeaseActions.ADD,
             new RetentionLeaseActions.AddRequest(indexService.getShard(0).shardId(), id, retainingSequenceNumber, source)
         ).actionGet();
 
         runActionUnderBlockTest(
             indexService,
             (shardId, actionLatch) -> client().execute(
-                RetentionLeaseActions.Remove.INSTANCE,
+                RetentionLeaseActions.REMOVE,
                 new RetentionLeaseActions.RemoveRequest(shardId, id),
                 new ActionListener<>() {
 

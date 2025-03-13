@@ -12,9 +12,14 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named("compileJava").configure {
+java {
   targetCompatibility = JavaVersion.VERSION_1_8
   sourceCompatibility = JavaVersion.VERSION_1_8
+}
+
+tasks.named("compileTestJava").configure {
+  targetCompatibility = buildParams.getMinimumRuntimeVersion()
+  sourceCompatibility = buildParams.getMinimumRuntimeVersion()
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -23,8 +28,11 @@ tasks.named('forbiddenApisMain').configure {
 }
 
 tasks.named('forbiddenApisTest').configure {
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
+  modifyBundledSignatures { bundledSignatures ->
+    bundledSignatures -= 'jdk-non-portable'
+    bundledSignatures += 'jdk-internal'
+    bundledSignatures
+  }
 }
 
 tasks.named("forbiddenPatterns").configure {

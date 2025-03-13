@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
@@ -28,7 +29,7 @@ import java.util.List;
 public record LookupField(String targetIndex, QueryBuilder query, List<FieldAndFormat> fetchFields, int size) implements Writeable {
 
     public LookupField(StreamInput in) throws IOException {
-        this(in.readString(), in.readNamedWriteable(QueryBuilder.class), in.readList(FieldAndFormat::new), in.readVInt());
+        this(in.readString(), in.readNamedWriteable(QueryBuilder.class), in.readCollectionAsList(FieldAndFormat::new), in.readVInt());
     }
 
     @Override

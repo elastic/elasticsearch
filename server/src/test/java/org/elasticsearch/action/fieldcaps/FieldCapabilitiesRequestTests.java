@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -152,15 +153,15 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
     }
 
     public void testFromXContent() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"fields\" : [\"FOO\"] }");
-        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
-        ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
-        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), new ParseField("fields"));
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"fields\" : [\"FOO\"] }")) {
+            FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+            ObjectParser<FieldCapabilitiesRequest, Void> PARSER = new ObjectParser<>("field_caps_request");
+            PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), new ParseField("fields"));
 
-        PARSER.parse(parser, request, null);
+            PARSER.parse(parser, request, null);
 
-        assertArrayEquals(request.fields(), new String[] { "FOO" });
-
+            assertArrayEquals(request.fields(), new String[] { "FOO" });
+        }
     }
 
     public void testValidation() {
@@ -171,20 +172,23 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
 
     public void testGetDescription() {
         final FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
-        assertThat(request.getDescription(), equalTo("indices[], fields[], filters[], types[]"));
+        assertThat(request.getDescription(), equalTo("indices[], fields[], filters[], types[], includeEmptyFields[true]"));
 
         request.fields("a", "b");
         assertThat(
             request.getDescription(),
-            anyOf(equalTo("indices[], fields[a,b], filters[], types[]"), equalTo("indices[], fields[b,a], filters[], types[]"))
+            anyOf(
+                equalTo("indices[], fields[a,b], filters[], types[], includeEmptyFields[true]"),
+                equalTo("indices[], fields[b,a], filters[], types[], includeEmptyFields[true]")
+            )
         );
 
         request.indices("x", "y", "z");
         request.fields("a");
-        assertThat(request.getDescription(), equalTo("indices[x,y,z], fields[a], filters[], types[]"));
+        assertThat(request.getDescription(), equalTo("indices[x,y,z], fields[a], filters[], types[], includeEmptyFields[true]"));
 
         request.filters("-metadata", "-multifields");
-        assertThat(request.getDescription(), endsWith("filters[-metadata,-multifields], types[]"));
+        assertThat(request.getDescription(), endsWith("filters[-metadata,-multifields], types[], includeEmptyFields[true]"));
 
         final String[] lots = new String[between(1024, 2048)];
         for (int i = 0; i < lots.length; i++) {
@@ -205,7 +209,10 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         );
         assertThat(
             request.getDescription().length(),
-            lessThanOrEqualTo(1024 + ("indices[x,y,z], fields[" + "s9999,... (9999 in total, 9999 omitted)], filters[], types[]").length())
+            lessThanOrEqualTo(
+                1024 + ("indices[x,y,z], fields["
+                    + "s9999,... (9999 in total, 9999 omitted)], filters[], types[], includeEmptyFields[true]").length()
+            )
         );
 
         request.fields("a");
@@ -217,12 +224,15 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
                 containsString("..."),
                 containsString(lots.length + " in total"),
                 containsString("omitted"),
-                endsWith("], fields[a], filters[], types[]")
+                endsWith("], fields[a], filters[], types[], includeEmptyFields[true]")
             )
         );
         assertThat(
             request.getDescription().length(),
-            lessThanOrEqualTo(1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a], filters[], types[]").length())
+            lessThanOrEqualTo(
+                1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a], filters[], types[], includeEmptyFields[true]")
+                    .length()
+            )
         );
 
         final FieldCapabilitiesRequest randomRequest = createTestInstance();

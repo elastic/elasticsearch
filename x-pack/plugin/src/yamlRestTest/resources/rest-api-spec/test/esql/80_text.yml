@@ -1,0 +1,618 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
+      reason: "ESQL is available in 8.11+"
+      test_runner_features: [allowed_warnings_regex, capabilities]
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              "emp_no":
+                type: long
+              name:
+                type: keyword
+              job:
+                type: text
+                fields:
+                  raw:
+                    type: keyword
+              tag:
+                type: text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 10, "name": "Jenny", "job": "IT Director", "tag": "foo bar" }
+          - { "index": { } }
+          - { "emp_no": 20, "name": "John", "job": "Payroll Specialist", "tag": "baz" }
+
+---
+"all":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort emp_no'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "job" }
+  - match: { columns.1.type: "text" }
+  - match: { columns.2.name: "job.raw" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "name" }
+  - match: { columns.3.type: "keyword" }
+  - match: { columns.4.name: "tag" }
+  - match: { columns.4.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "IT Director", "IT Director", "Jenny", "foo bar" ] }
+  - match: { values.1: [ 20, "Payroll Specialist", "Payroll Specialist", "John", "baz" ] }
+
+
+---
+"filter by text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag == "baz" | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"like by text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag LIKE "*az" | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"rlike by text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag RLIKE ".*az" | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"IN on text":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "IN on text fixed in v 8.14"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag IN ("abc", "baz") | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"IN on text and itself":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "IN on text fixed in v 8.14"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag IN ("abc", tag) | keep emp_no, name, job, tag | sort emp_no'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar" ] }
+  - match: { values.1: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"NOT IN on text":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "IN on text fixed in v 8.14"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where tag NOT IN ("abc", "baz") | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar" ] }
+
+---
+"eval and filter text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | eval x = tag | where x == "baz" | keep emp_no, name, job, x'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "x" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"filter on text multi-field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test |  where job == "IT Director" | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar" ] }
+
+---
+"like by multi-field text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where job LIKE "*Specialist" | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"rlike by multi-field text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | where job RLIKE ".*Specialist" | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+
+---
+"sort by text":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort tag | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+  - match: { values.1: [ 10, "Jenny", "IT Director", "foo bar" ] }
+
+
+---
+"sort by text multi-field":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort job | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "Jenny", "IT Director", "foo bar" ] }
+  - match: { values.1: [ 20, "John", "Payroll Specialist", "baz" ] }
+
+---
+"sort by text multi-field desc":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort job desc | keep emp_no, name, job, tag'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "job" }
+  - match: { columns.2.type: "text" }
+  - match: { columns.3.name: "tag" }
+  - match: { columns.3.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 20, "John", "Payroll Specialist", "baz" ] }
+  - match: { values.1: [ 10, "Jenny", "IT Director", "foo bar" ] }
+
+
+---
+"text in functions":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort name | eval description = concat(name, " - ", job) | keep description'
+
+  - match: { columns.0.name: "description" }
+  - match: { columns.0.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "Jenny - IT Director" ] }
+  - match: { values.1: [ "John - Payroll Specialist" ] }
+
+---
+"split text":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "functions fixed for text in v 8.14"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | sort emp_no | eval split = split(tag, " ") | keep split'
+
+  - match: { columns.0.name: "split" }
+  - match: { columns.0.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ [ "foo", "bar" ] ] }
+  - match: { values.1: [ "baz" ] }
+---
+"reverse text":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [fn_reverse, functions_never_emit_text]
+      reason: "reverse not yet added"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | SORT name | EVAL job_reversed = REVERSE(job), tag_reversed = REVERSE(tag) | KEEP job_reversed, tag_reversed'
+
+  - match: { columns.0.name: "job_reversed" }
+  - match: { columns.0.type: "keyword" }
+
+  - match: { columns.1.name: "tag_reversed" }
+  - match: { columns.1.type: "keyword" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ "rotceriD TI", "rab oof" ] }
+  - match: { values.1: [ "tsilaicepS lloryaP", "zab" ] }
+---
+"stats text with raw":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats jobs = count(job) | keep jobs'
+
+  - match: { columns.0.name: "jobs" }
+  - match: { columns.0.type: "long" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 2 ] }
+
+
+---
+"stats text no raw":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats tags = count(tag) | keep tags'
+
+  - match: { columns.0.name: "tags" }
+  - match: { columns.0.type: "long" }
+
+  - length: { values: 1 }
+  - match: { values.0: [ 2 ] }
+
+
+---
+"stats by text with raw":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats names = count(name) by job | keep names'
+
+  - match: { columns.0.name: "names" }
+  - match: { columns.0.type: "long" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 1 ] }
+  - match: { values.0: [ 1 ] }
+
+
+---
+"stats by text no raw":
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test | stats names = count(name) by tag | keep names'
+
+  - match: { columns.0.name: "names" }
+  - match: { columns.0.type: "long" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 1 ] }
+  - match: { values.0: [ 1 ] }
+
+---
+"text with synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              "emp_no":
+                type: long
+              name:
+                type: keyword
+              job:
+                type: text
+                fields:
+                  raw:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 10, "name": "Jenny", "job": "IT Director" }
+          - { "index": { } }
+          - { "emp_no": 20, "name": "John", "job": "Payroll Specialist" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test2 | sort emp_no | keep job'
+
+  - match: { columns.0.name: "job" }
+  - match: { columns.0.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0.0: "IT Director" }
+  - match: { values.1.0: "Payroll Specialist" }
+
+
+---
+"stored text with synthetic source":
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: test2
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              "emp_no":
+                type: long
+              name:
+                type: keyword
+              job:
+                type: text
+                store: true
+
+  - do:
+      bulk:
+        index: test2
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 10, "name": "Jenny", "job": "IT Director" }
+          - { "index": { } }
+          - { "emp_no": 20, "name": "John", "job": "Payroll Specialist" }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from test2 | sort emp_no | keep job'
+
+  - match: { columns.0.name: "job" }
+  - match: { columns.0.type: "text" }
+
+  - length: { values: 2 }
+  - match: { values.0.0: "IT Director" }
+  - match: { values.1.0: "Payroll Specialist" }
+
+---
+"values function":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS job = VALUES(job) | EVAL job = MV_SORT(job) | LIMIT 1'
+  - match: { columns.0.name: "job" }
+  - length: { values: 1 }
+  - match: { values.0: [ [ "IT Director", "Payroll Specialist" ] ] }
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 30, "name": "Stuff", "job": "Other", "tag": "baz" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test | STATS job = VALUES(job) BY tag | EVAL job = MV_SORT(job) | SORT tag | LIMIT 10'
+  - match: { columns.0.name: "tag" }
+  - match: { columns.0.type: "text" }
+  - match: { columns.1.name: "job" }
+  - length: { values: 2 }
+  - match: { values.0: [ "baz", [ "Other", "Payroll Specialist" ] ] }
+  - match: { values.1: [ "foo bar", "IT Director" ] }
+
+---
+"remove text typecast":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ functions_never_emit_text ]
+      reason: "Disabling ::text was done in 8.17 as part of removing all possibilities to emit text"
+
+  - do:
+      catch: /Unsupported conversion to type \[TEXT\]/
+      esql.query:
+        body:
+          query: 'FROM test | EVAL tag = name::text | KEEP name'

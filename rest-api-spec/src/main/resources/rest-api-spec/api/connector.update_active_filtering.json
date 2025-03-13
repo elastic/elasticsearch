@@ -1,0 +1,34 @@
+{
+  "connector.update_active_filtering": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-filtering-api.html",
+      "description": "Activates the draft filtering rules if they are in a validated state."
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/{connector_id}/_filtering/_activate",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector to be updated."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

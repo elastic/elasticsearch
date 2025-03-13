@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.search.uhighlight;
@@ -21,7 +22,7 @@ public class CustomPassageFormatterTests extends ESTestCase {
     public void testSimpleFormat() {
         String content = "This is a really cool highlighter. Unified highlighter gives nice snippets back. No matches here.";
 
-        CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<em>", "</em>", new DefaultEncoder());
+        CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<em>", "</em>", new DefaultEncoder(), 3);
 
         Passage[] passages = new Passage[3];
         String match = "highlighter";
@@ -62,7 +63,7 @@ public class CustomPassageFormatterTests extends ESTestCase {
     public void testHtmlEncodeFormat() {
         String content = "<b>This is a really cool highlighter.</b> Unified highlighter gives nice snippets back.";
 
-        CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<em>", "</em>", new SimpleHTMLEncoder());
+        CustomPassageFormatter passageFormatter = new CustomPassageFormatter("<em>", "</em>", new SimpleHTMLEncoder(), 3);
 
         Passage[] passages = new Passage[2];
         String match = "highlighter";

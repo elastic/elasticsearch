@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,7 +26,7 @@ public class ActivateAutoFollowPatternAction extends ActionType<AcknowledgedResp
     public static final ActivateAutoFollowPatternAction INSTANCE = new ActivateAutoFollowPatternAction();
 
     private ActivateAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -33,7 +34,8 @@ public class ActivateAutoFollowPatternAction extends ActionType<AcknowledgedResp
         private final String name;
         private final boolean active;
 
-        public Request(final String name, final boolean active) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, final String name, final boolean active) {
+            super(masterNodeTimeout, ackTimeout);
             this.name = name;
             this.active = active;
         }

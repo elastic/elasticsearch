@@ -25,6 +25,12 @@ import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
+/**
+ * Implements the Lucene 7.0 index format. Loaded via SPI for indices created/written with Lucene 7.x (Elasticsearch 6.x) mounted
+ * as archive indices first in Elasticsearch 8.x. Lucene 9.12 retained Lucene70Codec in its classpath which required overriding the
+ * codec name and version in the segment infos. This codec is still needed after upgrading to Elasticsearch 9.x because its codec
+ * name has been written to disk.
+ */
 public class BWCLucene70Codec extends BWCCodec {
 
     private final FieldInfosFormat fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
@@ -32,7 +38,7 @@ public class BWCLucene70Codec extends BWCCodec {
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final StoredFieldsFormat storedFieldsFormat;
-    private final DocValuesFormat defaultDVFormat = DocValuesFormat.forName("Lucene70");
+    private final DocValuesFormat defaultDVFormat = new Lucene70DocValuesFormat();
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -46,8 +52,14 @@ public class BWCLucene70Codec extends BWCCodec {
         }
     };
 
+    // Needed for SPI loading
+    @SuppressWarnings("unused")
     public BWCLucene70Codec() {
-        super("BWCLucene70Codec");
+        this("BWCLucene70Codec");
+    }
+
+    protected BWCLucene70Codec(String name) {
+        super(name);
         storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
     }
 

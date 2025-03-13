@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -14,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -68,12 +70,12 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
             randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10)
         );
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "match_phrase_prefix" : {
                     "%s" : "%s"
                 }
-            }""".formatted(matchPhrasePrefixQuery.fieldName(), matchPhrasePrefixQuery.value());
+            }""", matchPhrasePrefixQuery.fieldName(), matchPhrasePrefixQuery.value());
         alternateVersions.put(contentString, matchPhrasePrefixQuery);
         return alternateVersions;
     }

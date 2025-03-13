@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -17,13 +19,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,10 +38,12 @@ import java.io.IOException;
  */
 public class TransportPutIndexTemplateAction extends AcknowledgedTransportMasterNodeAction<PutIndexTemplateRequest> {
 
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("indices:admin/template/put");
     private static final Logger logger = LogManager.getLogger(TransportPutIndexTemplateAction.class);
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutIndexTemplateAction(
@@ -47,21 +52,21 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         IndexScopedSettings indexScopedSettings
     ) {
         super(
-            PutIndexTemplateAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             PutIndexTemplateRequest::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -84,15 +89,15 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder.build(), true); // templates must be consistent with regards to dependencies
         indexTemplateService.putTemplate(
+            projectResolver.getProjectId(),
             new MetadataIndexTemplateService.PutRequest(cause, request.name()).patterns(request.patterns())
                 .order(request.order())
                 .settings(templateSettingsBuilder.build())
                 .mappings(request.mappings() == null ? null : new CompressedXContent(request.mappings()))
                 .aliases(request.aliases())
                 .create(request.create())
-                .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
-
+            request.masterNodeTimeout(),
             new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse response) {

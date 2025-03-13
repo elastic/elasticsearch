@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -23,8 +24,9 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -55,6 +57,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
     private static final Logger logger = LogManager.getLogger(TransportResetJobAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final JobConfigProvider jobConfigProvider;
     private final JobResultsProvider jobResultsProvider;
@@ -79,9 +82,9 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             threadPool,
             actionFilters,
             ResetJobAction.Request::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
         this.client = Objects.requireNonNull(client);
         this.jobConfigProvider = Objects.requireNonNull(jobConfigProvider);
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
@@ -104,7 +107,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
             Job job = jobBuilder.build();
-            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
             JobState jobState = MlTasks.getJobState(job.getId(), tasks);
             if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
                 listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET)));
@@ -123,7 +126,14 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
                 waitExistingResetTaskToComplete(
                     job.getBlocked().getTaskId(),
                     request,
-                    ActionListener.wrap(r -> resetIfJobIsStillBlockedOnReset(task, request, listener), listener::onFailure)
+                    ActionListener.wrap(r -> resetIfJobIsStillBlockedOnReset(task, request, listener), e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                            // If the task is not found then the node it was running on likely died, so try again.
+                            resetIfJobIsStillBlockedOnReset(task, request, listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    })
                 );
             } else {
                 ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client, taskId);
@@ -147,8 +157,8 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(existingTaskId);
         getTaskRequest.setWaitForCompletion(true);
-        getTaskRequest.setTimeout(request.timeout());
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest, ActionListener.wrap(getTaskResponse -> {
+        getTaskRequest.setTimeout(request.ackTimeout());
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportGetTaskAction.TYPE, getTaskRequest, ActionListener.wrap(getTaskResponse -> {
             TaskResult taskResult = getTaskResponse.getTask();
             if (taskResult.isCompleted()) {
                 listener.onResponse(AcknowledgedResponse.of(true));
@@ -203,7 +213,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
         // Now that we have updated the job's block reason, we should check again
         // if the job has been opened.
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, tasks);
         if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
             jobConfigProvider.updateJobBlockReason(
@@ -245,7 +255,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
             }, listener::onFailure));
         };
 
-        JobDataDeleter jobDataDeleter = new JobDataDeleter(taskClient, jobId);
+        JobDataDeleter jobDataDeleter = new JobDataDeleter(taskClient, jobId, request.getDeleteUserAnnotations());
         jobDataDeleter.deleteJobDocuments(
             jobConfigProvider,
             indexNameExpressionResolver,

@@ -1,31 +1,51 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.secure_sm;
 
-import junit.framework.TestCase;
+import com.carrotsearch.randomizedtesting.JUnit3MethodProvider;
+import com.carrotsearch.randomizedtesting.RandomizedRunner;
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
+
+import org.elasticsearch.jdk.RuntimeVersionFeature;
+import org.junit.BeforeClass;
+import org.junit.runner.RunWith;
 
 import java.security.Permission;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /** Simple tests for SecureSM */
-public class SecureSMTests extends TestCase {
-    static {
+@TestMethodProviders({ JUnit3MethodProvider.class })
+@RunWith(RandomizedRunner.class)
+public class SecureSMTests extends org.junit.Assert {
+
+    @BeforeClass
+    public static void initialize() {
+        RandomizedTest.assumeFalse(
+            "SecurityManager has been permanently removed in JDK 24",
+            RuntimeVersionFeature.isSecurityManagerAvailable() == false
+        );
         // install a mock security policy:
         // AllPermission to source code
         // ThreadPermission not granted anywhere else
-        final ProtectionDomain sourceCode = SecureSM.class.getProtectionDomain();
+        final var sourceCode = Set.of(SecureSM.class.getProtectionDomain(), RandomizedRunner.class.getProtectionDomain());
         Policy.setPolicy(new Policy() {
             @Override
             public boolean implies(ProtectionDomain domain, Permission permission) {
-                if (domain == sourceCode) {
+                if (sourceCode.contains(domain)) {
                     return true;
                 } else if (permission instanceof ThreadPermission) {
                     return false;
@@ -126,5 +146,13 @@ public class SecureSMTests extends TestCase {
         t1.interrupt();
         t1.join();
         assertTrue(interrupted1.get());
+    }
+
+    public void testParallelStreamThreadGroup() throws Exception {
+        List<Integer> list = new ArrayList<>();
+        for (int i = 0; i < 100; ++i) {
+            list.add(i);
+        }
+        list.parallelStream().collect(Collectors.toSet());
     }
 }

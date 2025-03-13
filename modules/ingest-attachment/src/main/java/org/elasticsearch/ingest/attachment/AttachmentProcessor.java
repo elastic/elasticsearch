@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.attachment;
@@ -14,7 +15,11 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -30,15 +35,17 @@ import java.util.Set;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalBooleanProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
 
-    public static final String TYPE = "attachment";
-
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AttachmentProcessor.class);
     private static final int NUMBER_OF_CHARS_INDEXED = 100000;
+
+    public static final String TYPE = "attachment";
 
     private final String field;
     private final String targetField;
@@ -190,7 +197,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
      * @param property          property to add
      * @param value             value to add
      */
-    private <T> void addAdditionalField(Map<String, Object> additionalFields, Property property, String value) {
+    private void addAdditionalField(Map<String, Object> additionalFields, Property property, String value) {
         if (properties.contains(property) && Strings.hasLength(value)) {
             additionalFields.put(property.toLowerCase(), value);
         }
@@ -226,8 +233,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
-        ) throws Exception {
+            Map<String, Object> config,
+            ProjectId projectId
+        ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String resourceName = readOptionalStringProperty(TYPE, processorTag, config, "resource_name");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
@@ -235,7 +243,19 @@ public final class AttachmentProcessor extends AbstractProcessor {
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
-            boolean removeBinary = readBooleanProperty(TYPE, processorTag, config, "remove_binary", false);
+            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+            // Revisit whether we want to update the [remove_binary] default to be 'true' - would need to find a way to do this safely
+            Boolean removeBinary = readOptionalBooleanProperty(TYPE, processorTag, config, "remove_binary");
+            if (removeBinary == null) {
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.PARSING,
+                    "attachment-remove-binary",
+                    "The default [remove_binary] value of 'false' is deprecated and will be "
+                        + "set to 'true' in a future release. Set [remove_binary] explicitly to "
+                        + "'true' or 'false' to ensure no behavior change."
+                );
+                removeBinary = false;
+            }
 
             final Set<Property> properties;
             if (propertyNames != null) {

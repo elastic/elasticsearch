@@ -20,3 +20,6 @@ d71544976608bdb53fa4d29521fb328e1033ee2f
 
 # Reformatting of whole codebase
 12ad399c488f0cc60e19b5e1b29c6d569cb4351a
+
+# Reformat after upgrading to Spotless 6.17.0
+fe1083f6c5f29e1fc28b82c1b71be9b7c1ec7a73

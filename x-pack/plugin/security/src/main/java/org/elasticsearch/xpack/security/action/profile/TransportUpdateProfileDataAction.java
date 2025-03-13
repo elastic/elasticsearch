@@ -11,7 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
@@ -24,7 +25,13 @@ public class TransportUpdateProfileDataAction extends HandledTransportAction<Upd
 
     @Inject
     public TransportUpdateProfileDataAction(TransportService transportService, ActionFilters actionFilters, ProfileService profileService) {
-        super(UpdateProfileDataAction.NAME, transportService, actionFilters, UpdateProfileDataRequest::new);
+        super(
+            UpdateProfileDataAction.NAME,
+            transportService,
+            actionFilters,
+            UpdateProfileDataRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.profileService = profileService;
     }
 

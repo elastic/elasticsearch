@@ -1,19 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalVariableWidthHistogram;
@@ -28,10 +28,10 @@ import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.InternalBounds;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
+import org.elasticsearch.search.aggregations.metrics.InternalCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalExtendedStats;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
@@ -82,7 +82,7 @@ public class AggregationInspectionHelper {
         return false;
     }
 
-    public static boolean hasValue(InternalAdjacencyMatrix agg) {
+    public static boolean hasValue(MultiBucketsAggregation agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 
@@ -107,10 +107,6 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalDateHistogram agg) {
-        return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
-    }
-
-    public static boolean hasValue(InternalAutoDateHistogram agg) {
         return agg.getBuckets().stream().anyMatch(bucket -> bucket.getDocCount() > 0);
     }
 
@@ -163,11 +159,11 @@ public class AggregationInspectionHelper {
         return agg.getCount() > 0;
     }
 
-    public static boolean hasValue(InternalGeoBounds agg) {
+    public static boolean hasValue(InternalBounds<?> agg) {
         return (agg.topLeft() == null && agg.bottomRight() == null) == false;
     }
 
-    public static boolean hasValue(InternalGeoCentroid agg) {
+    public static boolean hasValue(InternalCentroid agg) {
         return agg.centroid() != null && agg.count() > 0;
     }
 
@@ -229,7 +225,7 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalPercentilesBucket agg) {
-        return StreamSupport.stream(agg.spliterator(), false).allMatch(p -> Double.isNaN(p.getValue())) == false;
+        return StreamSupport.stream(agg.spliterator(), false).allMatch(p -> Double.isNaN(p.value())) == false;
     }
 
 }

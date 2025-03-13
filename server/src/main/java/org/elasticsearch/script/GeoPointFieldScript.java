@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -14,6 +15,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
@@ -31,8 +33,8 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
 
     public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
-            return ctx -> new GeoPointFieldScript(field, params, lookup, ctx) {
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, OnScriptError onScriptError) {
+            return ctx -> new GeoPointFieldScript(field, params, lookup, OnScriptError.FAIL, ctx) {
                 @Override
                 public void execute() {
                     emitFromSource();
@@ -47,11 +49,11 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
     };
 
     public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
-        return (leafFieldName, params, searchLookup) -> {
+        return (leafFieldName, params, searchLookup, onScriptError) -> {
             CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
             return (LeafFactory) ctx -> {
                 CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
-                return new GeoPointFieldScript(leafFieldName, params, searchLookup, ctx) {
+                return new GeoPointFieldScript(leafFieldName, params, searchLookup, onScriptError, ctx) {
                     @Override
                     public void setDocument(int docId) {
                         compositeFieldScript.setDocument(docId);
@@ -70,7 +72,7 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
     public static final String[] PARAMETERS = {};
 
     public interface Factory extends ScriptFactory {
-        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup);
+        LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup, OnScriptError onScriptError);
     }
 
     public interface LeafFactory {
@@ -81,17 +83,19 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
     private double[] lons = new double[1];
     private int count;
 
-    public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(fieldName, params, searchLookup, ctx);
+    public GeoPointFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        OnScriptError onScriptError,
+        LeafReaderContext ctx
+    ) {
+        super(fieldName, params, searchLookup, ctx, onScriptError);
     }
 
-    /**
-     * Execute the script for the provided {@code docId}.
-     */
-    public final void runForDoc(int docId) {
+    @Override
+    protected void prepareExecute() {
         count = 0;
-        setDocument(docId);
-        execute();
     }
 
     /**
@@ -135,7 +139,7 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
 
     @Override
     protected List<Object> extractFromSource(String path) {
-        Object value = XContentMapValues.extractValue(path, sourceLookup.source());
+        Object value = XContentMapValues.extractValue(path, source.get().source());
         if (value instanceof List<?>) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) value;

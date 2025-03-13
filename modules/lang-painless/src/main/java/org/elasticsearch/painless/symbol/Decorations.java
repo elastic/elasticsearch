@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.symbol;
@@ -23,8 +24,6 @@ import org.elasticsearch.painless.symbol.Decorator.Decoration;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -225,14 +224,14 @@ public class Decorations {
     public record TypeParameters(List<Class<?>> typeParameters) implements Decoration {
 
         public TypeParameters(List<Class<?>> typeParameters) {
-            this.typeParameters = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(typeParameters)));
+            this.typeParameters = List.copyOf(typeParameters);
         }
     }
 
     public record ParameterNames(List<String> parameterNames) implements Decoration {
 
         public ParameterNames(List<String> parameterNames) {
-            this.parameterNames = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(parameterNames)));
+            this.parameterNames = List.copyOf(parameterNames);
         }
     }
 
@@ -248,7 +247,7 @@ public class Decorations {
     public record CapturesDecoration(List<Variable> captures) implements Decoration {
 
         public CapturesDecoration(List<Variable> captures) {
-            this.captures = Collections.unmodifiableList(new ArrayList<>(Objects.requireNonNull(captures)));
+            this.captures = List.copyOf(captures);
         }
 
         public List<Variable> captures() {

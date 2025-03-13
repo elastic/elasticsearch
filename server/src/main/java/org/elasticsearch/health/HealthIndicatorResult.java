@@ -1,17 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 
-import java.io.IOException;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 public record HealthIndicatorResult(
@@ -21,22 +25,39 @@ public record HealthIndicatorResult(
     HealthIndicatorDetails details,
     List<HealthIndicatorImpact> impacts,
     List<Diagnosis> diagnosisList
-) implements ToXContentObject {
+) implements ChunkedToXContentObject {
+
+    private boolean hasDiagnosis() {
+        return diagnosisList != null && diagnosisList.isEmpty() == false;
+    }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("status", status.xContentValue());
-        builder.field("symptom", symptom);
-        if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
-            builder.field("details", details, params);
-        }
-        if (impacts != null && impacts.isEmpty() == false) {
-            builder.field("impacts", impacts);
-        }
-        if (diagnosisList != null && diagnosisList.isEmpty() == false) {
-            builder.field("diagnosis", diagnosisList);
-        }
-        return builder.endObject();
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.concat(ChunkedToXContentHelper.chunk((builder, params) -> {
+            builder.startObject();
+            builder.field("status", status.xContentValue());
+            builder.field("symptom", symptom);
+            if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
+                builder.field("details", details, params);
+            }
+            if (impacts != null && impacts.isEmpty() == false) {
+                builder.field("impacts", impacts);
+            }
+            if (hasDiagnosis()) {
+                // don't want to have a new chunk & nested iterator for this, so we start the object here
+                builder.startArray("diagnosis");
+            }
+            return builder;
+        }),
+            hasDiagnosis()
+                ? Iterators.flatMap(diagnosisList.iterator(), s -> s.toXContentChunked(outerParams))
+                : Collections.emptyIterator(),
+            ChunkedToXContentHelper.chunk((b, p) -> {
+                if (hasDiagnosis()) {
+                    b.endArray();
+                }
+                return b.endObject();
+            })
+        );
     }
 }

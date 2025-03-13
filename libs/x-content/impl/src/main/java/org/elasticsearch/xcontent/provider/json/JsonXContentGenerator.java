@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.provider.json;
@@ -365,6 +366,31 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
+    public void writeStringArray(String[] array) throws IOException {
+        try {
+            if (isFiltered()) {
+                // filtered serialization does not work correctly with the bulk array serializer, so we need to fall back to serializing
+                // the array one-by-one
+                // TODO: this can probably be removed after upgrading Jackson to 2.15.1 or later, see
+                // https://github.com/FasterXML/jackson-core/issues/1023
+                writeStringArrayFiltered(array);
+            } else {
+                generator.writeArray(array, 0, array.length);
+            }
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
+        }
+    }
+
+    private void writeStringArrayFiltered(String[] array) throws IOException {
+        writeStartArray();
+        for (String s : array) {
+            writeString(s);
+        }
+        writeEndArray();
+    }
+
+    @Override
     public void writeString(char[] value, int offset, int len) throws IOException {
         try {
             generator.writeString(value, offset, len);
@@ -468,6 +494,20 @@ public class JsonXContentGenerator implements XContentGenerator {
             flush();
             Streams.copy(stream, os, false);
             writeEndRaw();
+        }
+    }
+
+    @Override
+    public void writeRawValue(String value) throws IOException {
+        try {
+            if (supportsRawWrites()) {
+                generator.writeRawValue(value);
+            } else {
+                // fallback to a regular string for formats that don't allow writing the value as is
+                generator.writeString(value);
+            }
+        } catch (JsonGenerationException e) {
+            throw new XContentGenerationException(e);
         }
     }
 

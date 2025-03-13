@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -23,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl.IndexAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
@@ -31,6 +35,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Supplier;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,9 +55,10 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
         if (authentication.isRunAs()) {
             final CustomAuthorizationInfo authenticatedUserAuthzInfo =
                 new CustomAuthorizationInfo(authentication.getAuthenticatingSubject().getUser().roles(), null);
-            listener.onResponse(new CustomAuthorizationInfo(authentication.getUser().roles(), authenticatedUserAuthzInfo));
+            listener.onResponse(new CustomAuthorizationInfo(authentication.getEffectiveSubject().getUser().roles(),
+                authenticatedUserAuthzInfo));
         } else {
-            listener.onResponse(new CustomAuthorizationInfo(authentication.getUser().roles(), null));
+            listener.onResponse(new CustomAuthorizationInfo(authentication.getEffectiveSubject().getUser().roles(), null));
         }
     }
 
@@ -73,7 +79,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     @Override
     public void authorizeClusterAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                        ActionListener<AuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onResponse(AuthorizationResult.deny());
@@ -81,32 +87,54 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Map<String, IndexAbstraction> aliasOrIndexLookup,
-                                     ActionListener<IndexAuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+    SubscribableListener<IndexAuthorizationResult> void authorizeIndexAction(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+        ProjectMetadata project
+    ) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
+            ActionListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
                 for (String name : resolvedIndices.getLocal()) {
-                    indexAccessControlMap.put(name, new IndexAccessControl(true, FieldPermissions.DEFAULT, null));
+                    indexAccessControlMap.put(name, new IndexAccessControl(FieldPermissions.DEFAULT, null));
                 }
                 IndicesAccessControl indicesAccessControl =
                     new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));
-                listener.onResponse(new IndexAuthorizationResult(true, indicesAccessControl));
+                listener.onResponse(new IndexAuthorizationResult(indicesAccessControl));
             }, listener::onFailure));
+            return listener;
         } else {
-            listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.DENIED));
+            return SubscribableListener.succcess(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
         }
     }
 
     @Override
-    public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
-            listener.onResponse(indicesLookup.keySet());
+    public void loadAuthorizedIndices(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Map<String, IndexAbstraction> indicesLookup,
+        ActionListener<AuthorizationEngine.AuthorizedIndices> listener
+    ) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
+            listener.onResponse(new AuthorizedIndices() {
+                public Supplier<Set<String>> all() {
+                    return () -> indicesLookup.keySet();
+                }
+                public boolean check(String name) {
+                    return indicesLookup.containsKey(name);
+                }
+            });
         } else {
-            listener.onResponse(Collections.emptySet());
+            listener.onResponse(new AuthorizedIndices() {
+                public Supplier<Set<String>> all() {
+                    return () -> Set.of();
+                }
+                public boolean check(String name) {
+                    return false;
+                }
+            });
         }
     }
 
@@ -114,7 +142,7 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     public void validateIndexPermissionsAreSubset(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
                                                   Map<String, List<String>> indexNameToNewNames,
                                                   ActionListener<AuthorizationResult> listener) {
-        if (isSuperuser(requestInfo.getAuthentication().getUser())) {
+        if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(AuthorizationResult.granted());
         } else {
             listener.onResponse(AuthorizationResult.deny());
@@ -200,7 +228,8 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                 RoleDescriptor.ApplicationResourcePrivileges.builder().application("*").privileges("*").resources("*").build()) :
             Collections.emptySet();
         final Set<String> runAs = isSuperuser ? Collections.singleton("*") : Collections.emptySet();
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
+        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs, Set.of(),
+            RemoteClusterPermissions.NONE);
     }
 
     public static class CustomAuthorizationInfo implements AuthorizationInfo {

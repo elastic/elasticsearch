@@ -1,19 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -99,7 +106,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         @Override
         public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             Builder builder = builderFunction.apply(parserContext);
-            builder.parse(name, parserContext, node);
+            builder.parseMetadataField(name, parserContext, node);
             return builder;
         }
 
@@ -129,11 +136,49 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             return build();
         }
 
+        private static final Set<String> UNSUPPORTED_PARAMETERS_8_6_0 = Set.of("type", "fields", "copy_to", "boost");
+
+        public final void parseMetadataField(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
+            final Parameter<?>[] params = getParameters();
+            Map<String, Parameter<?>> paramsMap = Maps.newHashMapWithExpectedSize(params.length);
+            for (Parameter<?> param : params) {
+                paramsMap.put(param.name, param);
+            }
+            for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
+                final String propName = entry.getKey();
+                final Object propNode = entry.getValue();
+                Parameter<?> parameter = paramsMap.get(propName);
+                if (parameter == null) {
+                    IndexVersion indexVersionCreated = parserContext.indexVersionCreated();
+                    if (indexVersionCreated.before(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+                        && UNSUPPORTED_PARAMETERS_8_6_0.contains(propName)) {
+                        if (indexVersionCreated.onOrAfter(IndexVersions.V_8_6_0)) {
+                            // silently ignore type, and a few other parameters: sadly we've been doing this for a long time
+                            deprecationLogger.warn(
+                                DeprecationCategory.API,
+                                propName,
+                                "Parameter [{}] has no effect on metadata field [{}] and will be removed in future",
+                                propName,
+                                name
+                            );
+                        }
+                        iterator.remove();
+                        continue;
+                    }
+                    throw new MapperParsingException("unknown parameter [" + propName + "] on metadata field [" + name + "]");
+                }
+                parameter.parse(name, parserContext, propNode);
+                iterator.remove();
+            }
+            validate();
+        }
+
         public abstract MetadataFieldMapper build();
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
-        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+        super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
     }
 
     @Override
@@ -147,15 +192,16 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         if (mergeBuilder == null || mergeBuilder.isConfigured() == false) {
             return builder;
         }
-        builder.startObject(simpleName());
+        builder.startObject(leafName());
         getMergeBuilder().toXContent(builder, params);
         return builder.endObject();
     }
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        throw new MapperParsingException(
-            "Field [" + name() + "] is a metadata field and cannot be added inside" + " a document. Use the index API request parameters."
+        throw new DocumentParsingException(
+            context.parser().getTokenLocation(),
+            "Field [" + fullPath() + "] is a metadata field and cannot be added inside a document. Use the index API request parameters."
         );
     }
 
@@ -173,4 +219,8 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         // do nothing
     }
 
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
+    }
 }

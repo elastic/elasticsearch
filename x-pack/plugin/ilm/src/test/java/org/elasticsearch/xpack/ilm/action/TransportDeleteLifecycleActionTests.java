@@ -8,9 +8,10 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
@@ -20,16 +21,22 @@ import static org.mockito.Mockito.mock;
 
 public class TransportDeleteLifecycleActionTests extends ESTestCase {
     public void testReservedStateHandler() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         TransportDeleteLifecycleAction putAction = new TransportDeleteLifecycleAction(
-            mock(TransportService.class),
+            transportService,
             mock(ClusterService.class),
-            mock(ThreadPool.class),
+            threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(ProjectResolver.class)
         );
         assertEquals(ReservedLifecycleAction.NAME, putAction.reservedStateHandlerName().get());
 
-        DeleteLifecycleAction.Request request = new DeleteLifecycleAction.Request("my_timeseries_lifecycle2");
+        DeleteLifecycleAction.Request request = new DeleteLifecycleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "my_timeseries_lifecycle2"
+        );
         assertThat(putAction.modifiedKeys(request), containsInAnyOrder("my_timeseries_lifecycle2"));
     }
 }

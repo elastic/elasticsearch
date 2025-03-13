@@ -1,0 +1,94 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: Introduced in 8.13.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Status":
+  - do:
+      connector.update_status:
+        connector_id: test-connector
+        body:
+          status: needs_configuration
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { status: needs_configuration }
+
+  - do:
+      connector.update_status:
+        connector_id: test-connector
+        body:
+          status: configured
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { status: configured }
+
+---
+"Update Connector Status - 404 when connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_status:
+        connector_id: test-non-existent-connector
+        body:
+          status: needs_configuration
+
+---
+"Update Connector Status - 400 status code when connector_id is empty":
+  - do:
+      catch: "bad_request"
+      connector.update_status:
+        connector_id: ""
+        body:
+          status: needs_configuration
+
+---
+"Update Connector Status - 400 status code when payload is not string":
+  - do:
+      catch: "bad_request"
+      connector.update_status:
+        connector_id: test-connector
+        body:
+          status:
+            field_1: test
+            field_2: something
+
+---
+"Update Connector Status - 400 status code when invalid status":
+  - do:
+      catch: "bad_request"
+      connector.update_status:
+        connector_id: test-connector
+        body:
+          status: _invalid-status
+
+
+---
+"Update Connector Status - 400 status code when invalid status transition":
+  - do:
+      catch: "bad_request"
+      connector.update_status:
+        connector_id: test-connector
+        body:
+          status: connected # created -> connected transition is invalid
+
+  - match: { error.reason: "Invalid transition attempt from [created] to [connected]. Such a status transition is not supported by the Connector Protocol." }

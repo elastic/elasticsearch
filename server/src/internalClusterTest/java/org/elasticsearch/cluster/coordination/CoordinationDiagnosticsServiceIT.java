@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -22,6 +23,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -50,8 +52,8 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
     }
 
-    @Before
-    private void restoreDefaultInitialDelay() {
+    @After
+    public void restoreDefaultInitialDelay() {
         CoordinationDiagnosticsService.remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
     }
 

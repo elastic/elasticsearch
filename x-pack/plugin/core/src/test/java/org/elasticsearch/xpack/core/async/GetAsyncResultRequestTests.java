@@ -30,6 +30,11 @@ public class GetAsyncResultRequestTests extends AbstractWireSerializingTestCase<
         return req;
     }
 
+    @Override
+    protected GetAsyncResultRequest mutateInstance(GetAsyncResultRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static String randomSearchId() {
         return randomAsyncId().getEncoded();
     }

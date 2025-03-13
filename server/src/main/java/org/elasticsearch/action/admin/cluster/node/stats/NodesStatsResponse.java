@@ -1,31 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.support.nodes.BaseNodesXContentResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 
-public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements ToXContentFragment {
-
-    public NodesStatsResponse(StreamInput in) throws IOException {
-        super(in);
-    }
+public class NodesStatsResponse extends BaseNodesXContentResponse<NodeStats> {
 
     public NodesStatsResponse(ClusterName clusterName, List<NodeStats> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
@@ -33,39 +32,28 @@ public class NodesStatsResponse extends BaseNodesResponse<NodeStats> implements 
 
     @Override
     protected List<NodeStats> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodeStats::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeStats> nodes) throws IOException {
-        out.writeList(nodes);
+        TransportAction.localOnly();
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("nodes");
-        for (NodeStats nodeStats : getNodes()) {
-            builder.startObject(nodeStats.getNode().getId());
-            builder.field("timestamp", nodeStats.getTimestamp());
-            nodeStats.toXContent(builder, params);
-
-            builder.endObject();
-        }
-        builder.endObject();
-
-        return builder;
+    protected Iterator<? extends ToXContent> xContentChunks(ToXContent.Params outerParams) {
+        return ChunkedToXContentHelper.object(
+            "nodes",
+            Iterators.flatMap(getNodes().iterator(), nodeStats -> Iterators.concat(Iterators.single((builder, params) -> {
+                builder.startObject(nodeStats.getNode().getId());
+                builder.field("timestamp", nodeStats.getTimestamp());
+                return builder;
+            }), nodeStats.toXContentChunked(outerParams), ChunkedToXContentHelper.endObject()))
+        );
     }
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this, true, true);
     }
 }

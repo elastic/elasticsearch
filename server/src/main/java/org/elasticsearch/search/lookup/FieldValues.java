@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.lookup;
@@ -11,6 +12,7 @@ package org.elasticsearch.search.lookup;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,14 +60,19 @@ public interface FieldValues<T> {
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
+            public List<Object> fetchValues(Source lookup, int doc, List<Object> ignoredValues) {
                 List<Object> values = new ArrayList<>();
                 try {
-                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(formatter.apply(v)));
+                    fieldValues.valuesForDoc(context.lookup(), ctx, doc, v -> values.add(formatter.apply(v)));
                 } catch (Exception e) {
                     ignoredValues.addAll(values);
                 }
                 return values;
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;       // TODO can we get more information from the script
             }
         };
     }
@@ -91,14 +98,19 @@ public interface FieldValues<T> {
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
                 List<T> values = new ArrayList<>();
                 try {
-                    fieldValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> values.add(v));
+                    fieldValues.valuesForDoc(context.lookup(), ctx, doc, values::add);
                 } catch (Exception e) {
                     ignoredValues.addAll(values);
                 }
                 return formatter.apply(values);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;   // TODO can we get more info from the script?
             }
         };
     }

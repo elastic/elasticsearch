@@ -21,13 +21,56 @@ public abstract class EqlDateNanosSpecTestCase extends BaseEqlSpecTestCase {
     }
 
     // constructor for "local" rest tests
-    public EqlDateNanosSpecTestCase(String query, String name, long[] eventIds, String[] joinKeys) {
-        this(TEST_NANOS_INDEX, query, name, eventIds, joinKeys);
+    public EqlDateNanosSpecTestCase(
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
+    ) {
+        this(
+            TEST_NANOS_INDEX,
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 
     // constructor for multi-cluster tests
-    public EqlDateNanosSpecTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys) {
-        super(index, query, name, eventIds, joinKeys);
+    public EqlDateNanosSpecTestCase(
+        String index,
+        String query,
+        String name,
+        List<long[]> eventIds,
+        String[] joinKeys,
+        Integer size,
+        Integer maxSamplesPerKey,
+        Boolean allowPartialSearchResults,
+        Boolean allowPartialSequenceResults,
+        Boolean expectShardFailures
+    ) {
+        super(
+            index,
+            query,
+            name,
+            eventIds,
+            joinKeys,
+            size,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults,
+            expectShardFailures
+        );
     }
 
     @Override

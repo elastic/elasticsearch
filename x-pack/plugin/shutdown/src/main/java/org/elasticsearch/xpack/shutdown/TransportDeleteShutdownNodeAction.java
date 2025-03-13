@@ -15,19 +15,19 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,12 +36,11 @@ import org.elasticsearch.xpack.shutdown.DeleteShutdownNodeAction.Request;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
-
 public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteShutdownNodeAction.class);
 
-    private final DeleteShutdownNodeExecutor executor = new DeleteShutdownNodeExecutor();
+    private final RerouteService rerouteService;
+    private final MasterServiceTaskQueue<DeleteShutdownNodeTask> taskQueue;
 
     private static boolean deleteShutdownNodeState(Map<String, SingleNodeShutdownMetadata> shutdownMetadata, Request request) {
         if (shutdownMetadata.containsKey(request.getNodeId()) == false) {
@@ -57,7 +56,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     private static void ackAndReroute(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService) {
         rerouteService.reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
             @Override
-            public void onResponse(ClusterState clusterState) {}
+            public void onResponse(Void ignored) {}
 
             @Override
             public void onFailure(Exception e) {
@@ -80,7 +79,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     class DeleteShutdownNodeExecutor implements ClusterStateTaskExecutor<DeleteShutdownNodeTask> {
         @Override
         public ClusterState execute(BatchExecutionContext<DeleteShutdownNodeTask> batchExecutionContext) throws Exception {
-            var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(batchExecutionContext.initialState()).getAllNodeMetadataMap());
+            var shutdownMetadata = new HashMap<>(batchExecutionContext.initialState().metadata().nodeShutdowns().getAll());
             boolean changed = false;
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 var request = taskContext.getTask().request();
@@ -90,8 +89,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
                     taskContext.onFailure(e);
                     continue;
                 }
-                var reroute = clusterService.getRerouteService();
-                taskContext.success(() -> ackAndReroute(request, taskContext.getTask().listener(), reroute));
+                taskContext.success(() -> ackAndReroute(request, taskContext.getTask().listener(), rerouteService));
             }
             if (changed == false) {
                 return batchExecutionContext.initialState();
@@ -109,9 +107,9 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     public TransportDeleteShutdownNodeAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             DeleteShutdownNodeAction.NAME,
@@ -121,9 +119,10 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
+        taskQueue = clusterService.createTaskQueue("delete-node-shutdown", Priority.URGENT, new DeleteShutdownNodeExecutor());
     }
 
     @Override
@@ -131,14 +130,15 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
         throws Exception {
         { // This block solely to ensure this NodesShutdownMetadata isn't accidentally used in the cluster state update task below
             NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
-            if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()) == null) {
+            if (nodesShutdownMetadata == null || nodesShutdownMetadata.get(request.getNodeId()) == null) {
                 throw new ResourceNotFoundException("node [" + request.getNodeId() + "] is not currently shutting down");
             }
         }
-
-        var deleteTask = new DeleteShutdownNodeTask(request, listener);
-        var taskConfig = ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout());
-        clusterService.submitStateUpdateTask("delete-node-shutdown-" + request.getNodeId(), deleteTask, taskConfig, executor);
+        taskQueue.submitTask(
+            "delete-node-shutdown-" + request.getNodeId(),
+            new DeleteShutdownNodeTask(request, listener),
+            request.masterNodeTimeout()
+        );
     }
 
     @Override

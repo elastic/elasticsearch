@@ -68,6 +68,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -130,7 +131,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         // Load HTTPClient only once. Client uses the same store as a truststore
         try (CloseableHttpClient client = getSSLClient(keystorePath, "testnode")) {
             final Consumer<SSLContext> keyMaterialPreChecks = (context) -> {
-                try (MockWebServer server = new MockWebServer(context, true)) {
+                try (MockWebServer server = new MockWebServer(context, false)) {
                     server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
                     server.start();
                     privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close());
@@ -169,7 +170,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Tests the reloading of SSLContext when a PEM key and certificate are used.
      */
     public void testPEMKeyConfigReloading() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         Path tempDir = createTempDir();
         Path keyPath = tempDir.resolve("testnode.pem");
         Path certPath = tempDir.resolve("testnode.crt");
@@ -201,30 +201,43 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
             };
-            final Runnable modifier = () -> {
+            final List<Runnable> modifierFunctions = List.of(() -> {
                 try {
                     atomicMoveIfPossible(updatedKeyPath, keyPath);
+                } catch (Exception e) {
+                    throw new RuntimeException("failed to modify file", e);
+                }
+            }, () -> {
+                try {
                     atomicMoveIfPossible(updatedCertPath, certPath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
-            };
+            });
 
             // The new server certificate is not in the client's truststore so SSLHandshake should fail
             final Consumer<SSLContext> keyMaterialPostChecks = (updatedContext) -> {
                 try (MockWebServer server = new MockWebServer(updatedContext, false)) {
                     server.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
                     server.start();
-                    SSLHandshakeException sslException = expectThrows(
-                        SSLHandshakeException.class,
-                        () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
-                    );
-                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
+                    if (inFipsJvm()) {
+                        Exception sslException = expectThrows(
+                            IOException.class,
+                            () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
+                        );
+                        assertThat(sslException.getCause().getMessage(), containsString("Unable to construct a valid chain"));
+                    } else {
+                        SSLHandshakeException sslException = expectThrows(
+                            SSLHandshakeException.class,
+                            () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
+                        );
+                        assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
+                    }
                 } catch (Exception e) {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
             };
-            validateSSLConfigurationIsReloaded(env, keyMaterialPreChecks, modifier, keyMaterialPostChecks);
+            validateSSLConfigurationIsReloaded(env, keyMaterialPreChecks, modifierFunctions, keyMaterialPostChecks);
         }
     }
 
@@ -284,7 +297,6 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
      * Test the reloading of SSLContext whose trust config is backed by PEM certificate files.
      */
     public void testReloadingPEMTrustConfig() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         Path tempDir = createTempDir();
         Path serverCertPath = tempDir.resolve("testnode.crt");
         Path serverKeyPath = tempDir.resolve("testnode.pem");
@@ -318,11 +330,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             // Client doesn't trust the Server certificate anymore so SSLHandshake should fail
             final Consumer<SSLContext> trustMaterialPostChecks = (updatedContext) -> {
                 try (CloseableHttpClient client = createHttpClient(updatedContext)) {
-                    SSLHandshakeException sslException = expectThrows(
-                        SSLHandshakeException.class,
-                        () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
-                    );
-                    assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
+                    if (inFipsJvm()) {
+                        Exception sslException = expectThrows(
+                            IOException.class,
+                            () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
+                        );
+                        assertThat(sslException.getCause().getMessage(), containsString("Unable to construct a valid chain"));
+                    } else {
+                        SSLHandshakeException sslException = expectThrows(
+                            SSLHandshakeException.class,
+                            () -> privilegedConnect(() -> client.execute(new HttpGet("https://localhost:" + server.getPort())).close())
+                        );
+                        assertThat(sslException.getCause().getMessage(), containsString("PKIX path validation failed"));
+                    }
                 } catch (Exception e) {
                     throw new RuntimeException("Error closing CloseableHttpClient", e);
                 }
@@ -559,28 +579,45 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     private void validateSSLConfigurationIsReloaded(
         Environment env,
         Consumer<SSLContext> preChecks,
-        Runnable modificationFunction,
+        Runnable modifierFunction,
         Consumer<SSLContext> postChecks
     ) throws Exception {
-        final CountDownLatch reloadLatch = new CountDownLatch(1);
+        validateSSLConfigurationIsReloaded(env, preChecks, List.of(modifierFunction), postChecks);
+    }
+
+    private void validateSSLConfigurationIsReloaded(
+        Environment env,
+        Consumer<SSLContext> preChecks,
+        List<Runnable> modifierFunctions,
+        Consumer<SSLContext> postChecks
+    ) throws Exception {
+        final CyclicBarrier reloadBarrier = new CyclicBarrier(2);
         final SSLService sslService = new SSLService(env);
         final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
             } finally {
-                reloadLatch.countDown();
+                try {
+                    reloadBarrier.await();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
         new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
         // Baseline checks
         preChecks.accept(sslService.sslContextHolder(config).sslContext());
 
-        assertEquals("nothing should have called reload", 1, reloadLatch.getCount());
+        assertEquals("nothing should have called reload", 0, reloadBarrier.getNumberWaiting());
 
         // modify
-        modificationFunction.run();
-        reloadLatch.await();
+        for (var modifierFunction : modifierFunctions) {
+            modifierFunction.run();
+            reloadBarrier.await();
+            reloadBarrier.reset();
+        }
+
         // checks after reload
         postChecks.accept(sslService.sslContextHolder(config).sslContext());
     }

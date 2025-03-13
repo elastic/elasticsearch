@@ -1,0 +1,94 @@
+//
+// CSV spec for FORK command
+//
+
+simpleFork
+required_capability: fork
+
+FROM employees
+| FORK ( WHERE emp_no == 10001 )
+       ( WHERE emp_no == 10002 )
+| KEEP emp_no, _fork
+| SORT emp_no
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork1
+10002          | fork2
+;
+
+forkWithWhereSortAndLimit
+required_capability: fork
+
+FROM employees
+| FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
+       ( WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
+| KEEP emp_no, first_name, _fork
+| SORT emp_no, _fork
+;
+
+emp_no:integer | first_name:keyword | _fork:keyword
+10002          | Bezalel            | fork2
+10009          | Sumant             | fork1
+10014          | Berni              | fork2
+10048          | Florian            | fork1
+10058          | Berhard            | fork2
+10060          | Breannda           | fork2
+10094          | Arumugam           | fork2
+;
+
+fiveFork
+required_capability: fork
+
+FROM employees
+| FORK ( WHERE emp_no == 10005 )
+       ( WHERE emp_no == 10004 )
+       ( WHERE emp_no == 10003 )
+       ( WHERE emp_no == 10002 )
+       ( WHERE emp_no == 10001 )
+| KEEP  _fork, emp_no
+| SORT _fork
+;
+
+_fork:keyword | emp_no:integer 
+fork1         | 10005
+fork2         | 10004
+fork3         | 10003
+fork4         | 10002
+fork5         | 10001
+;
+
+forkWithWhereSortDescAndLimit
+required_capability: fork
+
+FROM employees
+| FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2 )
+       ( WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name DESC NULLS LAST | LIMIT 2 )
+| KEEP _fork, emp_no, first_name
+| SORT _fork, first_name DESC
+;
+
+_fork:keyword | emp_no:integer | first_name:keyword 
+fork1         | 10009          | Sumant            
+fork1         | 10048          | Florian           
+fork2         | 10081          | Zhongwei          
+fork2         | 10087          | Xinglin
+;
+
+forkWithCommonPrefilter
+required_capability: fork
+
+FROM employees
+| WHERE emp_no > 10050
+| FORK ( SORT emp_no ASC | LIMIT 2 )
+       ( SORT emp_no DESC NULLS LAST | LIMIT 2 )
+| KEEP _fork, emp_no
+| SORT _fork, emp_no
+;
+
+_fork:keyword | emp_no:integer
+fork1         | 10051
+fork1         | 10052
+fork2         | 10099
+fork2         | 10100
+;

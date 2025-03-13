@@ -18,13 +18,11 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 public class OpenIdConnectRealmSettings {
 
@@ -91,7 +89,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<String> RP_SIGNATURE_ALGORITHM = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "rp.signature_algorithm",
-        key -> new Setting<>(key, "RS256", Function.identity(), v -> {
+        key -> Setting.simpleString(key, "RS256", v -> {
             if (SUPPORTED_SIGNATURE_ALGORITHMS.contains(v) == false) {
                 throw new IllegalArgumentException(
                     "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + SUPPORTED_SIGNATURE_ALGORITHMS + "}]"
@@ -102,12 +100,12 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<List<String>> RP_REQUESTED_SCOPES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "rp.requested_scopes",
-        key -> Setting.listSetting(key, Collections.singletonList("openid"), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, List.of("openid"), Setting.Property.NodeScope)
     );
     public static final Setting.AffixSetting<String> RP_CLIENT_AUTH_METHOD = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "rp.client_auth_method",
-        key -> new Setting<>(key, "client_secret_basic", Function.identity(), v -> {
+        key -> Setting.simpleString(key, "client_secret_basic", v -> {
             if (CLIENT_AUTH_METHODS.contains(v) == false) {
                 throw new IllegalArgumentException(
                     "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + CLIENT_AUTH_METHODS + "}]"
@@ -118,7 +116,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<String> RP_CLIENT_AUTH_JWT_SIGNATURE_ALGORITHM = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "rp.client_auth_jwt_signature_algorithm",
-        key -> new Setting<>(key, "HS384", Function.identity(), v -> {
+        key -> Setting.simpleString(key, "HS384", v -> {
             if (SUPPORTED_CLIENT_AUTH_JWT_ALGORITHMS.contains(v) == false) {
                 throw new IllegalArgumentException(
                     "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + SUPPORTED_CLIENT_AUTH_JWT_ALGORITHMS + "}]"

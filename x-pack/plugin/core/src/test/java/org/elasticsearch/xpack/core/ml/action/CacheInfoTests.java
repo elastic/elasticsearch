@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -26,12 +26,16 @@ public class CacheInfoTests extends AbstractWireSerializingTestCase<CacheInfo> {
 
     @Override
     protected CacheInfo createTestInstance() {
-        DiscoveryNode node = new DiscoveryNode(
+        DiscoveryNode node = DiscoveryNodeUtils.create(
             randomAlphaOfLength(20),
-            new TransportAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65535)),
-            Version.CURRENT
+            new TransportAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65535))
         );
         return createTestInstance(node);
+    }
+
+    @Override
+    protected CacheInfo mutateInstance(CacheInfo instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     static CacheInfo createTestInstance(DiscoveryNode node) {

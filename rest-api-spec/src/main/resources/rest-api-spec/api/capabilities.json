@@ -1,0 +1,52 @@
+{
+  "capabilities": {
+    "documentation": {
+      "url": "https://github.com/elastic/elasticsearch/blob/main/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test/README.asciidoc#require-or-skip-api-capabilities",
+      "description": "Checks if the specified combination of method, API, parameters, and arbitrary capabilities are supported"
+    },
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_capabilities",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "method": {
+        "type": "enum",
+        "description": "REST method to check",
+        "options": [
+          "GET", "HEAD", "POST", "PUT", "DELETE"
+        ],
+        "default": "GET"
+      },
+      "path": {
+        "type": "string",
+        "description": "API path to check"
+      },
+      "parameters": {
+        "type": "string",
+        "description": "Comma-separated list of API parameters to check"
+      },
+      "capabilities": {
+        "type": "string",
+        "description": "Comma-separated list of arbitrary API capabilities to check"
+      },
+      "local_only": {
+        "type": "boolean",
+        "description": "True if only the node being called should be considered",
+        "visibility": "private"
+      }
+    }
+  }
+}

@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 
-public class TransformMetadataTests extends AbstractSerializingTestCase<TransformMetadata> {
+public class TransformMetadataTests extends AbstractChunkedSerializingTestCase<TransformMetadata> {
 
     @Override
     protected TransformMetadata createTestInstance() {
-        return new TransformMetadata.Builder().isResetMode(randomBoolean()).build();
+        return new TransformMetadata.Builder().resetMode(randomBoolean()).upgradeMode(randomBoolean()).build();
     }
 
     @Override
@@ -31,6 +31,8 @@ public class TransformMetadataTests extends AbstractSerializingTestCase<Transfor
 
     @Override
     protected TransformMetadata mutateInstance(TransformMetadata instance) {
-        return new TransformMetadata.Builder().isResetMode(instance.isResetMode() == false).build();
+        return new TransformMetadata.Builder().resetMode(instance.resetMode() == false)
+            .upgradeMode(instance.upgradeMode() == false)
+            .build();
     }
 }

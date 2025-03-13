@@ -7,10 +7,11 @@
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,12 +31,14 @@ import java.util.Objects;
 public class InternalGeoLine extends InternalAggregation implements GeoShapeMetricAggregation {
     private static final double SCALE = Math.pow(10, 6);
 
-    private long[] line;
-    private double[] sortVals;
-    private boolean complete;
-    private boolean includeSorts;
-    private SortOrder sortOrder;
-    private int size;
+    private final long[] line;
+    private final double[] sortVals;
+    private final boolean complete;
+    private final boolean includeSorts;
+    private final SortOrder sortOrder;
+    private final int size;
+    private final boolean nonOverlapping;
+    private final boolean simplified;
 
     /**
      * A geo_line representing the bucket for a {@link GeoLineAggregationBuilder}. The values of <code>line</code> and <code>sortVals</code>
@@ -49,6 +52,8 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
      * @param includeSorts    true iff the sort-values should be rendered in xContent as properties of the line-string. False otherwise.
      * @param sortOrder       the {@link SortOrder} for the line. Whether the points are to be plotted in asc or desc order
      * @param size            the max length of the line-string.
+     * @param nonOverlapping  true iff the geo_line will not overlap with other geo_lines at reduce phase, allowing a simpler reduce.
+     * @param simplified      true iff the geo_line was created by line simplification (not truncation) so we should do so in reduce also.
      */
     InternalGeoLine(
         String name,
@@ -58,7 +63,9 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         boolean complete,
         boolean includeSorts,
         SortOrder sortOrder,
-        int size
+        int size,
+        boolean nonOverlapping,
+        boolean simplified
     ) {
         super(name, metadata);
         this.line = line;
@@ -67,6 +74,8 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         this.includeSorts = includeSorts;
         this.sortOrder = sortOrder;
         this.size = size;
+        this.nonOverlapping = nonOverlapping;
+        this.simplified = simplified;
     }
 
     /**
@@ -80,6 +89,13 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         this.includeSorts = in.readBoolean();
         this.sortOrder = SortOrder.readFromStream(in);
         this.size = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            nonOverlapping = in.readBoolean();
+            simplified = in.readBoolean();
+        } else {
+            nonOverlapping = false;
+            simplified = false;
+        }
     }
 
     @Override
@@ -90,40 +106,59 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         out.writeBoolean(includeSorts);
         sortOrder.writeTo(out);
         out.writeVInt(size);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeBoolean(nonOverlapping);
+            out.writeBoolean(simplified);
+        }
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        int mergedSize = 0;
-        boolean reducedComplete = true;
-        boolean reducedIncludeSorts = true;
-        List<InternalGeoLine> internalGeoLines = new ArrayList<>(aggregations.size());
-        for (InternalAggregation aggregation : aggregations) {
-            InternalGeoLine geoLine = (InternalGeoLine) aggregation;
-            internalGeoLines.add(geoLine);
-            mergedSize += geoLine.line.length;
-            reducedComplete &= geoLine.complete;
-            reducedIncludeSorts &= geoLine.includeSorts;
-        }
-        reducedComplete &= mergedSize <= size;
-        int finalSize = Math.min(mergedSize, size);
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
 
-        MergedGeoLines mergedGeoLines = new MergedGeoLines(internalGeoLines, finalSize, sortOrder);
-        mergedGeoLines.merge();
-        // the final reduce should always be in ascending order
-        if (reduceContext.isFinalReduce() && SortOrder.DESC.equals(sortOrder)) {
-            new PathArraySorter(mergedGeoLines.getFinalPoints(), mergedGeoLines.getFinalSortValues(), SortOrder.ASC).sort();
-        }
-        return new InternalGeoLine(
-            name,
-            mergedGeoLines.getFinalPoints(),
-            mergedGeoLines.getFinalSortValues(),
-            getMetadata(),
-            reducedComplete,
-            reducedIncludeSorts,
-            sortOrder,
-            size
-        );
+        return new AggregatorReducer() {
+
+            final List<InternalGeoLine> internalGeoLines = new ArrayList<>(size);
+            int mergedSize = 0;
+            boolean reducedComplete = true;
+            boolean reducedIncludeSorts = true;
+            boolean reducedNonOverlapping = nonOverlapping;
+            boolean reducedSimplified = simplified;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalGeoLine geoLine = (InternalGeoLine) aggregation;
+                internalGeoLines.add(geoLine);
+                mergedSize += geoLine.line.length;
+                reducedComplete &= geoLine.complete;
+                reducedIncludeSorts &= geoLine.includeSorts;
+                reducedNonOverlapping &= geoLine.nonOverlapping;
+                reducedSimplified |= geoLine.simplified;
+            }
+
+            @Override
+            public InternalAggregation get() {
+                reducedComplete &= mergedSize <= size();
+                int finalSize = Math.min(mergedSize, size());
+
+                // If all geo_lines are marked as non-overlapping, then we can optimize the merge-sort
+                MergedGeoLines mergedGeoLines = reducedNonOverlapping
+                    ? new MergedGeoLines.NonOverlapping(internalGeoLines, finalSize, sortOrder, reducedSimplified)
+                    : new MergedGeoLines.Overlapping(internalGeoLines, finalSize, sortOrder, reducedSimplified);
+                mergedGeoLines.merge();
+                return new InternalGeoLine(
+                    getName(),
+                    mergedGeoLines.getFinalPoints(),
+                    mergedGeoLines.getFinalSortValues(),
+                    getMetadata(),
+                    reducedComplete,
+                    reducedIncludeSorts,
+                    sortOrder(),
+                    size(),
+                    nonOverlapping,
+                    simplified
+                );
+            }
+        };
     }
 
     @Override
@@ -187,11 +222,6 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
-    }
-
-    @Override
-    public String toString() {
-        return Strings.toString(this);
     }
 
     @Override

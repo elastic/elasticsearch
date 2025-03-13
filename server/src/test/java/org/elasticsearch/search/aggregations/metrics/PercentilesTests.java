@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -95,5 +96,29 @@ public class PercentilesTests extends BaseAggregationTestCase<PercentilesAggrega
             () -> PercentilesAggregationBuilder.PARSER.parse(parser, "myPercentiles")
         );
         assertThat(e.getMessage(), containsString("[percentiles] failed to parse field [hdr]"));
+    }
+
+    public void testParseTDigestWithParams() throws IOException {
+        final String percentileConfig = """
+            {
+               "percentiles": {
+                   "field": "load_time",
+                   "percents": [1, 99],
+                   "tdigest": {
+                       "compression": 200,
+                       "execution_hint": "high_accuracy"
+                   }
+               }
+            }""";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, percentileConfig);
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+
+        PercentilesAggregationBuilder parsed = PercentilesAggregationBuilder.PARSER.parse(parser, "myPercentiles");
+        assertArrayEquals(parsed.percentiles(), new double[] { 1.0, 99.0 }, 0.0);
+        assertEquals(PercentilesMethod.TDIGEST, parsed.percentilesConfig().getMethod());
+        var tdigestConfig = (PercentilesConfig.TDigest) parsed.percentilesConfig();
+        assertEquals(200.0, tdigestConfig.getCompression(), 0);
+        assertEquals(TDigestExecutionHint.HIGH_ACCURACY, tdigestConfig.getExecutionHint(null));
     }
 }

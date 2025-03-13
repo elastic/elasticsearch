@@ -34,6 +34,7 @@ import static org.elasticsearch.action.support.TransportActions.isShardNotAvaila
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 
 /**
  * Responsible for cleaning the invalidated and expired tokens from the security indices (`main` and `tokens`).
@@ -68,10 +69,10 @@ final class ExpiredTokenRemover extends AbstractRunnable {
     @Override
     public void doRun() {
         final List<String> indicesWithTokens = new ArrayList<>();
-        if (securityTokensIndex.isAvailable()) {
+        if (securityTokensIndex.forCurrentProject().isAvailable(PRIMARY_SHARDS)) {
             indicesWithTokens.add(securityTokensIndex.aliasName());
         }
-        if (securityMainIndex.isAvailable() && checkMainIndexForExpiredTokens) {
+        if (securityMainIndex.forCurrentProject().isAvailable(PRIMARY_SHARDS) && checkMainIndexForExpiredTokens) {
             indicesWithTokens.add(securityMainIndex.aliasName());
         }
         if (indicesWithTokens.isEmpty()) {
@@ -96,9 +97,10 @@ final class ExpiredTokenRemover extends AbstractRunnable {
             debugDbqResponse(bulkResponse);
             // tokens can still linger on the main index for their maximum lifetime after the tokens index has been created, because
             // only after the tokens index has been created all nodes will store tokens there and not on the main security index
+            final SecurityIndexManager.IndexState index = securityTokensIndex.forCurrentProject();
             if (checkMainIndexForExpiredTokens
-                && securityTokensIndex.indexExists()
-                && securityTokensIndex.getCreationTime().isBefore(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))
+                && index.indexExists()
+                && index.getCreationTime().isBefore(now.minus(MAXIMUM_TOKEN_LIFETIME_HOURS, ChronoUnit.HOURS))
                 && bulkResponse.getBulkFailures().isEmpty()
                 && bulkResponse.getSearchFailures().isEmpty()) {
                 checkMainIndexForExpiredTokens = false;

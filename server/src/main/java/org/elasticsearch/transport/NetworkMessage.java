@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -17,17 +18,23 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
  */
 public abstract class NetworkMessage {
 
-    protected final Version version;
+    protected final TransportVersion version;
     protected final Writeable threadContext;
     protected final long requestId;
     protected final byte status;
     protected final Compression.Scheme compressionScheme;
 
-    NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId, Compression.Scheme compressionScheme) {
+    NetworkMessage(
+        ThreadContext threadContext,
+        TransportVersion version,
+        byte status,
+        long requestId,
+        Compression.Scheme compressionScheme
+    ) {
         this.threadContext = threadContext.captureAsWriteable();
         this.version = version;
         this.requestId = requestId;
-        this.compressionScheme = adjustedScheme(version, compressionScheme);
+        this.compressionScheme = compressionScheme;
         if (this.compressionScheme != null) {
             this.status = TransportStatus.setCompress(status);
         } else {
@@ -35,24 +42,8 @@ public abstract class NetworkMessage {
         }
     }
 
-    public Version getVersion() {
-        return version;
-    }
-
-    public long getRequestId() {
-        return requestId;
-    }
-
     boolean isCompress() {
         return TransportStatus.isCompress(status);
-    }
-
-    boolean isResponse() {
-        return TransportStatus.isRequest(status) == false;
-    }
-
-    boolean isRequest() {
-        return TransportStatus.isRequest(status);
     }
 
     boolean isHandshake() {
@@ -61,9 +52,5 @@ public abstract class NetworkMessage {
 
     boolean isError() {
         return TransportStatus.isError(status);
-    }
-
-    private static Compression.Scheme adjustedScheme(Version version, Compression.Scheme compressionScheme) {
-        return compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.Scheme.LZ4_VERSION) ? null : compressionScheme;
     }
 }

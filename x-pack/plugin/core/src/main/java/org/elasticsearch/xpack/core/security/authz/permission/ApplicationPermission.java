@@ -34,7 +34,7 @@ public final class ApplicationPermission {
 
     public static final ApplicationPermission NONE = new ApplicationPermission(Collections.emptyList());
 
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(ApplicationPermission.class);
     private final List<PermissionEntry> permissions;
 
     /**
@@ -43,7 +43,6 @@ public final class ApplicationPermission {
      *                               applied. The resources are treated as a wildcard {@link Automatons#pattern}.
      */
     ApplicationPermission(List<Tuple<ApplicationPrivilege, Set<String>>> privilegesAndResources) {
-        this.logger = LogManager.getLogger(getClass());
         Map<ApplicationPrivilege, PermissionEntry> permissionsByPrivilege = new HashMap<>();
         privilegesAndResources.forEach(tup -> permissionsByPrivilege.compute(tup.v1(), (appPriv, existing) -> {
             final Set<String> resourceNames = tup.v2();
@@ -188,7 +187,7 @@ public final class ApplicationPermission {
         }
 
         private boolean grants(ApplicationPrivilege other, Automaton resource) {
-            return matchesPrivilege(other) && Operations.subsetOf(resource, this.resourceAutomaton);
+            return matchesPrivilege(other) && Automatons.subsetOf(resource, this.resourceAutomaton);
         }
 
         private boolean matchesPrivilege(ApplicationPrivilege other) {
@@ -203,7 +202,7 @@ public final class ApplicationPermission {
             }
             return Operations.isEmpty(privilege.getAutomaton()) == false
                 && Operations.isEmpty(other.getAutomaton()) == false
-                && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
+                && Automatons.subsetOf(other.getAutomaton(), privilege.getAutomaton());
         }
 
         @Override

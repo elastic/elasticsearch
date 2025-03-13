@@ -20,6 +20,8 @@ import java.util.function.Consumer;
  * Collects basic stats that are needed to perform t-test
  */
 public class TTestStats implements Writeable {
+    static final TTestStats EMPTY = new TTestStats(0, 0, 0);
+
     public final long count;
     public final double sum;
     public final double sumOfSqrs;
@@ -54,8 +56,8 @@ public class TTestStats implements Writeable {
 
     public static class Reducer implements Consumer<TTestStats> {
         private long count = 0;
-        CompensatedSum compSum = new CompensatedSum(0, 0);
-        CompensatedSum compSumOfSqrs = new CompensatedSum(0, 0);
+        final CompensatedSum compSum = new CompensatedSum(0, 0);
+        final CompensatedSum compSumOfSqrs = new CompensatedSum(0, 0);
 
         @Override
         public void accept(TTestStats stat) {

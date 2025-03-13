@@ -1,4 +1,4 @@
-== LOOKUP JOIN ++[++esql-lookup-join-reference++]++
+=== LOOKUP JOIN
 
 ++++
 <titleabbrev>Correlate data with LOOKUP JOIN</titleabbrev>
@@ -36,39 +36,31 @@ in the fact that they both help you join data together. You should use
 * You want to restrict users to a specific lookup indices that they can
 you
 
-=== How the `LOOKUP JOIN` command works ++[++esql-how-lookup-join-works++]++
+[discrete]
+[[esql-how-lookup-join-works]]
+==== How the `LOOKUP JOIN` command works ++[++esql-how-lookup-join-works++]++
 
 The `LOOKUP JOIN` command adds new columns to a table, with data from
 {es} indices.
 
 :::++{++image} ../../../images/esql-lookup-join.png :alt: esql lookup join :::
 
-[latexmath]
-++++
-esql-lookup-index
-++++
-$
-
-lookup_index : The name of the lookup index. This must
+[[esql-lookup-join-lookup-index]]
+lookup_index::
+The name of the lookup index. This must
 be a specific index name - wildcards, aliases, and remote cluster
 references are not supported.
 
-$
-
-[latexmath]
-++++
-esql-field-name
-++++
-$
-
-field_name : The field to join on. This field must exist
+[[esql-lookup-join-lookup-index]]
+field_name::
+The field to join on. This field must exist
 in both your current query results and in the lookup index. If the field
 contains multi-valued entries, those entries will not match anything
 (the added fields will contain `null` for those rows).
 
-$
-
-=== Example
+[discrete]
+[[esql-lookup-join-example]]
+==== Example
 
 `LOOKUP JOIN` has left-join behavior. If no rows match in the looked
 index, `LOOKUP JOIN` retains the incoming row and adds `null`s. If many
@@ -147,7 +139,9 @@ somewhere after the `LOOKUP JOIN`.
 
 ::::
 
-=== Prerequisites ++[++esql-lookup-join-prereqs++]++
+[discrete]
+[[esql-lookup-join-prereqs]]
+==== Prerequisites ++[++esql-lookup-join-prereqs++]++
 
 To use `LOOKUP JOIN`, the following requirements must be met:
 
@@ -168,7 +162,9 @@ representations, see the
 link:/reference/query-languages/esql/limitations.md#_supported_types[Supported
 Field Types documentation].
 
-=== Limitations
+[discrete]
+[[esql-lookup-join-limitations]]
+==== Limitations
 
 The following are the current limitations with `LOOKUP JOIN`
 

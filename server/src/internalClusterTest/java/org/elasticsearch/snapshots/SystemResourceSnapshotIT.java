@@ -54,7 +54,6 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
-
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -971,15 +970,11 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Stop a random data node so we lose a shard from the partial index
         internalCluster().stopRandomDataNode();
-        assertBusy(
-            () -> {
-                var status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getStatus();
-                System.out.println("Potato Cluster status: " + status);
-                assertThat(status, oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.RED));
-            },
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            var status = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).get().getStatus();
+            System.out.println("Potato Cluster status: " + status);
+            assertThat(status, oneOf(ClusterHealthStatus.YELLOW, ClusterHealthStatus.RED));
+        }, 30, TimeUnit.SECONDS);
 
         // Get ready to block
         blockMasterFromFinalizingSnapshotOnIndexFile(REPO_NAME);

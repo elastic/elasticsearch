@@ -202,7 +202,7 @@ public enum ReferenceDocs {
 
     @Override
     public String toString() {
-        return "https://www.elastic.co/guide/en/elasticsearch/reference/" + VERSION_COMPONENT + "/" + linksBySymbol.get(name());
+        return "https://www.elastic.co/docs/" + VERSION_COMPONENT + "/" + linksBySymbol.get(name());
     }
 
     @SuppressForbidden(reason = "reads resource from jar")

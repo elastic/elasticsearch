@@ -799,7 +799,7 @@ public class EsExecutorsTests extends ESTestCase {
                     if (--remaining == 0) {
                         doneLatch.countDown();
                     } else {
-                        logger.info("--> remaining [{}]", remaining);
+                        logger.trace("--> remaining [{}]", remaining);
                         final long keepAliveNanos = executor.getKeepAliveTime(TimeUnit.NANOSECONDS);
                         new Thread(() -> {
                             if (keepAliveNanos > 0) {

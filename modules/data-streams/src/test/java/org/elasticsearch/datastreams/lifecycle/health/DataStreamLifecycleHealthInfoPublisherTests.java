@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -24,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
@@ -91,10 +93,12 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
     }
 
     public void testPublishDslErrorEntries() {
+        @FixForMultiProject(description = "Once the health API becomes project-aware, we shouldn't use the default project ID")
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
         for (int i = 0; i < 11; i++) {
-            errorStore.recordError("testIndexOverSignalThreshold", new NullPointerException("ouch"));
+            errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));
         }
-        errorStore.recordError("testIndex", new IllegalStateException("bad state"));
+        errorStore.recordError(projectId, "testIndex", new IllegalStateException("bad state"));
         ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterServiceUtils.setState(clusterService, stateWithHealthNode);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
@@ -117,11 +121,13 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
     }
 
     public void testPublishDslErrorEntriesNoHealthNode() {
+        @FixForMultiProject(description = "Once the health API becomes project-aware, we shouldn't use the default project ID")
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
         // no requests are being executed
         for (int i = 0; i < 11; i++) {
-            errorStore.recordError("testIndexOverSignalThreshold", new NullPointerException("ouch"));
+            errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));
         }
-        errorStore.recordError("testIndex", new IllegalStateException("bad state"));
+        errorStore.recordError(projectId, "testIndex", new IllegalStateException("bad state"));
 
         ClusterState stateNoHealthNode = ClusterStateCreationUtils.state(node1, node1, null, allNodes);
         ClusterServiceUtils.setState(clusterService, stateNoHealthNode);

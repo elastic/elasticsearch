@@ -261,6 +261,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/nodes/line_361}
   issue: https://github.com/elastic/elasticsearch/issues/124103
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
+  method: testFilesEntitlementsWithExclusive
+  issue: https://github.com/elastic/elasticsearch/issues/124420
 
 # Examples:
 #

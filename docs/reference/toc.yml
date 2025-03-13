@@ -319,12 +319,8 @@ toc:
           - file: elasticsearch-plugins/_other_command_line_parameters.md
           - file: elasticsearch-plugins/_plugins_directory.md
           - file: elasticsearch-plugins/manage-plugins-using-configuration-file.md
-          - file: elasticsearch-plugins/cloud/ec-adding-plugins.md
-            children:
-              - file: elasticsearch-plugins/cloud/ec-adding-elastic-plugins.md
-              - file: elasticsearch-plugins/cloud/ec-custom-bundles.md
-              - file: elasticsearch-plugins/cloud/ec-plugins-guide.md
-          - file: elasticsearch-plugins/cloud-enterprise/ece-add-plugins.md
+          - file: elasticsearch-plugins/cloud/ec-custom-bundles.md
+          - file: elasticsearch-plugins/cloud/ec-plugins-guide.md
       - file: elasticsearch-plugins/api-extension-plugins.md
       - file: elasticsearch-plugins/analysis-plugins.md
         children:

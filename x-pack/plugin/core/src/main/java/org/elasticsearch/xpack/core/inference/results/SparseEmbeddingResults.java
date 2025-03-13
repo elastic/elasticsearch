@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
-import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -27,17 +26,17 @@ import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
-public record SparseEmbeddingResults(List<Embedding> embeddings)
-    implements
-        EmbeddingResults<SparseEmbeddingResults.Chunk, SparseEmbeddingResults.Embedding> {
+public record SparseEmbeddingResults(List<Embedding> embeddings) implements EmbeddingResults<SparseEmbeddingResults.Embedding> {
 
     public static final String NAME = "sparse_embedding_results";
     public static final String SPARSE_EMBEDDING = TaskType.SPARSE_EMBEDDING.toString();
@@ -124,7 +123,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
         implements
             Writeable,
             ToXContentObject,
-            EmbeddingResults.Embedding<Chunk> {
+            EmbeddingResults.Embedding<Embedding> {
 
         public static final String EMBEDDING = "embedding";
         public static final String IS_TRUNCATED = "is_truncated";
@@ -175,18 +174,35 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
         }
 
         @Override
-        public Chunk toChunk(ChunkedInference.TextOffset offset) {
-            return new Chunk(tokens, offset);
+        public Embedding merge(Embedding embedding) {
+            // This code assumes that the tokens are sorted by weight in descending order.
+            // If that's not the case, the resulting merged embedding will be incorrect.
+            List<WeightedToken> mergedTokens = new ArrayList<>();
+            Set<String> seenTokens = new HashSet<>();
+            int i = 0;
+            int j = 0;
+            // TODO: maybe truncate tokens here when it's getting too large?
+            while (i < tokens().size() || j < embedding.tokens().size()) {
+                WeightedToken token;
+                if (i == tokens().size()) {
+                    token = embedding.tokens().get(j++);
+                } else if (j == embedding.tokens().size()) {
+                    token = tokens().get(i++);
+                } else if (tokens.get(i).weight() > embedding.tokens().get(j).weight()) {
+                    token = tokens().get(i++);
+                } else {
+                    token = embedding.tokens().get(j++);
+                }
+                if (seenTokens.add(token.token())) {
+                    mergedTokens.add(token);
+                }
+            }
+            boolean mergedIsTruncated = isTruncated || embedding.isTruncated();
+            return new Embedding(mergedTokens, mergedIsTruncated);
         }
-    }
 
-    public record Chunk(List<WeightedToken> weightedTokens, ChunkedInference.TextOffset offset) implements EmbeddingResults.Chunk {
-
-        public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
-            return new ChunkedInference.Chunk(offset, toBytesReference(xcontent, weightedTokens));
-        }
-
-        private static BytesReference toBytesReference(XContent xContent, List<WeightedToken> tokens) throws IOException {
+        @Override
+        public BytesReference toBytesRef(XContent xContent) throws IOException {
             XContentBuilder b = XContentBuilder.builder(xContent);
             b.startObject();
             for (var weightedToken : tokens) {

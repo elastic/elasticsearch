@@ -1993,7 +1993,7 @@ base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
 // tag::from_base64[]
-row a = "ZWxhc3RpYw==" 
+row a = "ZWxhc3RpYw=="
 | eval d = from_base64(a)
 // end::from_base64[]
 ;

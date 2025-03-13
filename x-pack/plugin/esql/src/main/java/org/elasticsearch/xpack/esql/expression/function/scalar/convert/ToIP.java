@@ -43,8 +43,8 @@ public class ToIP extends AbstractConvertFunction {
         returnType = "ip",
         description = "Converts an input string to an IP value.",
         examples = @Example(file = "ip", tag = "to_ip", explanation = """
-            Note that in this example, the last conversion of the string isn't possible.
-            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            Note that in this example, the last conversion of the string isn’t possible.
+            When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
             The header will provide information on the source of the failure:
 
             `"Line 1:68: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded."`

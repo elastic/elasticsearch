@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.response.openai;
+package org.elasticsearch.xpack.inference.external.openai;
 
 import org.apache.http.HttpResponse;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -86,14 +87,14 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            IllegalStateException.class,
+            IllegalArgumentException.class,
             () -> OpenAiChatCompletionResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(thrownException.getMessage(), is("Failed to find required field [choices] in OpenAI chat completions response"));
+        assertThat(thrownException.getMessage(), is("Required [choices]"));
     }
 
     public void testFromResponse_FailsWhenChoicesFieldNotAnArray() {
@@ -124,17 +125,14 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            ParsingException.class,
+            XContentParseException.class,
             () -> OpenAiChatCompletionResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [START_OBJECT] but found [FIELD_NAME]")
-        );
+        assertThat(thrownException.getMessage(), containsString("[CompletionResult] failed to parse field [choices]"));
     }
 
     public void testFromResponse_FailsWhenMessageDoesNotExist() {
@@ -165,14 +163,14 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            IllegalStateException.class,
+            XContentParseException.class,
             () -> OpenAiChatCompletionResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(thrownException.getMessage(), is("Failed to find required field [message] in OpenAI chat completions response"));
+        assertThat(thrownException.getMessage(), containsString("[CompletionResult] failed to parse field [choices]"));
     }
 
     public void testFromResponse_FailsWhenMessageValueIsAString() {
@@ -200,16 +198,13 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
             """;
 
         var thrownException = expectThrows(
-            ParsingException.class,
+            XContentParseException.class,
             () -> OpenAiChatCompletionResponseEntity.fromResponse(
                 mock(Request.class),
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [START_OBJECT] but found [VALUE_STRING]")
-        );
+        assertThat(thrownException.getMessage(), containsString("[CompletionResult] failed to parse field [choices]"));
     }
 }

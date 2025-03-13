@@ -15,6 +15,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.breaker.CircuitBreaker.Durability;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -269,6 +271,17 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         });
         expectThrows(RuntimeException.class, equalTo("test request level non fatal failure"), future::actionGet);
         assertThat(sent.size(), equalTo(2));
+    }
+
+    public void testDoNotRetryCircuitBreakerException() {
+        var targetShards = List.of(targetShard(shard1, node1, node2));
+        var sent = ConcurrentCollections.newQueue();
+        var future = sendRequests(targetShards, false, (node, shardIds, aliasFilters, listener) -> {
+            sent.add(new NodeRequest(node, shardIds, aliasFilters));
+            runWithDelay(() -> listener.onFailure(new CircuitBreakingException("cbe", randomFrom(Durability.values())), false));
+        });
+        expectThrows(CircuitBreakingException.class, equalTo("cbe"), future::actionGet);
+        assertThat(sent.size(), equalTo(1));
     }
 
     static DataNodeRequestSender.TargetShard targetShard(ShardId shardId, DiscoveryNode... nodes) {

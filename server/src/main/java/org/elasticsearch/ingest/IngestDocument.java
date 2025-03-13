@@ -1309,7 +1309,8 @@ public final class IngestDocument {
     /**
      * Normalizes a field by collecting and removing all values from all document levels that match the provided path, assuming that any dot
      * in the path can either represent a separator between nested fields or be part of the field name itself. The collected values are
-     * then set as a top level field with the normalized (possibly dotted) field name.
+     * then set as a top level field with the normalized (possibly dotted) field name. If a single value is collected, it is set as a
+     * scalar field, otherwise it is set as a list field.
      * Only values of the requested type are collected, otherwise they are ignored.
      * Numeric path elements are evaluated both as list indices and as field names when collecting and removing field values.
      * For example, given the following document:

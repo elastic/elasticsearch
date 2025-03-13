@@ -1481,6 +1481,9 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             return builder.build();
         }
 
+        /**
+         * @return the {@link SnapshotShardFailure}s from the {@link SnapshotsInProgress.Entry}.
+         */
         private static List<SnapshotShardFailure> getSnapshotShardFailures(SnapshotsInProgress.Entry entry, Set<String> indexNames) {
             final var shardFailures = new ArrayList<SnapshotShardFailure>();
             for (Map.Entry<RepositoryShardId, ShardSnapshotStatus> shardStatus : entry.shardSnapshotStatusByRepoShardId().entrySet()) {
@@ -1502,6 +1505,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             return shardFailures;
         }
 
+        /**
+         * @return a {@link Metadata} to include in the snapshot: either the one from the cluster state (if taking a regular snapshot) or a
+         *         made-up one loaded from the repository (if cloning an existing snapshot).
+         */
         private Metadata prepareMetadata(SnapshotsInProgress.Entry entry, Repository repository) throws IOException {
             if (entry.isClone()) {
                 // Synthesize a Metadata for the clone by loading all the relevant metadata blobs from the repository.
@@ -1535,6 +1542,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             }
         }
 
+        /**
+         * @return the result of munging the original {@link Metadata} (as returned from {@link #prepareMetadata}) to remove unnecessary
+         *         or invalid parts (global metadata and incomplete datastreams).
+         */
         private static Metadata metadataForSnapshot(SnapshotsInProgress.Entry snapshot, Metadata metadata) {
             final Metadata.Builder builder;
             if (snapshot.includeGlobalState() == false) {

@@ -198,8 +198,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
             task.getExtensions().getExtraProperties().set("usesDefaultDistribution", new Closure<Void>(task) {
                 @Override
                 public Void call(Object... args) {
-                    if(reasonForUsageProvided(args) == false) {
-                        throw new IllegalArgumentException("Reason for using `usesDefaultDistribution` required.\nUse usesDefaultDistribution(\"reason why default distro is required here\").");
+                    if (reasonForUsageProvided(args) == false) {
+                        throw new IllegalArgumentException(
+                            "Reason for using `usesDefaultDistribution` required.\nUse usesDefaultDistribution(\"reason why default distro is required here\")."
+                        );
                     }
                     task.dependsOn(defaultDistro);
                     registerDistributionInputs(task, defaultDistro);

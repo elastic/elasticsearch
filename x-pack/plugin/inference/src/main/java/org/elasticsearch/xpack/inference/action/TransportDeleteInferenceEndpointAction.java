@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.UnparsedModel;
@@ -88,16 +87,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<DeleteInferenceEndpointAction.Response> masterListener
     ) {
-        if (modelRegistry.containsDefaultConfigId(request.getInferenceEndpointId())) {
-            HeaderWarning.addWarning(
-                Strings.format(
-                    "Inference id: %s is a reserved inference endpoint. "
-                        + "Deleting reserved inference endpoints may be disabled in the future.",
-                    request.getInferenceEndpointId()
-                )
-            );
-        }
-
         SubscribableListener.<UnparsedModel>newForked(modelConfigListener -> {
             // Get the model from the registry
 
@@ -118,6 +107,18 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
                 var errorString = endpointIsReferencedInPipelinesOrIndexes(state, request.getInferenceEndpointId());
                 if (errorString != null) {
                     listener.onFailure(new ElasticsearchStatusException(errorString, RestStatus.CONFLICT));
+                    return;
+                } else if (isInferenceIdReserved(request.getInferenceEndpointId())) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            Strings.format(
+                                "[%s] is a reserved inference endpoint. Use the force=true query parameter "
+                                    + "to delete the inference endpoint.",
+                                request.getInferenceEndpointId()
+                            ),
+                            RestStatus.BAD_REQUEST
+                        )
+                    );
                     return;
                 }
             }
@@ -185,6 +186,10 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             return buildErrorString(inferenceEndpointId, pipelines, indexes);
         }
         return null;
+    }
+
+    private boolean isInferenceIdReserved(String inferenceEndpointId) {
+        return modelRegistry.containsDefaultConfigId(inferenceEndpointId);
     }
 
     private static String buildErrorString(String inferenceEndpointId, Set<String> pipelines, Set<String> indexes) {

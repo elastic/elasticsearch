@@ -9,11 +9,17 @@
 
 package org.elasticsearch.gradle.internal.distribution;
 
+import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
 
 public class DockerFipsElasticsearchDistributionType implements ElasticsearchDistributionType {
 
     DockerFipsElasticsearchDistributionType() {}
+
+    public boolean supportsArch(Architecture arch) {
+        return arch == Architecture.X64;
+    }
+
 
     @Override
     public String getName() {

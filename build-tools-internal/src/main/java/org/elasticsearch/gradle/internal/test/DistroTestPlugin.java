@@ -203,7 +203,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            ALL_INTERNAL.forEach(
+            ALL_INTERNAL.stream().filter(d -> d.supportsArch(architecture)).forEach(
                 type -> currentDistros.add(
                     createDistro(distributions, architecture, type, null, true, VersionProperties.getElasticsearch())
                 )

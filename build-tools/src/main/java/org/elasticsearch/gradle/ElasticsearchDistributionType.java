@@ -17,6 +17,10 @@ public interface ElasticsearchDistributionType {
         return false;
     }
 
+    default boolean supportsArch(Architecture arch) {
+        return true;
+    }
+
     default boolean shouldExtract() {
         return false;
     };

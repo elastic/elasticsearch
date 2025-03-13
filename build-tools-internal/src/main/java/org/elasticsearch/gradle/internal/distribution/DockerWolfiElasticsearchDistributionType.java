@@ -24,4 +24,6 @@ public class DockerWolfiElasticsearchDistributionType implements ElasticsearchDi
     public boolean isDocker() {
         return true;
     }
+
+
 }

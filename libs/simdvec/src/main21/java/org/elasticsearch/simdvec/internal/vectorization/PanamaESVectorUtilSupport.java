@@ -196,32 +196,65 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     static int ipByteBit512(byte[] q, byte[] d) {
         assert q.length == d.length * Byte.SIZE;
-        IntVector acc0 = IntVector.zero(INT_SPECIES_512);
-        IntVector acc1 = IntVector.zero(INT_SPECIES_512);
-        IntVector acc2 = IntVector.zero(INT_SPECIES_512);
-        IntVector acc3 = IntVector.zero(INT_SPECIES_512);
-
         int i = 0;
-        for (; i < INT_SPECIES_512.loopBound(q.length); i += INT_SPECIES_512.length() * 4) {
-            var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i).castShape(INT_SPECIES_512, 0);
-            var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length()).castShape(INT_SPECIES_512, 0);
-            var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length() * 2).castShape(INT_SPECIES_512, 0);
-            var vals3 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length() * 3).castShape(INT_SPECIES_512, 0);
+        int sum = 0;
 
-            long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
-            var mask0 = VectorMask.fromLong(INT_SPECIES_512, maskBits);
-            var mask1 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 16);
-            var mask2 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 32);
-            var mask3 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 48);
+        if (q.length >= INT_SPECIES_512.length() * 4) {
+            IntVector acc0 = IntVector.zero(INT_SPECIES_512);
+            IntVector acc1 = IntVector.zero(INT_SPECIES_512);
+            IntVector acc2 = IntVector.zero(INT_SPECIES_512);
+            IntVector acc3 = IntVector.zero(INT_SPECIES_512);
+            for (; i < INT_SPECIES_512.loopBound(q.length); i += INT_SPECIES_512.length() * 4) {
+                var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i).castShape(INT_SPECIES_512, 0);
+                var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length()).castShape(INT_SPECIES_512, 0);
+                var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length() * 2)
+                    .castShape(INT_SPECIES_512, 0);
+                var vals3 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length() * 3)
+                    .castShape(INT_SPECIES_512, 0);
 
-            acc0 = acc0.add(vals0, mask0);
-            acc1 = acc1.add(vals1, mask1);
-            acc2 = acc2.add(vals2, mask2);
-            acc3 = acc3.add(vals3, mask3);
+                long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(INT_SPECIES_512, maskBits);
+                var mask1 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 16);
+                var mask2 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 32);
+                var mask3 = VectorMask.fromLong(INT_SPECIES_512, maskBits >> 48);
+
+                acc0 = acc0.add(vals0, mask0);
+                acc1 = acc1.add(vals1, mask1);
+                acc2 = acc2.add(vals2, mask2);
+                acc3 = acc3.add(vals3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        int sum = acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-            + acc3.reduceLanes(VectorOperators.ADD);
+        if (q.length - i >= INT_SPECIES_256.length() * 4) {
+            IntVector acc0 = IntVector.zero(INT_SPECIES_256);
+            IntVector acc1 = IntVector.zero(INT_SPECIES_256);
+            IntVector acc2 = IntVector.zero(INT_SPECIES_256);
+            IntVector acc3 = IntVector.zero(INT_SPECIES_256);
+            for (; i < INT_SPECIES_256.loopBound(q.length); i += INT_SPECIES_256.length() * 4) {
+                var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
+                var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
+                var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 2)
+                    .castShape(INT_SPECIES_256, 0);
+                var vals3 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 3)
+                    .castShape(INT_SPECIES_256, 0);
+
+                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(INT_SPECIES_256, maskBits);
+                var mask1 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 8);
+                var mask2 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 16);
+                var mask3 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 24);
+
+                acc0 = acc0.add(vals0, mask0);
+                acc1 = acc1.add(vals1, mask1);
+                acc2 = acc2.add(vals2, mask2);
+                acc3 = acc3.add(vals3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
+        }
+
         if (i < q.length) {
             // do the tail
             sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i);
@@ -231,32 +264,37 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     static int ipByteBit256(byte[] q, byte[] d) {
         assert q.length == d.length * Byte.SIZE;
-        IntVector acc0 = IntVector.zero(INT_SPECIES_256);
-        IntVector acc1 = IntVector.zero(INT_SPECIES_256);
-        IntVector acc2 = IntVector.zero(INT_SPECIES_256);
-        IntVector acc3 = IntVector.zero(INT_SPECIES_256);
-
         int i = 0;
-        for (; i < INT_SPECIES_256.loopBound(q.length); i += INT_SPECIES_256.length() * 4) {
-            var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
-            var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
-            var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 2).castShape(INT_SPECIES_256, 0);
-            var vals3 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 3).castShape(INT_SPECIES_256, 0);
+        int sum = 0;
 
-            long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
-            var mask0 = VectorMask.fromLong(INT_SPECIES_256, maskBits);
-            var mask1 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 8);
-            var mask2 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 16);
-            var mask3 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 24);
+        if (q.length >= INT_SPECIES_256.length() * 4) {
+            IntVector acc0 = IntVector.zero(INT_SPECIES_256);
+            IntVector acc1 = IntVector.zero(INT_SPECIES_256);
+            IntVector acc2 = IntVector.zero(INT_SPECIES_256);
+            IntVector acc3 = IntVector.zero(INT_SPECIES_256);
+            for (; i < INT_SPECIES_256.loopBound(q.length); i += INT_SPECIES_256.length() * 4) {
+                var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
+                var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
+                var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 2)
+                    .castShape(INT_SPECIES_256, 0);
+                var vals3 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 3)
+                    .castShape(INT_SPECIES_256, 0);
 
-            acc0 = acc0.add(vals0, mask0);
-            acc1 = acc1.add(vals1, mask1);
-            acc2 = acc2.add(vals2, mask2);
-            acc3 = acc3.add(vals3, mask3);
+                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(INT_SPECIES_256, maskBits);
+                var mask1 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 8);
+                var mask2 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 16);
+                var mask3 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 24);
+
+                acc0 = acc0.add(vals0, mask0);
+                acc1 = acc1.add(vals1, mask1);
+                acc2 = acc2.add(vals2, mask2);
+                acc3 = acc3.add(vals3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        int sum = acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-            + acc3.reduceLanes(VectorOperators.ADD);
         if (i < q.length) {
             // do the tail
             sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i);
@@ -269,32 +307,60 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     static float ipFloatBit512(float[] q, byte[] d) {
         assert q.length == d.length * Byte.SIZE;
-        FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_512);
-        FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_512);
-        FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_512);
-        FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_512);
-
         int i = 0;
-        for (; i < FLOAT_SPECIES_512.loopBound(q.length); i += FLOAT_SPECIES_512.length() * 4) {
-            var floats0 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i);
-            var floats1 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length());
-            var floats2 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 2);
-            var floats3 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 3);
+        float sum = 0;
 
-            long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
-            var mask0 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits);
-            var mask1 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 16);
-            var mask2 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 32);
-            var mask3 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 48);
+        if (q.length >= FLOAT_SPECIES_512.length() * 4) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_512);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_512);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_512);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_512);
+            for (; i < FLOAT_SPECIES_512.loopBound(q.length); i += FLOAT_SPECIES_512.length() * 4) {
+                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i);
+                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length());
+                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 2);
+                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 3);
 
-            acc0 = acc0.add(floats0, mask0);
-            acc1 = acc1.add(floats1, mask1);
-            acc2 = acc2.add(floats2, mask2);
-            acc3 = acc3.add(floats3, mask3);
+                long maskBits = Long.reverse((long) BitUtil.VH_BE_LONG.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits);
+                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 16);
+                var mask2 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 32);
+                var mask3 = VectorMask.fromLong(FLOAT_SPECIES_512, maskBits >> 48);
+
+                acc0 = acc0.add(floats0, mask0);
+                acc1 = acc1.add(floats1, mask1);
+                acc2 = acc2.add(floats2, mask2);
+                acc3 = acc3.add(floats3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        float sum = acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-            + acc3.reduceLanes(VectorOperators.ADD);
+        if (q.length - i >= FLOAT_SPECIES_256.length() * 4) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_256);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_256);
+            for (; i < FLOAT_SPECIES_256.loopBound(q.length); i += FLOAT_SPECIES_256.length() * 4) {
+                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
+                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length());
+                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 2);
+                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 3);
+
+                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
+                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 8);
+                var mask2 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 16);
+                var mask3 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 24);
+
+                acc0 = acc0.add(floats0, mask0);
+                acc1 = acc1.add(floats1, mask1);
+                acc2 = acc2.add(floats2, mask2);
+                acc3 = acc3.add(floats3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
+        }
 
         if (i < q.length) {
             // do the tail
@@ -306,32 +372,34 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     static float ipFloatBit256(float[] q, byte[] d) {
         assert q.length == d.length * Byte.SIZE;
-        FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
-        FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
-        FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_256);
-        FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_256);
-
         int i = 0;
-        for (; i < FLOAT_SPECIES_256.loopBound(q.length); i += FLOAT_SPECIES_256.length() * 4) {
-            var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
-            var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length());
-            var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 2);
-            var floats3 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 3);
+        float sum = 0;
 
-            long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
-            var mask0 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
-            var mask1 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 8);
-            var mask2 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 16);
-            var mask3 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 24);
+        if (q.length >= FLOAT_SPECIES_256.length() * 4) {
+            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
+            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
+            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_256);
+            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_256);
+            for (; i < FLOAT_SPECIES_256.loopBound(q.length); i += FLOAT_SPECIES_256.length() * 4) {
+                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
+                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length());
+                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 2);
+                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 3);
 
-            acc0 = acc0.add(floats0, mask0);
-            acc1 = acc1.add(floats1, mask1);
-            acc2 = acc2.add(floats2, mask2);
-            acc3 = acc3.add(floats3, mask3);
+                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
+                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
+                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 8);
+                var mask2 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 16);
+                var mask3 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 24);
+
+                acc0 = acc0.add(floats0, mask0);
+                acc1 = acc1.add(floats1, mask1);
+                acc2 = acc2.add(floats2, mask2);
+                acc3 = acc3.add(floats3, mask3);
+            }
+            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
+                + acc3.reduceLanes(VectorOperators.ADD);
         }
-
-        float sum = acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-            + acc3.reduceLanes(VectorOperators.ADD);
 
         if (i < q.length) {
             // do the tail

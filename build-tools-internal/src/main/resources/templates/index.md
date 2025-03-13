@@ -26,7 +26,24 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 ## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-release-notes]
 **Release date:** April 01, 2025
+
 <%
+if (!notableHighlights.isEmpty() || !nonNotableHighlights.isEmpty()) {
+    print "### Highlights\n"
+}
+
+for (highlights in [notableHighlights, nonNotableHighlights]) {
+  if (!highlights.isEmpty()) {
+    for (highlight in highlights) { %>
+::::{dropdown} ${highlight.title}
+${highlight.body.trim()}
+
+For more information, check [PR #${highlight.pr}](https://github.com/elastic/elasticsearch/pull/${highlight.pr}).
+::::
+<% }
+  }
+}
+
 for (changeType in ['features-enhancements', 'fixes', 'regression']) {
     if (changelogsByTypeByArea[changeType] == null || changelogsByTypeByArea[changeType].empty) {
         continue;
@@ -40,7 +57,7 @@ for (changeType in ['features-enhancements', 'fixes', 'regression']) {
         print "* ${change.summary} [#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})"
         if (change.issues != null && change.issues.empty == false) {
             print change.issues.size() == 1 ? " (issue: " : " (issues: "
-            print change.issues.collect { "{es-issue}${it}[#${it}]" }.join(", ")
+            print change.issues.collect { "[#${change.pr}](https://github.com/elastic/elasticsearch/pull/${change.pr})" }.join(", ")
             print ")"
         }
         print "\n"

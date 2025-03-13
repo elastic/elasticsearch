@@ -18,10 +18,12 @@ import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
 import static java.util.Comparator.comparing;
+import static java.util.Comparator.comparingInt;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
 
@@ -66,12 +68,23 @@ public class ReleaseNotesGenerator {
     static String generateFile(String template, QualifiedVersion version, Set<ChangelogEntry> changelogs) throws IOException {
         final var changelogsByTypeByArea = buildChangelogBreakdown(changelogs);
 
+        final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = changelogs.stream()
+            .map(ChangelogEntry::getHighlight)
+            .filter(Objects::nonNull)
+            .sorted(comparingInt(ChangelogEntry.Highlight::getPr))
+            .collect(groupingBy(ChangelogEntry.Highlight::isNotable, toList()));
+
+        final List<ChangelogEntry.Highlight> notableHighlights = groupedHighlights.getOrDefault(true, List.of());
+        final List<ChangelogEntry.Highlight> nonNotableHighlights = groupedHighlights.getOrDefault(false, List.of());
+
         final Map<String, Object> bindings = new HashMap<>();
         bindings.put("version", version);
         bindings.put("changelogsByTypeByArea", changelogsByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
         bindings.put("unqualifiedVersion", version.withoutQualifier());
         bindings.put("versionWithoutSeparator", version.withoutQualifier().toString().replaceAll("\\.", ""));
+        bindings.put("notableHighlights", notableHighlights);
+        bindings.put("nonNotableHighlights", nonNotableHighlights);
 
         return TemplateUtils.render(template, bindings);
     }

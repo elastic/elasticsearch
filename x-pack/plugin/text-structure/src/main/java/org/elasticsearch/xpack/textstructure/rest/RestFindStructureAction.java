@@ -28,7 +28,7 @@ public class RestFindStructureAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, BASE_PATH + "/find_structure"));
+        return List.of(new Route(POST, BASE_PATH + "find_structure"));
     }
 
     @Override

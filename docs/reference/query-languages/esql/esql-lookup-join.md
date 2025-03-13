@@ -71,8 +71,8 @@ In this example, we have two sample tables:
 |5||France|
 |[6\|7]|Mv-Lang|Mv-Land|
 |[7\|8]|Mv-Lang2|Mv-Land2|
-|Null-Lang|Null-Land|
-|Null-Lang2|Null-Land2|
+||Null-Lang|Null-Land|
+||Null-Lang2|Null-Land2|
 
 Running the following query would provide the results shown below.
 

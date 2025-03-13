@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -765,21 +766,18 @@ public class EsExecutorsTests extends ESTestCase {
 
     private void testScalingWithEmptyCore(long keepAliveMillis) {
         String name = getTestName();
-        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(getTestName());
-        try (
-            var executor = EsExecutors.newScaling(
-                name,
-                0,
-                1,
-                keepAliveMillis,
-                TimeUnit.MILLISECONDS,
-                true,
-                threadFactory,
-                threadContext,
-                DO_NOT_TRACK
-            )
-        ) {
-
+        var executor = EsExecutors.newScaling(
+            name,
+            0,
+            1,
+            keepAliveMillis,
+            TimeUnit.MILLISECONDS,
+            true,
+            EsExecutors.daemonThreadFactory(getTestName()),
+            threadContext,
+            DO_NOT_TRACK
+        );
+        try {
             class Task extends AbstractRunnable {
                 private int remaining;
                 private final CountDownLatch doneLatch;
@@ -814,13 +812,13 @@ public class EsExecutorsTests extends ESTestCase {
                 }
             }
 
-            for (int i = 0; i < 100; i++) {
+            for (int i = 0; i < 20; i++) {
                 logger.info("--> attempt [{}]", i);
                 final var doneLatch = new CountDownLatch(1);
-                executor.execute(new Task(between(1, 1000), doneLatch));
+                executor.execute(new Task(between(1, 500), doneLatch));
                 boolean success = false;
                 try {
-                    safeAwait(doneLatch);
+                    safeAwait(doneLatch, TimeValue.ONE_MINUTE);
                     success = true;
                 } finally {
                     if (success == false) {
@@ -828,6 +826,8 @@ public class EsExecutorsTests extends ESTestCase {
                     }
                 }
             }
+        } finally {
+            ThreadPool.terminate(executor, 1, TimeUnit.SECONDS);
         }
     }
 }

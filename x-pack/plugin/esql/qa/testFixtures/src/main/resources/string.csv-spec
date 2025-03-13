@@ -987,8 +987,8 @@ from hosts
 | keep description
 | sort description;
 
-warning:Line 2:9: evaluation of [starts_with(description, \"epsilon\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: evaluation of \[starts_with\(description, \\\"epsilon\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 description:text
 epsilon gw instance
@@ -1272,8 +1272,8 @@ from hosts
 | keep description
 | sort description;
 
-warning:Line 2:9: evaluation of [ends_with(description, \"host\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: evaluation of \[ends_with\(description, \\\"host\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 description:text
 ;
@@ -1294,6 +1294,8 @@ beta         | Kubernetes cluster
 ;
 
 lucenePushdownMultipleIndices
+required_capability: index_metadata_field
+required_capability: casting_operator
 
 from airports* metadata _index
 | where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
@@ -1310,6 +1312,7 @@ LUH            | Sahnewal  | airports_web
 ;
 
 lucenePushdownOr
+required_capability: casting_operator
 
 from airports
 | where starts_with(name::keyword, "Sahn") or ends_with(abbrev, "UH")
@@ -1323,6 +1326,7 @@ RUH            | King Khalid Int'l
 ;
 
 lucenePushdownMultipleOr
+required_capability: casting_operator
 
 from airports
 | where starts_with(name::keyword, "Sahn") or ends_with(abbrev, "UH") or starts_with(abbrev, "OOL")
@@ -1337,6 +1341,8 @@ RUH            | King Khalid Int'l
 ;
 
 lucenePushdownMultipleAnd
+required_capability: index_metadata_field
+required_capability: casting_operator
 
 from airports metadata _index
 | where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
@@ -1349,6 +1355,7 @@ LUH            | Sahnewal  | airports
 ;
 
 lucenePushdownMixAndOr
+required_capability: casting_operator
 
 from airports
 | where starts_with(name::keyword, "Sahn") and (starts_with(name::keyword, "Abc") or ends_with(abbrev, "UH"))
@@ -1360,6 +1367,8 @@ LUH            | Sahnewal  | 9
 ;
 
 lucenePushdownMixOrAnd
+required_capability: index_metadata_field
+required_capability: casting_operator
 
 from airports* metadata _index
 | where starts_with(name::keyword, "Sahn") or (starts_with(abbrev, "G") and ends_with(name::keyword, "Falls Int'l"))
@@ -1394,6 +1403,20 @@ emp_no:integer  | first_name:keyword    | name_lower:keyword
 ;
 
 
+toLowerMv
+required_capability: to_lower_mv
+// tag::to_lower_mv[]
+ROW v = TO_LOWER(["Some", "Text"])
+// end::to_lower_mv[]
+;
+
+// tag::to_lower_mv-result[]
+   v:keyword
+["some", "text"]
+// end::to_lower_mv-result[]
+;
+
+
 toUpperRow#[skip:-8.12.99]
 // tag::to_upper[]
 ROW message = "Some Text"
@@ -1413,6 +1436,20 @@ from employees | sort emp_no | eval name_upper = TO_UPPER(first_name) | keep emp
 
 emp_no:integer  | first_name:keyword    | name_upper:keyword
 10001           | Georgi                | GEORGI
+;
+
+
+toUpperMv
+required_capability: to_lower_mv
+// tag::to_upper_mv[]
+ROW v = TO_UPPER(["Some", "Text"])
+// end::to_upper_mv[]
+;
+
+// tag::to_upper_mv-result[]
+   v:keyword
+["SOME", "TEXT"]
+// end::to_upper_mv-result[]
 ;
 
 
@@ -1984,7 +2021,7 @@ base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
 // tag::from_base64[]
-row a = "ZWxhc3RpYw==" 
+row a = "ZWxhc3RpYw=="
 | eval d = from_base64(a)
 // end::from_base64[]
 ;

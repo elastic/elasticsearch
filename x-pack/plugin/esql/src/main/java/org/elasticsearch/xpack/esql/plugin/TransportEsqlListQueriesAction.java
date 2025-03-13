@@ -1,0 +1,69 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.plugin;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
+import org.elasticsearch.xpack.esql.action.EsqlListQueriesRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+
+import java.util.List;
+
+public class TransportEsqlListQueriesAction extends HandledTransportAction<EsqlListQueriesRequest, EsqlListQueriesResponse> {
+    private final NodeClient nodeClient;
+
+    @Inject
+    public TransportEsqlListQueriesAction(TransportService transportService, NodeClient nodeClient, ActionFilters actionFilters) {
+        super(
+            EsqlListQueriesAction.NAME,
+            transportService,
+            actionFilters,
+            EsqlListQueriesRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        this.nodeClient = nodeClient;
+    }
+
+    @Override
+    protected void doExecute(Task task, EsqlListQueriesRequest request, ActionListener<EsqlListQueriesResponse> listener) {
+        new ListTasksRequestBuilder(nodeClient).setActions(EsqlQueryAction.NAME).setDetailed(true).execute(new ActionListener<>() {
+            @Override
+            public void onResponse(ListTasksResponse response) {
+                List<EsqlListQueriesResponse.Query> queries = response.getTasks()
+                    .stream()
+                    .map(TransportEsqlListQueriesAction::getQuery)
+                    .toList();
+                listener.onResponse(new EsqlListQueriesResponse(queries));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    private static EsqlListQueriesResponse.Query getQuery(TaskInfo taskInfo) {
+        return new EsqlListQueriesResponse.Query(
+            String.valueOf(taskInfo.id()),
+            taskInfo.startTime(),
+            taskInfo.runningTimeNanos(),
+            taskInfo.description()
+        );
+    }
+}

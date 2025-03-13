@@ -981,6 +981,7 @@ beta         | Kubernetes cluster
 ;
 
 startsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
 
 from hosts
 | where starts_with(description, "epsilon")
@@ -1266,6 +1267,7 @@ beta         | Kubernetes cluster
 ;
 
 endsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
 
 from hosts
 | where ends_with(description, "host")

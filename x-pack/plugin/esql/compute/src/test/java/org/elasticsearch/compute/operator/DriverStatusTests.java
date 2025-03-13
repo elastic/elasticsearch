@@ -45,8 +45,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             List.of(new OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple())),
             new DriverSleeps(
                 Map.of("driver time", 1L),
-                List.of(new DriverSleeps.Sleep("driver time", 1, 1)),
-                List.of(new DriverSleeps.Sleep("driver time", 1, 1))
+                List.of(new DriverSleeps.Sleep("driver time", Thread.currentThread().getName(), 1, 1)),
+                List.of(new DriverSleeps.Sleep("driver time", Thread.currentThread().getName(), 1, 1))
             )
         );
         assertThat(Strings.toString(status, true, true), equalTo("""
@@ -90,6 +90,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
                 "first" : [
                   {
                     "reason" : "driver time",
+                    "thread_name" : "$$THREAD",
                     "sleep" : "1970-01-01T00:00:00.001Z",
                     "sleep_millis" : 1,
                     "wake" : "1970-01-01T00:00:00.001Z",
@@ -99,6 +100,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
                 "last" : [
                   {
                     "reason" : "driver time",
+                    "thread_name" : "$$THREAD",
                     "sleep" : "1970-01-01T00:00:00.001Z",
                     "sleep_millis" : 1,
                     "wake" : "1970-01-01T00:00:00.001Z",
@@ -106,7 +108,7 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
                   }
                 ]
               }
-            }"""));
+            }""".replace("$$THREAD", Thread.currentThread().getName())));
     }
 
     @Override

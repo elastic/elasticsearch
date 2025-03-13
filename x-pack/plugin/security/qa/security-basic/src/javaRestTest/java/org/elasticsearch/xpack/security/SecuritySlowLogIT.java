@@ -311,7 +311,7 @@ public class SecuritySlowLogIT extends ESRestTestCase {
         List<TestIndexData> testData = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             TestIndexData randomTestData = new TestIndexData(
-                "search-" + randomAlphaOfLengthBetween(5, 10).toLowerCase() + "-" + i,
+                "agentless-" + randomAlphaOfLengthBetween(5, 10).toLowerCase() + "-" + i,
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean(),

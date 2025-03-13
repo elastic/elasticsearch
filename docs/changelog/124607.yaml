@@ -1,0 +1,5 @@
+pr: 124607
+summary: "[UII] Allow Fleet post secret and get secret to accept array of strings"
+area: Infra/Plugins
+type: enhancement
+issues: []

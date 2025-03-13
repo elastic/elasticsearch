@@ -17,10 +17,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -112,7 +110,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         this.keepAliveSetting = Setting.timeSetting(
             settingsKey(prefix, "keep_alive"),
             keepAlive,
-            new KeepAliveTimeValidator(coreSetting, maxSetting),
+            TimeValue.ZERO,
             Setting.Property.NodeScope
         );
         this.rejectAfterShutdown = rejectAfterShutdown;
@@ -140,30 +138,17 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, core, max, keepAlive, null);
         final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name());
         ExecutorService executor;
-        if (core == 0 && max == 1) {
-            // special case for single threaded pool scaling safely down to zero
-            executor = EsExecutors.newSingleScalingToZero(
-                settings.nodeName + "/" + name(),
-                keepAlive.millis(),
-                TimeUnit.MILLISECONDS,
-                rejectAfterShutdown,
-                threadFactory,
-                threadContext,
-                trackingConfig
-            );
-        } else {
-            executor = EsExecutors.newScaling(
-                settings.nodeName + "/" + name(),
-                core,
-                max,
-                keepAlive.millis(),
-                TimeUnit.MILLISECONDS,
-                rejectAfterShutdown,
-                threadFactory,
-                threadContext,
-                trackingConfig
-            );
-        }
+        executor = EsExecutors.newScaling(
+            settings.nodeName + "/" + name(),
+            core,
+            max,
+            keepAlive.millis(),
+            TimeUnit.MILLISECONDS,
+            rejectAfterShutdown,
+            threadFactory,
+            threadContext,
+            trackingConfig
+        );
         return new ThreadPool.ExecutorHolder(executor, info);
     }
 
@@ -192,51 +177,4 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             this.keepAlive = keepAlive;
         }
     }
-
-    private static class KeepAliveTimeValidator implements Setting.Validator<TimeValue> {
-        private final Setting<Integer> coreSetting;
-        private final Setting<Integer> maxSetting;
-
-        KeepAliveTimeValidator(Setting<Integer> coreSetting, Setting<Integer> maxSetting) {
-            this.coreSetting = coreSetting;
-            this.maxSetting = maxSetting;
-        }
-
-        @Override
-        public void validate(TimeValue value) {
-            if (value.duration() < 0) {
-                throw new IllegalArgumentException("Invalid negative value for [" + prefix() + "keep_alive].");
-            }
-        }
-
-        @Override
-        public void validate(TimeValue value, Map<Setting<?>, Object> settings) {
-            if (value.duration() > 0) {
-                return;
-            }
-            if (settings.get(coreSetting).equals(0) && settings.get(maxSetting).equals(1)) {
-                throw new IllegalArgumentException(
-                    "["
-                        + prefix()
-                        + "keep_alive] must be greater than 0 when ["
-                        + coreSetting.getKey()
-                        + "] is [0] and ["
-                        + coreSetting.getKey()
-                        + "] is [1]."
-                );
-            }
-
-        }
-
-        private String prefix() {
-            String core = coreSetting.getKey();
-            return core.substring(0, core.length() - 4);
-        }
-
-        @Override
-        public Iterator<Setting<?>> settings() {
-            return List.<Setting<?>>of(coreSetting, maxSetting).iterator();
-        }
-    }
-
 }

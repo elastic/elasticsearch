@@ -755,17 +755,31 @@ public class EsExecutorsTests extends ESTestCase {
         assertTrue(rejected.get());
     }
 
-    public void testSingleScalingToZero() {
+    public void testScalingWithEmptyCore() {
+        testScalingWithEmptyCore(0);
+    }
+
+    public void testScalingWithEmptyCoreAndKeepAlive() {
+        testScalingWithEmptyCore(1);
+    }
+
+    private void testScalingWithEmptyCore(long keepAliveMillis) {
+        String name = getTestName();
+        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(getTestName());
         try (
-            var executor = EsExecutors.newSingleScalingToZero(
-                getTestName(),
+            var executor = EsExecutors.newScaling(
+                name,
+                0,
                 1,
+                keepAliveMillis,
                 TimeUnit.MILLISECONDS,
                 true,
-                EsExecutors.daemonThreadFactory(getTestName()),
-                threadContext
+                threadFactory,
+                threadContext,
+                DO_NOT_TRACK
             )
         ) {
+
             class Task extends AbstractRunnable {
                 private int remaining;
                 private final CountDownLatch doneLatch;
@@ -785,10 +799,14 @@ public class EsExecutorsTests extends ESTestCase {
                     if (--remaining == 0) {
                         doneLatch.countDown();
                     } else {
+                        logger.info("--> remaining [{}]", remaining);
+                        final long keepAliveNanos = executor.getKeepAliveTime(TimeUnit.NANOSECONDS);
                         new Thread(() -> {
-                            final var targetNanoTime = System.nanoTime() + 1_000_000 + between(-10_000, 10_000);
-                            while (System.nanoTime() < targetNanoTime) {
-                                Thread.yield();
+                            if (keepAliveNanos > 0) {
+                                final var targetNanoTime = System.nanoTime() + keepAliveNanos + between(-10_000, 10_000);
+                                while (System.nanoTime() < targetNanoTime) {
+                                    Thread.yield();
+                                }
                             }
                             executor.execute(Task.this);
                         }).start();
@@ -812,5 +830,4 @@ public class EsExecutorsTests extends ESTestCase {
             }
         }
     }
-
 }

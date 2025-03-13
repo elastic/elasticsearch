@@ -107,10 +107,6 @@ public class EsExecutors {
         ThreadContext contextHolder,
         TaskTrackingConfig config
     ) {
-        if (min == 0 && max == 1) {
-            // forbidden due to https://github.com/elastic/elasticsearch/issues/124667
-            throw new IllegalArgumentException("Unsupported configuration, use EsExecutors.newSingleScalingToZero instead");
-        }
         LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
         if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
@@ -155,57 +151,6 @@ public class EsExecutors {
             name,
             min,
             max,
-            keepAliveTime,
-            unit,
-            rejectAfterShutdown,
-            threadFactory,
-            contextHolder,
-            TaskTrackingConfig.DO_NOT_TRACK
-        );
-    }
-
-    /**
-     * A single threaded executor that can safely scale down to 0 threads when idle.
-     * @throws IllegalArgumentException if keepAliveTime is 0
-     */
-    public static EsThreadPoolExecutor newSingleScalingToZero(
-        String name,
-        long keepAliveTime,
-        TimeUnit unit,
-        boolean rejectAfterShutdown,
-        ThreadFactory threadFactory,
-        ThreadContext contextHolder,
-        TaskTrackingConfig config
-    ) {
-        EsThreadPoolExecutor executor = newScaling(
-            name,
-            1,
-            1,
-            keepAliveTime,
-            unit,
-            rejectAfterShutdown,
-            threadFactory,
-            contextHolder,
-            config
-        );
-        executor.allowCoreThreadTimeOut(true);
-        return executor;
-    }
-
-    /**
-     * A single threaded executor that can safely scale down to 0 threads when idle.
-     * @throws IllegalArgumentException if keepAliveTime is 0
-     */
-    public static EsThreadPoolExecutor newSingleScalingToZero(
-        String name,
-        long keepAliveTime,
-        TimeUnit unit,
-        boolean rejectAfterShutdown,
-        ThreadFactory threadFactory,
-        ThreadContext contextHolder
-    ) {
-        return newSingleScalingToZero(
-            name,
             keepAliveTime,
             unit,
             rejectAfterShutdown,
@@ -442,9 +387,13 @@ public class EsExecutors {
     private EsExecutors() {}
 
     private static <E> LinkedTransferQueue<E> newUnboundedScalingLTQueue(int corePoolSize, int maxPoolSize) {
-        // scaling beyond core pool size using an unbounded queue requires ExecutorScalingQueue
+        if (maxPoolSize == 1 || maxPoolSize == corePoolSize) {
+            // scaling beyond core pool size (or 1) not required, use a regular unbounded LinkedTransferQueue
+            return new LinkedTransferQueue<>();
+        }
+        // scaling beyond core pool size with an unbounded queue requires ExecutorScalingQueue
         // note, reconfiguration of core / max pool size not supported in EsThreadPoolExecutor
-        return maxPoolSize > corePoolSize ? new ExecutorScalingQueue<>() : new LinkedTransferQueue<>();
+        return new ExecutorScalingQueue();
     }
 
     static class ExecutorScalingQueue<E> extends LinkedTransferQueue<E> {

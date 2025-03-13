@@ -171,10 +171,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         super.setUp();
         Settings settings = threadPoolSettings();
         threadPool = setUpThreadPool(settings);
-        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
-            threadPool,
-            settings
-        );
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, settings);
         writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();

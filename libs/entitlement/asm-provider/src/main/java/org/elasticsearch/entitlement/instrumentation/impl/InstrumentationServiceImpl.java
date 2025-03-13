@@ -40,8 +40,8 @@ public class InstrumentationServiceImpl implements InstrumentationService {
     private static final String OBJECT_INTERNAL_NAME = Type.getInternalName(Object.class);
 
     @Override
-    public Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods, boolean verifyBytecode) {
-        return InstrumenterImpl.create(clazz, methods, verifyBytecode);
+    public Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods) {
+        return InstrumenterImpl.create(clazz, methods);
     }
 
     private interface CheckerMethodVisitor {

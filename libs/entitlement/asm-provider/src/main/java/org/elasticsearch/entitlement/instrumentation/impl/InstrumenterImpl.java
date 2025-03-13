@@ -14,7 +14,6 @@ import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.objectweb.asm.AnnotationVisitor;
@@ -48,7 +47,6 @@ public class InstrumenterImpl implements Instrumenter {
 
     private final String getCheckerClassMethodDescriptor;
     private final String handleClass;
-    private final boolean verifyBytecode;
 
     /**
      * To avoid class name collisions during testing without an agent to replace classes in-place.
@@ -60,22 +58,20 @@ public class InstrumenterImpl implements Instrumenter {
         String handleClass,
         String getCheckerClassMethodDescriptor,
         String classNameSuffix,
-        Map<MethodKey, CheckMethod> checkMethods,
-        boolean verifyBytecode
+        Map<MethodKey, CheckMethod> checkMethods
     ) {
         this.handleClass = handleClass;
         this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
         this.classNameSuffix = classNameSuffix;
         this.checkMethods = checkMethods;
-        this.verifyBytecode = verifyBytecode;
     }
 
-    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods, boolean verifyBytecode) {
+    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
 
         Type checkerClassType = Type.getType(checkerClass);
         String handleClass = checkerClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods, verifyBytecode);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
     }
 
     static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
@@ -105,35 +101,32 @@ public class InstrumenterImpl implements Instrumenter {
     }
 
     private static void verifyAndLog(byte[] classfileBuffer, String className, VerificationPhase phase) {
-        var failureLogLevel = (phase == VerificationPhase.BEFORE_INSTRUMENTATION ? Level.WARN : Level.ERROR);
         try {
             String result = verify(classfileBuffer);
             if (result.isEmpty() == false) {
-                logger.log(
-                    failureLogLevel,
-                    Strings.format("Bytecode verification (%s) for class [%s] failed: %s", phase, className, result)
-                );
+                logger.error(Strings.format("Bytecode verification (%s) for class [%s] failed: %s", phase, className, result));
             } else {
                 logger.info("Bytecode verification ({}) for class [{}] passed", phase, className);
             }
-        } catch (Throwable e) {
-            // The ASM CheckClassAdapter in some cases throws instead of printing the error
-            logger.log(
-                failureLogLevel,
-                Strings.format(
-                    "Bytecode verification (%s) for class [%s] failed: %s: %s",
-                    phase,
-                    className,
-                    e.getClass().getName(),
-                    e.getMessage()
-                )
+        } catch (ClassCircularityError e) {
+            // Apparently, verification during instrumentation is challenging for class resolution and loading
+            // Treat this not as an error, but as "inconclusive"
+            logger.warn(
+                "Cannot perform bytecode verification ({}) for class [{}]: {}: {}",
+                phase,
+                className,
+                e.getClass().getName(),
+                e.getMessage()
             );
+        } catch (IllegalArgumentException e) {
+            // The ASM CheckClassAdapter in some cases throws this instead of printing the error
+            logger.error(Strings.format("Bytecode verification (%s) for class [%s] failed", phase, className), e);
         }
     }
 
     @Override
-    public byte[] instrumentClass(String className, byte[] classfileBuffer) {
-        if (verifyBytecode) {
+    public byte[] instrumentClass(String className, byte[] classfileBuffer, boolean verify) {
+        if (verify) {
             verifyAndLog(classfileBuffer, className, VerificationPhase.BEFORE_INSTRUMENTATION);
         }
 
@@ -143,7 +136,7 @@ public class InstrumenterImpl implements Instrumenter {
         reader.accept(visitor, 0);
         var outBytes = writer.toByteArray();
 
-        if (verifyBytecode) {
+        if (verify) {
             verifyAndLog(outBytes, className, VerificationPhase.AFTER_INSTRUMENTATION);
         }
 

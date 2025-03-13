@@ -20,7 +20,7 @@ public interface InstrumentationService {
 
     record InstrumentationInfo(MethodKey targetMethod, CheckMethod checkMethod) {}
 
-    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods, boolean verifyBytecode);
+    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods);
 
     Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws ClassNotFoundException;
 

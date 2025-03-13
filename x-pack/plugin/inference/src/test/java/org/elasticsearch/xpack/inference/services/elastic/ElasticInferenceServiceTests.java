@@ -519,7 +519,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     )
                 )
             );
-            var request = webServer.requests().getFirst();
+            var request = webServer.requests().get(0);
             assertNull(request.getUri().getQuery());
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
@@ -582,7 +582,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 );
 
                 // Verify the header was sent in the request
-                var request = webServer.requests().getFirst();
+                var request = webServer.requests().get(0);
                 assertNull(request.getUri().getQuery());
                 assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
@@ -638,7 +638,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 var results = listener.actionGet(TIMEOUT);
 
                 // Verify the response was processed correctly
-                ChunkedInference inferenceResult = results.getFirst();
+                ChunkedInference inferenceResult = results.get(0);
                 assertThat(inferenceResult, instanceOf(ChunkedInferenceEmbedding.class));
                 var sparseResult = (ChunkedInferenceEmbedding) inferenceResult;
                 assertThat(
@@ -655,7 +655,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
                 // Verify the request was sent and contains expected headers
                 MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-                var request = webServer.requests().getFirst();
+                var request = webServer.requests().get(0);
                 assertNull(request.getUri().getQuery());
                 MatcherAssert.assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
@@ -719,7 +719,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
                 // Verify the request was sent
                 assertThat(webServer.requests(), hasSize(1));
-                var httpRequest = webServer.requests().getFirst();
+                var httpRequest = webServer.requests().get(0);
 
                 // Check that the product use case header was set correctly
                 assertThat(httpRequest.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));

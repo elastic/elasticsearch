@@ -195,7 +195,7 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final DotNotationFieldPath fieldPath = DotNotationFieldPath.of(path);
         Object context = fieldPath.initialContext(this);
         for (String pathElement : fieldPath.pathElements) {
             ResolveResult result = resolve(pathElement, path, context);
@@ -264,7 +264,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
     public boolean hasField(String path, boolean failOutOfRange) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final DotNotationFieldPath fieldPath = DotNotationFieldPath.of(path);
         Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             String pathElement = fieldPath.pathElements[i];
@@ -294,13 +294,17 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        if (context == null) {
+        return hasDirectChildField(context, leafKey, path, failOutOfRange);
+    }
+
+    private boolean hasDirectChildField(Object parent, String fieldName, String path, boolean failOutOfRange) {
+        if (parent == null) {
             return false;
-        } else if (context instanceof Map<?, ?> map) {
-            return map.containsKey(leafKey);
-        } else if (context instanceof List<?> list) {
+        } else if (parent instanceof Map<?, ?> map) {
+            return map.containsKey(fieldName);
+        } else if (parent instanceof List<?> list) {
             try {
-                int index = Integer.parseInt(leafKey);
+                int index = Integer.parseInt(fieldName);
                 if (index >= 0 && index < list.size()) {
                     return true;
                 } else {
@@ -324,7 +328,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
     public void removeField(String path) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final DotNotationFieldPath fieldPath = DotNotationFieldPath.of(path);
         Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             ResolveResult result = resolve(fieldPath.pathElements[i], path, context);
@@ -336,28 +340,32 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        if (context == null) {
-            throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, null));
-        } else if (context instanceof Map<?, ?> map) {
-            if (map.containsKey(leafKey)) {
-                map.remove(leafKey);
+        removeDirectChildField(context, leafKey, path);
+    }
+
+    private void removeDirectChildField(Object parent, String fieldName, String fullPath) {
+        if (parent == null) {
+            throw new IllegalArgumentException(Errors.cannotRemove(fullPath, fieldName, null));
+        } else if (parent instanceof Map<?, ?> map) {
+            if (map.containsKey(fieldName)) {
+                map.remove(fieldName);
             } else {
-                throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
+                throw new IllegalArgumentException(Errors.notPresent(fullPath, fieldName));
             }
-        } else if (context instanceof List<?> list) {
+        } else if (parent instanceof List<?> list) {
             int index;
             try {
-                index = Integer.parseInt(leafKey);
+                index = Integer.parseInt(fieldName);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
+                throw new IllegalArgumentException(Errors.notInteger(fullPath, fieldName), e);
             }
             if (index < 0 || index >= list.size()) {
-                throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+                throw new IllegalArgumentException(Errors.outOfBounds(fullPath, index, list.size()));
             } else {
                 list.remove(index);
             }
         } else {
-            throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, context));
+            throw new IllegalArgumentException(Errors.cannotRemove(fullPath, fieldName, parent));
         }
     }
 
@@ -516,7 +524,7 @@ public final class IngestDocument {
     }
 
     private void setFieldValue(String path, Object value, boolean append, boolean allowDuplicates) {
-        final FieldPath fieldPath = FieldPath.of(path);
+        final DotNotationFieldPath fieldPath = DotNotationFieldPath.of(path);
         Object context = fieldPath.initialContext(this);
         for (int i = 0; i < fieldPath.pathElements.length - 1; i++) {
             String pathElement = fieldPath.pathElements[i];
@@ -551,37 +559,48 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        if (context == null) {
-            throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, null));
-        } else if (context instanceof Map<?, ?>) {
+        setDirectChildFieldValue(context, leafKey, value, path, append, allowDuplicates);
+    }
+
+    private void setDirectChildFieldValue(
+        Object parent,
+        String fieldName,
+        Object value,
+        String fullPath,
+        boolean append,
+        boolean allowDuplicates
+    ) {
+        if (parent == null) {
+            throw new IllegalArgumentException(Errors.cannotSet(fullPath, fieldName, null));
+        } else if (parent instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) context;
+            Map<String, Object> map = (Map<String, Object>) parent;
             if (append) {
-                Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                Object object = map.getOrDefault(fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
                     List<Object> list = new ArrayList<>();
                     appendValues(list, value);
-                    map.put(leafKey, list);
+                    map.put(fieldName, list);
                 } else {
                     Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
-                        map.put(leafKey, list);
+                        map.put(fieldName, list);
                     }
                 }
                 return;
             }
-            map.put(leafKey, value);
-        } else if (context instanceof List<?>) {
+            map.put(fieldName, value);
+        } else if (parent instanceof List<?>) {
             @SuppressWarnings("unchecked")
-            List<Object> list = (List<Object>) context;
+            List<Object> list = (List<Object>) parent;
             int index;
             try {
-                index = Integer.parseInt(leafKey);
+                index = Integer.parseInt(fieldName);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException(Errors.notInteger(path, leafKey), e);
+                throw new IllegalArgumentException(Errors.notInteger(fullPath, fieldName), e);
             }
             if (index < 0 || index >= list.size()) {
-                throw new IllegalArgumentException(Errors.outOfBounds(path, index, list.size()));
+                throw new IllegalArgumentException(Errors.outOfBounds(fullPath, index, list.size()));
             } else {
                 if (append) {
                     Object object = list.get(index);
@@ -594,8 +613,12 @@ public final class IngestDocument {
                 list.set(index, value);
             }
         } else {
-            throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, context));
+            throw new IllegalArgumentException(Errors.cannotSet(fullPath, fieldName, parent));
         }
+    }
+
+    private void appendDirectChildFieldValue(Object parent, String fieldName, Object value) {
+        setDirectChildFieldValue(parent, fieldName, value, fieldName, true, true);
     }
 
     @SuppressWarnings("unchecked")
@@ -939,17 +962,38 @@ public final class IngestDocument {
         }
     }
 
-    private static final class FieldPath {
+    private static class FieldPath {
 
         private static final int MAX_SIZE = 512;
         private static final Map<String, FieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
-        // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
-        // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
-        // of an ArrayList to hold the results, then a new String is created for each path element, and
-        // then finally a String[] is allocated to hold the actual result -- in addition to all that, we
-        // do some processing ourselves on the path and path elements to validate and prepare them.
-        // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
+        private final boolean useIngestContext;
+        private final String trimmedPath;
+
+        // you shouldn't call this directly, use the FieldPath.of method above instead!
+        protected FieldPath(String path) {
+            String newPath;
+            if (path.startsWith(INGEST_KEY_PREFIX)) {
+                useIngestContext = true;
+                newPath = path.substring(INGEST_KEY_PREFIX.length());
+            } else {
+                useIngestContext = false;
+                if (path.startsWith(SOURCE_PREFIX)) {
+                    newPath = path.substring(SOURCE_PREFIX.length());
+                } else {
+                    newPath = path;
+                }
+            }
+            this.trimmedPath = newPath;
+        }
+
+        public Object initialContext(IngestDocument document) {
+            return useIngestContext ? document.getIngestMetadata() : document.getCtxMap();
+        }
+
+        public String getTrimmedPath() {
+            return trimmedPath;
+        }
 
         static FieldPath of(String path) {
             if (Strings.isEmpty(path)) {
@@ -966,32 +1010,45 @@ public final class IngestDocument {
             CACHE.put(path, res);
             return res;
         }
+    }
+
+    private static final class DotNotationFieldPath extends FieldPath {
+
+        private static final int MAX_SIZE = 512;
+        private static final Map<String, DotNotationFieldPath> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+
+        // constructing a new FieldPath requires that we parse a String (e.g. "foo.bar.baz") into an array
+        // of path elements (e.g. ["foo", "bar", "baz"]). Calling String#split results in the allocation
+        // of an ArrayList to hold the results, then a new String is created for each path element, and
+        // then finally a String[] is allocated to hold the actual result -- in addition to all that, we
+        // do some processing ourselves on the path and path elements to validate and prepare them.
+        // the above CACHE and the below 'FieldPath.of' method allow us to almost always avoid this work.
+
+        static DotNotationFieldPath of(String path) {
+            if (Strings.isEmpty(path)) {
+                throw new IllegalArgumentException("path cannot be null nor empty");
+            }
+            DotNotationFieldPath res = CACHE.get(path);
+            if (res != null) {
+                return res;
+            }
+            res = new DotNotationFieldPath(path);
+            if (CACHE.size() > MAX_SIZE) {
+                CACHE.clear();
+            }
+            CACHE.put(path, res);
+            return res;
+        }
 
         private final String[] pathElements;
-        private final boolean useIngestContext;
 
         // you shouldn't call this directly, use the FieldPath.of method above instead!
-        private FieldPath(String path) {
-            String newPath;
-            if (path.startsWith(INGEST_KEY_PREFIX)) {
-                useIngestContext = true;
-                newPath = path.substring(INGEST_KEY_PREFIX.length());
-            } else {
-                useIngestContext = false;
-                if (path.startsWith(SOURCE_PREFIX)) {
-                    newPath = path.substring(SOURCE_PREFIX.length());
-                } else {
-                    newPath = path;
-                }
-            }
-            this.pathElements = newPath.split("\\.");
+        private DotNotationFieldPath(String path) {
+            super(path);
+            this.pathElements = getTrimmedPath().split("\\.");
             if (pathElements.length == 1 && pathElements[0].isEmpty()) {
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
-        }
-
-        public Object initialContext(IngestDocument document) {
-            return useIngestContext ? document.getIngestMetadata() : document.getCtxMap();
         }
     }
 
@@ -1002,258 +1059,6 @@ public final class IngestDocument {
 
         static ResolveResult error(String errorMessage) {
             return new ResolveResult(false, null, errorMessage);
-        }
-    }
-
-    /*================================== APIs for dotted fields ==================================
-     * As opposed to the above APIs, these APIs are designed to work with dotted fields, meaning
-     * that the field path is not fully resolved assuming dot notation.
-     ============================================================================================*/
-
-    public Object getTopLevelFieldValue(String fieldName) {
-        return getDirectChildFieldValue(this.getSource(), fieldName);
-    }
-
-    public void setTopLevelFieldValue(String fieldName, Object value, boolean append, boolean allowDuplicates) {
-        setDirectChildFieldValue(this.getSource(), fieldName, fieldName, value, append, allowDuplicates);
-    }
-
-    public void appendTopLevelFieldValue(String fieldName, Object value) {
-        appendDirectChildFieldValue(this.getSource(), fieldName, value);
-    }
-
-    public void removeTopLevelField(String fieldName) {
-        removeDirectChildField(this.getSource(), fieldName, fieldName);
-    }
-
-    public <T> List<T> getAllFieldValues(String path, Class<T> clazz) {
-        DottedFieldPaths fieldPaths = DottedFieldPaths.of(path);
-        List<T> values = new ArrayList<>();
-        collectAllFieldValues(fieldPaths.initialContext(this), fieldPaths.getPathSearchTree(), values, clazz, false);
-        return values;
-    }
-
-    public <T> void normalizeField(String path, Class<T> clazz) {
-        final DottedFieldPaths fieldPaths = DottedFieldPaths.of(path);
-        Object root = fieldPaths.initialContext(this);
-
-        // we use a thread local list to avoid creating a new list for each call, as in most cases the list will be empty
-        List<?> genericValues = threadLocalValues.get();
-        genericValues.clear();
-
-        @SuppressWarnings("unchecked") // safe cast due to type erasure
-        List<T> values = (List<T>) genericValues;
-        collectAllFieldValues(root, fieldPaths.getPathSearchTree(), values, clazz, true);
-
-        if (values.isEmpty() == false) {
-            // setting all values as a top level field with the normalized (possibly dotted) field name
-            // no need for a deep copy here, as we explicitly remove the fields from the document during collection
-            Object finalValue = values.size() == 1 ? values.getFirst() : new ArrayList<>(values);
-            // no need to append because the collect algorithm already collects and removes the value if exists in root level
-            try {
-                setDirectChildFieldValue(root, fieldPaths.getFullPath(), fieldPaths.getFullPath(), finalValue, false, true);
-            } catch (Exception e) {
-                // todo - shouldn't throw here
-            }
-        }
-    }
-
-    /**
-     * Returns the value of the direct child field if such with the exact full name exists. The difference from other APIs is that this
-     * API does not resolve the full path, but only the direct child field, even if its name contains dots. In addition, it does not throw
-     * an exception if the field is missing, but returns {@code null} instead.
-     * @param parent the context object for this lookup
-     * @param fieldName the name of the direct child field, may contain dots
-     * @return the value of the direct child field if such with the exact full name exists or {@code null} if the field is missing
-     */
-    @Nullable
-    Object getDirectChildFieldValue(Object parent, String fieldName) {
-        switch (parent) {
-            case null -> throw new IllegalArgumentException("parent cannot be null");
-            case Map<?, ?> genericMap -> {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) genericMap;
-                Object value = map.getOrDefault(fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
-
-                if (value == NOT_FOUND) {
-                    return null;
-                } else {
-                    return value;
-                }
-            }
-            case List<?> list -> {
-                int index;
-                try {
-                    index = Integer.parseInt(fieldName);
-                } catch (NumberFormatException e) {
-                    return null;
-                }
-                if (index < 0 || index >= list.size()) {
-                    throw new IllegalArgumentException(
-                        String.format("[%s] is out of bounds for array with length [%s]", index, list.size())
-                    );
-                }
-                return list.get(index);
-            }
-            default -> {
-                return null;
-            }
-        }
-    }
-
-    void appendDirectChildFieldValue(Object parent, String fieldName, Object value) {
-        setDirectChildFieldValue(parent, fieldName, fieldName, value, true, true);
-    }
-
-    private <T> void collectAllFieldValues(
-        Object context,
-        PathNode pathSearchTree,
-        List<T> values,
-        Class<T> clazz,
-        boolean removeWhenFound
-    ) {
-        for (PathNode child : pathSearchTree.getChildren()) {
-            Object fieldValue = getDirectChildFieldValue(context, child.getPathElement());
-            if (fieldValue != null) {
-                if (child.isLeaf()) {
-                    T castedValue;
-                    try {
-                        castedValue = cast(child.getPathElement(), fieldValue, clazz);
-                    } catch (Exception e) {
-                        // if this field contains value that is not of the expected type, we ignore it
-                        castedValue = null;
-                    }
-                    if (castedValue != null) {
-                        values.add(castedValue);
-                    }
-                    if (removeWhenFound) {
-                        try {
-                            removeDirectChildField(context, child.getPathElement(), child.getPathElement());
-                        } catch (Exception e) {
-                            // todo
-                        }
-                    }
-                } else {
-                    collectAllFieldValues(fieldValue, child, values, clazz, removeWhenFound);
-                }
-            }
-        }
-    }
-
-    static final class PathNode {
-        private final String pathElement;
-        private final List<PathNode> children;
-
-        PathNode(String pathElement) {
-            this.pathElement = pathElement;
-            this.children = new ArrayList<>();
-        }
-
-        public String getPathElement() {
-            return pathElement;
-        }
-
-        public List<PathNode> getChildren() {
-            return children;
-        }
-
-        public boolean isLeaf() {
-            return children.isEmpty();
-        }
-
-        public void addChild(PathNode child) {
-            children.add(child);
-        }
-    }
-
-    static final class DottedFieldPaths {
-
-        private static final int MAX_SIZE = 512;
-        private static final Map<String, DottedFieldPaths> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
-
-        // the search tree
-        private final PathNode pathSearchTree;
-        // the full path with the prefix removed
-        private final String fullPath;
-        private final boolean useIngestContext;
-
-        /**
-         * Returns the search tree for the dotted field paths. Each node in the tree represents a path element, so that the paths
-         * from the root to the leaf nodes represent all possible dotted field paths.
-         * @return the search tree for the dotted field paths
-         */
-        public PathNode getPathSearchTree() {
-            return pathSearchTree;
-        }
-
-        public Object initialContext(IngestDocument document) {
-            return useIngestContext ? document.getIngestMetadata() : document.getCtxMap();
-        }
-
-        public String getFullPath() {
-            return fullPath;
-        }
-
-        static DottedFieldPaths of(String path) {
-            if (Strings.isEmpty(path)) {
-                throw new IllegalArgumentException("path cannot be null nor empty");
-            }
-            DottedFieldPaths res = CACHE.get(path);
-            if (res != null) {
-                return res;
-            }
-            res = new DottedFieldPaths(path);
-            if (CACHE.size() > MAX_SIZE) {
-                CACHE.clear();
-            }
-            CACHE.put(path, res);
-            return res;
-        }
-
-        // you shouldn't call this directly, use the DottedFieldPaths.of method above instead!
-        private DottedFieldPaths(String path) {
-            String trimmedPath;
-            if (path.startsWith(INGEST_KEY_PREFIX)) {
-                useIngestContext = true;
-                trimmedPath = path.substring(INGEST_KEY_PREFIX.length());
-            } else {
-                useIngestContext = false;
-                if (path.startsWith(SOURCE_PREFIX)) {
-                    trimmedPath = path.substring(SOURCE_PREFIX.length());
-                } else {
-                    trimmedPath = path;
-                }
-            }
-            this.fullPath = trimmedPath;
-            this.pathSearchTree = new PathNode("");
-            // todo: verify that the path does not end with a dot
-            generatePathsRecursive(trimmedPath, 0, pathSearchTree);
-        }
-
-        /**
-         * The recursive algorithm to generate the search tree for the dotted field paths - each dot is either considered as a separator or
-         * as part of the element's name. This is done recursively, so that the eventual number of paths (leaf nodes) is equal to
-         * 2^(number of dots in the path).
-         *
-         * @param path       the dotted field path
-         * @param startIndex the start index from which to search the next dot
-         * @param node       the current node in the search tree
-         */
-        private void generatePathsRecursive(String path, int startIndex, PathNode node) {
-            int nextDot = path.indexOf('.', startIndex);
-            if (nextDot > 0) {
-                // Consider the next dot as a path separator and generate paths recursively for the rest of the path
-                String element = path.substring(0, nextDot);
-                PathNode child = new PathNode(element);
-                node.addChild(child);
-                generatePathsRecursive(path.substring(nextDot + 1), 0, child);
-
-                // Consider the next dot as part of the path element's name
-                generatePathsRecursive(path, nextDot + 1, node);
-            } else {
-                PathNode child = new PathNode(path);
-                node.addChild(child);
-            }
         }
     }
 
@@ -1385,6 +1190,372 @@ public final class IngestDocument {
 
         private static String notStringOrByteArray(String path, Object value) {
             return "Content field [" + path + "] of unknown type [" + value.getClass().getName() + "], must be string or byte array";
+        }
+    }
+
+    /*=========================================== APIs for dotted fields =====================================================
+     * As opposed to the above APIs, these APIs are designed to work with dotted fields, meaning
+     * that the field path is not resolved assuming dot notation, but assuming that dots can either represent nested
+     * fields or be part of the field name itself.
+     =======================================================================================================================*/
+
+    /**
+     * Returns whether the document has a top level field with the exact provided field name, whether it contains dots or not.
+     * @param fieldName the field name to check for
+     * @return whether the document has a top level field with the provided name
+     */
+    public boolean hasTopLevelField(String fieldName) {
+        FieldPath fieldPath = FieldPath.of(fieldName);
+        Object root = fieldPath.initialContext(this);
+        // since we only look in top level, it's irrelevant for lists, so we can pass false for the last argument
+        return hasDirectChildField(root, fieldPath.getTrimmedPath(), fieldPath.getTrimmedPath(), false);
+    }
+
+    /**
+     * Returns the value of the top level field with the exact provided field name, whether it contains dots or not. If the field does
+     * not exist, returns {@code null} and does not throw an exception.
+     * @param fieldName the field name to get the value of
+     * @return the value of the top level field with the provided name or {@code null} if the field does not exist
+     */
+    public Object getTopLevelFieldValue(String fieldName) {
+        FieldPath fieldPath = FieldPath.of(fieldName);
+        Object root = fieldPath.initialContext(this);
+        return getDirectChildFieldValue(root, fieldPath.getTrimmedPath());
+    }
+
+    /**
+     * Sets the provided value to the top level field with the exact provided field name, whether it contains dots or not. If the field
+     * does not exist, it will be created. If the field already exists, the value will be appended to its current value if the append
+     * parameter is set to true, otherwise the existing value will be replaced.
+     * @param fieldName the field name to set the value of
+     * @param value the value to set
+     * @param append whether to append the value to the existing value or replace it
+     * @param allowDuplicates whether to allow duplicates in the field value
+     */
+    public void setTopLevelFieldValue(String fieldName, Object value, boolean append, boolean allowDuplicates) {
+        FieldPath fieldPath = FieldPath.of(fieldName);
+        Object root = fieldPath.initialContext(this);
+        setDirectChildFieldValue(root, fieldPath.getTrimmedPath(), value, fieldPath.getTrimmedPath(), append, allowDuplicates);
+    }
+
+    /**
+     * Appends the provided value to the top level field with the exact provided field name, whether it contains dots or not.
+     * Any non-existing path element will be created.
+     * If the path identifies a list, the value will be appended to the existing list.
+     * If the path identifies a scalar, the scalar will be converted to a list and the provided value will be added to the newly created
+     * list.
+     * @param fieldName the field name to append the value to
+     * @param value the value to append
+     */
+    public void appendTopLevelFieldValue(String fieldName, Object value) {
+        FieldPath fieldPath = FieldPath.of(fieldName);
+        Object root = fieldPath.initialContext(this);
+        appendDirectChildFieldValue(root, fieldPath.getTrimmedPath(), value);
+    }
+
+    /**
+     * Removes the top level field with the exact provided field name, whether it contains dots or not.
+     * @param fieldName the field name to remove
+     */
+    public void removeTopLevelField(String fieldName) {
+        FieldPath fieldPath = FieldPath.of(fieldName);
+        Object root = fieldPath.initialContext(this);
+        removeDirectChildField(root, fieldPath.getTrimmedPath(), fieldPath.getTrimmedPath());
+    }
+
+    /**
+     * Collects all values from all document levels that match the provided path, assuming that any dot in the path can either represent
+     * a separator between nested fields or be part of the field name itself.
+     * Only values of the requested type are collected, otherwise they are ignored.
+     * Numeric path elements are evaluated both as list indices and as field names when searching field values.
+     * For example, given the following document:
+     * <pre>
+     *  {
+     *      "foo": {
+     *          "bar": {
+     *              "baz": "value1",
+     *              "qux": 1
+     *          },
+     *          "bar.baz": "value2",
+     *          "qux": 2
+     *      },
+     *      "foo.bar": {
+     *          "baz": 3,
+     *          "qux": 3
+     *      },
+     *      "foo.bar.baz": "value4"
+     *  }
+     *  </pre>
+     *  The expected returned list requested for path {@code foo.bar.baz} and type {@code String} would contain the following values:
+     *  <ul>
+     *      <li>value1</li>
+     *      <li>value2</li>
+     *      <li>value4</li>
+     *  </ul>
+     *  The value 3 is ignored because it is not of the requested type.
+     * @param path the path to collect values by, where each dot can either represent a separator between nested fields or be part of the
+     *             field name itself
+     * @param clazz the type of the values to collect
+     * @return a list of values that match the provided path and type
+     * @param <T> the type of the values to collect
+     */
+    public <T> List<T> getAllFieldValues(String path, Class<T> clazz) {
+        DottedFieldPaths fieldPaths = DottedFieldPaths.of(path);
+        List<T> values = new ArrayList<>();
+        collectAllFieldValues(fieldPaths.initialContext(this), fieldPaths.getPathSearchTree(), values, clazz, false);
+        return values;
+    }
+
+    /**
+     * Normalizes a field by collecting and removing all values from all document levels that match the provided path, assuming that any dot
+     * in the path can either represent a separator between nested fields or be part of the field name itself. The collected values are
+     * then set as a top level field with the normalized (possibly dotted) field name.
+     * Only values of the requested type are collected, otherwise they are ignored.
+     * Numeric path elements are evaluated both as list indices and as field names when collecting and removing field values.
+     * For example, given the following document:
+     * <pre>
+     *  {
+     *      "foo": {
+     *          "bar": {
+     *              "baz": "value1",
+     *              "qux": 1
+     *          },
+     *          "bar.baz": "value2",
+     *          "qux": 2
+     *      },
+     *      "foo.bar": {
+     *          "baz": 3,
+     *          "qux": 3
+     *      },
+     *      "foo.bar.baz": "value4"
+     *  }
+     *  </pre>
+     *  The resulting document after normalizing by the path {@code foo.bar.baz} and type {@code String} would be:
+     * <pre>
+     *  {
+     *      "foo": {
+     *          "bar": {
+     *              "qux": 1
+     *          },
+     *          "qux": 2
+     *      },
+     *      "foo.bar": {
+     *          "baz": 3,
+     *          "qux": 3
+     *      },
+     *      "foo.bar.baz": ["value1", "value2", "value4"]
+     *  }
+     *  </pre>
+     *
+     *  Since this API is intended for normalization processes, the search algorithm it relies on is designed to be efficient, with zero
+     *  allocations in most cases, as it is expected to be called frequently and for general path searches, not necessarily paths that are
+     *  expected to be present.
+     * @param path the path to normalize by, where each dot can either represent a separator between nested fields or be part of field names
+     * @param clazz the type of the values to normalize
+     * @param <T> the type of the values to normalize
+     */
+    public <T> void normalizeField(String path, Class<T> clazz) {
+        final DottedFieldPaths fieldPaths = DottedFieldPaths.of(path);
+        Object root = fieldPaths.initialContext(this);
+
+        // we use a thread local list to avoid creating a new list for each call, as in most cases the list will be empty
+        List<?> genericValues = threadLocalValues.get();
+        genericValues.clear();
+
+        @SuppressWarnings("unchecked") // safe cast due to type erasure
+        List<T> values = (List<T>) genericValues;
+        collectAllFieldValues(root, fieldPaths.getPathSearchTree(), values, clazz, true);
+
+        if (values.isEmpty() == false) {
+            // Setting all values as a top level field with the normalized (possibly dotted) field name.
+            // No need for a deep copy here, as we explicitly remove the found fields from the document during collection.
+            // However, we must shallow copy the list as the value list is reused across multiple calls.
+            Object finalValue = values.size() == 1 ? values.getFirst() : new ArrayList<>(values);
+            try {
+                // no need to append because the collect algorithm already collects and removes the value if exists in root level
+                setDirectChildFieldValue(root, fieldPaths.getTrimmedPath(), finalValue, fieldPaths.getTrimmedPath(), false, true);
+            } catch (Exception e) {
+                // todo - shouldn't throw here
+            }
+        }
+    }
+
+    /**
+     * NOTE: not using {@link #resolve(String, String, Object)} in order to avoid all allocations related to it. The difference between
+     * the two approaches is that this API is designed to be used during general and frequent field searches and not for lookup of an
+     * expected specific field. Therefore, we expect it to yield no results in the vast majority of cases.
+     *
+     * Returns the value of the direct child field if such with the exact full name exists. The difference from other APIs is that this
+     * API does not resolve the full path, but only the direct child field, even if its name contains dots. In addition, it does not throw
+     * an exception if the field is missing, but returns {@code null} instead.
+     * @param parent the context object for this lookup
+     * @param fieldName the name of the direct child field, may contain dots
+     * @return the value of the direct child field if such with the exact full name exists or {@code null} if the field is missing
+     */
+    @Nullable
+    private Object getDirectChildFieldValue(Object parent, String fieldName) {
+        switch (parent) {
+            case null -> throw new IllegalArgumentException(Errors.cannotResolve(fieldName, fieldName, null));
+            case Map<?, ?> genericMap -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) genericMap;
+                Object value = map.getOrDefault(fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (value == NOT_FOUND) {
+                    return null;
+                } else {
+                    return value;
+                }
+            }
+            case List<?> list -> {
+                int index;
+                try {
+                    index = Integer.parseInt(fieldName);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+                if (index < 0 || index >= list.size()) {
+                    return null;
+                }
+                return list.get(index);
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    private <T> void collectAllFieldValues(Object context, PathNode pathNode, List<T> values, Class<T> clazz, boolean removeWhenFound) {
+        ArrayList<PathNode> children = pathNode.getChildren();
+        // noinspection ForLoopReplaceableByForEach - iterate without using an iterator to avoid allocations
+        for (int i = 0; i < children.size(); i++) {
+            PathNode child = children.get(i);
+            Object fieldValue = null;
+            try {
+                fieldValue = getDirectChildFieldValue(context, child.getPathElement());
+            } catch (Exception e) {
+                // todo
+            }
+            if (fieldValue != null) {
+                if (child.isLeaf()) {
+                    T castValue;
+                    try {
+                        castValue = cast(child.getPathElement(), fieldValue, clazz);
+                    } catch (Exception e) {
+                        // if this field contains value that is not of the expected type, we ignore it
+                        castValue = null;
+                    }
+                    if (castValue != null) {
+                        values.add(castValue);
+                    }
+                    if (removeWhenFound) {
+                        try {
+                            removeDirectChildField(context, child.getPathElement(), child.getPathElement());
+                        } catch (Exception e) {
+                            // todo
+                        }
+                    }
+                } else {
+                    collectAllFieldValues(fieldValue, child, values, clazz, removeWhenFound);
+                }
+            }
+        }
+    }
+
+    static final class PathNode {
+        private final String pathElement;
+        private final ArrayList<PathNode> children;
+
+        PathNode(String pathElement) {
+            this.pathElement = pathElement;
+            this.children = new ArrayList<>();
+        }
+
+        public String getPathElement() {
+            return pathElement;
+        }
+
+        public ArrayList<PathNode> getChildren() {
+            return children;
+        }
+
+        public boolean isLeaf() {
+            return children.isEmpty();
+        }
+
+        public void addChild(PathNode child) {
+            children.add(child);
+        }
+    }
+
+    static final class DottedFieldPaths extends FieldPath {
+
+        private static final int MAX_SIZE = 512;
+        private static final Map<String, DottedFieldPaths> CACHE = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
+
+        // the search tree
+        private final PathNode pathSearchTree;
+
+        /**
+         * Returns the search tree for the dotted field paths. Each node in the tree represents a path element, so that the paths
+         * from the root to the leaf nodes represent all possible dotted field paths.
+         * @return the search tree for the dotted field paths
+         */
+        public PathNode getPathSearchTree() {
+            return pathSearchTree;
+        }
+
+        static DottedFieldPaths of(String path) {
+            if (Strings.isEmpty(path)) {
+                throw new IllegalArgumentException("path cannot be null nor empty");
+            }
+            DottedFieldPaths res = CACHE.get(path);
+            if (res != null) {
+                return res;
+            }
+            res = new DottedFieldPaths(path);
+            if (CACHE.size() > MAX_SIZE) {
+                CACHE.clear();
+            }
+            CACHE.put(path, res);
+            return res;
+        }
+
+        // you shouldn't call this directly, use the DottedFieldPaths.of method above instead!
+        private DottedFieldPaths(String path) {
+            super(path);
+            String trimmedPath = getTrimmedPath();
+            // if the paths ends with a dot - remove it
+            if (trimmedPath.endsWith(".")) {
+                trimmedPath = trimmedPath.substring(0, trimmedPath.length() - 1);
+            }
+            this.pathSearchTree = new PathNode("");
+            generatePathsRecursive(trimmedPath, 0, pathSearchTree);
+        }
+
+        /**
+         * The recursive algorithm to generate the search tree for the dotted field paths - each dot is either considered as a separator or
+         * as part of the element's name. This is done recursively, so that the eventual number of paths (leaf nodes) is equal to
+         * 2^(number of dots in the path).
+         *
+         * @param path       the dotted field path
+         * @param startIndex the start index from which to search the next dot
+         * @param node       the current node in the search tree
+         */
+        private void generatePathsRecursive(String path, int startIndex, PathNode node) {
+            int nextDot = path.indexOf('.', startIndex);
+            if (nextDot > 0) {
+                // Consider the next dot as a path separator and generate paths recursively for the rest of the path
+                String element = path.substring(0, nextDot);
+                PathNode child = new PathNode(element);
+                node.addChild(child);
+                generatePathsRecursive(path.substring(nextDot + 1), 0, child);
+
+                // Consider the next dot as part of the path element's name
+                generatePathsRecursive(path, nextDot + 1, node);
+            } else {
+                PathNode child = new PathNode(path);
+                node.addChild(child);
+            }
         }
     }
 }

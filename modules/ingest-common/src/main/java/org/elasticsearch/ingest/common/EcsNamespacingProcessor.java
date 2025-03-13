@@ -9,14 +9,15 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
-import java.util.Map;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.ArrayList;
+import java.util.Map;
 import java.util.Set;
 
 @SuppressWarnings("unchecked")
@@ -286,13 +287,14 @@ public final class EcsNamespacingProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public EcsNamespacingProcessor create(
-            Map<String, Processor.Factory> registry,
-            String processorTag,
+        public Processor create(
+            Map<String, Processor.Factory> processorFactories,
+            String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
-            return new EcsNamespacingProcessor(processorTag, description);
+            return new EcsNamespacingProcessor(tag, description);
         }
     }
 }

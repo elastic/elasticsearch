@@ -10,6 +10,7 @@ FROM books
 | WHERE TERM(author, "gabriel")  
 // end::term-with-field[]
 | KEEP book_no, title
+| LIMIT 3
 ;
 ignoreOrder:true
 

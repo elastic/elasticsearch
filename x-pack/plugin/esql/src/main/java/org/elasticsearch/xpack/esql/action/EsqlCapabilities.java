@@ -113,6 +113,11 @@ public class EsqlCapabilities {
         CASTING_OPERATOR,
 
         /**
+         * Support for the ::date casting operator
+         */
+        CASTING_OPERATOR_FOR_DATE,
+
+        /**
          * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
          */
         MV_ORDERING_SORTED_ASCENDING,
@@ -840,7 +845,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V4(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results

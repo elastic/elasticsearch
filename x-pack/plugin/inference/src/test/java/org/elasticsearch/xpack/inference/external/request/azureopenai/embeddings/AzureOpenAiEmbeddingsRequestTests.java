@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.inference.external.request.azureopenai.embedding
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiEmbeddingsRequest;
@@ -33,8 +35,9 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         var input = "input";
         var user = "user";
         var apiKey = randomAlphaOfLength(10);
+        var inputType = InputTypeTests.randomWithNull();
 
-        var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user);
+        var request = createRequest("resource", "deployment", "2024", apiKey, null, input, user, inputType);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -49,17 +52,21 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(apiKey));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.size(), equalTo(2));
+        assertThat(requestMap.size(), equalTo(InputType.isSpecified(inputType) ? 3 : 2));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("user"), is(user));
+        if (InputType.isSpecified(inputType)) {
+            assertThat(requestMap.get("input_type"), is(inputType.toString()));
+        }
     }
 
     public void testCreateRequest_WithEntraIdDefined() throws IOException {
         var input = "input";
         var user = "user";
         var entraId = randomAlphaOfLength(10);
+        var inputType = InputTypeTests.randomWithNull();
 
-        var request = createRequest("resource", "deployment", "2024", null, entraId, input, user);
+        var request = createRequest("resource", "deployment", "2024", null, entraId, input, user, inputType);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -74,13 +81,16 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + entraId));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.size(), equalTo(2));
+        assertThat(requestMap.size(), equalTo(inputType != null ? 3 : 2));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("user"), is(user));
+        if (inputType != null) {
+            assertThat(requestMap.get("input_type"), is(inputType.toString()));
+        }
     }
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
-        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null);
+        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null, null);
         var truncatedRequest = request.truncate();
 
         var httpRequest = truncatedRequest.createHttpRequest();
@@ -93,7 +103,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testIsTruncated_ReturnsTrue() {
-        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null);
+        var request = createRequest("resource", "deployment", "apiVersion", "apikey", null, "abcd", null, null);
         assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
@@ -107,7 +117,8 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         @Nullable String apiKey,
         @Nullable String entraId,
         String input,
-        @Nullable String user
+        @Nullable String user,
+        InputType inputType
     ) {
         var embeddingsModel = AzureOpenAiEmbeddingsModelTests.createModel(
             resourceName,
@@ -121,6 +132,7 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         return new AzureOpenAiEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            inputType,
             embeddingsModel
         );
     }

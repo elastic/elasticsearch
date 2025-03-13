@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaA
 
 public record JinaAIEmbeddingsRequestEntity(
     List<String> input,
+    InputType inputType,
     JinaAIEmbeddingsTaskSettings taskSettings,
     @Nullable String model,
     @Nullable JinaAIEmbeddingType embeddingType
@@ -52,7 +53,10 @@ public record JinaAIEmbeddingsRequestEntity(
             builder.field(EMBEDDING_TYPE_FIELD, embeddingType.toRequestString());
         }
 
-        if (taskSettings.getInputType() != null) {
+        // prefer the root level inputType over task settings input type
+        if (InputType.isSpecified(inputType)) {
+            builder.field(TASK_TYPE_FIELD, convertToString(inputType));
+        } else if (InputType.isSpecified(taskSettings.getInputType())) {
             builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 
@@ -61,10 +65,10 @@ public record JinaAIEmbeddingsRequestEntity(
     }
 
     // default for testing
-    static String convertToString(InputType inputType) {
+    public static String convertToString(InputType inputType) {
         return switch (inputType) {
-            case INGEST -> SEARCH_DOCUMENT;
-            case SEARCH -> SEARCH_QUERY;
+            case INGEST, INTERNAL_INGEST -> SEARCH_DOCUMENT;
+            case SEARCH, INTERNAL_SEARCH -> SEARCH_QUERY;
             case CLASSIFICATION -> CLASSIFICATION;
             case CLUSTERING -> CLUSTERING;
             default -> {

@@ -13,9 +13,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -44,6 +45,7 @@ public class AmazonBedrockMockRequestSender implements Sender {
 
     private Queue<Object> results = new ConcurrentLinkedQueue<>();
     private Queue<List<String>> inputs = new ConcurrentLinkedQueue<>();
+    private Queue<InputType> inputTypes = new ConcurrentLinkedQueue<>();
     private int sendCounter = 0;
 
     public void enqueue(Object result) {
@@ -56,6 +58,10 @@ public class AmazonBedrockMockRequestSender implements Sender {
 
     public List<String> getInputs() {
         return inputs.remove();
+    }
+
+    public InputType getInputType() {
+        return inputTypes.remove();
     }
 
     @Override
@@ -76,8 +82,11 @@ public class AmazonBedrockMockRequestSender implements Sender {
         ActionListener<InferenceServiceResults> listener
     ) {
         sendCounter++;
-        if (inferenceInputs instanceof DocumentsOnlyInput docsInput) {
+        if (inferenceInputs instanceof EmbeddingsInput docsInput) {
             inputs.add(docsInput.getInputs());
+            if (docsInput.getInputType() != null) {
+                inputTypes.add(docsInput.getInputType());
+            }
         } else if (inferenceInputs instanceof ChatCompletionInput chatCompletionInput) {
             inputs.add(chatCompletionInput.getInputs());
         } else {

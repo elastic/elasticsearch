@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -49,8 +50,11 @@ public class VoyageAIEmbeddingsRequestManager extends VoyageAIRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
-        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(docsInput, model);
+        EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
+        List<String> docsInput = input.getInputs();
+        InputType inputType = input.getInputType();
+
+        VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(docsInput, inputType, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

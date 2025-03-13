@@ -11,8 +11,10 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioEmbeddingsRequest;
@@ -23,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioEmbeddingsRequestEntity.convertToString;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
@@ -34,8 +37,9 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var model = "model";
         var apiKey = "api_key";
         var input = "input";
+        var inputType = InputTypeTests.randomWithNull();
 
-        var request = createRequest(model, apiKey, input, null, null);
+        var request = createRequest(model, apiKey, input, null, null, inputType);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -46,14 +50,40 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(1));
-        assertThat(
-            requestMap.get("requests"),
-            is(
-                List.of(
-                    Map.of("model", Strings.format("%s/%s", "models", model), "content", Map.of("parts", List.of(Map.of("text", input))))
+
+        if (InputType.isSpecified(inputType)) {
+            var convertedInputType = convertToString(inputType);
+            assertThat(
+                requestMap.get("requests"),
+                is(
+                    List.of(
+                        Map.of(
+                            "model",
+                            Strings.format("%s/%s", "models", model),
+                            "content",
+                            Map.of("parts", List.of(Map.of("text", input))),
+                            "taskType",
+                            convertedInputType
+                        )
+                    )
                 )
-            )
-        );
+            );
+        } else {
+            assertThat(
+                requestMap.get("requests"),
+                is(
+                    List.of(
+                        Map.of(
+                            "model",
+                            Strings.format("%s/%s", "models", model),
+                            "content",
+                            Map.of("parts", List.of(Map.of("text", input)))
+                        )
+                    )
+                )
+            );
+        }
+
     }
 
     public void testCreateRequest_WithDimensionsSet() throws IOException {
@@ -61,8 +91,9 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var apiKey = "api_key";
         var input = "input";
         var dimensions = 8;
+        var inputType = InputTypeTests.randomWithNull();
 
-        var request = createRequest(model, apiKey, input, null, dimensions);
+        var request = createRequest(model, apiKey, input, null, dimensions, inputType);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -73,21 +104,43 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(1));
-        assertThat(
-            requestMap.get("requests"),
-            is(
-                List.of(
-                    Map.of(
-                        "model",
-                        Strings.format("%s/%s", "models", model),
-                        "content",
-                        Map.of("parts", List.of(Map.of("text", input))),
-                        "outputDimensionality",
-                        dimensions
+        if (InputType.isSpecified(inputType)) {
+            var convertedInputType = convertToString(inputType);
+            assertThat(
+                requestMap.get("requests"),
+                is(
+                    List.of(
+                        Map.of(
+                            "model",
+                            Strings.format("%s/%s", "models", model),
+                            "content",
+                            Map.of("parts", List.of(Map.of("text", input))),
+                            "outputDimensionality",
+                            dimensions,
+                            "taskType",
+                            convertedInputType
+                        )
                     )
                 )
-            )
-        );
+            );
+        } else {
+            assertThat(
+                requestMap.get("requests"),
+                is(
+                    List.of(
+                        Map.of(
+                            "model",
+                            Strings.format("%s/%s", "models", model),
+                            "content",
+                            Map.of("parts", List.of(Map.of("text", input))),
+                            "outputDimensionality",
+                            dimensions
+                        )
+                    )
+                )
+            );
+        }
+
     }
 
     public void testTruncate_ReducesInputTextSizeByHalf() throws IOException {
@@ -95,8 +148,9 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         var apiKey = "api_key";
         var input = "abcd";
         var dimensions = 8;
+        var inputType = InputTypeTests.randomWithNull();
 
-        var request = createRequest(model, apiKey, input, null, dimensions);
+        var request = createRequest(model, apiKey, input, null, dimensions, inputType);
         var truncatedRequest = request.truncate();
         var httpRequest = truncatedRequest.createHttpRequest();
 
@@ -108,26 +162,49 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(1));
-        assertThat(
-            requestMap.get("requests"),
-            is(
-                List.of(
-                    Map.of(
-                        "model",
-                        Strings.format("%s/%s", "models", model),
-                        "content",
-                        // "abcd" reduced by half -> "ab"
-                        Map.of("parts", List.of(Map.of("text", "ab"))),
-                        "outputDimensionality",
-                        dimensions
+
+        if (InputType.isSpecified(inputType)) {
+            var convertedInputType = convertToString(inputType);
+            assertThat(
+                requestMap.get("requests"),
+                is(
+                    List.of(
+                        Map.of(
+                            "model",
+                            Strings.format("%s/%s", "models", model),
+                            "content",
+                            // "abcd" reduced by half -> "ab"
+                            Map.of("parts", List.of(Map.of("text", "ab"))),
+                            "outputDimensionality",
+                            dimensions,
+                            "taskType",
+                            convertedInputType
+                        )
                     )
                 )
-            )
-        );
+            );
+        } else {
+            assertThat(
+                requestMap.get("requests"),
+                is(
+                    List.of(
+                        Map.of(
+                            "model",
+                            Strings.format("%s/%s", "models", model),
+                            "content",
+                            // "abcd" reduced by half -> "ab"
+                            Map.of("parts", List.of(Map.of("text", "ab"))),
+                            "outputDimensionality",
+                            dimensions
+                        )
+                    )
+                )
+            );
+        }
     }
 
     public void testIsTruncated_ReturnsTrue() {
-        var request = createRequest("model", "api key", "input", null, null);
+        var request = createRequest("model", "api key", "input", null, null, null);
         assertFalse(request.getTruncationInfo()[0]);
 
         var truncatedRequest = request.truncate();
@@ -139,13 +216,15 @@ public class GoogleAiStudioEmbeddingsRequestTests extends ESTestCase {
         String apiKey,
         String input,
         @Nullable Integer maxTokens,
-        @Nullable Integer dimensions
+        @Nullable Integer dimensions,
+        @Nullable InputType inputType
     ) {
         var embeddingsModel = GoogleAiStudioEmbeddingsModelTests.createModel(model, apiKey, maxTokens, dimensions);
 
         return new GoogleAiStudioEmbeddingsRequest(
             TruncatorTests.createTruncator(),
             new Truncator.TruncationResult(List.of(input), new boolean[] { false }),
+            inputType,
             embeddingsModel
         );
     }

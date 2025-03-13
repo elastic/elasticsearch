@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.jinaai;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.JinaAIEmbeddingsRequestManager;
@@ -35,8 +34,8 @@ public class JinaAIActionCreator implements JinaAIActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
-        var overriddenModel = JinaAIEmbeddingsModel.of(model, taskSettings, inputType);
+    public ExecutableAction create(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = JinaAIEmbeddingsModel.of(model, taskSettings);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("JinaAI embeddings");
         var requestCreator = JinaAIEmbeddingsRequestManager.of(overriddenModel, serviceComponents.threadPool());
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);

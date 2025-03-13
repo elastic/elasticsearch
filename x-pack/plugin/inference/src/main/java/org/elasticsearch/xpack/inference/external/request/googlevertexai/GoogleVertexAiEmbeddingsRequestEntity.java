@@ -18,9 +18,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.invalidInputTypeMessage;
 
-public record GoogleVertexAiEmbeddingsRequestEntity(List<String> inputs, GoogleVertexAiEmbeddingsTaskSettings taskSettings)
-    implements
-        ToXContentObject {
+public record GoogleVertexAiEmbeddingsRequestEntity(
+    List<String> inputs,
+    InputType inputType,
+    GoogleVertexAiEmbeddingsTaskSettings taskSettings
+) implements ToXContentObject {
 
     private static final String INSTANCES_FIELD = "instances";
     private static final String CONTENT_FIELD = "content";
@@ -48,7 +50,10 @@ public record GoogleVertexAiEmbeddingsRequestEntity(List<String> inputs, GoogleV
             {
                 builder.field(CONTENT_FIELD, input);
 
-                if (taskSettings.getInputType() != null) {
+                // prefer the root level inputType over task settings input type
+                if (InputType.isSpecified(inputType)) {
+                    builder.field(TASK_TYPE_FIELD, convertToString(inputType));
+                } else if (InputType.isSpecified(taskSettings.getInputType())) {
                     builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));
                 }
             }
@@ -69,10 +74,10 @@ public record GoogleVertexAiEmbeddingsRequestEntity(List<String> inputs, GoogleV
         return builder;
     }
 
-    static String convertToString(InputType inputType) {
+    public static String convertToString(InputType inputType) {
         return switch (inputType) {
-            case INGEST -> RETRIEVAL_DOCUMENT_TASK_TYPE;
-            case SEARCH -> RETRIEVAL_QUERY_TASK_TYPE;
+            case INGEST, INTERNAL_INGEST -> RETRIEVAL_DOCUMENT_TASK_TYPE;
+            case SEARCH, INTERNAL_SEARCH -> RETRIEVAL_QUERY_TASK_TYPE;
             case CLASSIFICATION -> CLASSIFICATION_TASK_TYPE;
             case CLUSTERING -> CLUSTERING_TASK_TYPE;
             default -> {

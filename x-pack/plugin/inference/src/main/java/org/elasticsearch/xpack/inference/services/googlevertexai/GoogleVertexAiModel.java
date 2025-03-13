@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -50,7 +49,7 @@ public abstract class GoogleVertexAiModel extends Model {
         rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
-    public abstract ExecutableAction accept(GoogleVertexAiActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(GoogleVertexAiActionVisitor creator, Map<String, Object> taskSettings);
 
     public GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;

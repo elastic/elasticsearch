@@ -174,6 +174,76 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertThat(queryEmptyError.getMessage(), is("Validation Failed: 1: Field [query] cannot be empty for task type [rerank];"));
     }
 
+    public void testValidation_Rerank_WithInputType() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.RERANK,
+            "model",
+            "query",
+            List.of("input"),
+            null,
+            InputType.SEARCH,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = request.validate();
+        assertNotNull(queryError);
+        assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [input_type] cannot be specified for task type [rerank];"));
+    }
+
+    public void testValidation_SparseEmbedding_WithInputType() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.SPARSE_EMBEDDING,
+            "model",
+            "",
+            List.of("input"),
+            null,
+            InputType.SEARCH,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(
+            queryError.getMessage(),
+            is("Validation Failed: 1: Field [input_type] cannot be specified for task type [sparse_embedding];")
+        );
+    }
+
+    public void testValidation_Completion_WithInputType() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.COMPLETION,
+            "model",
+            "",
+            List.of("input"),
+            null,
+            InputType.SEARCH,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [input_type] cannot be specified for task type [completion];"));
+    }
+
+    public void testValidation_ChatCompletion_WithInputType() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.CHAT_COMPLETION,
+            "model",
+            "",
+            List.of("input"),
+            null,
+            InputType.SEARCH,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(
+            queryError.getMessage(),
+            is("Validation Failed: 1: Field [input_type] cannot be specified for task type [chat_completion];")
+        );
+    }
+
     public void testParseRequest_DefaultsInputTypeToIngest() throws IOException {
         String singleInputRequest = """
             {

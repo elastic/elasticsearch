@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.voyageai;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.voyageai.VoyageAIAccount;
@@ -26,16 +27,18 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
     private final VoyageAIAccount account;
     private final List<String> input;
+    private final InputType inputType;
     private final VoyageAIEmbeddingsServiceSettings serviceSettings;
     private final VoyageAIEmbeddingsTaskSettings taskSettings;
     private final String model;
     private final String inferenceEntityId;
 
-    public VoyageAIEmbeddingsRequest(List<String> input, VoyageAIEmbeddingsModel embeddingsModel) {
+    public VoyageAIEmbeddingsRequest(List<String> input, InputType inputType, VoyageAIEmbeddingsModel embeddingsModel) {
         Objects.requireNonNull(embeddingsModel);
 
         account = VoyageAIAccount.of(embeddingsModel);
         this.input = Objects.requireNonNull(input);
+        this.inputType = inputType;
         serviceSettings = embeddingsModel.getServiceSettings();
         taskSettings = embeddingsModel.getTaskSettings();
         model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
@@ -47,7 +50,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new VoyageAIEmbeddingsRequestEntity(input, serviceSettings, taskSettings, model))
+            Strings.toString(new VoyageAIEmbeddingsRequestEntity(input, inputType, serviceSettings, taskSettings, model))
                 .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);

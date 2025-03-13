@@ -41,8 +41,6 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
 
     private final TraceContext traceContext;
 
-    private final InputType inputType;
-
     private static ResponseHandler createSparseEmbeddingsHandler() {
         return new ElasticInferenceServiceResponseHandler(
             String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
@@ -53,14 +51,12 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
     public ElasticInferenceServiceSparseEmbeddingsRequestManager(
         ElasticInferenceServiceSparseEmbeddingsModel model,
         ServiceComponents serviceComponents,
-        TraceContext traceContext,
-        InputType inputType
+        TraceContext traceContext
     ) {
         super(serviceComponents.threadPool(), model);
         this.model = model;
         this.truncator = serviceComponents.truncator();
         this.traceContext = traceContext;
-        this.inputType = inputType;
     }
 
     @Override
@@ -70,7 +66,10 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
+        List<String> docsInput = input.getInputs();
+        InputType inputType = input.getInputType();
+
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
 
         ElasticInferenceServiceSparseEmbeddingsRequest request = new ElasticInferenceServiceSparseEmbeddingsRequest(

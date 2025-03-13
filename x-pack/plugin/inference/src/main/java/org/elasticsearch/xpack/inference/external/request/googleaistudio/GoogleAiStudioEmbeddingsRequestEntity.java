@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.request.googleaistudio;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -16,8 +17,9 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.invalidInputTypeMessage;
 
-public record GoogleAiStudioEmbeddingsRequestEntity(List<String> inputs, String model, @Nullable Integer dimensions)
+public record GoogleAiStudioEmbeddingsRequestEntity(List<String> inputs, InputType inputType, String model, @Nullable Integer dimensions)
     implements
         ToXContentObject {
 
@@ -28,6 +30,12 @@ public record GoogleAiStudioEmbeddingsRequestEntity(List<String> inputs, String 
     private static final String CONTENT_FIELD = "content";
     private static final String PARTS_FIELD = "parts";
     private static final String TEXT_FIELD = "text";
+
+    public static final String TASK_TYPE_FIELD = "taskType";
+    private static final String CLASSIFICATION_TASK_TYPE = "CLASSIFICATION";
+    private static final String CLUSTERING_TASK_TYPE = "CLUSTERING";
+    private static final String RETRIEVAL_DOCUMENT_TASK_TYPE = "RETRIEVAL_DOCUMENT";
+    private static final String RETRIEVAL_QUERY_TASK_TYPE = "RETRIEVAL_QUERY";
 
     private static final String OUTPUT_DIMENSIONALITY_FIELD = "outputDimensionality";
 
@@ -67,12 +75,31 @@ public record GoogleAiStudioEmbeddingsRequestEntity(List<String> inputs, String 
                 builder.field(OUTPUT_DIMENSIONALITY_FIELD, dimensions);
             }
 
+            if (InputType.isSpecified(inputType)) {
+                builder.field(TASK_TYPE_FIELD, convertToString(inputType));
+            }
+
             builder.endObject();
         }
 
         builder.endArray();
+
         builder.endObject();
 
         return builder;
+    }
+
+    // default for testing
+    public static String convertToString(InputType inputType) {
+        return switch (inputType) {
+            case INGEST, INTERNAL_INGEST -> RETRIEVAL_DOCUMENT_TASK_TYPE;
+            case SEARCH, INTERNAL_SEARCH -> RETRIEVAL_QUERY_TASK_TYPE;
+            case CLASSIFICATION -> CLASSIFICATION_TASK_TYPE;
+            case CLUSTERING -> CLUSTERING_TASK_TYPE;
+            default -> {
+                assert false : invalidInputTypeMessage(inputType);
+                yield null;
+            }
+        };
     }
 }

@@ -25,6 +25,7 @@ public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.SEARCH,
             new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.INGEST)
         );
 
@@ -33,11 +34,15 @@ public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"input_type":"document"}"""));
+            {"input":["abc"],"input_type":"query"}"""));
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
-        var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(List.of("abc"), AlibabaCloudSearchEmbeddingsTaskSettings.EMPTY_SETTINGS);
+        var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(
+            List.of("abc"),
+            null,
+            AlibabaCloudSearchEmbeddingsTaskSettings.EMPTY_SETTINGS
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -47,11 +52,18 @@ public class AlibabaCloudSearchEmbeddingsRequestEntityTests extends ESTestCase {
             {"input":["abc"]}"""));
     }
 
-    public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
-        var thrownException = expectThrows(
-            AssertionError.class,
-            () -> AlibabaCloudSearchEmbeddingsRequestEntity.convertToString(InputType.UNSPECIFIED)
+    public void testXContent_InputType_Internal() throws IOException {
+        var entity = new AlibabaCloudSearchEmbeddingsRequestEntity(
+            List.of("abc"),
+            InputType.INTERNAL_INGEST,
+            new AlibabaCloudSearchEmbeddingsTaskSettings(InputType.INTERNAL_INGEST)
         );
-        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"input_type":"document"}"""));
     }
 }

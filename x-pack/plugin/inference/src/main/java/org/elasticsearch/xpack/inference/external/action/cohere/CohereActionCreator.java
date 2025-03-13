@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.cohere;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
@@ -40,8 +39,8 @@ public class CohereActionCreator implements CohereActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
-        var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings, inputType);
+    public ExecutableAction create(CohereEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = CohereEmbeddingsModel.of(model, taskSettings);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Cohere embeddings");
         // TODO - Batching pass the batching class on to the CohereEmbeddingsRequestManager
         var requestCreator = CohereEmbeddingsRequestManager.of(overriddenModel, serviceComponents.threadPool());

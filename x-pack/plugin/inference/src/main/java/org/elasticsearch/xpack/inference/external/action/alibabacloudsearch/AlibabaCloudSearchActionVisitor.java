@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.alibabacloudsearch;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
@@ -17,9 +16,9 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.Alib
 import java.util.Map;
 
 public interface AlibabaCloudSearchActionVisitor {
-    ExecutableAction create(AlibabaCloudSearchEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType);
+    ExecutableAction create(AlibabaCloudSearchEmbeddingsModel model, Map<String, Object> taskSettings);
 
-    ExecutableAction create(AlibabaCloudSearchSparseModel model, Map<String, Object> taskSettings, InputType inputType);
+    ExecutableAction create(AlibabaCloudSearchSparseModel model, Map<String, Object> taskSettings);
 
     ExecutableAction create(AlibabaCloudSearchRerankModel model, Map<String, Object> taskSettings);
 

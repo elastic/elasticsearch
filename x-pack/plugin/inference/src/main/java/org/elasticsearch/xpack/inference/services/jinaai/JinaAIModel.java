@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.jinaai;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -62,7 +61,7 @@ public abstract class JinaAIModel extends Model {
         return rateLimitServiceSettings;
     }
 
-    public abstract ExecutableAction accept(JinaAIActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(JinaAIActionVisitor creator, Map<String, Object> taskSettings);
 
     public abstract URI uri();
 }

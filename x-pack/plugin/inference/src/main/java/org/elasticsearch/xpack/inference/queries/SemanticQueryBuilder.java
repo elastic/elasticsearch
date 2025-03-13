@@ -234,7 +234,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 null,
                 List.of(query),
                 Map.of(),
-                InputType.SEARCH,
+                InputType.INTERNAL_SEARCH,
                 InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API,
                 false
             );

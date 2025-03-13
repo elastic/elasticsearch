@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.alibabacloudsearch;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -32,15 +31,15 @@ public class AlibabaCloudSearchActionCreator implements AlibabaCloudSearchAction
     }
 
     @Override
-    public ExecutableAction create(AlibabaCloudSearchEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
-        var overriddenModel = AlibabaCloudSearchEmbeddingsModel.of(model, taskSettings, inputType);
+    public ExecutableAction create(AlibabaCloudSearchEmbeddingsModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = AlibabaCloudSearchEmbeddingsModel.of(model, taskSettings);
 
         return new AlibabaCloudSearchEmbeddingsAction(sender, overriddenModel, serviceComponents);
     }
 
     @Override
-    public ExecutableAction create(AlibabaCloudSearchSparseModel model, Map<String, Object> taskSettings, InputType inputType) {
-        var overriddenModel = AlibabaCloudSearchSparseModel.of(model, taskSettings, inputType);
+    public ExecutableAction create(AlibabaCloudSearchSparseModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = AlibabaCloudSearchSparseModel.of(model, taskSettings);
 
         return new AlibabaCloudSearchSparseAction(sender, overriddenModel, serviceComponents);
     }

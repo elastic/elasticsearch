@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -45,7 +44,7 @@ public abstract class IbmWatsonxModel extends Model {
         rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
-    public abstract ExecutableAction accept(IbmWatsonxActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(IbmWatsonxActionVisitor creator, Map<String, Object> taskSettings);
 
     public IbmWatsonxRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;

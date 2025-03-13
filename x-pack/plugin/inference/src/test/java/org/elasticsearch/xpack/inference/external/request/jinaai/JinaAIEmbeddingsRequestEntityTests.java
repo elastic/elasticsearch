@@ -26,6 +26,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.INTERNAL_INGEST,
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
             "model",
             JinaAIEmbeddingType.FLOAT
@@ -42,6 +43,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            null,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
             JinaAIEmbeddingType.FLOAT
@@ -58,6 +60,7 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_EmbeddingTypesBit() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.CLUSTERING,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
             JinaAIEmbeddingType.BIT
@@ -68,12 +71,13 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"binary"}"""));
+            {"input":["abc"],"model":"model","embedding_type":"binary","task":"separation"}"""));
     }
 
     public void testXContent_EmbeddingTypesBinary() throws IOException {
         var entity = new JinaAIEmbeddingsRequestEntity(
             List.of("abc"),
+            InputType.SEARCH,
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "model",
             JinaAIEmbeddingType.BINARY
@@ -84,14 +88,6 @@ public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","embedding_type":"binary"}"""));
-    }
-
-    public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {
-        var thrownException = expectThrows(
-            AssertionError.class,
-            () -> JinaAIEmbeddingsRequestEntity.convertToString(InputType.UNSPECIFIED)
-        );
-        MatcherAssert.assertThat(thrownException.getMessage(), is("received invalid input type value [unspecified]"));
+            {"input":["abc"],"model":"model","embedding_type":"binary","task":"retrieval.query"}"""));
     }
 }

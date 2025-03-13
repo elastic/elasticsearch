@@ -10,11 +10,9 @@
 package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -126,10 +124,8 @@ public final class PemKeyConfig implements SslKeyConfig {
                 throw new SslConfigException("could not load ssl private key file [" + path + "]");
             }
             return privateKey;
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
-        } catch (NotEntitledException e) {
-            throw SslFileUtil.notEntitledFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(KEY_FILE_TYPE, List.of(path), e);
         } catch (GeneralSecurityException e) {
@@ -140,7 +136,7 @@ public final class PemKeyConfig implements SslKeyConfig {
     private List<Certificate> getCertificates(Path path) {
         try {
             return PemUtils.readCertificates(Collections.singleton(path));
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(CERT_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(CERT_FILE_TYPE, List.of(path), e);

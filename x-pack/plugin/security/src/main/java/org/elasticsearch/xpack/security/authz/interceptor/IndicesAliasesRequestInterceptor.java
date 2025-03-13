@@ -125,7 +125,7 @@ public final class IndicesAliasesRequestInterceptor implements RequestIntercepto
             );
             return listener;
         } else {
-            return SubscribableListener.newSucceeded(null);
+            return SubscribableListener.nullSuccess();
         }
     }
 }

@@ -14,12 +14,12 @@ The `pattern_replace` filter uses [Java’s regular expression syntax](https://d
 ::::{warning}
 A poorly-written regular expression may run slowly or return a StackOverflowError, causing the node running the expression to exit suddenly.
 
-Read more about [pathological regular expressions and how to avoid them](https://www.regular-expressions.info/catastrophic.md).
+Read more about [pathological regular expressions and how to avoid them](https://www.regular-expressions.info/catastrophic.html).
 
 ::::
 
 
-This filter uses Lucene’s [PatternReplaceFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/pattern/PatternReplaceFilter.md).
+This filter uses Lucene’s [PatternReplaceFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/pattern/PatternReplaceFilter.html).
 
 ## Example [analysis-pattern-replace-tokenfilter-analyze-ex]
 

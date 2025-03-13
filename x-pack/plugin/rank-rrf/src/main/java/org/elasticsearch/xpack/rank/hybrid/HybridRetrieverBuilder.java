@@ -89,6 +89,11 @@ public class HybridRetrieverBuilder extends RetrieverBuilderWrapper<HybridRetrie
                 QuerySettings.class,
                 new ParseField(MatchQuerySettings.QUERY_TYPE.getQueryName()),
                 MatchQuerySettings::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                QuerySettings.class,
+                new ParseField(MatchPhraseQuerySettings.QUERY_TYPE.getQueryName()),
+                MatchPhraseQuerySettings::fromXContent
             )
         );
 

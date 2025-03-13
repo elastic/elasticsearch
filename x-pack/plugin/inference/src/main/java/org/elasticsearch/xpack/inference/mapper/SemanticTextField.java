@@ -137,7 +137,7 @@ public record SemanticTextField(
                 map,
                 XContentType.JSON
             );
-            return ChunkingSettingsBuilder.fromMap(map);
+            return ChunkingSettingsBuilder.fromMap(map, false);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
         }
@@ -250,7 +250,7 @@ public record SemanticTextField(
         args -> {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) args[0];
-            return map != null && map.isEmpty() == false ? ChunkingSettingsBuilder.fromMap(map) : null;
+            return ChunkingSettingsBuilder.fromMap(map, false);
         }
     );
 

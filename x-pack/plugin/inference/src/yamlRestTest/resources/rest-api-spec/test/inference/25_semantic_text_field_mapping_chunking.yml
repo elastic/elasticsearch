@@ -158,6 +158,45 @@ setup:
   - match: { "custom-chunking-dense.mappings.properties.inference_field.chunking_settings.max_chunk_size": 10 }
   - match: { "custom-chunking-dense.mappings.properties.inference_field.chunking_settings.overlap": 1 }
 
+
+---
+"We do not set custom chunking settings for null or empty specified chunking settings":
+
+  - do:
+      indices.create:
+        index: null-chunking
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+                chunking_settings: null
+
+  - do:
+      indices.get_mapping:
+        index: null-chunking
+
+  - not_exists: null-chunking.mappings.properties.inference_field.chunking_settings
+
+
+  - do:
+      indices.create:
+        index: empty-chunking
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                chunking_settings: { }
+
+  - do:
+      indices.get_mapping:
+        index: empty-chunking
+
+  - not_exists: empty-chunking.mappings.properties.inference_field.chunking_settings
+
 ---
 "We return different chunks based on configured chunking overrides or model defaults for sparse embeddings":
 

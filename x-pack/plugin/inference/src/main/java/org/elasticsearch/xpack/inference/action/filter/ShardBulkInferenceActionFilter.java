@@ -488,9 +488,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         chunkMap
                     ),
                     indexRequest.getContentType(),
-                    inferenceFieldMetadata.getChunkingSettings() != null
-                        ? ChunkingSettingsBuilder.fromMap(new HashMap<>(inferenceFieldMetadata.getChunkingSettings()))
-                        : null
+                    ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings(), false)
                 );
 
                 if (useLegacyFormat) {
@@ -549,9 +547,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
-                    ChunkingSettings chunkingSettings = entry.getChunkingSettings() != null
-                        ? ChunkingSettingsBuilder.fromMap(new HashMap<>(entry.getChunkingSettings()))
-                        : null;
+                    ChunkingSettings chunkingSettings = ChunkingSettingsBuilder.fromMap(entry.getChunkingSettings(), false);
 
                     if (useLegacyFormat) {
                         var originalFieldValue = XContentMapValues.extractValue(field, docMap);

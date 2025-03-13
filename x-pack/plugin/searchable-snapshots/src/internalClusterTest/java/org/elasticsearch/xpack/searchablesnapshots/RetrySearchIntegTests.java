@@ -57,6 +57,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             equalTo(0)
         );
         refresh(indexName);
+        // force merge with expunge deletes is not merging down to one segment only
         forceMerge(false);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -125,6 +126,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             equalTo(0)
         );
         refresh(indexName);
+        // force merge with expunge deletes is not merging down to one segment only
         forceMerge(false);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

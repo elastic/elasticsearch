@@ -1153,7 +1153,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     }
 
-    static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
+    protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {
         requestObject.build();
         Request request = prepareRequest(mode);
         String mediaType = attachBody(requestObject, request);
@@ -1355,7 +1355,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return assertWarnings(performRequest(request), assertWarnings);
     }
 
-    private static Response performRequest(Request request) throws IOException {
+    protected static Response performRequest(Request request) throws IOException {
         Response response = client().performRequest(request);
         if (shouldLog()) {
             LOGGER.info("RESPONSE={}", response);

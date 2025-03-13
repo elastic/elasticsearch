@@ -122,7 +122,7 @@ public class AzureAiStudioService extends SenderService {
         if (model instanceof AzureAiStudioModel baseAzureAiStudioModel) {
             var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());
 
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 inputs.getInputs(),
                 EMBEDDING_MAX_BATCH_SIZE,
                 chunkingSettings != null ? chunkingSettings : baseAzureAiStudioModel.getConfigurations().getChunkingSettings()

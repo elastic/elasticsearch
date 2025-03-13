@@ -9,12 +9,9 @@ package org.elasticsearch.xpack.inference.external.request.voyageai;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.external.voyageai.VoyageAIAccount;
-
-import java.net.URI;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
 
 import static org.hamcrest.Matchers.is;
 
@@ -22,14 +19,12 @@ public class VoyageAIRequestTests extends ESTestCase {
 
     public void testDecorateWithHeaders() {
         var request = new HttpPost("http://www.abc.com");
+        var model = VoyageAIEmbeddingsModelTests.createModel("abc", "key", null, "model_id");
 
-        VoyageAIRequest.decorateWithHeaders(
-            request,
-            new VoyageAIAccount(URI.create("http://www.abc.com"), new SecureString(new char[] { 'a', 'b', 'c' }))
-        );
+        VoyageAIRequest.decorateWithHeaders(request, model);
 
         assertThat(request.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
-        assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer abc"));
+        assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer key"));
         assertThat(request.getFirstHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER).getValue(), is(VoyageAIUtils.ELASTIC_REQUEST_SOURCE));
     }
 

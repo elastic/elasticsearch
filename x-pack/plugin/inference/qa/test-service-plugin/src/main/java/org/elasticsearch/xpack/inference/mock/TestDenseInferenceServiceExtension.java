@@ -36,6 +36,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
@@ -190,8 +191,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                     offset = input.indexOf(c, offset);
                     int endOffset = offset + c.length();
                     chunks.add(
-                        new TextEmbeddingFloatResults.Chunk(
-                            makeResults(List.of(c), serviceSettings).embeddings().getFirst().values(),
+                        new EmbeddingResults.Chunk(
+                            makeResults(List.of(c), serviceSettings).embeddings().getFirst(),
                             new ChunkedInference.TextOffset(offset, endOffset)
                         )
                     );

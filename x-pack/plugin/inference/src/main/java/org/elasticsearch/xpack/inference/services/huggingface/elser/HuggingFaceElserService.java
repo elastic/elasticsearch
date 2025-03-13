@@ -27,6 +27,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
@@ -120,8 +121,8 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                 results.add(
                     new ChunkedInferenceEmbedding(
                         List.of(
-                            new TextEmbeddingFloatResults.Chunk(
-                                textEmbeddingResults.embeddings().get(i).values(),
+                            new EmbeddingResults.Chunk(
+                                textEmbeddingResults.embeddings().get(i),
                                 new ChunkedInference.TextOffset(0, inputs.getInputs().get(i).length())
                             )
                         )

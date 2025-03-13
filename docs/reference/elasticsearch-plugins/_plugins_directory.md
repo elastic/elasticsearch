@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/plugins/current/_plugins_directory.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # Plugins directory [_plugins_directory]

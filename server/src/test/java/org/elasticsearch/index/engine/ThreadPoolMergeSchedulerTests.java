@@ -432,9 +432,9 @@ public class ThreadPoolMergeSchedulerTests extends ESTestCase {
     }
 
     public void testAutoIOThrottleForMergeTasks() throws Exception {
-        // merge scheduler configured with auto IO throttle disabled
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true);
+        // merge scheduler configured with auto IO throttle enabled
         if (randomBoolean()) {
             settingsBuilder.put(MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey(), true);
         }

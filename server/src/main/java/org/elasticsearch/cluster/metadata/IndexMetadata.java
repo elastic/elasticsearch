@@ -1971,6 +1971,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         public Builder reshardAddShards(int shardCount) {
             // Assert routingNumShards is null ?
             // Assert numberOfShards > 0
+            System.out.println("routingNumShards: " + routingNumShards);
             if (shardCount % numberOfShards() != 0) {
                 throw new IllegalArgumentException(
                     "New shard count ["
@@ -1989,7 +1990,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
             primaryTerms = newPrimaryTerms;
-            routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
+            // routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
             return this;
         }
 

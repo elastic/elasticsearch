@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.UnparsedModel;
@@ -87,14 +89,13 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ActionListener<DeleteInferenceEndpointAction.Response> masterListener
     ) {
         if (modelRegistry.containsDefaultConfigId(request.getInferenceEndpointId())) {
-            masterListener.onFailure(
-                new ElasticsearchStatusException(
-                    "[{}] is a reserved inference endpoint. Cannot delete a reserved inference endpoint.",
-                    RestStatus.BAD_REQUEST,
+            HeaderWarning.addWarning(
+                Strings.format(
+                    "Inference id: %s is a reserved inference endpoint. "
+                        + "Deleting reserved inference endpoints may be disabled in the future.",
                     request.getInferenceEndpointId()
                 )
             );
-            return;
         }
 
         SubscribableListener.<UnparsedModel>newForked(modelConfigListener -> {

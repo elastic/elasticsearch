@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
+
 /**
  * An {@link RetrieverBuilder} that is used to retrieve documents based on the rank of the documents.
  */
@@ -94,7 +96,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             rankDocs.get(),
             sources.stream().map(RetrieverBuilder::explainQuery).toArray(QueryBuilder[]::new),
             true,
-            Float.MIN_VALUE
+            DEFAULT_MIN_SCORE
         );
         explainQuery.queryName(retrieverName());
         return explainQuery;
@@ -115,18 +117,18 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
                     rankDocResults,
                     sources.stream().map(RetrieverBuilder::topDocsQuery).toArray(QueryBuilder[]::new),
                     false,
-                    Float.MIN_VALUE
+                    DEFAULT_MIN_SCORE
                 );
             } else {
                 rankQuery = new RankDocsQueryBuilder(
                     rankDocResults,
                     sources.stream().map(RetrieverBuilder::explainQuery).toArray(QueryBuilder[]::new),
                     false,
-                    Float.MIN_VALUE
+                    DEFAULT_MIN_SCORE
                 );
             }
         } else {
-            rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false, Float.MIN_VALUE);
+            rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false, DEFAULT_MIN_SCORE);
         }
         rankQuery.queryName(retrieverName());
         // ignore prefilters of this level, they were already propagated to children
@@ -135,7 +137,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
             searchSourceBuilder.size(rankWindowSize);
         }
         if (sourceHasMinScore()) {
-            searchSourceBuilder.minScore(this.minScore() == null ? Float.MIN_VALUE : this.minScore());
+            searchSourceBuilder.minScore(this.minScore() == null ? DEFAULT_MIN_SCORE : this.minScore());
         }
         if (searchSourceBuilder.size() + searchSourceBuilder.from() > rankDocResults.length) {
             searchSourceBuilder.size(Math.max(0, rankDocResults.length - searchSourceBuilder.from()));

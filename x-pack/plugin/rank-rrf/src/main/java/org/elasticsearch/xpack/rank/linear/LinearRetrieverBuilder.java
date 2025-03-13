@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.rank.linear;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -83,7 +84,14 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
     static {
         PARSER.declareObjectArray(constructorArg(), LinearRetrieverComponent::fromXContent, RETRIEVERS_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        RetrieverBuilder.declareBaseParserFields(PARSER);
+        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
+
+        PARSER.declareObjectArray(
+            (r, v) -> r.preFilterQueryBuilders = new ArrayList<QueryBuilder>(v),
+            (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
+            RetrieverBuilder.PRE_FILTER_FIELD
+        );
+        PARSER.declareString(RetrieverBuilder::retrieverName, RetrieverBuilder.NAME_FIELD);
     }
 
     private static float[] getDefaultWeight(int size) {
@@ -178,14 +186,16 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 if (isExplain) {
                     rankDoc.normalizedScores[result] = normalizedScoreDocs[scoreDocIndex].score;
                 }
-                final float docScore = false == Float.isNaN(normalizedScoreDocs[scoreDocIndex].score)
-                    ? normalizedScoreDocs[scoreDocIndex].score
-                    : DEFAULT_SCORE;
+                final boolean isValidScore = false == Float.isNaN(normalizedScoreDocs[scoreDocIndex].score);
+                final float docScore = isValidScore ? normalizedScoreDocs[scoreDocIndex].score : DEFAULT_SCORE;
                 final float weight = Float.isNaN(weights[result]) ? DEFAULT_WEIGHT : weights[result];
                 rankDoc.score += weight * docScore;
+
+                if (isValidScore) {
+                    rankDoc.hasValidScore = true;
+                }
             }
         }
-        // sort the results based on the final score, tiebreaker based on smaller doc id
         LinearRankDoc[] sortedResults = docsToRankResults.values().toArray(LinearRankDoc[]::new);
         Arrays.sort(sortedResults);
         List<LinearRankDoc> filteredResults = new ArrayList<>();
@@ -194,7 +204,19 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
                 filteredResults.add(doc);
             }
         }
-        return filteredResults.toArray(LinearRankDoc[]::new);
+
+        if (filteredResults.isEmpty() && minScore > DEFAULT_MIN_SCORE) {
+            return new LinearRankDoc[0];
+        }
+
+        int resultSize = Math.min(rankWindowSize, filteredResults.size());
+        LinearRankDoc[] trimmedResults = new LinearRankDoc[resultSize];
+        for (int i = 0; i < resultSize; i++) {
+            trimmedResults[i] = filteredResults.get(i);
+            trimmedResults[i].rank = i + 1;
+        }
+
+        return trimmedResults;
     }
 
     @Override
@@ -217,8 +239,6 @@ public final class LinearRetrieverBuilder extends CompoundRetrieverBuilder<Linea
             builder.endArray();
         }
         builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
-        if (minScore != DEFAULT_MIN_SCORE) {
-            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
-        }
+        builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
     }
 }

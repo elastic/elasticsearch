@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
 
+import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -52,7 +53,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
     @Override
     protected RankDocsQueryBuilder doCreateTestQueryBuilder() {
         RankDoc[] rankDocs = generateRandomRankDocs();
-        return new RankDocsQueryBuilder(rankDocs, null, false, Float.MIN_VALUE);
+        return new RankDocsQueryBuilder(rankDocs, null, false, DEFAULT_MIN_SCORE);
     }
 
     @Override
@@ -75,7 +76,8 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
         for (int i = 0; i < rankDocs.length; i++) {
             rankDocs[i] = new RankDoc(randomInt(), randomFloat(), randomIntBetween(0, 2));
         }
-        return new RankDocsQueryBuilder(rankDocs, null, randomBoolean(), Float.MIN_VALUE);
+        float minScore = randomBoolean() ? DEFAULT_MIN_SCORE : randomFloat();
+        return new RankDocsQueryBuilder(rankDocs, null, randomBoolean(), minScore);
     }
 
     /**
@@ -170,7 +172,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
                         false,
-                        Float.MIN_VALUE
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, totalHitsThreshold);
                     var col = searcher.search(q, topDocsManager);
@@ -192,7 +194,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
                         false,
-                        Float.MIN_VALUE
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
@@ -208,7 +210,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
                         true,
-                        Float.MIN_VALUE
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(topSize, null, Integer.MAX_VALUE);
                     var col = searcher.search(q, topDocsManager);
@@ -226,7 +228,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                         new Query[] { NumericDocValuesField.newSlowExactQuery("active", 1) },
                         new String[1],
                         false,
-                        Float.MIN_VALUE
+                        DEFAULT_MIN_SCORE
                     );
                     var topDocsManager = new TopScoreDocCollectorManager(1, null, 0);
                     var col = searcher.search(q, topDocsManager);
@@ -283,7 +285,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                     new RankDoc[] { new RankDoc(0, -1.0f, 0) },
                     null,
                     false,
-                    Float.MIN_VALUE
+                    DEFAULT_MIN_SCORE
                 );
                 IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> queryBuilder.doToQuery(context));
                 assertEquals("RankDoc scores must be positive values. Missing a normalization step?", ex.getMessage());
@@ -302,7 +304,7 @@ public class RankDocsQueryBuilderTests extends AbstractQueryTestCase<RankDocsQue
                     new Query[] { new MatchAllDocsQuery() },
                     new String[] { "test" },
                     false,
-                    Float.MIN_VALUE
+                    DEFAULT_MIN_SCORE
                 );
                 assertNotNull(q);
                 assertArrayEquals(rankDocs, q.rankDocs());

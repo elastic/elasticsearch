@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractRankDocWireSerializingTestCase<T extends RankDoc> extends AbstractWireSerializingTestCase<T> {
@@ -54,7 +55,7 @@ public abstract class AbstractRankDocWireSerializingTestCase<T extends RankDoc> 
             docs.toArray((T[]) new RankDoc[0]),
             null,
             randomBoolean(),
-            Float.MIN_VALUE
+            DEFAULT_MIN_SCORE
         );
         RankDocsQueryBuilder copy = (RankDocsQueryBuilder) copyNamedWriteable(rankDocsQueryBuilder, writableRegistry(), QueryBuilder.class);
         assertThat(rankDocsQueryBuilder, equalTo(copy));

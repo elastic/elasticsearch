@@ -46,20 +46,15 @@ public class MinMaxScoreNormalizer extends ScoreNormalizer {
                 min = rd.score;
             }
         }
-        if (false == atLeastOneValidScore) {
-            for (int i = 0; i < docs.length; i++) {
-                scoreDocs[i] = new ScoreDoc(docs[i].doc, 0.0f, docs[i].shardIndex);
-            }
-            return scoreDocs;
-        }
 
-        boolean minEqualsMax = Math.abs(min - max) < EPSILON;
+        boolean minEqualsMax = atLeastOneValidScore && Math.abs(min - max) < EPSILON;
+
         for (int i = 0; i < docs.length; i++) {
             float score;
-            if (Float.isNaN(docs[i].score)) {
+            if (Float.isNaN(docs[i].score) || (atLeastOneValidScore == false)) {
                 score = 0.0f;
             } else if (minEqualsMax) {
-                score = docs[i].score; // Keep original score when all scores are equal
+                score = docs[i].score;
             } else {
                 score = (docs[i].score - min) / (max - min);
             }

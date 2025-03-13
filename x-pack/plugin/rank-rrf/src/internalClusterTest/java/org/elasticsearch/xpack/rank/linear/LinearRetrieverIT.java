@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,8 +41,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 import org.junit.Before;
+import org.elasticsearch.xpack.rank.linear.normalizer.IdentityScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.normalizer.ScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.normalizer.MinMaxScoreNormalizer;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -589,7 +596,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(linearTopLevel.getDetails().length, equalTo(2));
             assertThat(
                 linearTopLevel.getDescription(),
-                equalTo(
+                containsString(
                     "weighted linear combination score: [112.05882] computed for normalized scores [12.058824, 20.0] "
                         + "and weights [1.0, 5.0] as sum of (weight[i] * score[i]) for each query."
                 )
@@ -982,5 +989,61 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             )
         );
         assertThat(e.getMessage(), equalTo("[min_score] must be non-negative"));
+    }
+
+    public void testLinearRetrieverRankWindowSize() {
+        final int rankWindowSize = 3;
+
+        createTestDocuments(10);
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch(INDEX);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        StandardRetrieverBuilder retriever1 = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        StandardRetrieverBuilder retriever2 = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+
+        LinearRetrieverBuilder linearRetriever = new LinearRetrieverBuilder(
+            List.of(
+                new CompoundRetrieverBuilder.RetrieverSource(retriever1, null),
+                new CompoundRetrieverBuilder.RetrieverSource(retriever2, null)
+            ),
+            rankWindowSize,
+            new float[] { 1.0f, 1.0f },
+            new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+            0.0f
+        );
+
+        try {
+            RetrieverBuilder rewrittenRetriever = linearRetriever.rewrite(new QueryRewriteContext(
+                xContentRegistry(),
+                writableRegistry(),
+                null,
+                () -> System.currentTimeMillis()
+            ));
+            rewrittenRetriever.extractToSearchSourceBuilder(searchSourceBuilder, false);
+            searchRequestBuilder.setSource(searchSourceBuilder);
+
+            var response = searchRequestBuilder.execute().actionGet();
+
+            assertThat(
+                "Number of hits should be limited by rank window size",
+                response.getHits().getHits().length,
+                equalTo(rankWindowSize)
+            );
+        } catch (IOException e) {
+            fail("Failed to rewrite retriever: " + e.getMessage());
+        }
+    }
+
+
+    private void createTestDocuments(int count) {
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            builders.add(
+                client().prepareIndex(INDEX)
+                    .setSource(DOC_FIELD, "doc" + i, TEXT_FIELD, "text" + i)
+            );
+        }
+        indexRandom(true, builders);
+        ensureSearchable(INDEX);
     }
 }

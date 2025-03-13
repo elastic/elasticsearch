@@ -259,7 +259,7 @@ public record SemanticTextField(
         SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), INFERENCE_RESULT_PARSER, new ParseField(INFERENCE_FIELD));
         SEMANTIC_TEXT_FIELD_PARSER.declareObjectOrNull(
             optionalConstructorArg(),
-            (p, c) -> p.map(),
+            (p, c) -> CHUNKING_SETTINGS_PARSER.parse(p, null),
             null,
             new ParseField(CHUNKING_SETTINGS_FIELD)
         );

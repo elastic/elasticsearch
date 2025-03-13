@@ -542,7 +542,7 @@ public class MockedRequestActionBasedRerankerIT extends AbstractRerankerIT {
                     }
                 };
             else {
-                return super.buildRankFeaturePhaseShardContext();
+                return super.buildRankFeaturePhaseShardContext(searchContext);
             }
         }
 

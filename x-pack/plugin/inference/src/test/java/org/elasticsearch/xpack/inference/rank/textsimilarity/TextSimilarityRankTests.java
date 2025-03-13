@@ -262,6 +262,18 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         assertThat(ex.getDetailedMessage(), containsString("Reranker input document count and returned score count mismatch"));
     }
 
+    public void testRerankInputSizeAndInferenceResultsFieldMissing() {
+        SearchPhaseExecutionException ex = expectThrows(
+            SearchPhaseExecutionException.class,
+            // Execute search with text similarity reranking
+            client.prepareSearch()
+                .setRankBuilder(new TextSimilarityRankBuilder("missing_field", "my-rerank-model", "my query", 100, 0.0f, false))
+                .setQuery(QueryBuilders.matchAllQuery())
+        );
+        assertThat(ex.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ex.getDetailedMessage(), containsString("field [missing_field] does not exist in mapping"));
+    }
+
     private static Matcher<SearchHit> searchHitWith(int expectedRank, float expectedScore, String expectedText) {
         return allOf(
             hasRank(expectedRank),

@@ -170,7 +170,13 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
 
         // check field in mapping
-        Mapper mapper = searchContext.indexShard().mapperService().mappingLookup().getMapper(field);
+        Mapper mapper;
+        try {
+            mapper = searchContext.indexShard().mapperService().mappingLookup().getMapper(field);
+        } catch (NullPointerException e) {
+            mapper = null;
+        }
+
         if (mapper == null) {
             throw new IllegalArgumentException("field [" + field + "] does not exist in mapping");
         }

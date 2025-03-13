@@ -164,7 +164,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
             Stream<String> result = pathLookup.settingResolver()
                 .apply(setting)
-                .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false);
+                .filter(s -> s.toLowerCase(Locale.ROOT).startsWith("https://") == false)
+                .distinct();
             return result.map(Path::of);
         }
 

@@ -642,9 +642,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             length = in.readVLong();
             recovered = in.readVLong();
             reused = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
-                recoveredFromSnapshot = in.readLong();
-            }
+            recoveredFromSnapshot = in.readLong();
         }
 
         @Override
@@ -653,9 +651,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVLong(length);
             out.writeVLong(recovered);
             out.writeBoolean(reused);
-            if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION)) {
-                out.writeLong(recoveredFromSnapshot);
-            }
+            out.writeLong(recoveredFromSnapshot);
         }
 
         void addRecoveredBytes(long bytes) {

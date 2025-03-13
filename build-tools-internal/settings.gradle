@@ -5,7 +5,7 @@ pluginManagement {
   }
 
   includeBuild "../build-conventions"
-    includeBuild "../build-tools"
+  includeBuild "../build-tools"
 }
 
 plugins {

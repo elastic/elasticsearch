@@ -1,0 +1,5 @@
+pr: 124335
+summary: Change the order of the optimization rules
+area: ES|QL
+type: bug
+issues: []

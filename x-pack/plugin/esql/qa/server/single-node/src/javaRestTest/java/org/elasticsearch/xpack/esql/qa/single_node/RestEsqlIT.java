@@ -54,6 +54,7 @@ import static org.elasticsearch.xpack.esql.tools.ProfileParser.parseProfile;
 import static org.elasticsearch.xpack.esql.tools.ProfileParser.readProfileFromResponse;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -370,6 +371,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
         for (int i = 0; i < cluster.getNumNodes(); i++) {
             expectedProcessNames.add(clusterName + ":" + cluster.getName(i));
         }
+        // Workaround for the missing driver fields (missing backport to 8.x).
+        expectedProcessNames.add("missing node/cluster name");
 
         int seenNodes = 0;
         int seenDrivers = 0;
@@ -419,10 +422,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertEquals(seenDrivers, driverMetadata.get("tid"));
         Map<String, Object> driverMetadataArgs = (Map<String, Object>) driverMetadata.get("args");
         String driverType = (String) driverMetadataArgs.get("name");
-        assertThat(driverType, oneOf("data", "node_reduce", "final"));
+        // Workaround for the missing driver fields (missing backport to 8.x).
+        assertThat(driverType, oneOf("data", "node_reduce", "final", "missing driver description"));
 
         assertEquals("X", driverEvent.get("ph"));
-        assertThat((String) driverEvent.get("name"), startsWith(driverType));
+        // Workaround for the missing driver fields (missing backport to 8.x).
+        assertThat((String) driverEvent.get("name"), either(startsWith(driverType)).or(equalTo("missing driver description")));
         // Category used to implicitly colour-code and group drivers
         assertEquals(driverType, driverEvent.get("cat"));
         assertTrue((int) driverEvent.get("pid") < seenNodes);

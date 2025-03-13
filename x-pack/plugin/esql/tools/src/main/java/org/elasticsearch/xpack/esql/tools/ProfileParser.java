@@ -107,7 +107,13 @@ public class ProfileParser {
         Map<String, Integer> nodeIndices = new HashMap<>();
         int driverIndex = 0;
         for (Driver driver : profile.drivers()) {
-            String nodeName = driver.clusterName() + ":" + driver.nodeName();
+            String nodeName;
+            // Workaround for the missing driver fields (missing backport to 8.x).
+            if (driver.clusterName() == null || driver.nodeName == null) {
+                nodeName = "missing node/cluster name";
+            } else {
+                nodeName = driver.clusterName() + ":" + driver.nodeName();
+            }
 
             Integer nodeIndex = nodeIndices.get(nodeName);
             if (nodeIndex == null) {
@@ -151,7 +157,8 @@ public class ProfileParser {
      */
     @SuppressWarnings("unchecked")
     private static void parseDriverProfile(Driver driver, int pid, int tid, XContentBuilder builder) throws IOException {
-        String driverDescription = driver.description();
+        // Workaround for the missing driver fields (missing backport to 8.x).
+        String driverDescription = driver.description() == null ? "missing driver description" : driver.description();
         String name = driverDescription + " " + pid + ":" + tid;
 
         emitMetadataForDriver(driverDescription, pid, tid, builder);

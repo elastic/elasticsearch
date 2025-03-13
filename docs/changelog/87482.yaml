@@ -1,5 +1,0 @@
-pr: 87482
-summary: Adding additional capability to the `master_is_stable` health indicator service
-area: Health
-type: enhancement
-issues: []

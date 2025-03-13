@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -66,10 +66,10 @@ public class SearchHitCursor implements Cursor {
         nextQuery = new SearchSourceBuilder(in);
         limit = in.readVInt();
 
-        extractors = in.readNamedWriteableList(HitExtractor.class);
+        extractors = in.readNamedWriteableCollectionAsList(HitExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
-        allowPartialSearchResults = in.getVersion().onOrAfter(Version.V_8_3_0) && in.readBoolean();
+        allowPartialSearchResults = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) && in.readBoolean();
     }
 
     @Override
@@ -77,10 +77,10 @@ public class SearchHitCursor implements Cursor {
         nextQuery.writeTo(out);
         out.writeVInt(limit);
 
-        out.writeNamedWriteableList(extractors);
+        out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
-        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
             out.writeBoolean(allowPartialSearchResults);
         }
     }
@@ -124,17 +124,16 @@ public class SearchHitCursor implements Cursor {
 
         client.search(
             request,
-            ActionListener.wrap(
-                (SearchResponse response) -> handle(
+            listener.delegateFailureAndWrap(
+                (l, response) -> handle(
                     client,
                     response,
                     request.source(),
                     makeRowSet(response),
-                    listener,
+                    l,
                     includeFrozen,
                     allowPartialSearchResults
-                ),
-                listener::onFailure
+                )
             )
         );
     }
@@ -157,18 +156,12 @@ public class SearchHitCursor implements Cursor {
             logSearchResponse(response, log);
         }
 
-        SearchHit[] hits = response.getHits().getHits();
-
         SearchHitRowSet rowSet = makeRowSet.get();
 
         if (rowSet.hasRemaining() == false) {
-            closePointInTime(
-                client,
-                response.pointInTimeId(),
-                ActionListener.wrap(r -> listener.onResponse(Page.last(rowSet)), listener::onFailure)
-            );
+            closePointInTime(client, response.pointInTimeId(), listener.delegateFailureAndWrap((l, r) -> l.onResponse(Page.last(rowSet))));
         } else {
-            updateSearchAfter(hits, source);
+            updateSearchAfter(response.getHits().getHits(), source);
 
             SearchHitCursor nextCursor = new SearchHitCursor(
                 source,

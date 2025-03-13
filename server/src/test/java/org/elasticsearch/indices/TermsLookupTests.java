@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -63,14 +64,15 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public void testXContentParsing() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, """
-            { "index" : "index", "id" : "id", "path" : "path", "routing" : "routing" }""");
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            { "index" : "index", "id" : "id", "path" : "path", "routing" : "routing" }""")) {
 
-        TermsLookup tl = TermsLookup.parseTermsLookup(parser);
-        assertEquals("index", tl.index());
-        assertEquals("id", tl.id());
-        assertEquals("path", tl.path());
-        assertEquals("routing", tl.routing());
+            TermsLookup tl = TermsLookup.parseTermsLookup(parser);
+            assertEquals("index", tl.index());
+            assertEquals("id", tl.id());
+            assertEquals("path", tl.path());
+            assertEquals("routing", tl.routing());
+        }
     }
 
     public static TermsLookup randomTermsLookup() {

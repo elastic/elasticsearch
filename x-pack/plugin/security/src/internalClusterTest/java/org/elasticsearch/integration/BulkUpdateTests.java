@@ -43,7 +43,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
     public void testThatBulkUpdateDoesNotLoseFields() {
         assertEquals(
             DocWriteResponse.Result.CREATED,
-            client().prepareIndex("index1").setSource("{\"test\": \"test\"}", XContentType.JSON).setId("1").get().getResult()
+            prepareIndex("index1").setSource("{\"test\": \"test\"}", XContentType.JSON).setId("1").get().getResult()
         );
         GetResponse getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));

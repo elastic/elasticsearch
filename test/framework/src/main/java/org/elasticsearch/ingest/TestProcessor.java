@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
+
+import org.elasticsearch.cluster.metadata.ProjectId;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -55,7 +58,18 @@ public class TestProcessor implements Processor {
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         invokedCounter.incrementAndGet();
-        ingestDocumentMapper.apply(ingestDocument);
+
+        try {
+            ingestDocumentMapper.apply(ingestDocument);
+        } catch (Exception e) {
+            if (this.isAsync()) {
+                handler.accept(null, e);
+                return;
+            } else {
+                throw e;
+            }
+        }
+
         handler.accept(ingestDocument, null);
     }
 
@@ -90,7 +104,8 @@ public class TestProcessor implements Processor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             return new TestProcessor(processorTag, "test-processor", description, ingestDocument -> {});
         }

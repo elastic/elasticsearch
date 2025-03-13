@@ -1,6 +1,0 @@
-pr: 88785
-summary: Support kNN vectors in disk usage action
-area: Search
-type: enhancement
-issues:
- - 84801

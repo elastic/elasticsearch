@@ -1,5 +1,0 @@
-pr: 88385
-summary: Fixed NullPointerException on bulk request
-area: Distributed
-type: bug
-issues: []

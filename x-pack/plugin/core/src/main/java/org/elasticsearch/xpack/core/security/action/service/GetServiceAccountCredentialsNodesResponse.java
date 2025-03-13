@@ -45,12 +45,12 @@ public class GetServiceAccountCredentialsNodesResponse extends BaseNodesResponse
 
     @Override
     protected List<GetServiceAccountCredentialsNodesResponse.Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(GetServiceAccountCredentialsNodesResponse.Node::new);
+        return in.readCollectionAsList(GetServiceAccountCredentialsNodesResponse.Node::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<GetServiceAccountCredentialsNodesResponse.Node> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     public List<TokenInfo> getFileTokenInfos() {

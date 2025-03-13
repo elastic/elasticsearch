@@ -29,7 +29,7 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
-public class Pivot extends UnaryPlan {
+public final class Pivot extends UnaryPlan {
 
     private final Expression column;
     private final List<NamedExpression> values;

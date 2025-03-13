@@ -1,0 +1,391 @@
+twoConditionsWithDefault
+from employees
+| sort emp_no
+| eval type = case(
+    languages <= 1, "monolingual",
+    languages <= 2, "bilingual",
+     "polyglot")
+| keep emp_no, type
+| limit 10;
+
+emp_no:integer | type:keyword
+10001          |bilingual      
+10002          |polyglot       
+10003          |polyglot       
+10004          |polyglot       
+10005          |monolingual    
+10006          |polyglot       
+10007          |polyglot       
+10008          |bilingual      
+10009          |monolingual    
+10010          |polyglot       
+;
+
+singleCondition
+from employees
+| sort emp_no
+| eval g = case(gender == "F", true)
+| keep gender, g
+| limit 10;
+
+gender:keyword |g:boolean
+M              |null           
+F              |true           
+M              |null           
+M              |null           
+M              |null           
+F              |true           
+F              |true           
+M              |null           
+F              |true           
+null           |null           
+;
+
+conditionIsNull
+from employees 
+| sort emp_no
+| eval g = case(
+    gender == "F", 1,
+    languages > 1, 2,
+    3) 
+| keep gender, languages, g 
+| limit 25;
+
+gender:keyword |languages:integer|g:integer
+M              |2                |2              
+F              |5                |1              
+M              |4                |2              
+M              |5                |2              
+M              |1                |3              
+F              |3                |1              
+F              |4                |1              
+M              |2                |2              
+F              |1                |1              
+null           |4                |2
+null           |5                |2
+null           |5                |2
+null           |1                |3
+null           |5                |2
+null           |5                |2
+null           |2                |2
+null           |2                |2
+null           |2                |2
+null           |1                |3
+M              |null             |3
+M              |null             |3
+M              |null             |3
+F              |null             |1              
+F              |null             |1              
+M              |null             |3
+;
+
+nullValue
+from employees
+| sort emp_no
+| eval g = case(gender == "F", 1 + null, 10)
+| keep gender, g
+| limit 5;
+
+gender:keyword |g:integer
+M              |10           
+F              |null           
+M              |10           
+M              |10           
+M              |10           
+;
+
+caseOnMv
+required_capability: case_mv
+
+FROM employees
+| WHERE emp_no == 10010
+| EVAL foo = CASE(still_hired, "still", is_rehired, "rehired", "not")
+| KEEP still_hired, is_rehired, foo;
+warning:Line 3:41: evaluation of [is_rehired] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 3:41: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+still_hired:boolean |     is_rehired:boolean     | foo:keyword
+              false | [false, false, true, true] | not
+;
+
+caseOnConstantMvFalseTrue
+required_capability: case_mv
+
+ROW foo = CASE([false, true], "a", "b");
+warning:Line 1:16: evaluation of [[false, true]] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+foo:keyword
+b
+;
+
+caseOnConstantMvTrueTrue
+required_capability: case_mv
+
+ROW foo = CASE([true, true], "a", "b");
+warning:Line 1:16: evaluation of [[true, true]] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:16: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+foo:keyword
+b
+;
+
+caseOnMvSliceMv
+required_capability: case_mv
+
+ROW foo = [true, false, false] | EVAL foo = CASE(MV_SLICE(foo, 0, 1), "a", "b");
+warning:Line 1:50: evaluation of [MV_SLICE(foo, 0, 1)] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:50: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+foo:keyword
+b
+;
+
+caseOnMvSliceSv
+required_capability: case_mv
+
+ROW foo = [true, false, false] | EVAL foo = CASE(MV_SLICE(foo, 0), "a", "b");
+
+foo:keyword
+a
+;
+
+caseOnConvertMvSliceMv
+required_capability: case_mv
+
+ROW foo = ["true", "false", "false"] | EVAL foo = CASE(MV_SLICE(foo::BOOLEAN, 0, 1), "a", "b");
+warning:Line 1:56: evaluation of [MV_SLICE(foo::BOOLEAN, 0, 1)] failed, treating result as false. Only first 20 failures recorded.
+warning:Line 1:56: java.lang.IllegalArgumentException: CASE expects a single-valued boolean
+
+foo:keyword
+b
+;
+
+caseOnConvertMvSliceSv
+required_capability: case_mv
+
+ROW foo = ["true", "false", "false"] | EVAL foo = CASE(MV_SLICE(foo::BOOLEAN, 0), "a", "b");
+
+foo:keyword
+a
+;
+
+docsCaseSuccessRate
+// tag::docsCaseSuccessRate[]
+FROM sample_data
+| EVAL successful = CASE(
+    STARTS_WITH(message, "Connected to"), 1,
+    message == "Connection error", 0
+  )
+| STATS success_rate = AVG(successful)
+// end::docsCaseSuccessRate[]
+;
+
+// tag::docsCaseSuccessRate-result[]
+success_rate:double
+0.5
+// end::docsCaseSuccessRate-result[]
+;
+
+docsCaseHourlyErrorRate
+// tag::docsCaseHourlyErrorRate[]
+FROM sample_data
+| EVAL error = CASE(message LIKE "*error*", 1, 0)
+| EVAL hour = DATE_TRUNC(1 hour, @timestamp)
+| STATS error_rate = AVG(error) by hour
+| SORT hour
+// end::docsCaseHourlyErrorRate[]
+;
+
+// tag::docsCaseHourlyErrorRate-result[]
+error_rate:double | hour:date
+0.0            |2023-10-23T12:00:00.000Z
+0.6            |2023-10-23T13:00:00.000Z
+// end::docsCaseHourlyErrorRate-result[]
+;
+
+
+nullOnMultivaluesMathOperation
+required_capability: disable_nullable_opts
+
+ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NULL;
+warning:Line 1:37: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:37: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+a:integer | b:integer | sum:integer
+5         | [1, 2]    | null
+;
+
+
+notNullOnMultivaluesMathOperation
+required_capability: disable_nullable_opts
+
+ROW a = 5, b = [ 1, 2 ]| EVAL sum = a + b| LIMIT 1 |  WHERE sum IS NOT NULL;
+warning:Line 1:37: evaluation of [a + b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:37: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+a:integer | b:integer | sum:integer
+;
+
+
+nullOnMultivaluesComparisonOperation
+required_capability: disable_nullable_opts
+
+ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NULL;
+warning:Line 1:38: evaluation of [a == b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+
+a:integer | b:integer | same:boolean
+5         | [1, 2]    | null
+;
+
+
+notNullOnMultivaluesComparisonOperation
+required_capability: disable_nullable_opts
+
+ROW a = 5, b = [ 1, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL;
+warning:Line 1:38: evaluation of [a == b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+a:integer | b:integer | same:boolean
+;
+
+
+notNullOnMultivaluesComparisonOperationWithPartialMatch
+required_capability: disable_nullable_opts
+
+ROW a = 5, b = [ 5, 2 ]| EVAL same = a == b| LIMIT 1 |  WHERE same IS NOT NULL;
+warning:Line 1:38: evaluation of [a == b] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:38: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+a:integer | b:integer | same:boolean
+;
+
+caseOnTheValue_NotOnTheField
+required_capability: fixed_wrong_is_not_null_check_on_case
+
+FROM employees 
+| WHERE emp_no < 10022 AND emp_no > 10012 
+| KEEP languages, emp_no 
+| EVAL eval = CASE(languages == 1, null, languages == 2, "bilingual", languages > 2, "multilingual", languages IS NULL, "languages is null") 
+| SORT languages, emp_no 
+| WHERE eval IS NOT NULL;
+
+languages:integer| emp_no:integer|eval:keyword                    
+2                |10016          |bilingual        
+2                |10017          |bilingual        
+2                |10018          |bilingual        
+5                |10014          |multilingual     
+5                |10015          |multilingual     
+null             |10020          |languages is null
+null             |10021          |languages is null
+;
+
+caseWithMixedNumericValue
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", 1.0, gender == "M", 2, 3.0)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 2.0
+10006          | F              | 1.0
+10007          | F              | 1.0
+10008          | M              | 2.0
+10009          | F              | 1.0
+10010          | null           | 3.0
+;
+
+caseWithMixedNumericValueWithNull
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", 1.0, gender == "M", 2, null)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 2.0
+10006          | F              | 1.0
+10007          | F              | 1.0
+10008          | M              | 2.0
+10009          | F              | 1.0
+10010          | null           | null
+;
+
+caseWithMixedNumericField
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", height, gender == "M", salary, languages)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 63528.0
+10006          | F              | 1.56
+10007          | F              | 1.7
+10008          | M              | 43906.0
+10009          | F              | 1.85
+10010          | null           | 4.0
+;
+
+caseWithMixedNumericFieldWithNull
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", height, gender == "M", salary, null)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 63528.0
+10006          | F              | 1.56
+10007          | F              | 1.7
+10008          | M              | 43906.0
+10009          | F              | 1.85
+10010          | null           | null
+;
+
+caseWithMixedNumericFieldWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", salary_change, gender == "M", salary, languages)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 63528.0
+10006          | F              | -3.9
+10007          | F              | [-7.06, 0.57, 1.99]
+10008          | M              | 43906.0
+10009          | F              | null
+10010          | null           | 4.0
+;
+
+caseWithMixedNumericFieldWithNullWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", salary_change, gender == "M", salary, null)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 63528.0
+10006          | F              | -3.9
+10007          | F              | [-7.06, 0.57, 1.99]
+10008          | M              | 43906.0
+10009          | F              | null
+10010          | null           | null
+;

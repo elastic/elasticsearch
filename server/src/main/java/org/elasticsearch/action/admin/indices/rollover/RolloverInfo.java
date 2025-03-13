@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
@@ -61,7 +62,7 @@ public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, To
     public RolloverInfo(StreamInput in) throws IOException {
         this.alias = in.readString();
         this.time = in.readVLong();
-        this.metConditions = (List) in.readNamedWriteableList(Condition.class);
+        this.metConditions = (List) in.readNamedWriteableCollectionAsList(Condition.class);
     }
 
     public static RolloverInfo parse(XContentParser parser, String alias) {
@@ -88,7 +89,7 @@ public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, To
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(alias);
         out.writeVLong(time);
-        out.writeNamedWriteableList(metConditions);
+        out.writeNamedWriteableCollection(metConditions);
     }
 
     @Override

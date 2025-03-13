@@ -11,12 +11,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.metrics.AggregateMetricsAggregatorsRegistrar;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 
@@ -27,11 +28,11 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonMap;
 
-public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin {
+public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin, ExtensiblePlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(AggregateDoubleMetricFieldMapper.CONTENT_TYPE, AggregateDoubleMetricFieldMapper.PARSER);
+        return singletonMap(AggregateMetricDoubleFieldMapper.CONTENT_TYPE, AggregateMetricDoubleFieldMapper.PARSER);
     }
 
     @Override

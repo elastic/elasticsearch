@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -23,7 +24,10 @@ public class InternalTestArtifactPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPlugins().apply(InternalTestArtifactBasePlugin.class);
         InternalTestArtifactExtension testArtifactExtension = project.getExtensions().getByType(InternalTestArtifactExtension.class);
-        SourceSet testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
-        testArtifactExtension.registerTestArtifactFromSourceSet(testSourceSet);
+        project.getExtensions().getByType(SourceSetContainer.class).all(sourceSet -> {
+            if (sourceSet.getName().equals(SourceSet.MAIN_SOURCE_SET_NAME) == false) {
+                testArtifactExtension.registerTestArtifactFromSourceSet(sourceSet);
+            }
+        });
     }
 }

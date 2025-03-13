@@ -7,18 +7,19 @@
 
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
+public class SearchableSnapshotFeatureSetUsage extends XPackFeatureUsage {
 
     private final int numberOfSearchableSnapshotIndices;
     private final int numberOfFullCopySearchableSnapshotIndices;
@@ -27,28 +28,21 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
     public SearchableSnapshotFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         numberOfSearchableSnapshotIndices = input.readVInt();
-        if (input.getVersion().onOrAfter(Version.V_7_13_0)) {
-            numberOfFullCopySearchableSnapshotIndices = input.readVInt();
-            numberOfSharedCacheSearchableSnapshotIndices = input.readVInt();
-        } else {
-            numberOfFullCopySearchableSnapshotIndices = 0;
-            numberOfSharedCacheSearchableSnapshotIndices = 0;
-        }
+        numberOfFullCopySearchableSnapshotIndices = input.readVInt();
+        numberOfSharedCacheSearchableSnapshotIndices = input.readVInt();
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_9_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(numberOfSearchableSnapshotIndices);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeVInt(numberOfFullCopySearchableSnapshotIndices);
-            out.writeVInt(numberOfSharedCacheSearchableSnapshotIndices);
-        }
+        out.writeVInt(numberOfFullCopySearchableSnapshotIndices);
+        out.writeVInt(numberOfSharedCacheSearchableSnapshotIndices);
     }
 
     public SearchableSnapshotFeatureSetUsage(

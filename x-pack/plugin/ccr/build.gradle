@@ -1,14 +1,16 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-ccr'
-  description 'Elasticsearch Expanded Pack Plugin - CCR'
-  classname 'org.elasticsearch.xpack.ccr.Ccr'
-  hasNativeController false
-  requiresKeystore true
+  name = 'x-pack-ccr'
+  description = 'Elasticsearch Expanded Pack Plugin - CCR'
+  classname ='org.elasticsearch.xpack.ccr.Ccr'
+  hasNativeController =false
+  requiresKeystore =true
   extendedPlugins = ['x-pack-core']
 }
-archivesBaseName = 'x-pack-ccr'
+base {
+  archivesName = 'x-pack-ccr'
+}
 
 // Integration Test classes that cannot run with the security manager
 String[] noSecurityManagerITClasses = ["**/CloseFollowerIndexIT.class"]

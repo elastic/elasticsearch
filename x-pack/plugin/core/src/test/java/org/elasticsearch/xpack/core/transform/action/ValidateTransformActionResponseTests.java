@@ -22,6 +22,11 @@ public class ValidateTransformActionResponseTests extends AbstractWireSerializin
         return new Response(randomDestIndexMappings());
     }
 
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     private Map<String, String> randomDestIndexMappings() {
         return randomList(1, 20, () -> randomAlphaOfLengthBetween(1, 20)).stream()
             .distinct()

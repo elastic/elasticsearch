@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -15,6 +16,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
@@ -150,10 +152,10 @@ public class ZeroShotClassificationConfig implements NlpConfig {
     public ZeroShotClassificationConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
-        classificationLabels = in.readStringList();
+        classificationLabels = in.readStringCollectionAsList();
         isMultiLabel = in.readBoolean();
         hypothesisTemplate = in.readString();
-        labels = in.readOptionalStringList();
+        labels = in.readOptionalStringCollectionAsList();
         resultsField = in.readOptionalString();
     }
 
@@ -197,8 +199,50 @@ public class ZeroShotClassificationConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof ZeroShotClassificationConfigUpdate configUpdate) {
+            if ((configUpdate.getLabels() == null || configUpdate.getLabels().isEmpty())
+                && (this.labels == null || this.labels.isEmpty())) {
+                throw ExceptionsHelper.badRequestException(
+                    "stored configuration has no [{}] defined, supplied inference_config update must supply [{}]",
+                    LABELS.getPreferredName(),
+                    LABELS.getPreferredName()
+                );
+            }
+
+            return new ZeroShotClassificationConfig(
+                classificationLabels,
+                vocabularyConfig,
+                configUpdate.tokenizationUpdate == null ? tokenization : configUpdate.tokenizationUpdate.apply(tokenization),
+                hypothesisTemplate,
+                Optional.ofNullable(configUpdate.getMultiLabel()).orElse(isMultiLabel),
+                Optional.ofNullable(configUpdate.getLabels()).orElse(labels),
+                Optional.ofNullable(configUpdate.getResultsField()).orElse(resultsField)
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new ZeroShotClassificationConfig(
+                classificationLabels,
+                vocabularyConfig,
+                updatedTokenization,
+                hypothesisTemplate,
+                isMultiLabel,
+                labels,
+                resultsField
+            );
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return MlConfigVersion.V_8_0_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersions.V_8_0_0;
     }
 
     @Override

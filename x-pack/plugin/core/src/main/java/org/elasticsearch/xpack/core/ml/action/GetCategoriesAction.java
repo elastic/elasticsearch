@@ -39,7 +39,7 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/categories/get";
 
     private GetCategoriesAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

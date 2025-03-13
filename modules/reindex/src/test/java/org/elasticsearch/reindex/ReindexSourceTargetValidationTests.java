@@ -1,33 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -39,21 +39,25 @@ import static org.hamcrest.Matchers.containsString;
  * cluster....
  */
 public class ReindexSourceTargetValidationTests extends ESTestCase {
-    private static final ClusterState STATE = ClusterState.builder(new ClusterName("test"))
-        .metadata(
-            Metadata.builder()
-                .put(index("target", "target_alias", "target_multi"), true)
-                .put(index("target2", "target_multi"), true)
-                .put(index("target_with_write_index", true, "target_multi_with_write_index"), true)
-                .put(index("target2_without_write_index", "target_multi_with_write_index"), true)
-                .put(index("qux", false, "target_alias_with_write_index_disabled"), true)
-                .put(index("foo"), true)
-                .put(index("bar"), true)
-                .put(index("baz"), true)
-                .put(index("source", "source_multi"), true)
-                .put(index("source2", "source_multi"), true)
-        )
-        .build();
+    private ProjectMetadata projectMetadata;
+
+    @Before
+    public void setupProject() {
+        var projectId = randomProjectIdOrDefault();
+        projectMetadata = ProjectMetadata.builder(projectId)
+            .put(index("target", "target_alias", "target_multi"), true)
+            .put(index("target2", "target_multi"), true)
+            .put(index("target_with_write_index", true, "target_multi_with_write_index"), true)
+            .put(index("target2_without_write_index", "target_multi_with_write_index"), true)
+            .put(index("qux", false, "target_alias_with_write_index_disabled"), true)
+            .put(index("foo"), true)
+            .put(index("bar"), true)
+            .put(index("baz"), true)
+            .put(index("source", "source_multi"), true)
+            .put(index("source2", "source_multi"), true)
+            .build();
+    }
+
     private static final IndexNameExpressionResolver INDEX_NAME_EXPRESSION_RESOLVER = TestIndexNameExpressionResolver.newInstance();
     private static final AutoCreateIndex AUTO_CREATE_INDEX = new AutoCreateIndex(
         Settings.EMPTY,
@@ -170,7 +174,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
             remoteInfo,
             INDEX_NAME_EXPRESSION_RESOLVER,
             AUTO_CREATE_INDEX,
-            STATE
+            projectMetadata
         );
     }
 
@@ -179,13 +183,7 @@ public class ReindexSourceTargetValidationTests extends ESTestCase {
     }
 
     private static IndexMetadata index(String name, @Nullable Boolean writeIndex, String... aliases) {
-        IndexMetadata.Builder builder = IndexMetadata.builder(name)
-            .settings(
-                Settings.builder()
-                    .put("index.version.created", Version.CURRENT.id)
-                    .put("index.number_of_shards", 1)
-                    .put("index.number_of_replicas", 1)
-            );
+        IndexMetadata.Builder builder = IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 1));
         for (String alias : aliases) {
             builder.putAlias(AliasMetadata.builder(alias).writeIndex(writeIndex).build());
         }

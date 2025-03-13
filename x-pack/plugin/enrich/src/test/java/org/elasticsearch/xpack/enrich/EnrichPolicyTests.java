@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy> {
+public class EnrichPolicyTests extends AbstractXContentSerializingTestCase<EnrichPolicy> {
 
     @Override
     protected EnrichPolicy doParseInstance(XContentParser parser) throws IOException {
@@ -39,6 +39,11 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
     @Override
     protected EnrichPolicy createTestInstance() {
         return randomEnrichPolicy(randomFrom(XContentType.values()));
+    }
+
+    @Override
+    protected EnrichPolicy mutateInstance(EnrichPolicy instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

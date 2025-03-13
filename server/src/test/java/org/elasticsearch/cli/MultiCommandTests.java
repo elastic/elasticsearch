@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli;
@@ -17,8 +18,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
@@ -213,7 +214,7 @@ public class MultiCommandTests extends CommandTestCase {
         multiCommand.subcommands.put("throw", new ErrorThrowingSubCommand());
         executeMain("throw", "--silent");
         assertThat(terminal.getOutput(), is(emptyString()));
-        assertThat(terminal.getErrorOutput().lines().toList(), contains("ERROR: Dummy error"));
+        assertThat(terminal.getErrorOutput().lines().collect(Collectors.joining()), containsString("ERROR: Dummy error"));
     }
 
     public void testNullErrorMessageSuppressesErrorOutput() throws Exception {

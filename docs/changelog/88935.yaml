@@ -1,6 +1,0 @@
-pr: 88935
-summary: Ensure that the extended socket options TCP_KEEPXXX are available
-area: Network
-type: bug
-issues:
- - 88897

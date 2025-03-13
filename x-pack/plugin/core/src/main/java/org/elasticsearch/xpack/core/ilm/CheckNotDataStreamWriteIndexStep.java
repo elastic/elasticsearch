@@ -9,17 +9,13 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
-import java.util.Locale;
-import java.util.Objects;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 /**
  * Some actions cannot be executed on a data stream's write index (eg. `searchable-snapshot`). This step checks if the managed index is
@@ -45,82 +41,41 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         Metadata metadata = clusterState.metadata();
-        IndexMetadata indexMetadata = metadata.index(index);
+        IndexMetadata indexMetadata = metadata.getProject().index(index);
         String indexName = index.getName();
 
         if (indexMetadata == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
+            String errorMessage = Strings.format(
                 "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(),
+                getKey().action(),
                 indexName
             );
             // Index must have been since deleted
             logger.debug(errorMessage);
-            return new Result(false, new Info(errorMessage));
+            return new Result(false, new SingleMessageFieldInfo(errorMessage));
         }
 
         String policyName = indexMetadata.getLifecyclePolicyName();
-        IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(indexName);
+        IndexAbstraction indexAbstraction = clusterState.metadata().getProject().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().equals(index)) {
-                String errorMessage = String.format(
-                    Locale.ROOT,
-                    "index [%s] is the write index for data stream [%s], pausing "
+            boolean isFailureStoreWriteIndex = index.equals(dataStream.getWriteFailureIndex());
+            if (isFailureStoreWriteIndex || dataStream.getWriteIndex().equals(index)) {
+                String errorMessage = Strings.format(
+                    "index [%s] is the%s write index for data stream [%s], pausing "
                         + "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or "
                         + "automated rollover",
                     indexName,
+                    isFailureStoreWriteIndex ? " failure store" : "",
                     dataStream.getName(),
                     policyName
                 );
                 logger.debug(errorMessage);
-                return new Result(false, new Info(errorMessage));
+                return new Result(false, new SingleMessageFieldInfo(errorMessage));
             }
         }
 
         return new Result(true, null);
-    }
-
-    static final class Info implements ToXContentObject {
-
-        private final String message;
-
-        static final ParseField MESSAGE = new ParseField("message");
-
-        Info(String message) {
-            this.message = message;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MESSAGE.getPreferredName(), message);
-            builder.endObject();
-            return builder;
-        }
-
-        public String getMessage() {
-            return message;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Info info = (Info) o;
-            return Objects.equals(message, info.message);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(message);
-        }
     }
 }

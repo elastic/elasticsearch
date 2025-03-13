@@ -1,20 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -23,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.junit.Before;
 
@@ -51,7 +56,9 @@ public class RoutingTableTests extends ESAllocationTestCase {
     private int numberOfReplicas;
     private int shardsPerIndex;
     private int totalNumberOfShards;
-    private static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+    private static final Settings DEFAULT_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+        .build();
     private final AllocationService ALLOCATION_SERVICE = createAllocationService(
         Settings.builder()
             .put("cluster.routing.allocation.node_concurrent_recoveries", Integer.MAX_VALUE) // don't limit recoveries
@@ -73,16 +80,19 @@ public class RoutingTableTests extends ESAllocationTestCase {
         Metadata metadata = Metadata.builder().put(createIndexMetadata(TEST_INDEX_1)).put(createIndexMetadata(TEST_INDEX_2)).build();
 
         RoutingTable testRoutingTable = new RoutingTable.Builder().add(
-            new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_1).getIndex()).initializeAsNew(metadata.index(TEST_INDEX_1)).build()
+            new IndexRoutingTable.Builder(
+                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+                metadata.getProject().index(TEST_INDEX_1).getIndex()
+            ).initializeAsNew(metadata.getProject().index(TEST_INDEX_1)).build()
         )
             .add(
-                new IndexRoutingTable.Builder(metadata.index(TEST_INDEX_2).getIndex()).initializeAsNew(metadata.index(TEST_INDEX_2)).build()
+                new IndexRoutingTable.Builder(
+                    TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+                    metadata.getProject().index(TEST_INDEX_2).getIndex()
+                ).initializeAsNew(metadata.getProject().index(TEST_INDEX_2)).build()
             )
             .build();
-        this.clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .routingTable(testRoutingTable)
-            .build();
+        this.clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(testRoutingTable).build();
     }
 
     /**
@@ -95,7 +105,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             discoBuilder = discoBuilder.add(newNode("node" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(discoBuilder).build();
-        ClusterState rerouteResult = ALLOCATION_SERVICE.reroute(clusterState, "reroute");
+        ClusterState rerouteResult = ALLOCATION_SERVICE.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(rerouteResult, not(equalTo(this.clusterState)));
         this.clusterState = rerouteResult;
     }
@@ -112,8 +122,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testAllShards() {
-        assertThat(this.emptyRoutingTable.allShards().size(), is(0));
-        assertThat(this.clusterState.routingTable().allShards().size(), is(this.totalNumberOfShards));
+        assertThat(this.emptyRoutingTable.allShards().count(), is(0L));
+        assertThat(this.clusterState.routingTable().allShards().count(), is((long) this.totalNumberOfShards));
 
         assertThat(this.clusterState.routingTable().allShards(TEST_INDEX_1).size(), is(this.shardsPerIndex));
         try {
@@ -305,18 +315,21 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testAllShardsForMultipleIndices() {
-        assertThat(this.emptyRoutingTable.allShards(new String[0]).size(), is(0));
+        assertThat(this.emptyRoutingTable.allShards(new String[0]).getShardRoutings().size(), is(0));
 
-        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).getShardRoutings().size(), is(this.shardsPerIndex));
 
         initPrimaries();
-        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).getShardRoutings().size(), is(this.shardsPerIndex));
 
         startInitializingShards(TEST_INDEX_1);
-        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).getShardRoutings().size(), is(this.shardsPerIndex));
 
         startInitializingShards(TEST_INDEX_2);
-        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, TEST_INDEX_2 }).size(), is(this.totalNumberOfShards));
+        assertThat(
+            clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, TEST_INDEX_2 }).getShardRoutings().size(),
+            is(this.totalNumberOfShards)
+        );
 
         try {
             clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, "not_exists" });
@@ -326,7 +339,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testRoutingTableBuiltMoreThanOnce() {
-        RoutingTable.Builder b = RoutingTable.builder();
+        RoutingTable.Builder b = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         b.build(); // Ok the first time
         try {
             b.build();
@@ -360,7 +373,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
         final int numShards = 1;
         final int numReplicas = randomIntBetween(0, 1);
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numShards)
             .numberOfReplicas(numReplicas)
             .build();
@@ -368,32 +381,33 @@ public class RoutingTableTests extends ESAllocationTestCase {
         final RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         final IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetadata, counter);
         indexMetadata = updateActiveAllocations(indexRoutingTable, indexMetadata);
-        Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
+        var projectId = randomUniqueProjectId();
+        ProjectMetadata metadata = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         // test no validation errors
         assertTrue(indexRoutingTable.validate(metadata));
         // test wrong number of shards causes validation errors
         indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numShards + 1)
             .numberOfReplicas(numReplicas)
             .build();
-        final Metadata metadata2 = Metadata.builder().put(indexMetadata, true).build();
+        final ProjectMetadata metadata2 = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadata2));
         // test wrong number of replicas causes validation errors
         indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numShards)
             .numberOfReplicas(numReplicas + 1)
             .build();
-        final Metadata metadata3 = Metadata.builder().put(indexMetadata, true).build();
+        final ProjectMetadata metadata3 = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadata3));
         // test wrong number of shards and replicas causes validation errors
         indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(numShards + 1)
             .numberOfReplicas(numReplicas + 1)
             .build();
-        final Metadata metadata4 = Metadata.builder().put(indexMetadata, true).build();
+        final ProjectMetadata metadata4 = ProjectMetadata.builder(projectId).put(indexMetadata, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metadata4));
     }
 
@@ -413,14 +427,18 @@ public class RoutingTableTests extends ESAllocationTestCase {
     public void testAddAsRecovery() {
         {
             final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.OPEN).build();
-            final RoutingTable routingTable = new RoutingTable.Builder().addAsRecovery(indexMetadata).build();
+            final RoutingTable routingTable = new RoutingTable.Builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsRecovery(
+                indexMetadata
+            ).build();
             assertThat(routingTable.hasIndex(TEST_INDEX_1), is(true));
             assertThat(routingTable.allShards(TEST_INDEX_1).size(), is(this.shardsPerIndex));
             assertThat(routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size(), is(this.shardsPerIndex));
         }
         {
             final IndexMetadata indexMetadata = createIndexMetadata(TEST_INDEX_1).state(IndexMetadata.State.CLOSE).build();
-            final RoutingTable routingTable = new RoutingTable.Builder().addAsRecovery(indexMetadata).build();
+            final RoutingTable routingTable = new RoutingTable.Builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsRecovery(
+                indexMetadata
+            ).build();
             assertThat(routingTable.hasIndex(TEST_INDEX_1), is(false));
             expectThrows(IndexNotFoundException.class, () -> routingTable.allShards(TEST_INDEX_1));
         }
@@ -435,7 +453,9 @@ public class RoutingTableTests extends ESAllocationTestCase {
                         .build()
                 )
                 .settingsVersion(indexMetadata.getSettingsVersion() + 1);
-            final RoutingTable routingTable = new RoutingTable.Builder().addAsRecovery(indexMetadataBuilder.build()).build();
+            final RoutingTable routingTable = new RoutingTable.Builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsRecovery(
+                indexMetadataBuilder.build()
+            ).build();
             assertThat(routingTable.hasIndex(TEST_INDEX_1), is(true));
             assertThat(routingTable.allShards(TEST_INDEX_1).size(), is(this.shardsPerIndex));
             assertThat(routingTable.index(TEST_INDEX_1).shardsWithState(UNASSIGNED).size(), is(this.shardsPerIndex));
@@ -453,7 +473,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
         shards.add(TestShardRouting.newShardRouting(shardId, "node3", false, STARTED));
 
         for (int removeReplicaNumber = 0; removeReplicaNumber <= rightRemoveOrder.size(); removeReplicaNumber++) {
-            IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(index);
+            IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(ShardRoutingRoleStrategy.NO_SHARD_CREATION, index);
             Randomness.shuffle(shards);
             for (ShardRouting shard : shards) {
                 builder.addShard(shard);
@@ -483,11 +503,10 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testRoutingNodesRoundtrip() {
-        final RoutingTable originalTable = clusterState.getRoutingTable();
-        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        final RoutingTable fromNodes = RoutingTable.of(originalTable.version(), routingNodes);
+        final GlobalRoutingTable originalTable = clusterState.globalRoutingTable();
+        final GlobalRoutingTable fromNodes = originalTable.rebuild(clusterState.getRoutingNodes(), clusterState.metadata());
         // we don't have an equals implementation for the routing table so we assert equality by checking for a noop diff
-        final Diff<RoutingTable> routingTableDiff = fromNodes.diff(originalTable);
+        final Diff<GlobalRoutingTable> routingTableDiff = fromNodes.diff(originalTable);
         assertSame(originalTable, routingTableDiff.apply(originalTable));
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -29,8 +30,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -688,7 +687,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
      *
      * @throws IOException if an I/O exception occurs loading the retention lease state file
      */
-    public void testPersistRetentionLeasesUnderConcurrency() throws IOException {
+    public void testPersistRetentionLeasesUnderConcurrency() throws IOException, InterruptedException {
         final AllocationId allocationId = AllocationId.newInitializing();
         long primaryTerm = randomLongBetween(1, Long.MAX_VALUE);
         final ReplicationTracker replicationTracker = new ReplicationTracker(
@@ -720,35 +719,16 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
 
         final Path path = createTempDir();
         final int numberOfThreads = randomIntBetween(1, 2 * Runtime.getRuntime().availableProcessors());
-        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
-        final Thread[] threads = new Thread[numberOfThreads];
-        for (int i = 0; i < numberOfThreads; i++) {
+        startInParallel(numberOfThreads, i -> {
             final String id = Integer.toString(length + i);
-            threads[i] = new Thread(() -> {
-                try {
-                    barrier.await();
-                    final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-                    replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test-" + id, ActionListener.noop());
-                    replicationTracker.persistRetentionLeases(path);
-                    barrier.await();
-                } catch (final BrokenBarrierException | InterruptedException | WriteStateException e) {
-                    throw new AssertionError(e);
-                }
-            });
-            threads[i].start();
-        }
-
-        try {
-            // synchronize the threads invoking ReplicationTracker#persistRetentionLeases(Path path)
-            barrier.await();
-            // wait for all the threads to finish
-            barrier.await();
-            for (int i = 0; i < numberOfThreads; i++) {
-                threads[i].join();
+            final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
+            replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test-" + id, ActionListener.noop());
+            try {
+                replicationTracker.persistRetentionLeases(path);
+            } catch (WriteStateException e) {
+                throw new AssertionError(e);
             }
-        } catch (final BrokenBarrierException | InterruptedException e) {
-            throw new AssertionError(e);
-        }
+        });
         assertThat(replicationTracker.loadRetentionLeases(path), equalTo(replicationTracker.getRetentionLeases()));
     }
 

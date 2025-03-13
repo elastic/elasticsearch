@@ -1,25 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.BigDoubleArray.VH_PLATFORM_NATIVE_DOUBLE;
@@ -112,11 +119,9 @@ public class BigArrays {
         }
 
         @Override
-        public byte set(long index, byte value) {
+        public void set(long index, byte value) {
             assert indexIsInt(index);
-            final byte ret = array[(int) index];
             array[(int) index] = value;
-            return ret;
         }
 
         @Override
@@ -142,6 +147,27 @@ public class BigArrays {
         }
 
         @Override
+        public BytesRefIterator iterator() {
+            return new BytesRefIterator() {
+                boolean visited = false;
+
+                @Override
+                public BytesRef next() {
+                    if (visited) {
+                        return null;
+                    }
+                    visited = true;
+                    return new BytesRef(array, 0, Math.toIntExact(size()));
+                }
+            };
+        }
+
+        @Override
+        public void fillWith(InputStream in) throws IOException {
+            Streams.readFully(in, array, 0, Math.toIntExact(size()));
+        }
+
+        @Override
         public boolean hasArray() {
             return true;
         }
@@ -149,6 +175,13 @@ public class BigArrays {
         @Override
         public byte[] array() {
             return array;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            int size = Math.toIntExact(size()) * Byte.BYTES;
+            out.writeVInt(size);
+            out.write(array, 0, size);
         }
     }
 
@@ -163,6 +196,13 @@ public class BigArrays {
         }
 
         @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            int intSize = (int) size();
+            out.writeVInt(intSize * 4);
+            out.write(array, 0, intSize * Integer.BYTES);
+        }
+
+        @Override
         public long ramBytesUsed() {
             return SHALLOW_SIZE + RamUsageEstimator.sizeOf(array);
         }
@@ -174,11 +214,17 @@ public class BigArrays {
         }
 
         @Override
-        public int set(long index, int value) {
+        public int getAndSet(long index, int value) {
             assert index >= 0 && index < size();
             final int ret = (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2);
             VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, value);
             return ret;
+        }
+
+        @Override
+        public void set(long index, int value) {
+            assert index >= 0 && index < size();
+            VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, value);
         }
 
         @Override
@@ -194,6 +240,12 @@ public class BigArrays {
             assert fromIndex >= 0 && fromIndex <= toIndex;
             assert toIndex >= 0 && toIndex <= size();
             BigIntArray.fill(array, (int) fromIndex, (int) toIndex, value);
+        }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            final int numBytes = in.readVInt();
+            in.readBytes(array, 0, numBytes);
         }
 
         @Override
@@ -225,11 +277,17 @@ public class BigArrays {
         }
 
         @Override
-        public long set(long index, long value) {
+        public long getAndSet(long index, long value) {
             assert index >= 0 && index < size();
             final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3);
             VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, value);
             return ret;
+        }
+
+        @Override
+        public void set(long index, long value) {
+            assert index >= 0 && index < size();
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, value);
         }
 
         @Override
@@ -251,6 +309,19 @@ public class BigArrays {
         public void set(long index, byte[] buf, int offset, int len) {
             assert index >= 0 && index < size();
             System.arraycopy(buf, offset << 3, array, (int) index << 3, len << 3);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            int size = Math.toIntExact(size()) * Long.BYTES;
+            out.writeVInt(size);
+            out.write(array, 0, size);
+        }
+
+        @Override
+        public void fillWith(StreamInput in) throws IOException {
+            int len = in.readVInt();
+            in.readBytes(array, 0, len);
         }
     }
 
@@ -276,11 +347,9 @@ public class BigArrays {
         }
 
         @Override
-        public double set(long index, double value) {
+        public void set(long index, double value) {
             assert index >= 0 && index < size();
-            final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3);
             VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) index << 3, value);
-            return ret;
         }
 
         @Override
@@ -299,9 +368,22 @@ public class BigArrays {
         }
 
         @Override
+        public void fillWith(StreamInput in) throws IOException {
+            int numBytes = in.readVInt();
+            in.readBytes(array, 0, numBytes);
+        }
+
+        @Override
         public void set(long index, byte[] buf, int offset, int len) {
             assert index >= 0 && index < size();
             System.arraycopy(buf, offset << 3, array, (int) index << 3, len << 3);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            int size = (int) size();
+            out.writeVInt(size * 8);
+            out.write(array, 0, size * Double.BYTES);
         }
     }
 
@@ -327,11 +409,9 @@ public class BigArrays {
         }
 
         @Override
-        public float set(long index, float value) {
+        public void set(long index, float value) {
             assert index >= 0 && index < size();
-            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
             VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, value);
-            return ret;
         }
 
         @Override
@@ -372,7 +452,13 @@ public class BigArrays {
         }
 
         @Override
-        public T set(long index, T value) {
+        public void set(long index, T value) {
+            assert index >= 0 && index < size();
+            array[(int) index] = value;
+        }
+
+        @Override
+        public T getAndSet(long index, T value) {
             assert index >= 0 && index < size();
             @SuppressWarnings("unchecked")
             T ret = (T) array[(int) index];
@@ -382,6 +468,7 @@ public class BigArrays {
 
     }
 
+    @Nullable
     final PageCacheRecycler recycler;
     @Nullable
     private final CircuitBreakerService breakerService;
@@ -391,13 +478,13 @@ public class BigArrays {
     private final BigArrays circuitBreakingInstance;
     private final String breakerName;
 
-    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName) {
+    public BigArrays(@Nullable PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName) {
         // Checking the breaker is disabled if not specified
         this(recycler, breakerService, breakerName, false);
     }
 
     protected BigArrays(
-        PageCacheRecycler recycler,
+        @Nullable PageCacheRecycler recycler,
         @Nullable final CircuitBreakerService breakerService,
         String breakerName,
         boolean checkBreaker
@@ -837,4 +924,9 @@ public class BigArrays {
         final long newSize = overSize(minSize, PageCacheRecycler.OBJECT_PAGE_SIZE, RamUsageEstimator.NUM_BYTES_OBJECT_REF);
         return resize(array, newSize);
     }
+
+    protected boolean shouldCheckBreaker() {
+        return checkBreaker;
+    }
+
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.search;
@@ -13,12 +14,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -32,9 +33,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestCountAction extends BaseRestHandler {
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCountAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in count requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -42,9 +42,7 @@ public class RestCountAction extends BaseRestHandler {
             new Route(GET, "/_count"),
             new Route(POST, "/_count"),
             new Route(GET, "/{index}/_count"),
-            new Route(POST, "/{index}/_count"),
-            Route.builder(GET, "/{index}/{type}/_count").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_count").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            new Route(POST, "/{index}/_count")
         );
     }
 
@@ -55,10 +53,6 @@ public class RestCountAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            deprecationLogger.compatibleCritical("count_with_types", TYPES_DEPRECATION_MESSAGE);
-            request.param("type");
-        }
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
@@ -90,7 +84,7 @@ public class RestCountAction extends BaseRestHandler {
                 if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
                     builder.field("terminated_early", response.isTerminatedEarly());
                 }
-                builder.field("count", response.getHits().getTotalHits().value);
+                builder.field("count", response.getHits().getTotalHits().value());
                 buildBroadcastShardsHeader(
                     builder,
                     request,

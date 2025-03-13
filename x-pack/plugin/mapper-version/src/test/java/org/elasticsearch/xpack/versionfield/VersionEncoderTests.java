@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.versionfield;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
 
@@ -95,7 +96,7 @@ public class VersionEncoderTests extends ESTestCase {
      */
     public void testRandomRoundtrip() {
         String versionString = randomVersionString();
-        assertEquals(versionString, decodeVersion(encodeVersion(versionString)));
+        assertEquals(versionString, decodeVersion(encodeVersion(versionString)).utf8ToString());
     }
 
     private String randomVersionString() {
@@ -180,9 +181,11 @@ public class VersionEncoderTests extends ESTestCase {
             "1",
             "1.2.3.4" };
         for (String version : validSemverVersions) {
-            assertTrue("should be valid: " + version, VersionEncoder.encodeVersion(version).isLegal);
+            EncodedVersion encodedVersion = VersionEncoder.encodeVersion(version);
+            assertTrue("should be valid: " + version, encodedVersion.isLegal);
             // since we're here, also check encoding / decoding rountrip
-            assertEquals(version, decodeVersion(encodeVersion(version)));
+            assertEquals(version, decodeVersion(encodeVersion(version)).utf8ToString());
+            checkPrefixAutomaton(version, encodedVersion, false);
         }
 
         String[] invalidSemverVersions = new String[] {
@@ -227,9 +230,28 @@ public class VersionEncoderTests extends ESTestCase {
             "6.nüll.7" // make sure extended ascii-range (128-255) in invalid versions is decoded correctly
         };
         for (String version : invalidSemverVersions) {
-            assertFalse("should be invalid: " + version, VersionEncoder.encodeVersion(version).isLegal);
+            EncodedVersion encodedVersion = VersionEncoder.encodeVersion(version);
+            assertFalse("should be invalid: " + version, encodedVersion.isLegal);
             // since we're here, also check encoding / decoding rountrip
-            assertEquals(version, decodeVersion(encodeVersion(version)));
+            assertEquals(version, decodeVersion(encodeVersion(version)).utf8ToString());
+            checkPrefixAutomaton(version, encodedVersion, false);
         }
+    }
+
+    /**
+     * check if an automaton created for a random prefix of the version accepts the version
+     */
+    private void checkPrefixAutomaton(String version, EncodedVersion encodedVersion, boolean caseInsensitive) {
+        if (version.length() > 0) {
+            CompiledAutomaton prefixAutomaton = VersionEncoder.prefixAutomaton(
+                version.substring(0, randomIntBetween(1, Math.max(1, version.length() - 1))),
+                caseInsensitive
+            );
+            assertTrue(prefixAutomaton.runAutomaton.run(encodedVersion.bytesRef.bytes, 0, encodedVersion.bytesRef.bytes.length));
+        }
+    }
+
+    public void testPrefixAutomatonCaseinsensiti() {
+        checkPrefixAutomaton("SOME.ILLEGAL.VERSION", VersionEncoder.encodeVersion("some.illegal.version"), true);
     }
 }

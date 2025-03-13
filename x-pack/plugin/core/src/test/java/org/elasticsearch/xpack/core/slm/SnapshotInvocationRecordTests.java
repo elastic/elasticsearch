@@ -8,13 +8,16 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class SnapshotInvocationRecordTests extends AbstractSerializingTestCase<SnapshotInvocationRecord> {
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+
+public class SnapshotInvocationRecordTests extends AbstractXContentSerializingTestCase<SnapshotInvocationRecord> {
 
     @Override
     protected SnapshotInvocationRecord doParseInstance(XContentParser parser) throws IOException {
@@ -53,6 +56,42 @@ public class SnapshotInvocationRecordTests extends AbstractSerializingTestCase<S
                 );
             default:
                 throw new AssertionError("failure, got illegal switch case");
+        }
+    }
+
+    public void testDetailsFieldIsTruncated() {
+        {
+            // value larger than the max allowed
+            SnapshotInvocationRecord snapshotInvocationRecord = new SnapshotInvocationRecord(
+                randomAlphaOfLengthBetween(5, 10),
+                randomNonNegativeNullableLong(),
+                randomNonNegativeLong(),
+                randomAlphaOfLengthBetween(1300, 1500)
+            );
+            assertThat(snapshotInvocationRecord.getDetails().length(), is(SnapshotInvocationRecord.MAX_DETAILS_LENGTH));
+        }
+
+        {
+            // value lower than the max allowed
+            String details = randomAlphaOfLengthBetween(5, 500);
+            SnapshotInvocationRecord snapshotInvocationRecord = new SnapshotInvocationRecord(
+                randomAlphaOfLengthBetween(5, 10),
+                randomNonNegativeNullableLong(),
+                randomNonNegativeLong(),
+                details
+            );
+            assertThat(snapshotInvocationRecord.getDetails().length(), is(details.length()));
+        }
+
+        {
+            // null value, remains null
+            SnapshotInvocationRecord snapshotInvocationRecord = new SnapshotInvocationRecord(
+                randomAlphaOfLengthBetween(5, 10),
+                randomNonNegativeNullableLong(),
+                randomNonNegativeLong(),
+                null
+            );
+            assertThat(snapshotInvocationRecord.getDetails(), is(nullValue()));
         }
     }
 

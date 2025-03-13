@@ -1,5 +1,0 @@
-pr: 85688
-summary: Speed up `NumberFieldMapper`
-area: Mapping
-type: enhancement
-issues: []

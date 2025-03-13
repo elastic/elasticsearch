@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResu
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.DoubleStream;
 
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizerTests.TEST_CASED_VOCAB;
 import static org.hamcrest.Matchers.closeTo;
@@ -79,7 +80,7 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
         QuestionAnsweringConfig config = new QuestionAnsweringConfig(question, 1, 10, new VocabularyConfig(""), tokenization, "prediction");
         QuestionAnsweringProcessor processor = new QuestionAnsweringProcessor(tokenizer);
         TokenizationResult tokenizationResult = processor.getRequestBuilder(config)
-            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128)
+            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128, null)
             .tokenization();
         assertThat(tokenizationResult.anyTruncated(), is(false));
         assertThat(tokenizationResult.getTokenization(0).tokenIds().length, equalTo(END_TOKEN_SCORES.length));
@@ -90,7 +91,8 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
         PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(scores);
         QuestionAnsweringInferenceResults result = (QuestionAnsweringInferenceResults) resultProcessor.processResult(
             tokenizationResult,
-            pyTorchResult
+            pyTorchResult,
+            false
         );
 
         // Note this is a different answer to testTopScores because of the question length
@@ -168,4 +170,69 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
         assertThat(topScores[1].endToken(), equalTo(5));
     }
 
+    public void testProcessorMuliptleSpans() throws IOException {
+        String question = "is Elasticsearch fun?";
+        String input = "Pancake day is fun with Elasticsearch and little red car";
+        int span = 4;
+        int maxSequenceLength = 14;
+        int numberTopClasses = 3;
+
+        BertTokenization tokenization = new BertTokenization(false, true, maxSequenceLength, Tokenization.Truncate.NONE, span);
+        BertTokenizer tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, tokenization).build();
+        QuestionAnsweringConfig config = new QuestionAnsweringConfig(
+            question,
+            numberTopClasses,
+            10,
+            new VocabularyConfig("index_name"),
+            tokenization,
+            "prediction"
+        );
+        QuestionAnsweringProcessor processor = new QuestionAnsweringProcessor(tokenizer);
+        TokenizationResult tokenizationResult = processor.getRequestBuilder(config)
+            .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, span, null)
+            .tokenization();
+        assertThat(tokenizationResult.anyTruncated(), is(false));
+
+        // now we know what the tokenization looks like
+        // (number of spans and size of each) fake the
+        // question answering response
+
+        int numberSpans = tokenizationResult.getTokens().size();
+        double[][][] modelTensorOutput = new double[numberSpans * 2][][];
+        for (int i = 0; i < numberSpans; i++) {
+            var windowTokens = tokenizationResult.getTokens().get(i);
+            // size of output
+            int outputSize = windowTokens.tokenIds().length;
+            // generate low value -ve scores that will not mark
+            // the expected result with a high degree of probability
+            double[] starts = DoubleStream.generate(() -> -randomDoubleBetween(0.001, 1.0, true)).limit(outputSize).toArray();
+            double[] ends = DoubleStream.generate(() -> -randomDoubleBetween(0.001, 1.0, true)).limit(outputSize).toArray();
+            modelTensorOutput[i * 2] = new double[][] { starts };
+            modelTensorOutput[(i * 2) + 1] = new double[][] { ends };
+        }
+
+        int spanContainingTheAnswer = randomIntBetween(0, numberSpans - 1);
+
+        // insert numbers to mark the answer in the chosen span
+        int answerStart = tokenizationResult.getTokens().get(spanContainingTheAnswer).seqPairOffset(); // first token of second sequence
+        // last token of the second sequence ignoring the final SEP added by the BERT tokenizer
+        int answerEnd = tokenizationResult.getTokens().get(spanContainingTheAnswer).tokenIds().length - 2;
+        modelTensorOutput[spanContainingTheAnswer * 2][0][answerStart] = 0.5;
+        modelTensorOutput[(spanContainingTheAnswer * 2) + 1][0][answerEnd] = 1.0;
+
+        NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(config);
+        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(modelTensorOutput);
+        QuestionAnsweringInferenceResults result = (QuestionAnsweringInferenceResults) resultProcessor.processResult(
+            tokenizationResult,
+            pyTorchResult,
+            false
+        );
+
+        // The expected answer is the full text of the span containing the answer
+        int expectedStart = tokenizationResult.getTokens().get(spanContainingTheAnswer).tokens().get(1).get(0).startOffset();
+        int lastTokenPosition = tokenizationResult.getTokens().get(spanContainingTheAnswer).tokens().get(1).size() - 1;
+        int expectedEnd = tokenizationResult.getTokens().get(spanContainingTheAnswer).tokens().get(1).get(lastTokenPosition).endOffset();
+
+        assertThat(result.getAnswer(), equalTo(input.substring(expectedStart, expectedEnd)));
+    }
 }

@@ -13,8 +13,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.DoubleArray;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
@@ -224,7 +224,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
     }
 
     @Override
-    public InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context) {
+    public InternalAggregation doReduce(InternalAggregations aggregations, AggregationReduceContext context) {
         Optional<MlAggsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(bucketsPaths()[0], aggregations).map(
             bucketValue -> {
                 double[] values = new double[bucketValue.getValues().length + 1];
@@ -237,7 +237,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
             }
         );
         if (maybeBucketsValue.isPresent() == false) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
             );
         }

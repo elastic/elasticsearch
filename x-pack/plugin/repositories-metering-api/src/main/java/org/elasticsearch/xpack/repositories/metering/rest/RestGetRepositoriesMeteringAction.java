@@ -11,6 +11,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMeteringAction;
 import org.elasticsearch.xpack.repositories.metering.action.RepositoriesMeteringRequest;
@@ -19,6 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public final class RestGetRepositoriesMeteringAction extends BaseRestHandler {
 
     @Override

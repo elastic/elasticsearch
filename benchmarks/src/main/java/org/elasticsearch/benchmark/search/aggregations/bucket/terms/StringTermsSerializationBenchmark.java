@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.search.aggregations.bucket.terms;
@@ -49,13 +50,13 @@ public class StringTermsSerializationBenchmark {
 
     @Setup
     public void initResults() {
-        results = DelayableWriteable.referencing(InternalAggregations.from(List.of(newTerms(true))));
+        results = DelayableWriteable.referencing(InternalAggregations.from(newTerms(true)));
     }
 
     private StringTerms newTerms(boolean withNested) {
         List<StringTerms.Bucket> resultBuckets = new ArrayList<>(buckets);
         for (int i = 0; i < buckets; i++) {
-            InternalAggregations inner = withNested ? InternalAggregations.from(List.of(newTerms(false))) : InternalAggregations.EMPTY;
+            InternalAggregations inner = withNested ? InternalAggregations.from(newTerms(false)) : InternalAggregations.EMPTY;
             resultBuckets.add(new StringTerms.Bucket(new BytesRef("test" + i), i, inner, false, 0, DocValueFormat.RAW));
         }
         return new StringTerms(

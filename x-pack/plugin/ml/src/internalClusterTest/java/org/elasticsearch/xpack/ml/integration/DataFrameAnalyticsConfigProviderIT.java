@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,7 +57,14 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         configProvider = new DataFrameAnalyticsConfigProvider(
             client(),
             xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
+            // We can't change the signature of createComponents to e.g. pass differing values of includeNodeInfo to pass to the
+            // DataFrameAnalyticsAuditor constructor. Instead we generate a random boolean value for that purpose.
+            new DataFrameAnalyticsAuditor(
+                client(),
+                getInstanceFromNode(ClusterService.class),
+                TestIndexNameExpressionResolver.newInstance(),
+                randomBoolean()
+            ),
             getInstanceFromNode(ClusterService.class)
         );
         dummyAuthenticationHeader = Authentication.newRealmAuthentication(
@@ -329,7 +338,6 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(instanceOf(ResourceNotFoundException.class)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58814")
     public void testUpdate_UpdateCannotBeAppliedWhenTaskIsRunning() throws InterruptedException {
         String configId = "config-id";
         DataFrameAnalyticsConfig initialConfig = DataFrameAnalyticsConfigTests.createRandom(configId);
@@ -351,8 +359,10 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             AtomicReference<DataFrameAnalyticsConfig> updatedConfigHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
+            // Important: the new value specified here must be one that it's impossible for DataFrameAnalyticsConfigTests.createRandom
+            // to have used originally. If the update is a no-op then the test fails.
             DataFrameAnalyticsConfigUpdate configUpdate = new DataFrameAnalyticsConfigUpdate.Builder(configId).setModelMemoryLimit(
-                ByteSizeValue.ofMb(2048)
+                ByteSizeValue.ofMb(1234)
             ).build();
 
             ClusterState clusterState = clusterStateWithRunningAnalyticsTask(configId, DataFrameAnalyticsState.ANALYZING);
@@ -376,12 +386,12 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, false),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, MlConfigVersion.CURRENT, false),
             new PersistentTasksCustomMetadata.Assignment("node", "test assignment")
         );
         builder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
-            new DataFrameAnalyticsTaskState(analyticsState, builder.getLastAllocationId(), null)
+            new DataFrameAnalyticsTaskState(analyticsState, builder.getLastAllocationId(), null, Instant.now())
         );
         PersistentTasksCustomMetadata tasks = builder.build();
 

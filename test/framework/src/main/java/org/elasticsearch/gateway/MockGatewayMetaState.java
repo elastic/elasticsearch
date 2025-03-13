@@ -1,29 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
-import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetadataUpgrader;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.io.IOException;
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,9 +50,14 @@ public class MockGatewayMetaState extends GatewayMetaState {
     }
 
     @Override
-    ClusterState prepareInitialClusterState(TransportService transportService, ClusterService clusterService, ClusterState clusterState) {
+    ClusterState prepareInitialClusterState(
+        TransportService transportService,
+        ClusterService clusterService,
+        ClusterState clusterState,
+        CompatibilityVersions compatibilityVersions
+    ) {
         // Just set localNode here, not to mess with ClusterService and IndicesService mocking
-        return ClusterStateUpdaters.setLocalNode(clusterState, localNode);
+        return ClusterStateUpdaters.setLocalNode(clusterState, localNode, compatibilityVersions);
     }
 
     public void start(Settings settings, NodeEnvironment nodeEnvironment, NamedXContentRegistry xContentRegistry) {
@@ -61,11 +68,6 @@ public class MockGatewayMetaState extends GatewayMetaState {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
         final MetaStateService metaStateService = mock(MetaStateService.class);
-        try {
-            when(metaStateService.loadFullState()).thenReturn(new Tuple<>(Manifest.empty(), Metadata.builder().build()));
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
         start(
             settings,
             transportService,
@@ -77,8 +79,11 @@ public class MockGatewayMetaState extends GatewayMetaState {
                 nodeEnvironment,
                 xContentRegistry,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L
-            )
+                () -> 0L,
+                ESTestCase::randomBoolean
+            ),
+            List.of(),
+            CompatibilityVersionsUtils.staticCurrent()
         );
     }
 }

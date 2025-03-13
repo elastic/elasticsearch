@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url.http;
 
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
@@ -17,7 +19,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -44,7 +45,7 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
         when(secondHttpResponseInputStream.read(any(), anyInt(), anyInt())).thenReturn(blobSize - firstChunkSize).thenReturn(-1);
         final Map<String, String> secondResponseHeaders = Map.of(
             "Content-Range",
-            String.format(Locale.ROOT, "bytes %d-%d/%d", firstChunkSize, blobSize - 1, blobSize)
+            Strings.format("bytes %d-%d/%d", firstChunkSize, blobSize - 1, blobSize)
         );
 
         final List<MockHttpResponse> responses = List.of(

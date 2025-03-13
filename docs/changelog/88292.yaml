@@ -1,6 +1,0 @@
-pr: 88292
-summary: Autoscaling during shrink
-area: Autoscaling
-type: bug
-issues:
- - 85480

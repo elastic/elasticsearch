@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -15,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  */
 public final class IndexMetaDataGenerations {
 
-    public static final IndexMetaDataGenerations EMPTY = new IndexMetaDataGenerations(Collections.emptyMap(), Collections.emptyMap());
+    public static final IndexMetaDataGenerations EMPTY = new IndexMetaDataGenerations(Map.of(), Map.of());
 
     /**
      * Map of {@link SnapshotId} to a map of the indices in a snapshot mapping {@link IndexId} to metadata identifiers.
@@ -94,7 +94,7 @@ public final class IndexMetaDataGenerations {
      */
     @Nullable
     public String snapshotIndexMetadataIdentifier(SnapshotId snapshotId, IndexId indexId) {
-        return lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
+        return lookup.getOrDefault(snapshotId, Map.of()).get(indexId);
     }
 
     /**

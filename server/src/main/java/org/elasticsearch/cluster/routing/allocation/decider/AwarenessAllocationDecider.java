@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -24,10 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -74,10 +73,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "awareness";
 
-    public static final Setting<List<String>> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = Setting.stringListSetting(
         "cluster.routing.allocation.awareness.attributes",
-        emptyList(),
-        Function.identity(),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -123,7 +120,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return underCapacity(allocation.metadata().getIndexSafe(shardRouting.index()), shardRouting, node, allocation, true);
+        final IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
+        return underCapacity(indexMetadata, shardRouting, node, allocation, true);
     }
 
     @Override

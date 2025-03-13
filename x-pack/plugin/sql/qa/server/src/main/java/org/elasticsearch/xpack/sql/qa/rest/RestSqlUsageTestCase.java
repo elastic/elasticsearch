@@ -12,6 +12,7 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -300,16 +301,16 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (IndexDocument doc : docs) {
-            bulk.append("""
+            bulk.append(Strings.format("""
                 {"index":{}}
                 {"condition":"%s","name":"%s","page_count":%s}
-                """.formatted(doc.condition, doc.name, doc.pageCount));
+                """, doc.condition, doc.name, doc.pageCount));
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
     }
 
-    private Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
+    private static Map<String, Object> getStats() throws UnsupportedOperationException, IOException {
         Request request = new Request("GET", SQL_STATS_REST_ENDPOINT);
         Map<String, Object> responseAsMap;
         try (InputStream content = client().performRequest(request).getEntity().getContent()) {
@@ -319,7 +320,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         return responseAsMap;
     }
 
-    private void runTranslate(String sql) throws IOException {
+    private static void runTranslate(String sql) throws IOException {
         Request request = new Request("POST", SQL_TRANSLATE_REST_ENDPOINT);
         if (randomBoolean()) {
             // We default to JSON but we force it randomly for extra coverage
@@ -348,7 +349,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void assertTranslateQueryMetric(int expected, Map<String, Object> responseAsMap) throws IOException {
+    private static void assertTranslateQueryMetric(int expected, Map<String, Object> responseAsMap) throws IOException {
         List<Map<String, Map<String, Map>>> nodesListStats = (List) responseAsMap.get("stats");
         int actualMetricValue = 0;
         for (Map perNodeStats : nodesListStats) {
@@ -383,7 +384,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void assertFeatureMetric(int expected, Map<String, Object> responseAsMap, String feature) throws IOException {
+    private static void assertFeatureMetric(int expected, Map<String, Object> responseAsMap, String feature) throws IOException {
         List<Map<String, ?>> nodesListStats = (List<Map<String, ?>>) responseAsMap.get("stats");
         int actualMetricValue = 0;
         for (Map perNodeStats : nodesListStats) {
@@ -394,7 +395,8 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    private void assertQueryMetric(int expected, Map<String, Object> responseAsMap, String queryType, String metric) throws IOException {
+    private static void assertQueryMetric(int expected, Map<String, Object> responseAsMap, String queryType, String metric)
+        throws IOException {
         List<Map<String, Map<String, Map>>> nodesListStats = (List) responseAsMap.get("stats");
         int actualMetricValue = 0;
         for (Map perNodeStats : nodesListStats) {
@@ -409,7 +411,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertQueryMetric(expected, responseAsMap, clientType, metric);
     }
 
-    private void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) throws IOException {
+    private static void assertAllQueryMetric(int expected, Map<String, Object> responseAsMap, String metric) throws IOException {
         assertQueryMetric(expected, responseAsMap, "_all", metric);
     }
 

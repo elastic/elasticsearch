@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -48,25 +49,11 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
         Set<Long> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
             long term = randomValueOtherThanMany(l -> terms.add(l) == false, random()::nextLong);
-            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(
-                subsetDfs[i],
-                subsetSize,
-                supersetDfs[i],
-                supersetSize,
-                term,
-                aggs,
-                format,
-                0
-            );
-            bucket.updateScore(significanceHeuristic);
+            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(subsetDfs[i], supersetDfs[i], term, aggs, format, 0);
+            bucket.updateScore(significanceHeuristic, subsetSize, supersetSize);
             buckets.add(bucket);
         }
         return new SignificantLongTerms(name, requiredSize, 1L, metadata, format, subsetSize, supersetSize, significanceHeuristic, buckets);
-    }
-
-    @Override
-    protected Class<ParsedSignificantLongTerms> implementationClass() {
-        return ParsedSignificantLongTerms.class;
     }
 
     @Override
@@ -92,8 +79,6 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
                     buckets.add(
                         new SignificantLongTerms.Bucket(
                             randomLong(),
-                            randomNonNegativeLong(),
-                            randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             InternalAggregations.EMPTY,

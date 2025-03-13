@@ -84,7 +84,7 @@ public class MlFilter implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeOptionalString(description);
-        out.writeStringArray(items.toArray(new String[items.size()]));
+        out.writeStringCollection(items);
     }
 
     @Override

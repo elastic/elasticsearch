@@ -1,15 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,13 +34,31 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 @WithoutSecurityManager
 public class JvmOptionsParserTests extends ESTestCase {
+
+    private static final Map<String, String> TEST_SYSPROPS = Map.of("os.name", "Linux", "os.arch", "aarch64");
+
+    private static final Path ENTITLEMENTS_LIB_DIR = Path.of("lib", "entitlement-bridge");
+
+    @BeforeClass
+    public static void beforeClass() throws IOException {
+        Files.createDirectories(ENTITLEMENTS_LIB_DIR);
+        Files.createTempFile(ENTITLEMENTS_LIB_DIR, "mock-entitlements-bridge", ".jar");
+    }
+
+    @AfterClass
+    public static void afterClass() throws IOException {
+        IOUtils.rm(Path.of("lib"));
+    }
 
     public void testSubstitution() {
         final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(
@@ -47,7 +72,6 @@ public class JvmOptionsParserTests extends ESTestCase {
         try (StringReader sr = new StringReader("-Xms1g\n-Xmx1g"); BufferedReader br = new BufferedReader(sr)) {
             assertExpectedJvmOptions(randomIntBetween(8, Integer.MAX_VALUE), br, Arrays.asList("-Xms1g", "-Xmx1g"));
         }
-
     }
 
     public void testSingleVersionOption() throws IOException {
@@ -291,7 +315,7 @@ public class JvmOptionsParserTests extends ESTestCase {
 
         final int javaMajorVersion = randomIntBetween(8, Integer.MAX_VALUE);
         final int smallerJavaMajorVersion = randomIntBetween(7, javaMajorVersion - 1);
-        final String invalidRangeLine = String.format(Locale.ROOT, "%d:%d-XX:+UseG1GC", javaMajorVersion, smallerJavaMajorVersion);
+        final String invalidRangeLine = Strings.format("%d:%d-XX:+UseG1GC", javaMajorVersion, smallerJavaMajorVersion);
         try (StringReader sr = new StringReader(invalidRangeLine); BufferedReader br = new BufferedReader(sr)) {
             assertInvalidLines(br, Collections.singletonMap(1, invalidRangeLine));
         }
@@ -306,8 +330,8 @@ public class JvmOptionsParserTests extends ESTestCase {
         );
         try (StringReader sr = new StringReader(numberFormatExceptionsLine); BufferedReader br = new BufferedReader(sr)) {
             final Map<Integer, String> invalidLines = new HashMap<>(2);
-            invalidLines.put(1, String.format(Locale.ROOT, "%d:-XX:+UseG1GC", invalidLowerJavaMajorVersion));
-            invalidLines.put(2, String.format(Locale.ROOT, "8-%d:-XX:+AggressiveOpts", invalidUpperJavaMajorVersion));
+            invalidLines.put(1, Strings.format("%d:-XX:+UseG1GC", invalidLowerJavaMajorVersion));
+            invalidLines.put(2, Strings.format("8-%d:-XX:+AggressiveOpts", invalidUpperJavaMajorVersion));
             assertInvalidLines(br, invalidLines);
         }
 
@@ -321,7 +345,7 @@ public class JvmOptionsParserTests extends ESTestCase {
 
         final int lowerBound = randomIntBetween(9, 16);
         final int upperBound = randomIntBetween(8, lowerBound - 1);
-        final String upperBoundGreaterThanLowerBound = String.format(Locale.ROOT, "%d-%d-XX:+UseG1GC", lowerBound, upperBound);
+        final String upperBoundGreaterThanLowerBound = Strings.format("%d-%d-XX:+UseG1GC", lowerBound, upperBound);
         try (StringReader sr = new StringReader(upperBoundGreaterThanLowerBound); BufferedReader br = new BufferedReader(sr)) {
             assertInvalidLines(br, Collections.singletonMap(1, upperBoundGreaterThanLowerBound));
         }
@@ -343,4 +367,34 @@ public class JvmOptionsParserTests extends ESTestCase {
         assertThat(seenInvalidLines, equalTo(invalidLines));
     }
 
+    public void testNodeProcessorsActiveCount() {
+        {
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, TEST_SYSPROPS);
+            assertThat(jvmOptions, not(hasItem(containsString("-XX:ActiveProcessorCount="))));
+        }
+        {
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 1).build();
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
+            assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
+        }
+        {
+            // check rounding
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 0.2).build();
+            final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS);
+            assertThat(jvmOptions, hasItem("-XX:ActiveProcessorCount=1"));
+        }
+        {
+            // check validation
+            Settings nodeSettings = Settings.builder().put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), 10000).build();
+            var e = expectThrows(IllegalArgumentException.class, () -> SystemJvmOptions.systemJvmOptions(nodeSettings, TEST_SYSPROPS));
+            assertThat(e.getMessage(), containsString("setting [node.processors] must be <="));
+        }
+    }
+
+    public void testCommandLineDistributionType() {
+        var sysprops = new HashMap<>(TEST_SYSPROPS);
+        sysprops.put("es.distribution.type", "testdistro");
+        final List<String> jvmOptions = SystemJvmOptions.systemJvmOptions(Settings.EMPTY, sysprops);
+        assertThat(jvmOptions, hasItem("-Des.distribution.type=testdistro"));
+    }
 }

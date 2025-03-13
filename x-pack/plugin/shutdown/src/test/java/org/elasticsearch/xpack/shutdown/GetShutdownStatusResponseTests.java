@@ -15,12 +15,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.RESTART;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 
 public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestCase<GetShutdownStatusAction.Response> {
     @Override
@@ -35,7 +37,7 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
     }
 
     @Override
-    protected GetShutdownStatusAction.Response mutateInstance(GetShutdownStatusAction.Response instance) throws IOException {
+    protected GetShutdownStatusAction.Response mutateInstance(GetShutdownStatusAction.Response instance) {
         Set<SingleNodeShutdownStatus> oldNodes = new HashSet<>(instance.getShutdownStatuses());
         List<SingleNodeShutdownStatus> newNodes = randomList(
             1,
@@ -49,23 +51,24 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
     public static SingleNodeShutdownMetadata randomNodeShutdownMetadata() {
         final SingleNodeShutdownMetadata.Type type = randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class));
         final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-        final TimeValue allocationDelay = type == SingleNodeShutdownMetadata.Type.RESTART && randomBoolean()
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), GetShutdownStatusResponseTests.class.getSimpleName())
-            : null;
+        final TimeValue allocationDelay = type == RESTART && randomBoolean() ? randomPositiveTimeValue() : null;
+        final TimeValue gracefulShutdown = type == SIGTERM ? randomPositiveTimeValue() : null;
         return SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
+            .setNodeEphemeralId(randomAlphaOfLength(5))
             .setType(type)
             .setReason(randomAlphaOfLength(5))
             .setStartedAtMillis(randomNonNegativeLong())
             .setTargetNodeName(targetNodeName)
             .setAllocationDelay(allocationDelay)
+            .setGracePeriod(gracefulShutdown)
             .build();
     }
 
     public static SingleNodeShutdownStatus randomNodeShutdownStatus() {
         return new SingleNodeShutdownStatus(
             randomNodeShutdownMetadata(),
-            new ShutdownShardMigrationStatus(randomStatus(), randomNonNegativeLong()),
+            new ShutdownShardMigrationStatus(randomStatus(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
             new ShutdownPersistentTasksStatus(),
             new ShutdownPluginsStatus(randomBoolean())
         );

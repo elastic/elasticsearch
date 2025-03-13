@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -15,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -52,12 +54,12 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     protected Map<String, FuzzyQueryBuilder> getAlternateVersions() {
         Map<String, FuzzyQueryBuilder> alternateVersions = new HashMap<>();
         FuzzyQueryBuilder fuzzyQuery = new FuzzyQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-        String contentString = """
+        String contentString = Strings.format("""
             {
                 "fuzzy" : {
                     "%s" : "%s"
                 }
-            }""".formatted(fuzzyQuery.fieldName(), fuzzyQuery.value());
+            }""", fuzzyQuery.fieldName(), fuzzyQuery.value());
         alternateVersions.put(contentString, fuzzyQuery);
         return alternateVersions;
     }
@@ -84,7 +86,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringField() throws IOException {
-        String query = """
+        String query = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -94,7 +96,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                         "boost":2.0
                     }
                 }
-            }""".formatted(TEXT_FIELD_NAME);
+            }""", TEXT_FIELD_NAME);
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) parsedQuery;
@@ -107,7 +109,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringFieldDefinedFuzziness() throws IOException {
-        String query = """
+        String query = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -117,7 +119,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                         "boost":2.0
                     }
                 }
-            }""".formatted(TEXT_FIELD_NAME);
+            }""", TEXT_FIELD_NAME);
         Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) parsedQuery;
@@ -130,7 +132,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithStringFieldDefinedWrongFuzziness() throws IOException {
-        String queryMissingFuzzinessUpLimit = """
+        String queryMissingFuzzinessUpLimit = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -140,7 +142,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                         "boost":2.0
                     }
                 }
-            }""".formatted(TEXT_FIELD_NAME);
+            }""", TEXT_FIELD_NAME);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
             () -> parseQuery(queryMissingFuzzinessUpLimit).toQuery(createSearchExecutionContext())
@@ -148,7 +150,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         String msg = "failed to find low and high distance values";
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String queryHavingNegativeFuzzinessLowLimit = """
+        String queryHavingNegativeFuzzinessLowLimit = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -158,7 +160,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                         "boost":2.0
                     }
                 }
-            }""".formatted(TEXT_FIELD_NAME);
+            }""", TEXT_FIELD_NAME);
         String msg2 = "fuzziness wrongly configured";
         ElasticsearchParseException e2 = expectThrows(
             ElasticsearchParseException.class,
@@ -166,7 +168,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         );
         assertTrue(e2.getMessage() + " didn't contain: " + msg2 + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String queryMissingFuzzinessUpLimit2 = """
+        String queryMissingFuzzinessUpLimit2 = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -176,14 +178,14 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                         "boost":2.0
                     }
                 }
-            }""".formatted(TEXT_FIELD_NAME);
+            }""", TEXT_FIELD_NAME);
         e = expectThrows(
             ElasticsearchParseException.class,
             () -> parseQuery(queryMissingFuzzinessUpLimit2).toQuery(createSearchExecutionContext())
         );
         assertTrue(e.getMessage() + " didn't contain: " + msg + " but: " + e.getMessage(), e.getMessage().contains(msg));
 
-        String queryMissingFuzzinessLowLimit = """
+        String queryMissingFuzzinessLowLimit = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -193,7 +195,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                         "boost":2.0
                     }
                 }
-            }""".formatted(TEXT_FIELD_NAME);
+            }""", TEXT_FIELD_NAME);
         e = expectThrows(
             ElasticsearchParseException.class,
             () -> parseQuery(queryMissingFuzzinessLowLimit).toQuery(createSearchExecutionContext())
@@ -203,7 +205,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testToQueryWithNumericField() throws IOException {
-        String query = """
+        String query = Strings.format("""
             {
                 "fuzzy":{
                     "%s":{
@@ -212,7 +214,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                     }
                 }
             }
-            """.formatted(INT_FIELD_NAME);
+            """, INT_FIELD_NAME);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> parseQuery(query).toQuery(createSearchExecutionContext())

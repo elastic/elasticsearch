@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -12,6 +13,7 @@ import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -49,7 +51,9 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
     protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(
             query,
-            either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class)).or(instanceOf(MatchAllQueryBuilder.class))
+            either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class))
+                .or(instanceOf(MatchAllQueryBuilder.class))
+                .or(instanceOf(SpanMatchNoDocsQuery.class))
         );
         if (query instanceof SpanNearQuery spanNearQuery) {
             assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));

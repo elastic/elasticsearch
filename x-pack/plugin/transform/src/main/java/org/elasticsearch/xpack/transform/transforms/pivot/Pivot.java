@@ -9,24 +9,25 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -43,7 +44,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -55,7 +55,7 @@ public class Pivot extends AbstractCompositeAggFunction {
 
     private final PivotConfig config;
     private final SettingsConfig settings;
-    private final Version version;
+    private final TransformConfigVersion version;
 
     /**
      * Create a new Pivot function
@@ -63,11 +63,11 @@ public class Pivot extends AbstractCompositeAggFunction {
      * @param settings Any miscellaneous settings for the function
      * @param version The version of the transform
      */
-    public Pivot(PivotConfig config, SettingsConfig settings, Version version, Set<String> runtimeFields) {
+    public Pivot(PivotConfig config, SettingsConfig settings, TransformConfigVersion version, Set<String> runtimeFields) {
         super(createCompositeAggregation(config, runtimeFields));
         this.config = config;
         this.settings = settings;
-        this.version = version == null ? Version.CURRENT : version;
+        this.version = version == null ? TransformConfigVersion.CURRENT : version;
     }
 
     @Override
@@ -87,12 +87,14 @@ public class Pivot extends AbstractCompositeAggFunction {
     }
 
     @Override
-    public void deduceMappings(Client client, SourceConfig sourceConfig, final ActionListener<Map<String, String>> listener) {
-        if (Boolean.FALSE.equals(settings.getDeduceMappings())) {
-            listener.onResponse(emptyMap());
-            return;
-        }
-        SchemaUtil.deduceMappings(client, config, sourceConfig.getIndex(), sourceConfig.getRuntimeMappings(), listener);
+    public void deduceMappings(
+        Client client,
+        Map<String, String> headers,
+        String transformId,
+        SourceConfig sourceConfig,
+        final ActionListener<Map<String, String>> listener
+    ) {
+        SchemaUtil.deduceMappings(client, headers, transformId, settings, config, sourceConfig, listener);
     }
 
     /**
@@ -131,14 +133,7 @@ public class Pivot extends AbstractCompositeAggFunction {
         TransformIndexerStats transformIndexerStats,
         TransformProgress transformProgress
     ) {
-        // defines how dates are written, if not specified in settings
-        // < 7.11 as epoch millis
-        // >= 7.11 as string
-        // note: it depends on the version when the transform has been created, not the version of the code
-        boolean datesAsEpoch = settings.getDatesAsEpochMillis() != null ? settings.getDatesAsEpochMillis()
-            : version.onOrAfter(Version.V_7_11_0) ? false
-            : true;
-
+        boolean datesAsEpoch = TransformEffectiveSettings.writeDatesAsEpochMillis(settings, version);
         return AggregationResultUtils.extractCompositeAggregationResults(
             agg,
             config.getGroupConfig(),
@@ -196,11 +191,15 @@ public class Pivot extends AbstractCompositeAggFunction {
 
             builder.endArray();
             builder.endObject(); // sources
-            XContentParser parser = builder.generator()
-                .contentType()
-                .xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
-            compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                    BytesReference.bytes(builder),
+                    builder.generator().contentType()
+                )
+            ) {
+                compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
+            }
         } catch (IOException e) {
             throw new RuntimeException(
                 TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "pivot"),

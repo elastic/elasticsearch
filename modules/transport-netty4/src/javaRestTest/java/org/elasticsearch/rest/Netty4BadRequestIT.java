@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -22,12 +23,13 @@ import org.elasticsearch.test.rest.ObjectPath;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.matchesRegex;
 
 public class Netty4BadRequestIT extends ESRestTestCase {
 
@@ -63,7 +65,7 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(BAD_REQUEST.getStatus()));
         assertThat(e, hasToString(containsString("too_long_http_line_exception")));
-        assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));
+        assertThat(e, hasToString(matchesRegex(Pattern.compile(".*An HTTP line is larger than \\d+ bytes.*", Pattern.DOTALL))));
     }
 
     public void testInvalidParameterValue() throws IOException {

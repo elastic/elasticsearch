@@ -10,7 +10,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCounter;
 import static org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats.SEEKING_THRESHOLD;
 

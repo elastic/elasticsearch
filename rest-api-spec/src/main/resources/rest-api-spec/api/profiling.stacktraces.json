@@ -1,0 +1,28 @@
+{
+  "profiling.stacktraces":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/observability/current/universal-profiling.html",
+      "description":"Extracts raw stacktrace information from Universal Profiling."
+    },
+    "stability":"stable",
+    "visibility":"private",
+    "headers":{
+      "accept": ["application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_profiling/stacktraces",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The filter conditions for stacktraces",
+      "required":true
+    }
+  }
+}

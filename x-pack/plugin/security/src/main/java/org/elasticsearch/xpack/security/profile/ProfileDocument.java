@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
@@ -26,7 +27,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 
@@ -118,7 +118,7 @@ public record ProfileDocument(
     static String computeBaseUidForSubject(Subject subject) {
         final MessageDigest digest = MessageDigests.sha256();
         digest.update(subject.getUser().principal().getBytes(StandardCharsets.UTF_8));
-        return "u_" + Base64.getUrlEncoder().withoutPadding().encodeToString(digest.digest());
+        return "u_" + Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(digest.digest());
     }
 
     public static ProfileDocument fromXContent(XContentParser parser) {

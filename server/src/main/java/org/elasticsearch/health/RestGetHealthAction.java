@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -11,16 +12,22 @@ package org.elasticsearch.health;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetHealthAction extends BaseRestHandler {
 
-    private static final String EXPLAIN_PARAM = "explain";
+    private static final String VERBOSE_PARAM = "verbose";
+
+    private static final String SIZE_PARAM = "size";
 
     @Override
     public String getName() {
@@ -30,14 +37,24 @@ public class RestGetHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_internal/_health"), new Route(GET, "/_internal/_health/{indicator}"));
+        return List.of(new Route(GET, "/_health_report"), new Route(GET, "/_health_report/{indicator}"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String indicatorName = request.param("indicator");
-        boolean explain = request.paramAsBoolean(EXPLAIN_PARAM, true);
-        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, explain);
-        return channel -> client.execute(GetHealthAction.INSTANCE, getHealthRequest, new RestToXContentListener<>(channel));
+        boolean verbose = request.paramAsBoolean(VERBOSE_PARAM, true);
+        int size = request.paramAsInt(SIZE_PARAM, 1000);
+        GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(indicatorName, verbose, size);
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            GetHealthAction.INSTANCE,
+            getHealthRequest,
+            new RestRefCountedChunkedToXContentListener<>(channel)
+        );
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

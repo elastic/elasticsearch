@@ -6,23 +6,23 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -57,8 +57,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getTargetIndexNameSupplier();
         boolean createSourceIndexAlias = instance.getCreateSourceIndexAlias();
         switch (between(0, 3)) {
-            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> indexNameSupplier = (index, state) -> index + randomAlphaOfLength(5);
             case 3 -> createSourceIndexAlias = createSourceIndexAlias == false;
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -69,9 +69,10 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
     public void testPerformAction() {
         String sourceIndexName = randomAlphaOfLength(10);
         IndexMetadata.Builder sourceIndexMetadataBuilder = IndexMetadata.builder(sourceIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5));
+        Boolean isHidden = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
         AliasMetadata.Builder aliasBuilder = AliasMetadata.builder(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             aliasBuilder.routing(randomAlphaOfLengthBetween(1, 10));
@@ -83,13 +84,14 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             aliasBuilder.indexRouting(randomAlphaOfLengthBetween(1, 10));
         }
         aliasBuilder.writeIndex(randomBoolean());
+        aliasBuilder.isHidden(isHidden);
         AliasMetadata aliasMetadata = aliasBuilder.build();
         IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.putAlias(aliasMetadata).build();
 
         String targetIndexPrefix = "index_prefix";
         String targetIndexName = targetIndexPrefix + sourceIndexName;
 
-        List<AliasActions> expectedAliasActions = Arrays.asList(
+        List<AliasActions> expectedAliasActions = List.of(
             AliasActions.removeIndex().index(sourceIndexName),
             AliasActions.add().index(targetIndexName).alias(sourceIndexName),
             AliasActions.add()
@@ -98,9 +100,11 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 .searchRouting(aliasMetadata.searchRouting())
                 .indexRouting(aliasMetadata.indexRouting())
                 .writeIndex(null)
+                .isHidden(isHidden)
         );
 
-        try (NoOpClient client = getIndicesAliasAssertingClient(expectedAliasActions)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getIndicesAliasAssertingClient(threadPool, expectedAliasActions);
             SwapAliasesAndDeleteSourceIndexStep step = new SwapAliasesAndDeleteSourceIndexStep(
                 randomStepKey(),
                 randomStepKey(),
@@ -109,7 +113,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
             );
 
             IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndexName)
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5));
 
@@ -121,15 +125,15 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         }
     }
 
-    private NoOpClient getIndicesAliasAssertingClient(List<AliasActions> expectedAliasActions) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getIndicesAliasAssertingClient(ThreadPool threadPool, List<AliasActions> expectedAliasActions) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(IndicesAliasesAction.NAME));
+                assertThat(action.name(), is(TransportIndicesAliasesAction.NAME));
                 assertTrue(request instanceof IndicesAliasesRequest);
                 assertThat(((IndicesAliasesRequest) request).getAliasActions(), equalTo(expectedAliasActions));
             }

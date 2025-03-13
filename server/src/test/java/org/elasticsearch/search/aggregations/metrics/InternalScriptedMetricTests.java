@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -18,35 +18,26 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.test.VersionUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 public class InternalScriptedMetricTests extends InternalAggregationTestCase<InternalScriptedMetric> {
 
     private static final String REDUCE_SCRIPT_NAME = "reduceScript";
     private boolean hasReduceScript;
-    private Supplier<Object>[] valueTypes;
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private final Supplier<Object>[] leafValueSuppliers = new Supplier[] {
         () -> randomInt(),
@@ -58,24 +49,13 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         () -> new GeoPoint(randomDouble(), randomDouble()),
         () -> null };
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private final Supplier<Object>[] nestedValueSuppliers = new Supplier[] { () -> new HashMap<String, Object>(), () -> new ArrayList<>() };
+    private final Supplier<Object>[] nestedValueSuppliers = new Supplier[] { HashMap::new, ArrayList::new };
 
     @Override
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public void setUp() throws Exception {
         super.setUp();
         hasReduceScript = randomBoolean();
-        // we want the same value types (also for nested lists, maps) for all random aggregations
-        int levels = randomIntBetween(1, 3);
-        valueTypes = new Supplier[levels];
-        for (int i = 0; i < levels; i++) {
-            if (i < levels - 1) {
-                valueTypes[i] = randomFrom(nestedValueSuppliers);
-            } else {
-                // the last one needs to be a leaf value, not map or list
-                valueTypes[i] = randomFrom(leafValueSuppliers);
-            }
-        }
     }
 
     @Override
@@ -151,9 +131,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
 
     @Override
     protected void assertReduced(InternalScriptedMetric reduced, List<InternalScriptedMetric> inputs) {
-        InternalScriptedMetric firstAgg = inputs.get(0);
-        assertEquals(firstAgg.getName(), reduced.getName());
-        assertEquals(firstAgg.getMetadata(), reduced.getMetadata());
+        // we cannot check the current attribute values as they depend on the first aggregator during the reduced phase
         int size = (int) inputs.stream().mapToLong(i -> i.aggregationsList().size()).sum();
         if (hasReduceScript) {
             assertEquals(size, reduced.aggregation());
@@ -175,7 +153,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     @Override
     public InternalScriptedMetric createTestInstanceForXContent() {
         InternalScriptedMetric aggregation = createTestInstance();
-        return (InternalScriptedMetric) aggregation.reduce(
+        return (InternalScriptedMetric) InternalAggregationTestCase.reduce(
             singletonList(aggregation),
             new AggregationReduceContext.ForFinal(
                 null,
@@ -189,65 +167,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
     }
 
     @Override
-    protected void assertFromXContent(InternalScriptedMetric aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedScriptedMetric);
-        ParsedScriptedMetric parsed = (ParsedScriptedMetric) parsedAggregation;
-
-        assertValues(aggregation.aggregation(), parsed.aggregation());
-    }
-
-    private static void assertValues(Object expected, Object actual) {
-        if (expected instanceof Long) {
-            // longs that fit into the integer range are parsed back as integer
-            if (actual instanceof Integer) {
-                assertEquals(((Long) expected).intValue(), actual);
-            } else {
-                assertEquals(expected, actual);
-            }
-        } else if (expected instanceof Float) {
-            // based on the xContent type, floats are sometimes parsed back as doubles
-            if (actual instanceof Double) {
-                assertEquals(expected, ((Double) actual).floatValue());
-            } else {
-                assertEquals(expected, actual);
-            }
-        } else if (expected instanceof GeoPoint point) {
-            assertTrue(actual instanceof Map);
-            @SuppressWarnings("unchecked")
-            Map<String, Object> pointMap = (Map<String, Object>) actual;
-            assertEquals(point.getLat(), pointMap.get("lat"));
-            assertEquals(point.getLon(), pointMap.get("lon"));
-        } else if (expected instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> expectedMap = (Map<String, Object>) expected;
-            @SuppressWarnings("unchecked")
-            Map<String, Object> actualMap = (Map<String, Object>) actual;
-            assertEquals(expectedMap.size(), actualMap.size());
-            for (String key : expectedMap.keySet()) {
-                assertValues(expectedMap.get(key), actualMap.get(key));
-            }
-        } else if (expected instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Object> expectedList = (List<Object>) expected;
-            @SuppressWarnings("unchecked")
-            List<Object> actualList = (List<Object>) actual;
-            assertEquals(expectedList.size(), actualList.size());
-            Iterator<Object> actualIterator = actualList.iterator();
-            for (Object element : expectedList) {
-                assertValues(element, actualIterator.next());
-            }
-        } else {
-            assertEquals(expected, actual);
-        }
-    }
-
-    @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return path -> path.contains(CommonFields.VALUE.getPreferredName());
-    }
-
-    @Override
-    protected InternalScriptedMetric mutateInstance(InternalScriptedMetric instance) throws IOException {
+    protected InternalScriptedMetric mutateInstance(InternalScriptedMetric instance) {
         String name = instance.getName();
         List<Object> aggregationsList = instance.aggregationsList();
         Script reduceScript = instance.reduceScript;
@@ -274,28 +194,4 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         return new InternalScriptedMetric(name, aggregationsList, reduceScript, metadata);
     }
 
-    public void testOldSerialization() throws IOException {
-        // A single element list looks like a fully reduced agg
-        InternalScriptedMetric original = new InternalScriptedMetric("test", List.of("foo"), new Script("test"), null);
-        InternalScriptedMetric roundTripped = (InternalScriptedMetric) copyNamedWriteable(
-            original,
-            getNamedWriteableRegistry(),
-            InternalAggregation.class,
-            VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_8_0))
-        );
-        assertThat(roundTripped, equalTo(original));
-
-        // A multi-element list looks like a non-reduced agg
-        InternalScriptedMetric unreduced = new InternalScriptedMetric("test", List.of("foo", "bar"), new Script("test"), null);
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> copyNamedWriteable(
-                unreduced,
-                getNamedWriteableRegistry(),
-                InternalAggregation.class,
-                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_8_0))
-            )
-        );
-        assertThat(e.getMessage(), equalTo("scripted_metric doesn't support cross cluster search until 7.8.0"));
-    }
 }

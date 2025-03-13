@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.runtimefields;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -72,8 +74,8 @@ public interface NamedGroupExtractor {
                 return MatcherWatchdog.newInstance(
                     interval.millis(),
                     maxExecutionTime.millis(),
-                    threadPool::relativeTimeInMillis,
-                    (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC)
+                    threadPool.relativeTimeInMillisSupplier(),
+                    (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic())
                 );
             })::getOrCompute;
         }
@@ -99,17 +101,14 @@ public interface NamedGroupExtractor {
                     try {
                         // Try to collect warnings up front and refuse to compile the expression if there are any
                         List<String> warnings = new ArrayList<>();
-                        new Grok(Grok.getBuiltinPatterns(false), pattern, watchdog, warnings::add).match("__nomatch__");
+                        new Grok(GrokBuiltinPatterns.legacyPatterns(), pattern, watchdog, warnings::add).match("__nomatch__");
                         if (false == warnings.isEmpty()) {
                             throw new IllegalArgumentException("emitted warnings: " + warnings);
                         }
 
-                        return new Grok(
-                            Grok.getBuiltinPatterns(false),
-                            pattern,
-                            watchdog,
-                            w -> { throw new IllegalArgumentException("grok [" + pattern + "] emitted a warning: " + w); }
-                        );
+                        return new Grok(GrokBuiltinPatterns.legacyPatterns(), pattern, watchdog, w -> {
+                            throw new IllegalArgumentException("grok [" + pattern + "] emitted a warning: " + w);
+                        });
                     } catch (RuntimeException e) {
                         throw new IllegalArgumentException("error compiling grok pattern [" + pattern + "]: " + e.getMessage(), e);
                     }

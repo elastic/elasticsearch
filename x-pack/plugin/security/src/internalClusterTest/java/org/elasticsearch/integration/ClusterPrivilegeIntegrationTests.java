@@ -253,16 +253,15 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
 
     private void waitForSnapshotToFinish(String repo, String snapshot) throws Exception {
         assertBusy(() -> {
-            SnapshotsStatusResponse response = client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots(snapshot).get();
+            SnapshotsStatusResponse response = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, repo)
+                .setSnapshots(snapshot)
+                .get();
             assertThat(response.getSnapshots().get(0).getState(), is(SnapshotsInProgress.State.SUCCESS));
             // The status of the snapshot in the repository can become SUCCESS before it is fully finalized in the cluster state so wait for
             // it to disappear from the cluster state as well
-            SnapshotsInProgress snapshotsInProgress = client().admin()
-                .cluster()
-                .state(new ClusterStateRequest())
-                .get()
-                .getState()
-                .custom(SnapshotsInProgress.TYPE);
+            SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(
+                clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).get().getState()
+            );
             assertTrue(snapshotsInProgress.isEmpty());
         });
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -23,19 +24,22 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -47,6 +51,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.Executor;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 /**
@@ -122,6 +128,7 @@ public final class NetworkModule {
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
         ClusterSettings clusterSettings,
         Tracer tracer
     ) {
@@ -136,6 +143,7 @@ public final class NetworkModule {
                 xContentRegistry,
                 networkService,
                 dispatcher,
+                perRequestThreadContext,
                 clusterSettings,
                 tracer
             );
@@ -193,6 +201,17 @@ public final class NetworkModule {
         ParseField commandName
     ) {
         namedXContents.add(new NamedXContentRegistry.Entry(AllocationCommand.class, commandName, parser));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
+    }
+
+    private static <T extends AllocationCommand> void registerAllocationCommand(
+        Writeable.Reader<T> reader,
+        ContextParser<Object, T> parser,
+        ParseField commandName
+    ) {
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(AllocationCommand.class, commandName, parser, commandName.getForRestApiVersion())
+        );
         namedWriteables.add(new NamedWriteableRegistry.Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
     }
 
@@ -257,7 +276,7 @@ public final class NetworkModule {
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
             String action,
-            String executor,
+            Executor executor,
             boolean forceExecution,
             TransportRequestHandler<T> actualHandler
         ) {

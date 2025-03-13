@@ -14,13 +14,14 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xcontent.ParseField;
@@ -47,6 +48,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * specification as this aspect does not make the most sense since the response body is
  * expected to be JSON
  */
+@ServerlessScope(Scope.INTERNAL)
 public final class RestGetTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
 
     static final ConstructingObjectParser<CreateTokenRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -82,9 +84,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/oauth2/token").replaces(POST, "/_xpack/security/oauth2/token", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_security/oauth2/token"));
     }
 
     @Override
@@ -162,7 +162,7 @@ public final class RestGetTokenAction extends TokenBaseRestHandler implements Re
                     }
         }
 
-        private String extractBase64EncodedToken(ElasticsearchSecurityException e) {
+        private static String extractBase64EncodedToken(ElasticsearchSecurityException e) {
             String base64EncodedToken = null;
             List<String> values = e.getHeader(KerberosAuthenticationToken.WWW_AUTHENTICATE);
             if (values != null && values.size() == 1) {

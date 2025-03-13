@@ -1,0 +1,5 @@
+grant {
+  // Needed to read the log file
+  permission java.io.FilePermission "${tests.logfile}", "read";
+  permission java.io.FilePermission "${tests.jsonLogfile}", "read";
+};

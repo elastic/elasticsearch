@@ -9,16 +9,19 @@ package org.elasticsearch.xpack.core.enrich.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -31,24 +34,26 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
     public static final String NAME = "cluster:admin/xpack/enrich/get";
 
     private GetEnrichPolicyAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LocalClusterStateRequest {
 
         private final List<String> names;
 
-        public Request() {
-            this.names = new ArrayList<>();
+        public Request(TimeValue masterNodeTimeout, String... names) {
+            super(masterNodeTimeout);
+            this.names = List.of(names);
         }
 
-        public Request(String[] names) {
-            this.names = Arrays.asList(names);
-        }
-
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.names = in.readStringList();
+            this.names = in.readStringCollectionAsImmutableList();
         }
 
         @Override
@@ -56,14 +61,13 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
             return null;
         }
 
-        public List<String> getNames() {
-            return names;
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeStringCollection(names);
+        public List<String> getNames() {
+            return names;
         }
 
         @Override
@@ -93,13 +97,14 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
                 .collect(Collectors.toList());
         }
 
-        public Response(StreamInput in) throws IOException {
-            policies = in.readList(EnrichPolicy.NamedPolicy::new);
-        }
-
+        /**
+         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(policies);
+            out.writeCollection(policies);
         }
 
         @Override

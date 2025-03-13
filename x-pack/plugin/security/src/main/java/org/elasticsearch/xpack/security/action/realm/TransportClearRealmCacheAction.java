@@ -12,8 +12,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,7 +32,8 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
     ClearRealmCacheRequest,
     ClearRealmCacheResponse,
     ClearRealmCacheRequest.Node,
-    ClearRealmCacheResponse.Node> {
+    ClearRealmCacheResponse.Node,
+    Void> {
 
     private final Realms realms;
     private final AuthenticationService authenticationService;
@@ -48,14 +49,11 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearRealmCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearRealmCacheRequest::new,
             ClearRealmCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            ClearRealmCacheResponse.Node.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.realms = realms;
         this.authenticationService = authenticationService;

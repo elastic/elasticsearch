@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.process.normalizer.Normalizable.ChildType.BUCKET_INFLUENCER;
 
@@ -109,13 +108,10 @@ public class BucketNormalizable extends Normalizable {
 
     @Override
     public List<Normalizable> getChildren(ChildType type) {
-        List<Normalizable> children = new ArrayList<>();
+        List<Normalizable> children;
         switch (type) {
-            case BUCKET_INFLUENCER -> children.addAll(
-                bucket.getBucketInfluencers()
-                    .stream()
-                    .map(bi -> new BucketInfluencerNormalizable(bi, getOriginatingIndex()))
-                    .collect(Collectors.toList())
+            case BUCKET_INFLUENCER -> children = new ArrayList<>(
+                bucket.getBucketInfluencers().stream().map(bi -> new BucketInfluencerNormalizable(bi, getOriginatingIndex())).toList()
             );
             default -> throw new IllegalArgumentException("Invalid type: " + type);
         }

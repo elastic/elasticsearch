@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.ql;
 
+import org.elasticsearch.rest.RestStatus;
+
 /**
  * Exception thrown by performing client (or user) code.
  * Typically it means the given action or query is incorrect and needs fixing.
  */
-public abstract class QlClientException extends QlException {
+public class QlClientException extends QlException {
 
     protected QlClientException(String message, Object... args) {
         super(message, args);
@@ -30,5 +32,10 @@ public abstract class QlClientException extends QlException {
 
     protected QlClientException(Throwable cause) {
         super(cause);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

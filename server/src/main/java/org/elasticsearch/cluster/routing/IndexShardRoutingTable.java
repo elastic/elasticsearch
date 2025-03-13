@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -33,6 +34,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
@@ -45,31 +47,37 @@ public class IndexShardRoutingTable {
 
     final ShardShuffler shuffler;
     final ShardId shardId;
-
+    final ShardRouting[] shards;
     final ShardRouting primary;
     final List<ShardRouting> replicas;
-    final ShardRouting[] shards;
     final List<ShardRouting> activeShards;
     final List<ShardRouting> assignedShards;
-    final boolean allShardsStarted;
-
+    private final List<ShardRouting> assignedUnpromotableShards;
+    private final List<ShardRouting> unpromotableShards;
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
      * If we can come up with a better variable name, it would be nice...
      */
     final List<ShardRouting> allInitializingShards;
+    final boolean allShardsStarted;
+    final int activeSearchShardCount;
+    final int totalSearchShardCount;
 
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
-        this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
+        this.shardId = shardId;
         this.shards = shards.toArray(ShardRouting[]::new);
 
         ShardRouting primary = null;
         List<ShardRouting> replicas = new ArrayList<>();
         List<ShardRouting> activeShards = new ArrayList<>();
         List<ShardRouting> assignedShards = new ArrayList<>();
+        List<ShardRouting> assignedUnpromotableShards = new ArrayList<>();
         List<ShardRouting> allInitializingShards = new ArrayList<>();
+        List<ShardRouting> unpromotableShards = new ArrayList<>();
         boolean allShardsStarted = true;
+        int activeSearchShardCount = 0;
+        int totalSearchShardCount = 0;
         for (ShardRouting shard : this.shards) {
             if (shard.primary()) {
                 assert primary == null : "duplicate primary: " + primary + " vs " + shard;
@@ -79,9 +87,18 @@ public class IndexShardRoutingTable {
             }
             if (shard.active()) {
                 activeShards.add(shard);
+                if (shard.role().isSearchable()) {
+                    activeSearchShardCount++;
+                }
+            }
+            if (shard.role().isSearchable()) {
+                totalSearchShardCount++;
             }
             if (shard.initializing()) {
                 allInitializingShards.add(shard);
+            }
+            if (shard.isPromotableToPrimary() == false) {
+                unpromotableShards.add(shard);
             }
             if (shard.relocating()) {
                 // create the target initializing shard routing on the node the shard is relocating to
@@ -89,20 +106,35 @@ public class IndexShardRoutingTable {
                 assert shard.assignedToNode() : "relocating from unassigned " + shard;
                 assert shard.getTargetRelocatingShard().assignedToNode() : "relocating to unassigned " + shard.getTargetRelocatingShard();
                 assignedShards.add(shard.getTargetRelocatingShard());
+                if (shard.getTargetRelocatingShard().isPromotableToPrimary() == false) {
+                    assignedUnpromotableShards.add(shard.getTargetRelocatingShard());
+                    unpromotableShards.add(shard.getTargetRelocatingShard());
+                }
             }
             if (shard.assignedToNode()) {
                 assignedShards.add(shard);
+                if (shard.isPromotableToPrimary() == false) {
+                    assignedUnpromotableShards.add(shard);
+                }
             }
             if (shard.state() != ShardRoutingState.STARTED) {
                 allShardsStarted = false;
             }
         }
-        this.allShardsStarted = allShardsStarted;
+        assert shards.isEmpty() == false : "cannot have an empty shard routing table";
+        assert primary != null : shards;
+        assert unpromotableShards.containsAll(assignedUnpromotableShards)
+            : unpromotableShards + " does not contain all assigned unpromotable shards " + assignedUnpromotableShards;
         this.primary = primary;
         this.replicas = CollectionUtils.wrapUnmodifiableOrEmptySingleton(replicas);
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);
         this.assignedShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedShards);
+        this.assignedUnpromotableShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(assignedUnpromotableShards);
+        this.unpromotableShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(unpromotableShards);
         this.allInitializingShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(allInitializingShards);
+        this.allShardsStarted = allShardsStarted;
+        this.activeSearchShardCount = activeSearchShardCount;
+        this.totalSearchShardCount = totalSearchShardCount;
     }
 
     /**
@@ -123,6 +155,10 @@ public class IndexShardRoutingTable {
 
     public ShardRouting shard(int idx) {
         return shards[idx];
+    }
+
+    public Stream<ShardRouting> allShards() {
+        return Stream.of(shards);
     }
 
     /**
@@ -152,12 +188,30 @@ public class IndexShardRoutingTable {
         return this.assignedShards;
     }
 
+    /**
+     * Returns a {@link List} of assigned unpromotable shards, including relocation targets
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> assignedUnpromotableShards() {
+        return this.assignedUnpromotableShards;
+    }
+
+    /**
+     * Returns a {@link List} of all unpromotable shards, including unassigned shards
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> unpromotableShards() {
+        return this.unpromotableShards;
+    }
+
     public ShardIterator shardsRandomIt() {
-        return new PlainShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards)));
+        return new ShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards)));
     }
 
     public ShardIterator shardsIt(int seed) {
-        return new PlainShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards), seed));
+        return new ShardIterator(shardId, shuffler.shuffle(Arrays.asList(shards), seed));
     }
 
     /**
@@ -174,12 +228,12 @@ public class IndexShardRoutingTable {
      */
     public ShardIterator activeInitializingShardsIt(int seed) {
         if (allInitializingShards.isEmpty()) {
-            return new PlainShardIterator(shardId, shuffler.shuffle(activeShards, seed));
+            return new ShardIterator(shardId, shuffler.shuffle(activeShards, seed));
         }
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         ordered.addAll(shuffler.shuffle(activeShards, seed));
         ordered.addAll(allInitializingShards);
-        return new PlainShardIterator(shardId, ordered);
+        return new ShardIterator(shardId, ordered);
     }
 
     /**
@@ -193,10 +247,7 @@ public class IndexShardRoutingTable {
     ) {
         final int seed = shuffler.nextSeed();
         if (allInitializingShards.isEmpty()) {
-            return new PlainShardIterator(
-                shardId,
-                rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts)
-            );
+            return new ShardIterator(shardId, rankShardsAndUpdateStats(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts));
         }
 
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
@@ -204,7 +255,7 @@ public class IndexShardRoutingTable {
         ordered.addAll(rankedActiveShards);
         List<ShardRouting> rankedInitializingShards = rankShardsAndUpdateStats(allInitializingShards, collector, nodeSearchCounts);
         ordered.addAll(rankedInitializingShards);
-        return new PlainShardIterator(shardId, ordered);
+        return new ShardIterator(shardId, ordered);
     }
 
     private static Set<String> getAllNodeIds(final List<ShardRouting> shards) {
@@ -362,9 +413,9 @@ public class IndexShardRoutingTable {
      */
     public ShardIterator primaryShardIt() {
         if (primary != null) {
-            return new PlainShardIterator(shardId, Collections.singletonList(primary));
+            return new ShardIterator(shardId, Collections.singletonList(primary));
         }
-        return new PlainShardIterator(shardId, Collections.emptyList());
+        return new ShardIterator(shardId, Collections.emptyList());
     }
 
     public ShardIterator onlyNodeActiveInitializingShardsIt(String nodeId) {
@@ -380,7 +431,7 @@ public class IndexShardRoutingTable {
                 ordered.add(shardRouting);
             }
         }
-        return new PlainShardIterator(shardId, ordered);
+        return new ShardIterator(shardId, ordered);
     }
 
     public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttributes, DiscoveryNodes discoveryNodes) {
@@ -415,7 +466,7 @@ public class IndexShardRoutingTable {
             );
             throw new IllegalArgumentException(message);
         }
-        return new PlainShardIterator(shardId, ordered);
+        return new ShardIterator(shardId, ordered);
     }
 
     public ShardIterator preferNodeActiveInitializingShardsIt(Set<String> nodeIds) {
@@ -433,7 +484,7 @@ public class IndexShardRoutingTable {
         if (allInitializingShards.isEmpty() == false) {
             preferred.addAll(allInitializingShards);
         }
-        return new PlainShardIterator(shardId, preferred);
+        return new ShardIterator(shardId, preferred);
     }
 
     @Override
@@ -444,7 +495,7 @@ public class IndexShardRoutingTable {
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
         if (shardId.equals(that.shardId) == false) return false;
-        return Arrays.equals(shards, that.shards) != false;
+        return Arrays.equals(shards, that.shards);
     }
 
     @Override
@@ -461,6 +512,24 @@ public class IndexShardRoutingTable {
         return allShardsStarted;
     }
 
+    /**
+     * @return the count of active searchable shards
+     */
+    public int getActiveSearchShardCount() {
+        return activeSearchShardCount;
+    }
+
+    /**
+     * @return the total count of searchable shards
+     */
+    public int getTotalSearchShardCount() {
+        return totalSearchShardCount;
+    }
+
+    public boolean hasSearchShards() {
+        return totalSearchShardCount > 0;
+    }
+
     @Nullable
     public ShardRouting getByAllocationId(String allocationId) {
         for (ShardRouting shardRouting : assignedShards()) {
@@ -471,15 +540,17 @@ public class IndexShardRoutingTable {
         return null;
     }
 
-    public Set<String> getAllAllocationIds() {
+    public Set<String> getPromotableAllocationIds() {
         assert MasterService.assertNotMasterUpdateThread("not using this on the master thread so we don't have to pre-compute this");
         Set<String> allAllocationIds = new HashSet<>();
         for (ShardRouting shard : shards) {
-            if (shard.relocating()) {
-                allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
-            }
-            if (shard.assignedToNode()) {
-                allAllocationIds.add(shard.allocationId().getId());
+            if (shard.isPromotableToPrimary()) {
+                if (shard.relocating()) {
+                    allAllocationIds.add(shard.getTargetRelocatingShard().allocationId().getId());
+                }
+                if (shard.assignedToNode()) {
+                    allAllocationIds.add(shard.allocationId().getId());
+                }
             }
         }
         return allAllocationIds;
@@ -545,7 +616,16 @@ public class IndexShardRoutingTable {
         }
 
         public Builder addShard(ShardRouting shardEntry) {
-            assert shardEntry.shardId().equals(shardId) : "cannot add [" + shardEntry + "] to routing table for " + shardId;
+            assert shardEntry.shardId().equals(shardId)
+                : "cannot add ["
+                    + shardEntry
+                    + "]/{"
+                    + shardEntry.shardId().getIndex().getUUID()
+                    + "} to routing table for "
+                    + shardId
+                    + "{"
+                    + shardId.getIndex().getUUID()
+                    + "}";
             shards.add(shardEntry);
             return this;
         }
@@ -559,6 +639,7 @@ public class IndexShardRoutingTable {
             // don't allow more than one shard copy with same id to be allocated to same node
             assert distinctNodes(shards) : "more than one shard with same id assigned to same node (shards: " + shards + ")";
             assert noDuplicatePrimary(shards) : "expected but did not find unique primary in shard routing table: " + shards;
+            assert noAssignedReplicaWithoutActivePrimary(shards) : "unexpected assigned replica with no active primary: " + shards;
             return new IndexShardRoutingTable(shardId, shards);
         }
 
@@ -589,9 +670,24 @@ public class IndexShardRoutingTable {
                     seenPrimary = true;
                 }
             }
-            // We should be able to return seenPrimary here, but in tests there are many routing tables with no primary (e.g. empty) so for
-            // now we leniently allow there to be no primary as well. TODO fix those tests and stop being lenient here.
-            return true;
+            return seenPrimary;
+        }
+
+        static boolean noAssignedReplicaWithoutActivePrimary(List<ShardRouting> shards) {
+            boolean seenAssignedReplica = false;
+            for (final var shard : shards) {
+                if (shard.currentNodeId() != null) {
+                    if (shard.primary()) {
+                        if (shard.active()) {
+                            return true;
+                        }
+                    } else {
+                        seenAssignedReplica = true;
+                    }
+                }
+            }
+
+            return seenAssignedReplica == false;
         }
 
         public static IndexShardRoutingTable.Builder readFrom(StreamInput in) throws IOException {

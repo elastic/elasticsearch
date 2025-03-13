@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.stream.Stream;
@@ -17,8 +19,9 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.UNKNOWN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.hamcrest.Matchers.equalTo;
 
-public class HealthStatusTests extends ESTestCase {
+public class HealthStatusTests extends AbstractWireSerializingTestCase<HealthStatus> {
 
     public void testAllGreenStatuses() {
         assertEquals(GREEN, HealthStatus.merge(randomStatusesContaining(GREEN)));
@@ -53,5 +56,26 @@ public class HealthStatusTests extends ESTestCase {
             result.addAll(randomList(1, 10, () -> status));
         }
         return result.stream();
+    }
+
+    @Override
+    protected Writeable.Reader<HealthStatus> instanceReader() {
+        return HealthStatus::read;
+    }
+
+    @Override
+    protected HealthStatus createTestInstance() {
+        return randomFrom(HealthStatus.values());
+    }
+
+    @Override
+    protected HealthStatus mutateInstance(HealthStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected void assertEqualInstances(HealthStatus expectedInstance, HealthStatus newInstance) {
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 }

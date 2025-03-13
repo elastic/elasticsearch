@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -103,43 +104,8 @@ public class FillMaskConfigUpdate extends NlpConfigUpdate implements NamedXConte
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
-    }
-
-    @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof FillMaskConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-
-        FillMaskConfig fillMaskConfig = (FillMaskConfig) originalConfig;
-        if (isNoop(fillMaskConfig)) {
-            return originalConfig;
-        }
-
-        FillMaskConfig.Builder builder = new FillMaskConfig.Builder(fillMaskConfig);
-        if (numTopClasses != null) {
-            builder.setNumTopClasses(numTopClasses);
-        }
-        if (resultsField != null) {
-            builder.setResultsField(resultsField);
-        }
-        if (tokenizationUpdate != null) {
-            builder.setTokenization(tokenizationUpdate.apply(fillMaskConfig.getTokenization()));
-
-        }
-        return builder.build();
-    }
-
-    boolean isNoop(FillMaskConfig originalConfig) {
-        return (this.numTopClasses == null || this.numTopClasses == originalConfig.getNumTopClasses())
-            && (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField()))
-            && super.isNoop();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.V_8_0_0;
     }
 
     @Override

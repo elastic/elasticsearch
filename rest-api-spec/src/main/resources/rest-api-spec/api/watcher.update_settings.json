@@ -1,0 +1,36 @@
+{
+  "watcher.update_settings":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-update-settings.html",
+      "description":"Update settings for the watcher system index"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/settings",
+          "methods":["PUT"]
+        }
+      ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "description":"Specify timeout for waiting for acknowledgement from all nodes"
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to master"
+      }
+    },
+    "body":{
+      "description": "An object with the new index settings",
+      "required": true
+    }
+  }
+}

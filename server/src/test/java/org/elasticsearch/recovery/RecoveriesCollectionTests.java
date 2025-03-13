@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.recovery;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
@@ -31,12 +32,16 @@ import static org.hamcrest.Matchers.lessThan;
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     static final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
 
         }
 
         @Override
-        public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
 
         }
     };
@@ -69,12 +74,16 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
                 shards.addReplica(),
                 new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
-                    public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+                    public void onRecoveryDone(
+                        RecoveryState state,
+                        ShardLongFieldRange timestampMillisFieldRange,
+                        ShardLongFieldRange eventIngestedMillisFieldRange
+                    ) {
                         latch.countDown();
                     }
 
                     @Override
-                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
+                    public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
                         failed.set(true);
                         latch.countDown();
                     }
@@ -130,8 +139,10 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             assertEquals(referencesToStore, resetRecovery.store().refCount());
             assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
             assertEquals(recoveryTarget.refCount(), 0);
-            expectThrows(ElasticsearchException.class, () -> recoveryTarget.store());
-            expectThrows(ElasticsearchException.class, () -> recoveryTarget.indexShard());
+            if (Assertions.ENABLED) {
+                expectThrows(AssertionError.class, recoveryTarget::store);
+                expectThrows(AssertionError.class, recoveryTarget::indexShard);
+            }
             String resetTempFileName = resetRecovery.getTempNameForFile("foobar");
             assertNotEquals(tempFileName, resetTempFileName);
             assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
@@ -146,11 +157,11 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
-    long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard shard) {
+    static long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard shard) {
         return startRecovery(collection, sourceNode, shard, listener, TimeValue.timeValueMinutes(60));
     }
 
-    long startRecovery(
+    static long startRecovery(
         RecoveriesCollection collection,
         DiscoveryNode sourceNode,
         IndexShard indexShard,
@@ -160,6 +171,6 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
         indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
         indexShard.prepareForIndexRecovery();
-        return collection.startRecovery(indexShard, sourceNode, null, listener, timeValue, null);
+        return collection.startRecovery(indexShard, sourceNode, 0L, null, listener, timeValue, null);
     }
 }

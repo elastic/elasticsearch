@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.process;
@@ -101,7 +102,7 @@ public class ProcessStats implements Writeable, ToXContentFragment {
         }
         if (mem != null) {
             builder.startObject(Fields.MEM);
-            builder.humanReadableField(Fields.TOTAL_VIRTUAL_IN_BYTES, Fields.TOTAL_VIRTUAL, new ByteSizeValue(mem.totalVirtual));
+            builder.humanReadableField(Fields.TOTAL_VIRTUAL_IN_BYTES, Fields.TOTAL_VIRTUAL, ByteSizeValue.ofBytes(mem.totalVirtual));
             builder.endObject();
         }
         builder.endObject();
@@ -126,7 +127,7 @@ public class ProcessStats implements Writeable, ToXContentFragment {
         }
 
         public ByteSizeValue getTotalVirtual() {
-            return new ByteSizeValue(totalVirtual);
+            return ByteSizeValue.ofBytes(totalVirtual);
         }
     }
 

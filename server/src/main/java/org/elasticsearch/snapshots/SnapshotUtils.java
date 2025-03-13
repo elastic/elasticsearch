@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -27,7 +28,8 @@ public class SnapshotUtils {
      *
      * @param availableIndices list of available indices
      * @param selectedIndices  list of selected indices
-     * @param indicesOptions    ignore indices flag
+     * @param indicesOptions   from the indices options it only uses {@link IndicesOptions.ConcreteTargetOptions#allowUnavailableTargets()}
+     *                         and {@link IndicesOptions.WildcardOptions#allowEmptyExpressions()}
      * @return filtered out indices
      */
     public static List<String> filterIndices(List<String> availableIndices, String[] selectedIndices, IndicesOptions indicesOptions) {

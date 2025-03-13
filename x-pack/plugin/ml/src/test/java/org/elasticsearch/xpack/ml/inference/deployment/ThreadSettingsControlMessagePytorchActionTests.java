@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.ThreadSettings;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -37,7 +39,6 @@ public class ThreadSettingsControlMessagePytorchActionTests extends ESTestCase {
     public void testBuildControlMessage() throws IOException {
         DeploymentManager.ProcessContext processContext = mock(DeploymentManager.ProcessContext.class);
         ThreadPool tp = mock(ThreadPool.class);
-        @SuppressWarnings("unchecked")
         ThreadSettingsControlMessagePytorchAction action = new ThreadSettingsControlMessagePytorchAction(
             "model_id",
             1,
@@ -45,7 +46,7 @@ public class ThreadSettingsControlMessagePytorchActionTests extends ESTestCase {
             TimeValue.MINUS_ONE,
             processContext,
             tp,
-            ActionListener.NOOP
+            ActionListener.noop()
         );
         var message = action.buildControlMessage("foo");
         assertEquals("{\"request_id\":\"foo\",\"control\":0,\"num_allocations\":4}", message.utf8ToString());
@@ -59,9 +60,8 @@ public class ThreadSettingsControlMessagePytorchActionTests extends ESTestCase {
         AtomicInteger timeoutCount = new AtomicInteger();
         when(processContext.getTimeoutCount()).thenReturn(timeoutCount);
 
-        Scheduler.ScheduledCancellable cancellable = mock(Scheduler.ScheduledCancellable.class);
-        ThreadPool tp = mock(ThreadPool.class);
-        when(tp.schedule(any(), any(), any())).thenReturn(cancellable);
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        ThreadPool tp = deterministicTaskQueue.getThreadPool();
 
         {
             ActionListener<ThreadSettings> listener = mock(ActionListener.class);
@@ -117,7 +117,7 @@ public class ThreadSettingsControlMessagePytorchActionTests extends ESTestCase {
 
         Scheduler.ScheduledCancellable cancellable = mock(Scheduler.ScheduledCancellable.class);
         ThreadPool tp = mock(ThreadPool.class);
-        when(tp.schedule(any(), any(), any())).thenReturn(cancellable);
+        when(tp.schedule(any(), any(), any(Executor.class))).thenReturn(cancellable);
 
         ActionListener<ThreadSettings> listener = mock(ActionListener.class);
         ArgumentCaptor<BytesReference> messageCapture = ArgumentCaptor.forClass(BytesReference.class);

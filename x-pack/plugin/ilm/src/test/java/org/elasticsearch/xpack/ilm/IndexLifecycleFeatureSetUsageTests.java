@@ -12,7 +12,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PolicyStats;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,7 +28,7 @@ public class IndexLifecycleFeatureSetUsageTests extends AbstractWireSerializingT
     }
 
     @Override
-    protected IndexLifecycleFeatureSetUsage mutateInstance(IndexLifecycleFeatureSetUsage instance) throws IOException {
+    protected IndexLifecycleFeatureSetUsage mutateInstance(IndexLifecycleFeatureSetUsage instance) {
         boolean available = instance.available();
         List<PolicyStats> policyStats = instance.getPolicyStats();
         policyStats = new ArrayList<>(policyStats);

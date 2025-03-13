@@ -17,3 +17,18 @@ api_key_admin_role:
 api_key_user_role:
   cluster:
     - manage_own_api_key
+
+# Used to perform query user and role operations
+read_security_user_role:
+  cluster:
+    - read_security
+
+# Role with remote indices privileges
+role_remote_indices:
+  remote_indices:
+    - clusters:
+        - 'remote-*'
+      names:
+        - 'shared-index'
+      privileges:
+        - READ

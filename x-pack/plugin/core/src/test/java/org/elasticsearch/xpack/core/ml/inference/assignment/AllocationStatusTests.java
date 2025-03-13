@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.core.ml.inference.assignment;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class AllocationStatusTests extends AbstractSerializingTestCase<AllocationStatus> {
+public class AllocationStatusTests extends AbstractXContentSerializingTestCase<AllocationStatus> {
 
     public static AllocationStatus randomInstance() {
         return new AllocationStatus(randomInt(10), randomIntBetween(1, 10));
@@ -34,6 +34,11 @@ public class AllocationStatusTests extends AbstractSerializingTestCase<Allocatio
     @Override
     protected AllocationStatus createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected AllocationStatus mutateInstance(AllocationStatus instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public void testCalculateState() {

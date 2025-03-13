@@ -1,0 +1,168 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: Introduced in 8.13.0
+
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+---
+"Update Connector Index Name":
+  - do:
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name: search-2-test
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { index_name: search-2-test }
+  - match: { status: created }
+
+---
+"Update Connector Index Name - detach index":
+  - do:
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name: null
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { index_name: null }
+
+---
+"Update Connector Index Name - 404 when connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.update_index_name:
+        connector_id: test-non-existent-connector
+        body:
+          index_name: search-2-test
+
+---
+"Update Connector Index Name - 400 status code when connector_id is empty":
+  - do:
+      catch: "bad_request"
+      connector.update_index_name:
+        connector_id: ""
+        body:
+          index_name: search-2-test
+
+---
+"Update Connector Index Name - 400 status code when payload is not string":
+  - do:
+      catch: "bad_request"
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name:
+            field_1: test
+            field_2: something
+
+
+---
+"Update Connector Index Name - 400 status code when invalid index name":
+  - do:
+      catch: "bad_request"
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name: _invalid-index-name
+
+---
+"Update Connector Index Name - Index name used by another connector":
+  - do:
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          index_name: search-2-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+  - match: { result: created }
+
+  - do:
+      catch: "bad_request"
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name: search-2-test
+
+---
+"Update Connector Index Name - Index name is the same":
+
+  - do:
+      connector.update_index_name:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+
+
+  - match: { result: noop }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { index_name: search-1-test }
+
+
+---
+"Update Managed Connector Index Name":
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          is_native: true
+          service_type: super-connector
+
+  - do:
+      connector.update_index_name:
+        connector_id: test-connector-1
+        body:
+          index_name: content-search-2-test
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector-1
+
+  - match: { index_name: content-search-2-test }
+
+---
+"Update Managed Connector Index Name - Bad Prefix":
+  - do:
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          is_native: true
+          service_type: super-connector
+
+  - do:
+      catch: "bad_request"
+      connector.update_index_name:
+        connector_id: test-connector-2
+        body:
+          index_name: wrong-prefix-search-2-test

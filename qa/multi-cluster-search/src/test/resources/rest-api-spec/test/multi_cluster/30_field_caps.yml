@@ -65,7 +65,6 @@
       field_caps:
         index: 'my_remote_cluster:some_index_that_doesnt_exist'
         fields: [number]
-        
   - match: { error.type: "index_not_found_exception" }
   - match: { error.reason: "no such index [some_index_that_doesnt_exist]" }
 
@@ -108,8 +107,8 @@
 
 ---
 "Get field caps from remote cluster with index filter":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: Index filter support was added in 7.9
 
   - do:
@@ -156,3 +155,38 @@
   - length: {fields.number:                             1}
   - match: {fields.number.long.searchable:              true}
   - match: {fields.number.long.aggregatable:            true}
+
+---
+"Field caps with with include_empty_fields false":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: include_empty_fields has been added in 8.13.0
+  - do:
+        indices.create:
+          index: field_caps_index_5
+          body:
+            mappings:
+              properties:
+                number:
+                  type: double
+                empty-baz:
+                  type: text
+
+  - do:
+      index:
+        index:  field_caps_index_5
+        body:   { number: "42", unmapped-bar: "bar" }
+
+  - do:
+      indices.refresh:
+        index: [field_caps_index_5]
+  - do:
+      field_caps:
+        include_empty_fields: false
+        index: 'field_caps_index_5,my_remote_cluster:field_*'
+        fields: '*'
+
+  - is_true: fields.number
+  - is_false: fields.empty-baz
+  - is_true: fields.unmapped-bar
+  - is_true: fields._index

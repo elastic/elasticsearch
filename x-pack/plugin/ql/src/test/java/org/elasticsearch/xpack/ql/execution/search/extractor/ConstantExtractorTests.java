@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.function.Supplier;
 
 public class ConstantExtractorTests extends AbstractWireSerializingTestCase<ConstantExtractor> {
@@ -35,7 +34,7 @@ public class ConstantExtractorTests extends AbstractWireSerializingTestCase<Cons
     }
 
     @Override
-    protected ConstantExtractor mutateInstance(ConstantExtractor instance) throws IOException {
+    protected ConstantExtractor mutateInstance(ConstantExtractor instance) {
         return new ConstantExtractor(instance.extract((SearchHit) null) + "mutated");
     }
 

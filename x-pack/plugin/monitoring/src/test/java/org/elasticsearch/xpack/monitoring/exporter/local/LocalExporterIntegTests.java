@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.exporter.local;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.BEATS;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.KIBANA;
 import static org.elasticsearch.xpack.core.monitoring.MonitoredSystem.LOGSTASH;
@@ -58,18 +58,13 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
 
     private void stopMonitoring() {
         // Now disabling the monitoring service, so that no more collection are started
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .putNull(MonitoringService.ENABLED.getKey())
-                        .putNull("xpack.monitoring.exporters._local.type")
-                        .putNull("xpack.monitoring.exporters._local.enabled")
-                        .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
-                        .putNull("xpack.monitoring.exporters._local.index.name.time_format")
-                )
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(MonitoringService.ENABLED.getKey())
+                .putNull("xpack.monitoring.exporters._local.type")
+                .putNull("xpack.monitoring.exporters._local.enabled")
+                .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
+                .putNull("xpack.monitoring.exporters._local.index.name.time_format")
         );
     }
 
@@ -79,8 +74,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 // indexing some random documents
                 IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[5];
                 for (int i = 0; i < indexRequestBuilders.length; i++) {
-                    indexRequestBuilders[i] = client().prepareIndex("test")
-                        .setId(Integer.toString(i))
+                    indexRequestBuilders[i] = prepareIndex("test").setId(Integer.toString(i))
                         .setSource("title", "This is a random document");
                 }
                 indexRandom(true, indexRequestBuilders);
@@ -98,7 +92,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
             }
 
             // local exporter is now enabled
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
+            updateClusterSettings(exporterSettings);
 
             if (randomBoolean()) {
                 // export some documents now, before starting the monitoring service
@@ -117,8 +111,10 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     assertThat(indexExists(".monitoring-*"), is(true));
                     ensureYellowAndNoInitializingShards(".monitoring-*");
 
-                    SearchResponse response = client().prepareSearch(".monitoring-*").get();
-                    assertThat((long) nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value));
+                    assertResponse(
+                        prepareSearch(".monitoring-*"),
+                        response -> assertThat((long) nbDocs, lessThanOrEqualTo(response.getHits().getTotalHits().value()))
+                    );
                 });
 
                 checkMonitoringTemplates();
@@ -131,75 +127,59 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 ensureYellowAndNoInitializingShards(".monitoring-*");
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "cluster_stats"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "cluster_stats"))
+                    ),
                     greaterThan(0L)
                 );
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "index_recovery"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "index_recovery"))
+                    ),
                     greaterThan(0L)
                 );
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "index_stats"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "index_stats"))
+                    ),
                     greaterThan(0L)
                 );
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "indices_stats"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "indices_stats"))
+                    ),
                     greaterThan(0L)
                 );
 
                 assertThat(
-                    client().prepareSearch(".monitoring-es-*")
-                        .setSize(0)
-                        .setQuery(QueryBuilders.termQuery("type", "shards"))
-                        .get()
-                        .getHits()
-                        .getTotalHits().value,
+                    SearchResponseUtils.getTotalHitsValue(
+                        prepareSearch(".monitoring-es-*").setSize(0).setQuery(QueryBuilders.termQuery("type", "shards"))
+                    ),
                     greaterThan(0L)
                 );
 
-                SearchResponse response = client().prepareSearch(".monitoring-es-*")
-                    .setSize(0)
-                    .setQuery(QueryBuilders.termQuery("type", "node_stats"))
-                    .addAggregation(terms("agg_nodes_ids").field("node_stats.node_id"))
-                    .get();
-
-                Terms aggregation = response.getAggregations().get("agg_nodes_ids");
-                assertEquals(
-                    "Aggregation on node_id must return a bucket per node involved in test",
-                    numNodes,
-                    aggregation.getBuckets().size()
+                assertResponse(
+                    prepareSearch(".monitoring-es-*").setSize(0)
+                        .setQuery(QueryBuilders.termQuery("type", "node_stats"))
+                        .addAggregation(terms("agg_nodes_ids").field("node_stats.node_id")),
+                    response -> {
+                        Terms aggregation = response.getAggregations().get("agg_nodes_ids");
+                        assertEquals(
+                            "Aggregation on node_id must return a bucket per node involved in test",
+                            numNodes,
+                            aggregation.getBuckets().size()
+                        );
+                        for (String nodeName : internalCluster().getNodeNames()) {
+                            String nodeId = getNodeId(nodeName);
+                            Terms.Bucket bucket = aggregation.getBucketByKey(nodeId);
+                            assertTrue("No bucket found for node id [" + nodeId + "]", bucket != null);
+                            assertTrue(bucket.getDocCount() >= 1L);
+                        }
+                    }
                 );
-
-                for (String nodeName : internalCluster().getNodeNames()) {
-                    String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
-                    Terms.Bucket bucket = aggregation.getBucketByKey(nodeId);
-                    assertTrue("No bucket found for node id [" + nodeId + "]", bucket != null);
-                    assertTrue(bucket.getDocCount() >= 1L);
-                }
-
             }, 30L, TimeUnit.SECONDS);
 
             checkMonitoringTemplates();
@@ -218,25 +198,27 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                 ensureYellowAndNoInitializingShards(".monitoring-*");
                 refresh(".monitoring-es-*");
 
-                SearchResponse response = client().prepareSearch(".monitoring-es-*")
-                    .setSize(0)
-                    .setQuery(QueryBuilders.termQuery("type", "node_stats"))
-                    .addAggregation(
-                        terms("agg_nodes_ids").field("node_stats.node_id").subAggregation(max("agg_last_time_collected").field("timestamp"))
-                    )
-                    .get();
+                assertResponse(
+                    prepareSearch(".monitoring-es-*").setSize(0)
+                        .setQuery(QueryBuilders.termQuery("type", "node_stats"))
+                        .addAggregation(
+                            terms("agg_nodes_ids").field("node_stats.node_id")
+                                .subAggregation(max("agg_last_time_collected").field("timestamp"))
+                        ),
+                    response -> {
+                        Terms aggregation = response.getAggregations().get("agg_nodes_ids");
+                        for (String nodeName : internalCluster().getNodeNames()) {
+                            String nodeId = getNodeId(nodeName);
+                            Terms.Bucket bucket = aggregation.getBucketByKey(nodeId);
+                            assertTrue("No bucket found for node id [" + nodeId + "]", bucket != null);
+                            assertTrue(bucket.getDocCount() >= 1L);
 
-                Terms aggregation = response.getAggregations().get("agg_nodes_ids");
-                for (String nodeName : internalCluster().getNodeNames()) {
-                    String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
-                    Terms.Bucket bucket = aggregation.getBucketByKey(nodeId);
-                    assertTrue("No bucket found for node id [" + nodeId + "]", bucket != null);
-                    assertTrue(bucket.getDocCount() >= 1L);
-
-                    Max subAggregation = bucket.getAggregations().get("agg_last_time_collected");
-                    ZonedDateTime lastCollection = Instant.ofEpochMilli(Math.round(subAggregation.value())).atZone(ZoneOffset.UTC);
-                    assertTrue(lastCollection.plusSeconds(elapsedInSeconds).isBefore(ZonedDateTime.now(ZoneOffset.UTC)));
-                }
+                            Max subAggregation = bucket.getAggregations().get("agg_last_time_collected");
+                            ZonedDateTime lastCollection = Instant.ofEpochMilli(Math.round(subAggregation.value())).atZone(ZoneOffset.UTC);
+                            assertTrue(lastCollection.plusSeconds(elapsedInSeconds).isBefore(ZonedDateTime.now(ZoneOffset.UTC)));
+                        }
+                    }
+                );
             } else {
                 assertTrue(ZonedDateTime.now(ZoneOffset.UTC).isAfter(startTime.plusSeconds(elapsedInSeconds)));
             }
@@ -254,7 +236,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         templates.add(".monitoring-logstash");
         templates.add(".monitoring-beats");
 
-        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(".monitoring-*").get();
+        GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT, ".monitoring-*").get();
         Set<String> actualTemplates = response.getIndexTemplates().stream().map(IndexTemplateMetadata::getName).collect(Collectors.toSet());
         assertEquals(templates, actualTemplates);
     }
@@ -264,7 +246,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
      * fields and belongs to the right data or timestamped index.
      */
     private void checkMonitoringDocs() {
-        ClusterStateResponse response = client().admin().cluster().prepareState().get();
+        ClusterStateResponse response = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         String customTimeFormat = response.getState()
             .getMetadata()
             .persistentSettings()
@@ -277,43 +259,43 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
         DateFormatter dateParser = DateFormatter.forPattern("strict_date_time");
         DateFormatter dateFormatter = DateFormatter.forPattern(customTimeFormat).withZone(ZoneOffset.UTC);
 
-        SearchResponse searchResponse = client().prepareSearch(".monitoring-*").setSize(100).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(0L));
+        assertResponse(prepareSearch(".monitoring-*").setSize(100), rsp -> {
+            assertThat(rsp.getHits().getTotalHits().value(), greaterThan(0L));
+            for (SearchHit hit : rsp.getHits().getHits()) {
+                final Map<String, Object> source = hit.getSourceAsMap();
 
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            final Map<String, Object> source = hit.getSourceAsMap();
+                assertTrue(source != null && source.isEmpty() == false);
 
-            assertTrue(source != null && source.isEmpty() == false);
+                final String timestamp = (String) source.get("timestamp");
+                final String type = (String) source.get("type");
 
-            final String timestamp = (String) source.get("timestamp");
-            final String type = (String) source.get("type");
+                assertTrue("document is missing cluster_uuid field", Strings.hasText((String) source.get("cluster_uuid")));
+                assertTrue("document is missing timestamp field", Strings.hasText(timestamp));
+                assertTrue("document is missing type field", Strings.hasText(type));
 
-            assertTrue("document is missing cluster_uuid field", Strings.hasText((String) source.get("cluster_uuid")));
-            assertTrue("document is missing timestamp field", Strings.hasText(timestamp));
-            assertTrue("document is missing type field", Strings.hasText(type));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> docSource = (Map<String, Object>) source.get("doc");
 
-            @SuppressWarnings("unchecked")
-            Map<String, Object> docSource = (Map<String, Object>) source.get("doc");
+                MonitoredSystem expectedSystem;
+                if (docSource == null) {
+                    // This is a document indexed by the Monitoring service
+                    expectedSystem = MonitoredSystem.ES;
+                } else {
+                    // This is a document indexed through the Monitoring Bulk API
+                    expectedSystem = MonitoredSystem.fromSystem((String) docSource.get("expected_system"));
+                }
 
-            MonitoredSystem expectedSystem;
-            if (docSource == null) {
-                // This is a document indexed by the Monitoring service
-                expectedSystem = MonitoredSystem.ES;
-            } else {
-                // This is a document indexed through the Monitoring Bulk API
-                expectedSystem = MonitoredSystem.fromSystem((String) docSource.get("expected_system"));
+                String dateTime = dateFormatter.format(dateParser.parse(timestamp));
+                final String expectedIndex = ".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-" + dateTime;
+                assertEquals("Expected " + expectedIndex + " but got " + hit.getIndex(), expectedIndex, hit.getIndex());
+
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sourceNode = (Map<String, Object>) source.get("source_node");
+                if ("shards".equals(type) == false) {
+                    assertNotNull("document is missing source_node field", sourceNode);
+                }
             }
-
-            String dateTime = dateFormatter.format(dateParser.parse(timestamp));
-            final String expectedIndex = ".monitoring-" + expectedSystem.getSystem() + "-" + TEMPLATE_VERSION + "-" + dateTime;
-            assertEquals("Expected " + expectedIndex + " but got " + hit.getIndex(), expectedIndex, hit.getIndex());
-
-            @SuppressWarnings("unchecked")
-            Map<String, Object> sourceNode = (Map<String, Object>) source.get("source_node");
-            if ("shards".equals(type) == false) {
-                assertNotNull("document is missing source_node field", sourceNode);
-            }
-        }
+        });
     }
 
     public static MonitoringBulkDoc createMonitoringBulkDoc() throws IOException {

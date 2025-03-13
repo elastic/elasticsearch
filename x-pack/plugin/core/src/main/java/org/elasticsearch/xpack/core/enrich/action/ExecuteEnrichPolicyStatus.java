@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
@@ -46,7 +45,7 @@ public class ExecuteEnrichPolicyStatus implements Task.Status {
 
     public ExecuteEnrichPolicyStatus(StreamInput in) throws IOException {
         this.phase = in.readString();
-        this.step = in.getVersion().onOrAfter(Version.V_7_16_0) ? in.readOptionalString() : null;
+        this.step = in.readOptionalString();
     }
 
     public String getPhase() {
@@ -69,9 +68,7 @@ public class ExecuteEnrichPolicyStatus implements Task.Status {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(phase);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeOptionalString(step);
-        }
+        out.writeOptionalString(step);
     }
 
     @Override

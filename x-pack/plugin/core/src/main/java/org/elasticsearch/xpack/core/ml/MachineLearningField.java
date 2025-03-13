@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Setting;
@@ -23,9 +22,6 @@ import java.util.stream.Collectors;
 
 public final class MachineLearningField {
 
-    public static final String DEPRECATED_ALLOW_NO_JOBS_PARAM = "allow_no_jobs";
-    public static final String DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM = "allow_no_datafeeds";
-
     public static final Setting<Boolean> AUTODETECT_PROCESS = Setting.boolSetting(
         "xpack.ml.autodetect_process",
         true,
@@ -37,6 +33,29 @@ public final class MachineLearningField {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    public static final Setting<Integer> MAX_LAZY_ML_NODES = Setting.intSetting(
+        "xpack.ml.max_lazy_ml_nodes",
+        0,
+        0,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * This boolean value indicates if `max_machine_memory_percent` should be ignored and an automatic calculation is used instead.
+     *
+     * This calculation takes into account total node size and the size of the JVM on that node.
+     *
+     * If the calculation fails, we fall back to `max_machine_memory_percent`.
+     */
+    public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
+        "xpack.ml.use_auto_machine_memory_percent",
+        false,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final TimeValue STATE_PERSIST_RESTORE_TIMEOUT = TimeValue.timeValueMinutes(30);
     public static final String ML_FEATURE_FAMILY = "machine-learning";
     public static final LicensedFeature.Momentary ML_API_FEATURE = LicensedFeature.momentary(
@@ -45,12 +64,8 @@ public final class MachineLearningField {
         License.OperationMode.PLATINUM
     );
 
-    // Ideally this would be 7.0.0, but it has to be 6.4.0 because due to an oversight it's impossible
-    // for the Java code to distinguish the model states for versions 6.4.0 to 7.9.3 inclusive.
-    public static final Version MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION = Version.fromString("6.4.0");
-    // We tell the user we support model snapshots newer than 7.0.0 as that's the major version
-    // boundary, even though behind the scenes we have to support back to 6.4.0.
-    public static final Version MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION = Version.V_7_0_0;
+    // This is the last version when we changed the ML job snapshot format.
+    public static final MlConfigVersion MIN_SUPPORTED_SNAPSHOT_VERSION = MlConfigVersion.V_8_3_0;
 
     private MachineLearningField() {}
 

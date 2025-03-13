@@ -1,3 +1,17 @@
+pluginManagement {
+  repositories {
+    mavenCentral()
+    gradlePluginPortal()
+  }
+
+  includeBuild "../build-conventions"
+  includeBuild "../build-tools"
+}
+
+plugins {
+  id "com.gradle.develocity" version "3.18.1"
+}
+
 dependencyResolutionManagement {
     versionCatalogs {
         buildLibs {

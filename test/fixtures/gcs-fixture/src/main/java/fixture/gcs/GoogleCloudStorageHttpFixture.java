@@ -1,45 +1,52 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package fixture.gcs;
 
 import com.sun.net.httpserver.HttpServer;
 
-import java.io.IOException;
+import org.junit.rules.ExternalResource;
+
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
-public class GoogleCloudStorageHttpFixture {
+public class GoogleCloudStorageHttpFixture extends ExternalResource {
 
-    private final HttpServer server;
+    private final boolean enabled;
+    private final String bucket;
+    private final String token;
+    private HttpServer server;
 
-    private GoogleCloudStorageHttpFixture(final String address, final int port, final String bucket, final String token)
-        throws IOException {
-        this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(address), port), 0);
-        server.createContext("/" + token, new FakeOAuth2HttpHandler());
-        server.createContext("/computeMetadata/v1/project/project-id", new FakeProjectIdHttpHandler());
-        server.createContext("/", new GoogleCloudStorageHttpHandler(bucket));
+    public GoogleCloudStorageHttpFixture(boolean enabled, final String bucket, final String token) {
+        this.enabled = enabled;
+        this.bucket = bucket;
+        this.token = token;
     }
 
-    private void start() throws Exception {
-        try {
+    public String getAddress() {
+        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+    }
+
+    @Override
+    protected void before() throws Throwable {
+        if (enabled) {
+            this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+            server.createContext("/" + token, new FakeOAuth2HttpHandler());
+            server.createContext("/computeMetadata/v1/project/project-id", new FakeProjectIdHttpHandler());
+            server.createContext("/", new GoogleCloudStorageHttpHandler(bucket));
             server.start();
-            // wait to be killed
-            Thread.sleep(Long.MAX_VALUE);
-        } finally {
+        }
+    }
+
+    @Override
+    protected void after() {
+        if (enabled) {
             server.stop(0);
         }
-    }
-
-    public static void main(final String[] args) throws Exception {
-        if (args == null || args.length != 4) {
-            throw new IllegalArgumentException("GoogleCloudStorageHttpFixture expects 4 arguments [address, port, bucket, token]");
-        }
-        GoogleCloudStorageHttpFixture fixture = new GoogleCloudStorageHttpFixture(args[0], Integer.parseInt(args[1]), args[2], args[3]);
-        fixture.start();
     }
 }

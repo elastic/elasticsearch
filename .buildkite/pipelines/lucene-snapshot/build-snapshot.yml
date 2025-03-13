@@ -1,0 +1,22 @@
+steps:
+  - trigger: apache-lucene-build-snapshot
+    label: Trigger pipeline to build lucene snapshot
+    key: lucene-build
+    if: build.env("LUCENE_BUILD_ID") == null || build.env("LUCENE_BUILD_ID") == ""
+  - wait
+  - label: Upload and update lucene snapshot
+    command: .buildkite/scripts/lucene-snapshot/upload-snapshot.sh
+    timeout_in_minutes: 15
+    env:
+      USE_LUCENE_SNAPSHOT_CREDS: "true"
+      UPDATE_ES_LUCENE_SNAPSHOT: "true"
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: custom-32-98304
+      buildDirectory: /dev/shm/bk
+  - wait
+  - trigger: "elasticsearch-lucene-snapshot-tests"
+    build:
+      branch: "${BUILDKITE_BRANCH}"
+    async: true

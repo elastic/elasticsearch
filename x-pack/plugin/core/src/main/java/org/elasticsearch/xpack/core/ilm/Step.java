@@ -94,10 +94,7 @@ public abstract class Step {
         return key + " => " + nextStepKey;
     }
 
-    public static final class StepKey implements Writeable, ToXContentObject {
-        private final String phase;
-        private final String action;
-        private final String name;
+    public record StepKey(String phase, String action, String name) implements Writeable, ToXContentObject {
 
         public static final ParseField PHASE_FIELD = new ParseField("phase");
         public static final ParseField ACTION_FIELD = new ParseField("action");
@@ -112,16 +109,8 @@ public abstract class Step {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
         }
 
-        public StepKey(String phase, String action, String name) {
-            this.phase = phase;
-            this.action = action;
-            this.name = name;
-        }
-
-        public StepKey(StreamInput in) throws IOException {
-            this.phase = in.readString();
-            this.action = in.readString();
-            this.name = in.readString();
+        public static StepKey readFrom(StreamInput in) throws IOException {
+            return new StepKey(in.readString(), in.readString(), in.readString());
         }
 
         public static StepKey parse(XContentParser parser) {
@@ -133,35 +122,6 @@ public abstract class Step {
             out.writeString(phase);
             out.writeString(action);
             out.writeString(name);
-        }
-
-        public String getPhase() {
-            return phase;
-        }
-
-        public String getAction() {
-            return action;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(phase, action, name);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            StepKey other = (StepKey) obj;
-            return Objects.equals(phase, other.phase) && Objects.equals(action, other.action) && Objects.equals(name, other.name);
         }
 
         @Override

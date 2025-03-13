@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.cluster.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class MigrateToDataTiersResponseTests extends AbstractWireSerializingTestCase<MigrateToDataTiersResponse> {
 
     @Override
@@ -34,7 +32,7 @@ public class MigrateToDataTiersResponseTests extends AbstractWireSerializingTest
     }
 
     @Override
-    protected MigrateToDataTiersResponse mutateInstance(MigrateToDataTiersResponse instance) throws IOException {
+    protected MigrateToDataTiersResponse mutateInstance(MigrateToDataTiersResponse instance) {
         int i = randomIntBetween(0, 6);
         return switch (i) {
             case 0 -> new MigrateToDataTiersResponse(

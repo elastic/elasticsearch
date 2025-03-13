@@ -1,0 +1,27 @@
+---
+"Test get missing model":
+  - do:
+      catch: missing
+      inference.get:
+        inference_id: inference_to_get
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "Inference endpoint not found [inference_to_get]" }
+
+---
+"Test put inference with bad task type":
+  - do:
+      catch: bad_request
+      inference.put:
+        inference_id: elser_model
+        body: >
+          {
+            "task_type": "bad",
+            "service": "elser",
+            "service_settings": {
+              "num_allocations": 1,
+              "num_threads": 1
+            },
+            "task_settings": {
+            }
+          }
+  - match: { error.reason: "Unknown task_type [bad]" }

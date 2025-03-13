@@ -17,9 +17,9 @@ import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -154,14 +154,14 @@ public class FollowingEngine extends InternalEngine {
     }
 
     @Override
-    public int fillSeqNoGaps(long primaryTerm) throws IOException {
+    public int fillSeqNoGaps(long primaryTerm) {
         // a noop implementation, because follow shard does not own the history but the leader shard does.
         return 0;
     }
 
     @Override
     protected boolean assertPrimaryIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
-        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(origin, seqNo);
+        assert FollowingEngineAssertions.assertPrimaryIncomingSequenceNumber(seqNo);
         return true;
     }
 

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -16,47 +18,28 @@ import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 /**
  * Holds the results of the most recent attempt to migrate system indices. Updated by {@link SystemIndexMigrator} as it finishes each
  * feature, or fails.
  */
-public class FeatureMigrationResults implements Metadata.Custom {
+public class FeatureMigrationResults implements Metadata.ProjectCustom {
     public static final String TYPE = "system_index_migration";
-    public static final Version MIGRATION_ADDED_VERSION = Version.V_8_0_0;
+    public static final TransportVersion MIGRATION_ADDED_VERSION = TransportVersions.V_8_0_0;
 
-    private static final ParseField RESULTS_FIELD = new ParseField("results");
-
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<FeatureMigrationResults, Void> PARSER = new ConstructingObjectParser<>(TYPE, a -> {
-        final Map<String, SingleFeatureMigrationResult> statuses = ((List<Tuple<String, SingleFeatureMigrationResult>>) a[0]).stream()
-            .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-        return new FeatureMigrationResults(statuses);
-    });
-
-    static {
-        PARSER.declareNamedObjects(
-            ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> new Tuple<>(n, SingleFeatureMigrationResult.fromXContent(p)),
-            v -> { throw new IllegalArgumentException("ordered " + RESULTS_FIELD.getPreferredName() + " are not supported"); },
-            RESULTS_FIELD
-        );
-    }
+    static final ParseField RESULTS_FIELD = new ParseField("results");
 
     private final Map<String, SingleFeatureMigrationResult> featureStatuses;
 
@@ -65,26 +48,17 @@ public class FeatureMigrationResults implements Metadata.Custom {
     }
 
     public FeatureMigrationResults(StreamInput in) throws IOException {
-        this.featureStatuses = in.readMap(StreamInput::readString, SingleFeatureMigrationResult::new);
+        this.featureStatuses = in.readMap(SingleFeatureMigrationResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(
-            featureStatuses,
-            (StreamOutput outStream, String featureName) -> outStream.writeString(featureName),
-            (StreamOutput outStream, SingleFeatureMigrationResult featureStatus) -> featureStatus.writeTo(outStream)
-        );
+        out.writeMap(featureStatuses, StreamOutput::writeWriteable);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(RESULTS_FIELD.getPreferredName(), featureStatuses);
-        return builder;
-    }
-
-    public static FeatureMigrationResults fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.xContentObjectFields(RESULTS_FIELD.getPreferredName(), featureStatuses);
     }
 
     /**
@@ -121,7 +95,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
+    public TransportVersion getMinimalSupportedVersion() {
         return MIGRATION_ADDED_VERSION;
     }
 
@@ -144,15 +118,15 @@ public class FeatureMigrationResults implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new ResultsDiff((FeatureMigrationResults) previousState, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ResultsDiff(in);
     }
 
-    public static class ResultsDiff implements NamedDiff<Metadata.Custom> {
+    public static class ResultsDiff implements NamedDiff<Metadata.ProjectCustom> {
         private final Diff<Map<String, SingleFeatureMigrationResult>> resultsDiff;
 
         public ResultsDiff(FeatureMigrationResults before, FeatureMigrationResults after) {
@@ -169,7 +143,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             TreeMap<String, SingleFeatureMigrationResult> newResults = new TreeMap<>(
                 resultsDiff.apply(((FeatureMigrationResults) part).featureStatuses)
             );
@@ -191,7 +165,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
+        public TransportVersion getMinimalSupportedVersion() {
             return MIGRATION_ADDED_VERSION;
         }
 

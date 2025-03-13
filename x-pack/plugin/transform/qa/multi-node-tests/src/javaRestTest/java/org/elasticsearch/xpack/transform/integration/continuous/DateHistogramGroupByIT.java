@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
@@ -55,7 +56,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
         }
 
         transformConfigBuilder.setSource(new SourceConfig(CONTINUOUS_EVENTS_SOURCE_INDEX));
-        transformConfigBuilder.setDest(new DestConfig(NAME, INGEST_PIPELINE));
+        transformConfigBuilder.setDest(new DestConfig(NAME, null, INGEST_PIPELINE));
         transformConfigBuilder.setId(NAME);
 
         var groupConfig = TransformRestTestCase.createGroupConfig(
@@ -66,6 +67,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
                     null,
                     missing,
                     new DateHistogramGroupSource.FixedInterval(DateHistogramInterval.SECOND),
+                    null,
                     null
                 )
             ),
@@ -93,7 +95,8 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
     @Override
     @SuppressWarnings("unchecked")
     public void testIteration(int iteration, Set<String> modifiedEvents) throws IOException {
-        String query = """
+        Object[] args = new Object[] { timestampField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "" };
+        String query = Strings.format("""
             {
               "aggs": {
                 "second": {
@@ -106,7 +109,7 @@ public class DateHistogramGroupByIT extends ContinuousTestCase {
                 }
               }
             }
-            """.formatted(timestampField, missing ? "\"missing\": \"" + MISSING_BUCKET_KEY + "\"," : "");
+            """, args);
 
         Response searchResponse = search(
             CONTINUOUS_EVENTS_SOURCE_INDEX,

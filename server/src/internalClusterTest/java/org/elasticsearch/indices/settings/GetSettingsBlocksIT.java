@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.settings;
@@ -39,7 +40,7 @@ public class GetSettingsBlocksIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("test", block);
-                GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
+                GetSettingsResponse response = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
                 assertThat(response.getIndexToSettings().size(), greaterThanOrEqualTo(1));
                 assertThat(response.getSetting("test", "index.refresh_interval"), equalTo("-1"));
                 assertThat(response.getSetting("test", "index.merge.policy.expunge_deletes_allowed"), equalTo("30"));
@@ -51,7 +52,7 @@ public class GetSettingsBlocksIT extends ESIntegTestCase {
 
         try {
             enableIndexBlock("test", SETTING_BLOCKS_METADATA);
-            assertBlocked(client().admin().indices().prepareGetSettings("test"));
+            assertBlocked(indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test"));
         } finally {
             disableIndexBlock("test", SETTING_BLOCKS_METADATA);
         }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ExternalTestCluster;
@@ -32,7 +33,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -283,6 +283,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(stats.toString(), (Integer) XContentMapValues.extractValue("inference_stats.cache_miss_count", stats), greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105955")
     public void testSimulate() throws IOException {
         String classificationModelId = "test_classification_simulate";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
@@ -290,7 +291,7 @@ public class InferenceIngestIT extends ESRestTestCase {
         String regressionModelId = "test_regression_simulate";
         putModel(regressionModelId, REGRESSION_CONFIG);
 
-        String source = """
+        String source = Strings.format("""
             {
               "pipeline": {
                 "processors": [
@@ -341,7 +342,7 @@ public class InferenceIngestIT extends ESRestTestCase {
                 }
               ]
             }
-            """.formatted(classificationModelId, regressionModelId);
+            """, classificationModelId, regressionModelId);
 
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
@@ -387,10 +388,11 @@ public class InferenceIngestIT extends ESRestTestCase {
         assertThat(responseString, containsString("Could not find trained model [test_classification_missing]"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105955")
     public void testSimulateWithDefaultMappedField() throws IOException {
         String classificationModelId = "test_classification_default_mapped_field";
         putModel(classificationModelId, CLASSIFICATION_CONFIG);
-        String source = """
+        String source = Strings.format("""
             {
               "pipeline": {
                 "processors": [
@@ -420,7 +422,7 @@ public class InferenceIngestIT extends ESRestTestCase {
                   }
                 }
               ]
-            }""".formatted(classificationModelId);
+            }""", classificationModelId);
 
         Response response = client().performRequest(simulateRequest(source));
         String responseString = EntityUtils.toString(response.getEntity());
@@ -538,15 +540,17 @@ public class InferenceIngestIT extends ESRestTestCase {
         return request;
     }
 
-    private Map<String, Object> generateSourceDoc() {
-        return new HashMap<>() {
-            {
-                put("col1", randomFrom("female", "male"));
-                put("col2", randomFrom("S", "M", "L", "XL"));
-                put("col3", randomFrom("true", "false", "none", "other"));
-                put("col4", randomIntBetween(0, 10));
-            }
-        };
+    private static Map<String, Object> generateSourceDoc() {
+        return Map.of(
+            "col1",
+            randomFrom("female", "male"),
+            "col2",
+            randomFrom("S", "M", "L", "XL"),
+            "col3",
+            randomFrom("true", "false", "none", "other"),
+            "col4",
+            randomIntBetween(0, 10)
+        );
     }
 
     private static final String REGRESSION_DEFINITION = """
@@ -674,7 +678,7 @@ public class InferenceIngestIT extends ESRestTestCase {
           }
         }""";
 
-    private static final String REGRESSION_CONFIG = """
+    private static final String REGRESSION_CONFIG = Strings.format("""
         {
             "input": {
                 "field_names": [
@@ -689,14 +693,14 @@ public class InferenceIngestIT extends ESRestTestCase {
                 "regression": {}
             },
             "definition": %s
-        }""".formatted(REGRESSION_DEFINITION);
+        }""", REGRESSION_DEFINITION);
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
     }
 
-    private static final String CLASSIFICATION_CONFIG = """
+    private static final String CLASSIFICATION_CONFIG = Strings.format("""
         {
           "input": {
             "field_names": [ "col1", "col2", "col3", "col4" ]
@@ -709,10 +713,10 @@ public class InferenceIngestIT extends ESRestTestCase {
             "classification": {}
           },
           "definition": %s
-        }""".formatted(InferenceDefinitionTests.getClassificationDefinition(false));
+        }""", InferenceDefinitionTests.getClassificationDefinition(false));
 
     private static String pipelineDefinition(String modelId, String inferenceConfig) {
-        return """
+        return Strings.format("""
             {
               "processors": [
                 {
@@ -731,7 +735,7 @@ public class InferenceIngestIT extends ESRestTestCase {
                   }
                 }
               ]
-            }""".formatted(modelId, inferenceConfig, inferenceConfig);
+            }""", modelId, inferenceConfig, inferenceConfig);
     }
 
     private void putModel(String modelId, String modelConfiguration) throws IOException {

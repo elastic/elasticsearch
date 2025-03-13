@@ -68,7 +68,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     @After
     public void cleanup() {
         cleanUp();
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().putNull("search.max_buckets")).get();
+        updateClusterSettings(Settings.builder().putNull("search.max_buckets"));
     }
 
     public void testEvaluate_DefaultMetrics() {
@@ -117,8 +117,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
         String actualField = "fieldA";
         String predictedField = "fieldB";
         client().admin().indices().prepareCreate(indexName).setMapping(actualField, "type=keyword", predictedField, "type=keyword").get();
-        client().prepareIndex(indexName)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+        prepareIndex(indexName).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setSource(actualField, "crocodile", predictedField, "cRoCoDiLe")
             .get();
 
@@ -619,13 +618,13 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     public void testEvaluate_ConfusionMatrixMetricWithDefaultSize() {
         evaluateMulticlassConfusionMatrix();
 
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_buckets", 20)).get();
+        updateClusterSettings(Settings.builder().put("search.max_buckets", 20));
         evaluateMulticlassConfusionMatrix();
 
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_buckets", 7)).get();
+        updateClusterSettings(Settings.builder().put("search.max_buckets", 7));
         evaluateMulticlassConfusionMatrix();
 
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder().put("search.max_buckets", 6)).get();
+        updateClusterSettings(Settings.builder().put("search.max_buckets", 6));
         ElasticsearchException e = expectThrows(ElasticsearchException.class, this::evaluateMulticlassConfusionMatrix);
 
         assertThat(e.getCause(), is(instanceOf(TooManyBucketsException.class)));
@@ -690,9 +689,7 @@ public class ClassificationEvaluationIT extends MlNativeDataFrameAnalyticsIntegT
     }
 
     static void createAnimalsIndex(String indexName) {
-        client().admin()
-            .indices()
-            .prepareCreate(indexName)
+        indicesAdmin().prepareCreate(indexName)
             .setMapping(
                 ANIMAL_NAME_KEYWORD_FIELD,
                 "type=keyword",

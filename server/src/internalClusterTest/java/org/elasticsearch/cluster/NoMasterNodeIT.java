@@ -1,27 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -46,6 +45,7 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -73,7 +73,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
         createIndex("test");
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForGreenStatus().get();
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
             new IsolateAllNodes(new HashSet<>(nodes)),
@@ -85,7 +85,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final Client clientToMasterlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            ClusterState state = clientToMasterlessNode.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setLocal(true)
+                .get()
+                .getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
@@ -190,7 +195,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         internalCluster().clearDisruptionScheme(true);
     }
 
-    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?> builder) {
+    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, RequestBuilder<?, ?> builder) {
         // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
         try {
             builder.get();
@@ -205,7 +210,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    void checkWriteAction(ActionRequestBuilder<?, ?> builder) {
+    void checkWriteAction(RequestBuilder<?, ?> builder) {
         try {
             builder.get();
             fail("Expected ClusterBlockException");
@@ -222,20 +227,16 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
-        prepareCreate("test1").setSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-        ).get();
-        prepareCreate("test2").setSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        ).get();
-        client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
-        client().prepareIndex("test2").setId("1").setSource("field", "value1").get();
+        prepareCreate("test1").setSettings(indexSettings(1, 2)).get();
+        prepareCreate("test2").setSettings(indexSettings(3, 0)).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "_all").setWaitForGreenStatus().get();
+        prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        prepareIndex("test2").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureSearchable("test1", "test2");
 
-        ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
+        ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         logger.info("Cluster state:\n{}", clusterState.getState());
 
         final NetworkDisruption disruptionScheme = new NetworkDisruption(
@@ -248,23 +249,28 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         final Client clientToMasterlessNode = client();
 
         assertBusy(() -> {
-            ClusterState state = clientToMasterlessNode.admin().cluster().prepareState().setLocal(true).get().getState();
+            ClusterState state = clientToMasterlessNode.admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setLocal(true)
+                .get()
+                .getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
         });
 
         GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        SearchResponse countResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get();
-        assertHitCount(countResponse, 1L);
+        assertHitCount(
+            1L,
+            clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0),
+            clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true)
+        );
 
-        logger.info("--> here 3");
-        SearchResponse searchResponse = clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).get();
-        assertHitCount(searchResponse, 1L);
-
-        countResponse = clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0).get();
-        assertThat(countResponse.getTotalShards(), equalTo(3));
-        assertThat(countResponse.getSuccessfulShards(), equalTo(1));
+        assertResponse(clientToMasterlessNode.prepareSearch("test2").setAllowPartialSearchResults(true).setSize(0), countResponse -> {
+            assertThat(countResponse.getTotalShards(), equalTo(3));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(1));
+        });
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
         long now = System.currentTimeMillis();
@@ -304,16 +310,14 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         final List<String> nodes = internalCluster().startNodes(3, settings);
 
-        prepareCreate("test1").setSettings(
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-        ).get();
-        client().admin().cluster().prepareHealth("_all").setWaitForGreenStatus().get();
-        client().prepareIndex("test1").setId("1").setSource("field", "value1").get();
+        prepareCreate("test1").setSettings(indexSettings(1, 1)).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "_all").setWaitForGreenStatus().get();
+        prepareIndex("test1").setId("1").setSource("field", "value1").get();
         refresh();
 
         ensureGreen("test1");
 
-        ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
+        ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         logger.info("Cluster state:\n{}", clusterState.getState());
 
         final List<String> nodesWithShards = clusterState.getState()
@@ -328,8 +332,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             .toList();
 
         client().execute(
-            AddVotingConfigExclusionsAction.INSTANCE,
-            new AddVotingConfigExclusionsRequest(nodesWithShards.toArray(new String[0]))
+            TransportAddVotingConfigExclusionsAction.TYPE,
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, nodesWithShards.toArray(new String[0]))
         ).get();
         ensureGreen("test1");
 
@@ -344,7 +348,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             for (String node : nodesWithShards) {
-                ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
                 assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
             }
         });
@@ -352,18 +356,11 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = client(randomFrom(nodesWithShards)).prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        expectThrows(Exception.class, () -> client(partitionedNode).prepareGet("test1", "1").get());
+        expectThrows(Exception.class, client(partitionedNode).prepareGet("test1", "1"));
 
-        SearchResponse countResponse = client(randomFrom(nodesWithShards)).prepareSearch("test1")
-            .setAllowPartialSearchResults(true)
-            .setSize(0)
-            .get();
-        assertHitCount(countResponse, 1L);
+        assertHitCount(client(randomFrom(nodesWithShards)).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0), 1L);
 
-        expectThrows(
-            Exception.class,
-            () -> client(partitionedNode).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0).get()
-        );
+        expectThrows(Exception.class, client(partitionedNode).prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0));
 
         TimeValue timeout = TimeValue.timeValueMillis(200);
         client(randomFrom(nodesWithShards)).prepareUpdate("test1", "1")
@@ -373,10 +370,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
 
         expectThrows(
             Exception.class,
-            () -> client(partitionedNode).prepareUpdate("test1", "1")
-                .setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2")
-                .setTimeout(timeout)
-                .get()
+            client(partitionedNode).prepareUpdate("test1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout)
         );
 
         client(randomFrom(nodesWithShards)).prepareIndex("test1")
@@ -388,30 +382,27 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         // dynamic mapping updates fail
         expectThrows(
             MasterNotDiscoveredException.class,
-            () -> client(randomFrom(nodesWithShards)).prepareIndex("test1")
+            client(randomFrom(nodesWithShards)).prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("new_field", "value").endObject())
                 .setTimeout(timeout)
-                .get()
         );
 
         // dynamic index creation fails
         expectThrows(
             MasterNotDiscoveredException.class,
-            () -> client(randomFrom(nodesWithShards)).prepareIndex("test2")
+            client(randomFrom(nodesWithShards)).prepareIndex("test2")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
-                .get()
         );
 
         expectThrows(
             Exception.class,
-            () -> client(partitionedNode).prepareIndex("test1")
+            client(partitionedNode).prepareIndex("test1")
                 .setId("1")
                 .setSource(XContentFactory.jsonBuilder().startObject().endObject())
                 .setTimeout(timeout)
-                .get()
         );
 
         internalCluster().clearDisruptionScheme(true);

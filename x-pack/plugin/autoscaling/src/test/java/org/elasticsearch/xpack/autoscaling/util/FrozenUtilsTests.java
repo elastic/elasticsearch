@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.autoscaling.util;
 
 import joptsimple.internal.Strings;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
@@ -42,7 +42,7 @@ public class FrozenUtilsTests extends AutoscalingTestCase {
         Settings.Builder settings = Settings.builder()
             .put(randomAlphaOfLength(10), randomLong())
             .put(DataTier.TIER_PREFERENCE, tierPreference)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         // pass setting validator.
         if (Objects.equals(tierPreference, DataTier.DATA_FROZEN)) {
             settings.put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)

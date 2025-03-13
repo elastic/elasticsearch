@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.get;
@@ -15,6 +16,9 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +57,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet()).getSettingsFilter();
+        settingsFilter = new SettingsModule(Settings.EMPTY, emptyList(), emptyList()).getSettingsFilter();
         threadPool = new TestThreadPool("GetIndexActionTests");
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
@@ -79,33 +83,31 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     }
 
     public void testIncludeDefaults() {
-        GetIndexRequest defaultsRequest = new GetIndexRequest().indices(indexName).includeDefaults(true);
+        GetIndexRequest defaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(true);
         ActionTestUtils.execute(
             getIndexAction,
             null,
             defaultsRequest,
-            ActionListener.wrap(
+            ActionTestUtils.assertNoFailureListener(
                 defaultsResponse -> assertNotNull(
                     "index.refresh_interval should be set as we are including defaults",
                     defaultsResponse.getSetting(indexName, "index.refresh_interval")
-                ),
-                exception -> { throw new AssertionError(exception); }
+                )
             )
         );
     }
 
     public void testDoNotIncludeDefaults() {
-        GetIndexRequest noDefaultsRequest = new GetIndexRequest().indices(indexName);
+        GetIndexRequest noDefaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(indexName);
         ActionTestUtils.execute(
             getIndexAction,
             null,
             noDefaultsRequest,
-            ActionListener.wrap(
+            ActionTestUtils.assertNoFailureListener(
                 noDefaultsResponse -> assertNull(
                     "index.refresh_interval should be null as it was never set",
                     noDefaultsResponse.getSetting(indexName, "index.refresh_interval")
-                ),
-                exception -> { throw new AssertionError(exception); }
+                )
             )
         );
     }
@@ -121,7 +123,8 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
                 new ActionFilters(emptySet()),
                 new GetIndexActionTests.Resolver(),
                 indicesService,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                DefaultProjectResolver.INSTANCE
             );
         }
 
@@ -140,16 +143,16 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
 
     static class Resolver extends IndexNameExpressionResolver {
         Resolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
             return request.indices();
         }
 
         @Override
-        public Index[] concreteIndices(ClusterState state, IndicesRequest request) {
+        public Index[] concreteIndices(ProjectMetadata project, IndicesRequest request) {
             Index[] out = new Index[request.indices().length];
             for (int x = 0; x < out.length; x++) {
                 out[x] = new Index(request.indices()[x], "_na_");

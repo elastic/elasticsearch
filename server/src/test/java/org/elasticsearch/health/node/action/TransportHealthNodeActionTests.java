@@ -1,34 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -43,17 +42,18 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class TransportHealthNodeActionTests extends ESTestCase {
     private static ThreadPool threadPool;
@@ -88,20 +88,12 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        localNode = new DiscoveryNode(
-            "local_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-        remoteNode = new DiscoveryNode(
-            "remote_node",
-            buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
+        localNode = DiscoveryNodeUtils.builder("local_node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
+        remoteNode = DiscoveryNodeUtils.builder("remote_node")
+            .roles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.DATA_ROLE))
+            .build();
         allNodes = new DiscoveryNode[] { localNode, remoteNode };
     }
 
@@ -118,7 +110,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         threadPool = null;
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends HealthNodeRequest {
 
         Request() {}
 
@@ -132,8 +124,8 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        public String getDescription() {
+            return "Test request.";
         }
     }
 
@@ -168,7 +160,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
 
     class Action extends TransportHealthNodeAction<Request, Response> {
         Action(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
-            this(actionName, transportService, clusterService, threadPool, ThreadPool.Names.SAME);
+            this(actionName, transportService, clusterService, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         }
 
         Action(
@@ -176,7 +168,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
             TransportService transportService,
             ClusterService clusterService,
             ThreadPool threadPool,
-            String executor
+            Executor executor
         ) {
             super(
                 actionName,
@@ -188,12 +180,6 @@ public class TransportHealthNodeActionTests extends ESTestCase {
                 Response::new,
                 executor
             );
-        }
-
-        @Override
-        protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-            // remove unneeded threading by wrapping listener with SAME to prevent super.doExecute from wrapping it with LISTENER
-            super.doExecute(task, request, new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.SAME, listener, false));
         }
 
         @Override
@@ -212,7 +198,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
             ThreadPool threadPool,
             CountDownLatch countDownLatch
         ) {
-            super(actionName, transportService, clusterService, threadPool, ThreadPool.Names.SAME);
+            super(actionName, transportService, clusterService, threadPool, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.countDownLatch = countDownLatch;
         }
 
@@ -266,6 +252,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
             }
         }, null, request, listener);
         assertTrue(listener.isDone());
+        assertThat(transportService.getRequestHandler("internal:testAction").canTripCircuitBreaker(), is(false));
 
         if (healthOperationFailure) {
             try {
@@ -299,6 +286,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
+        assertThat(transportService.getRequestHandler("internal:testAction").canTripCircuitBreaker(), is(false));
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
@@ -319,6 +307,7 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
         ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), task, request, listener);
+        assertThat(transportService.getRequestHandler("internal:testAction").canTripCircuitBreaker(), is(false));
 
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
@@ -343,6 +332,8 @@ public class TransportHealthNodeActionTests extends ESTestCase {
             listener
         );
         assertTrue(listener.isDone());
+        assertThat(transportService.getRequestHandler("internal:testAction").canTripCircuitBreaker(), is(false));
+
         try {
             listener.get();
             fail("A simulated RuntimeException should be thrown");

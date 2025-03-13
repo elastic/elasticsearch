@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,6 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest handler for handling access token invalidation requests
  */
+@ServerlessScope(Scope.INTERNAL)
 public final class RestInvalidateTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
 
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_token", a -> {
@@ -67,9 +69,7 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler implem
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(DELETE, "/_security/oauth2/token").replaces(DELETE, "/_xpack/security/oauth2/token", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(DELETE, "/_security/oauth2/token"));
     }
 
     @Override

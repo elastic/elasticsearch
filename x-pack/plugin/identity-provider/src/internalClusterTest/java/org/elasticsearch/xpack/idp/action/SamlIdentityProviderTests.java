@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -57,6 +56,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
@@ -97,7 +99,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             )
             .build();
         // This role has "editor" on the deployment itself, and "viewer" for the organization that owns the deployment
-        createRole(roleName, """
+        createRole(roleName, Strings.format("""
             {
               "cluster": [ "manage_own_api_key" ],
               "applications": [
@@ -113,7 +115,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
                 }
               ]
             }
-            """.formatted(SP_ENTITY_ID, entityWildcard), adminOptions);
+            """, SP_ENTITY_ID, entityWildcard), adminOptions);
         createUser(username, password, roleName, adminOptions);
 
         ObjectPath objectPath = performSso(entityId, acsUrl, username, password);
@@ -205,9 +207,9 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         );
         XContentBuilder authnStateBuilder = jsonBuilder();
         authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity("""
+        initRequest.setJsonEntity(Strings.format("""
             {"entity_id":"%s","acs":"%s","authn_state":%s}
-            """.formatted(entityId, serviceProvider.get("acs"), Strings.toString(authnStateBuilder)));
+            """, entityId, serviceProvider.get("acs"), Strings.toString(authnStateBuilder)));
         Response initResponse = getRestClient().performRequest(initRequest);
         ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
         assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
@@ -271,20 +273,24 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         );
         XContentBuilder authnStateBuilder = jsonBuilder();
         authnStateBuilder.map(authnState);
-        initRequest.setJsonEntity("""
+        initRequest.setJsonEntity(Strings.format("""
             {"entity_id":"%s", "acs":"%s","authn_state":%s}
-            """.formatted(entityId, acsUrl, Strings.toString(authnStateBuilder)));
-        Response initResponse = getRestClient().performRequest(initRequest);
-        ObjectPath initResponseObject = ObjectPath.createFromResponse(initResponse);
-        assertThat(initResponseObject.evaluate("post_url").toString(), equalTo(acsUrl));
-        final String body = initResponseObject.evaluate("saml_response").toString();
+            """, entityId, acsUrl, Strings.toString(authnStateBuilder)));
+        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest(initRequest));
+        Response response = e.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(403));
+        ObjectPath initResponseObject = ObjectPath.createFromResponse(response);
+        assertThat(initResponseObject.evaluate("status"), equalTo(403));
+        final String baseSamlResponseObjectPath = "error.saml_initiate_single_sign_on_response.";
+        assertThat(initResponseObject.evaluate(baseSamlResponseObjectPath + "post_url").toString(), equalTo(acsUrl));
+        final String body = initResponseObject.evaluate(baseSamlResponseObjectPath + "saml_response").toString();
         assertThat(body, containsString("<saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Requester\"/>"));
         assertThat(body, containsString("InResponseTo=\"" + expectedInResponeTo + "\""));
-        Map<String, String> sp = initResponseObject.evaluate("service_provider");
+        Map<String, String> sp = initResponseObject.evaluate(baseSamlResponseObjectPath + "service_provider");
         assertThat(sp, hasKey("entity_id"));
         assertThat(sp.get("entity_id"), equalTo(entityId));
         assertThat(
-            initResponseObject.evaluate("error"),
+            initResponseObject.evaluate(baseSamlResponseObjectPath + "error"),
             equalTo("User [" + SAMPLE_USER_NAME + "] is not permitted to access service [" + entityId + "]")
         );
     }
@@ -405,10 +411,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
             )
         );
         spFields.put("privileges", Map.of("resource", entityId, "roles", Set.of("sso:(\\w+)")));
-        Request request = new Request(
-            "PUT",
-            "/_idp/saml/sp/" + urlEncode(entityId) + "?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue()
-        );
+        Request request = new Request("PUT", "/_idp/saml/sp/" + urlEncode(entityId) + "?refresh=" + IMMEDIATE.getValue());
         request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.map(spFields);
@@ -437,7 +440,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private void registerApplicationPrivileges(Map<String, Set<String>> privileges) throws IOException {
-        Request request = new Request("PUT", "/_security/privilege?refresh=" + WriteRequest.RefreshPolicy.IMMEDIATE.getValue());
+        Request request = new Request("PUT", "/_security/privilege?refresh=" + IMMEDIATE.getValue());
         request.setOptions(REQUEST_OPTIONS_AS_CONSOLE_USER);
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -468,14 +471,14 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
 
     private void createUser(String userName, SecureString password, String roleName, RequestOptions options) throws IOException {
         final Request req = new Request("PUT", "/_security/user/" + userName);
-        final String body = """
+        final String body = Strings.format("""
             {
               "username": "%s",
               "full_name": "Test User (%s)",
               "password": "%s",
               "roles": [ "%s" ]
             }
-            """.formatted(userName, getTestName(), password, roleName);
+            """, userName, getTestName(), password, roleName);
         req.setJsonEntity(body);
         req.setOptions(options);
         getRestClient().performRequest(req);
@@ -487,6 +490,7 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
         );
         final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("test key")
             .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
+            .setRefreshPolicy(randomFrom(WAIT_UNTIL, IMMEDIATE, NONE))
             .get();
         assertNotNull(response);
         return Base64.getEncoder().encodeToString((response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
@@ -557,9 +561,9 @@ public class SamlIdentityProviderTests extends IdentityProviderIntegTestCase {
     }
 
     private void assertContainsAttributeWithValues(String message, String attribute, String... values) {
-        final String startAttribute = """
+        final String startAttribute = Strings.format("""
             <saml2:Attribute FriendlyName="%s" Name="https://saml.elasticsearch.org/attributes/%s" \
-            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">""".formatted(attribute, attribute);
+            NameFormat="urn:oasis:names:tc:SAML:2.0:attrname-format:uri">""", attribute, attribute);
         assertThat(message, containsString(startAttribute));
         final int posStart = message.indexOf(startAttribute);
         assertThat(posStart, Matchers.greaterThan(0));

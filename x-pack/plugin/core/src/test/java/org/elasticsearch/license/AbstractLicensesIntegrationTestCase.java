@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -100,4 +101,20 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
         });
     }
 
+    protected static GetLicenseResponse getLicense() {
+        return safeGet(clusterAdmin().execute(GetLicenseAction.INSTANCE, new GetLicenseRequest(TEST_REQUEST_TIMEOUT)));
+    }
+
+    protected static GetTrialStatusResponse getTrialStatus() {
+        return safeGet(clusterAdmin().execute(GetTrialStatusAction.INSTANCE, new GetTrialStatusRequest(TEST_REQUEST_TIMEOUT)));
+    }
+
+    protected static PostStartBasicResponse startBasic() {
+        return safeGet(
+            clusterAdmin().execute(
+                PostStartBasicAction.INSTANCE,
+                new PostStartBasicRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).acknowledge(true)
+            )
+        );
+    }
 }

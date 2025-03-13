@@ -270,7 +270,7 @@ public abstract class WatchExecutionContext {
             String header = watch.status().getHeaders().get(AuthenticationField.AUTHENTICATION_KEY);
             if (header != null) {
                 Authentication auth = AuthenticationContextSerializer.decode(header);
-                return auth.getUser().principal();
+                return auth.getEffectiveSubject().getUser().principal();
             }
         }
         return null;

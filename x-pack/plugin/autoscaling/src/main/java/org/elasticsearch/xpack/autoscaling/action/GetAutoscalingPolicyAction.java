@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -26,7 +27,7 @@ public class GetAutoscalingPolicyAction extends ActionType<GetAutoscalingPolicyA
     public static final String NAME = "cluster:admin/autoscaling/get_autoscaling_policy";
 
     private GetAutoscalingPolicyAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
@@ -37,7 +38,8 @@ public class GetAutoscalingPolicyAction extends ActionType<GetAutoscalingPolicyA
             return name;
         }
 
-        public Request(final String name) {
+        public Request(TimeValue masterNodeTimeout, final String name) {
+            super(masterNodeTimeout);
             this.name = Objects.requireNonNull(name);
         }
 

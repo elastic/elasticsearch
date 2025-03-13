@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -39,10 +39,7 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
     }
 
     public void testReloadSearchAnalyzers() throws IOException {
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+        Settings settings = indexSettings(1, 1).put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
             .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
             .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter")
             .build();
@@ -81,7 +78,7 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
         assertEquals("myReloadableFilter", originalTokenFilters[0].name());
 
         // now reload, this should change the tokenfilterFactory inside the analyzer
-        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class));
+        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), null, false);
         IndexAnalyzers updatedAnalyzers = mapperService.getIndexAnalyzers();
         assertSame(current, updatedAnalyzers);
         assertSame(current.getDefaultIndexAnalyzer(), updatedAnalyzers.getDefaultIndexAnalyzer());

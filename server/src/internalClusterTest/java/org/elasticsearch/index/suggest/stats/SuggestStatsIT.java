@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.suggest.stats;
@@ -12,12 +13,9 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
@@ -25,12 +23,12 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -45,23 +43,15 @@ public class SuggestStatsIT extends ESIntegTestCase {
 
     public void testSimpleStats() throws Exception {
         // clear all stats first
-        client().admin().indices().prepareStats().clear().execute().actionGet();
+        indicesAdmin().prepareStats().clear().get();
         final int numNodes = cluster().numDataNodes();
         assertThat(numNodes, greaterThanOrEqualTo(2));
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
         final int totalShards = shardsIdx1 + shardsIdx2;
         assertThat(numNodes, lessThanOrEqualTo(totalShards));
-        assertAcked(
-            prepareCreate("test1").setSettings(
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            ).setMapping("f", "type=text")
-        );
-        assertAcked(
-            prepareCreate("test2").setSettings(
-                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx2).put(SETTING_NUMBER_OF_REPLICAS, 0)
-            ).setMapping("f", "type=text")
-        );
+        assertAcked(prepareCreate("test1").setSettings(indexSettings(shardsIdx1, 0)).setMapping("f", "type=text"));
+        assertAcked(prepareCreate("test2").setSettings(indexSettings(shardsIdx2, 0)).setMapping("f", "type=text"));
         assertThat(shardsIdx1 + shardsIdx2, equalTo(numAssignedShards("test1", "test2")));
         assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
         ensureGreen();
@@ -77,20 +67,26 @@ public class SuggestStatsIT extends ESIntegTestCase {
 
         long startTime = System.currentTimeMillis();
         for (int i = 0; i < suggestAllIdx; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch(), i).get();
-            assertAllSuccessful(suggestResponse);
+            assertResponse(
+                addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch(), i),
+                response -> assertAllSuccessful(response)
+            );
         }
         for (int i = 0; i < suggestIdx1; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test1"), i).get();
-            assertAllSuccessful(suggestResponse);
+            assertResponse(
+                addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test1"), i),
+                response -> assertAllSuccessful(response)
+            );
         }
         for (int i = 0; i < suggestIdx2; i++) {
-            SearchResponse suggestResponse = addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test2"), i).get();
-            assertAllSuccessful(suggestResponse);
+            assertResponse(
+                addSuggestions(internalCluster().coordOnlyNodeClient().prepareSearch("test2"), i),
+                response -> assertAllSuccessful(response)
+            );
         }
         long endTime = System.currentTimeMillis();
 
-        IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().execute().actionGet();
+        IndicesStatsResponse indicesStats = indicesAdmin().prepareStats().get();
         final SearchStats.Stats suggest = indicesStats.getTotal().getSearch().getTotal();
 
         // check current
@@ -116,7 +112,7 @@ public class SuggestStatsIT extends ESIntegTestCase {
         // the upperbound is num shards * total time since we do searches in parallel
         assertThat(suggest.getSuggestTimeInMillis(), lessThanOrEqualTo(totalShards * (endTime - startTime)));
 
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
+        NodesStatsResponse nodeStats = clusterAdmin().prepareNodesStats().get();
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
         int num = 0;
         for (NodeStats stat : nodeStats.getNodes()) {
@@ -149,8 +145,8 @@ public class SuggestStatsIT extends ESIntegTestCase {
     }
 
     private Set<String> nodeIdsWithIndex(String... indices) {
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        GroupShardsIterator<ShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        List<ShardIterator> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         Set<String> nodes = new HashSet<>();
         for (ShardIterator shardIterator : allAssignedShardsGrouped) {
             for (ShardRouting routing : shardIterator) {
@@ -164,8 +160,8 @@ public class SuggestStatsIT extends ESIntegTestCase {
     }
 
     protected int numAssignedShards(String... indices) {
-        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        List<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
     }
 }

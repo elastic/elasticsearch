@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -39,17 +40,13 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "not an API-level restore");
         }
 
-        final RestoreInProgress restoresInProgress = allocation.custom(RestoreInProgress.TYPE);
-
-        if (restoresInProgress != null) {
-            RestoreInProgress.Entry restoreInProgress = restoresInProgress.get(source.restoreUUID());
-            if (restoreInProgress != null) {
-                RestoreInProgress.ShardRestoreStatus shardRestoreStatus = restoreInProgress.shards().get(shardRouting.shardId());
-                if (shardRestoreStatus != null && shardRestoreStatus.state().completed() == false) {
-                    assert shardRestoreStatus.state() != RestoreInProgress.State.SUCCESS
-                        : "expected shard [" + shardRouting + "] to be in initializing state but got [" + shardRestoreStatus.state() + "]";
-                    return allocation.decision(Decision.YES, NAME, "shard is currently being restored");
-                }
+        RestoreInProgress.Entry restoreInProgress = RestoreInProgress.get(allocation.getClusterState()).get(source.restoreUUID());
+        if (restoreInProgress != null) {
+            RestoreInProgress.ShardRestoreStatus shardRestoreStatus = restoreInProgress.shards().get(shardRouting.shardId());
+            if (shardRestoreStatus != null && shardRestoreStatus.state().completed() == false) {
+                assert shardRestoreStatus.state() != RestoreInProgress.State.SUCCESS
+                    : "expected shard [" + shardRouting + "] to be in initializing state but got [" + shardRestoreStatus.state() + "]";
+                return allocation.decision(Decision.YES, NAME, "shard is currently being restored");
             }
         }
         return allocation.decision(
@@ -59,7 +56,7 @@ public class RestoreInProgressAllocationDecider extends AllocationDecider {
                 + "to restore the snapshot again or use the reroute API to force the allocation of an empty primary shard. Details: [%s]",
             source.snapshot(),
             shardRouting.getIndexName(),
-            shardRouting.unassignedInfo().getDetails()
+            shardRouting.unassignedInfo().details()
         );
     }
 

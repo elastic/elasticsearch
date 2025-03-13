@@ -10,10 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,7 +30,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
@@ -41,17 +38,14 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        XPackLicenseState licenseState,
         Client client
     ) {
-        super(XPackUsageFeatureAction.SQL.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
-        this.licenseState = licenseState;
+        super(XPackUsageFeatureAction.SQL.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -60,7 +54,7 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
         SqlStatsRequest sqlRequest = new SqlStatsRequest();
         sqlRequest.includeStats(true);
         sqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(SqlStatsAction.INSTANCE, sqlRequest, ActionListener.wrap(r -> {
+        client.execute(SqlStatsAction.INSTANCE, sqlRequest, listener.delegateFailureAndWrap((l, r) -> {
             List<Counters> countersPerNode = r.getNodes()
                 .stream()
                 .map(SqlStatsResponse.NodeStatsResponse::getStats)
@@ -68,7 +62,7 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                 .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
             SqlFeatureSetUsage usage = new SqlFeatureSetUsage(mergedCounters.toNestedMap());
-            listener.onResponse(new XPackUsageFeatureResponse(usage));
-        }, listener::onFailure));
+            l.onResponse(new XPackUsageFeatureResponse(usage));
+        }));
     }
 }

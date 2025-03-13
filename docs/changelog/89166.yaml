@@ -1,5 +1,0 @@
-pr: 89166
-summary: Show assigned role descriptors in Get/QueryApiKey response
-area: Security
-type: enhancement
-issues: []

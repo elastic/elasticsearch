@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -16,7 +15,10 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
@@ -31,7 +33,6 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,18 +52,14 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class)
-        );
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), equalTo(true));
     }
 
     public void testName() {
-        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(
-            mock(TransportService.class),
-            mock(ActionFilters.class)
-        );
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        IndexLifecycleInfoTransportAction featureSet = new IndexLifecycleInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.name(), equalTo("ilm"));
     }
 
@@ -77,25 +74,27 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
         indexPolicies.put("index_3", policy1Name);
         indexPolicies.put("index_4", policy1Name);
         indexPolicies.put("index_5", policy3Name);
-        LifecyclePolicy policy1 = new LifecyclePolicy(policy1Name, Collections.emptyMap());
+        LifecyclePolicy policy1 = new LifecyclePolicy(policy1Name, Map.of());
         policies.add(policy1);
-        PolicyStats policy1Stats = new PolicyStats(Collections.emptyMap(), 4);
+        PolicyStats policy1Stats = new PolicyStats(Map.of(), 4);
 
         Map<String, Phase> phases1 = new HashMap<>();
         LifecyclePolicy policy2 = new LifecyclePolicy(policy2Name, phases1);
         policies.add(policy2);
-        PolicyStats policy2Stats = new PolicyStats(Collections.emptyMap(), 0);
+        PolicyStats policy2Stats = new PolicyStats(Map.of(), 0);
 
-        LifecyclePolicy policy3 = new LifecyclePolicy(policy3Name, Collections.emptyMap());
+        LifecyclePolicy policy3 = new LifecyclePolicy(policy3Name, Map.of());
         policies.add(policy3);
-        PolicyStats policy3Stats = new PolicyStats(Collections.emptyMap(), 1);
+        PolicyStats policy3Stats = new PolicyStats(Map.of(), 1);
 
         ClusterState clusterState = buildClusterState(policies, indexPolicies);
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
-        var usageAction = new IndexLifecycleUsageTransportAction(mock(TransportService.class), null, null, mock(ActionFilters.class), null);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        var usageAction = new IndexLifecycleUsageTransportAction(transportService, null, threadPool, mock(ActionFilters.class));
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, clusterState, future);
+        usageAction.localClusterStateOperation(null, null, clusterState, future);
         IndexLifecycleFeatureSetUsage ilmUsage = (IndexLifecycleFeatureSetUsage) future.get().getUsage();
         assertThat(ilmUsage.enabled(), equalTo(true));
         assertThat(ilmUsage.available(), equalTo(true));
@@ -110,18 +109,13 @@ public class IndexLifecycleInfoTransportActionTests extends ESTestCase {
 
     private ClusterState buildClusterState(List<LifecyclePolicy> lifecyclePolicies, Map<String, String> indexPolicies) {
         Map<String, LifecyclePolicyMetadata> lifecyclePolicyMetadatasMap = lifecyclePolicies.stream()
-            .map(p -> new LifecyclePolicyMetadata(p, Collections.emptyMap(), 1, 0L))
+            .map(p -> new LifecyclePolicyMetadata(p, Map.of(), 1, 0L))
             .collect(Collectors.toMap(LifecyclePolicyMetadata::getName, Function.identity()));
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(lifecyclePolicyMetadatasMap, OperationMode.RUNNING);
 
         Metadata.Builder metadata = Metadata.builder().putCustom(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata);
         indexPolicies.forEach((indexName, policyName) -> {
-            Settings indexSettings = Settings.builder()
-                .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
+            Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, policyName).build();
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(indexSettings);
             metadata.put(indexMetadata);
         });

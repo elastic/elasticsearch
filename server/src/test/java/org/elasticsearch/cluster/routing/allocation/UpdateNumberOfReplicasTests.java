@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -28,7 +30,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
-    private final Logger logger = LogManager.getLogger(UpdateNumberOfReplicasTests.class);
 
     public void testUpdateNumberOfReplicas() {
         AllocationService strategy = createAllocationService(
@@ -38,14 +39,14 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         logger.info("Building initial routing table");
 
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder().addAsNew(metadata.index("test")).build();
+        RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+            .addAsNew(metadata.getProject().index("test"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
         assertThat(initialRoutingTable.index("test").size(), equalTo(1));
         assertThat(initialRoutingTable.index("test").shard(0).size(), equalTo(2));
@@ -60,7 +61,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
 
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
         logger.info("Start all the primary shards");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -84,11 +85,14 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
 
         logger.info("add another replica");
         final String[] indices = { "test" };
-        RoutingTable updatedRoutingTable = RoutingTable.builder(clusterState.routingTable()).updateNumberOfReplicas(2, indices).build();
+        RoutingTable updatedRoutingTable = RoutingTable.builder(
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+            clusterState.routingTable()
+        ).updateNumberOfReplicas(2, indices).build();
         metadata = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(2, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(metadata).build();
 
-        assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(2));
+        assertThat(clusterState.metadata().getProject().index("test").getNumberOfReplicas(), equalTo(2));
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(3));
@@ -101,7 +105,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
 
         logger.info("Add another node and start the added replica");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
 
@@ -145,7 +149,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         metadata = Metadata.builder(clusterState.metadata()).updateNumberOfReplicas(1, indices).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(metadata).build();
 
-        assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(1));
+        assertThat(clusterState.metadata().getProject().index("test").getNumberOfReplicas(), equalTo(1));
 
         assertThat(clusterState.routingTable().index("test").size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(2));
@@ -159,7 +163,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         );
 
         logger.info("do a reroute, should remain the same");
-        newState = strategy.reroute(clusterState, "reroute");
+        newState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         assertThat(newState, equalTo(clusterState));
     }
 }

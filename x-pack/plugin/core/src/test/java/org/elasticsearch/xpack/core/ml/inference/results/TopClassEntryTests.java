@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class TopClassEntryTests extends AbstractSerializingTestCase<TopClassEntry> {
+public class TopClassEntryTests extends AbstractXContentSerializingTestCase<TopClassEntry> {
 
     public static TopClassEntry createRandomTopClassEntry() {
         Object classification;
@@ -40,5 +40,10 @@ public class TopClassEntryTests extends AbstractSerializingTestCase<TopClassEntr
     @Override
     protected TopClassEntry createTestInstance() {
         return createRandomTopClassEntry();
+    }
+
+    @Override
+    protected TopClassEntry mutateInstance(TopClassEntry instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

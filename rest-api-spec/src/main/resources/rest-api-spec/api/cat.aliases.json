@@ -36,10 +36,6 @@
         "type":"string",
         "description":"a short version of the Accept header, e.g. json, yaml"
       },
-      "local":{
-        "type":"boolean",
-        "description":"Return local information, do not retrieve the state from master node (default: false)"
-      },
       "h":{
         "type":"list",
         "description":"Comma-separated list of column names to display"
@@ -69,6 +65,11 @@
         ],
         "default": "all",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for waiting for new cluster state in case it is blocked",
+        "default":"30s"
       }
     }
   }

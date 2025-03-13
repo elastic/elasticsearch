@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
-import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -77,11 +76,8 @@ import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * Utility class to create aggregations.
@@ -102,13 +98,6 @@ public class AggregationBuilders {
      */
     public static AvgAggregationBuilder avg(String name) {
         return new AvgAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link Avg} aggregation with the given name.
-     */
-    public static WeightedAvgAggregationBuilder weightedAvg(String name) {
-        return new WeightedAvgAggregationBuilder(name);
     }
 
     /**
@@ -165,20 +154,6 @@ public class AggregationBuilders {
      */
     public static FiltersAggregationBuilder filters(String name, QueryBuilder... filters) {
         return new FiltersAggregationBuilder(name, filters);
-    }
-
-    /**
-     * Create a new {@link AdjacencyMatrix} aggregation with the given name.
-     */
-    public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, Map<String, QueryBuilder> filters) {
-        return new AdjacencyMatrixAggregationBuilder(name, filters);
-    }
-
-    /**
-     * Create a new {@link AdjacencyMatrix} aggregation with the given name and separator
-     */
-    public static AdjacencyMatrixAggregationBuilder adjacencyMatrix(String name, String separator, Map<String, QueryBuilder> filters) {
-        return new AdjacencyMatrixAggregationBuilder(name, separator, filters);
     }
 
     /**
@@ -364,13 +339,6 @@ public class AggregationBuilders {
      */
     public static CompositeAggregationBuilder composite(String name, List<CompositeValuesSourceBuilder<?>> sources) {
         return new CompositeAggregationBuilder(name, sources);
-    }
-
-    /**
-     * Create a new {@link TimeSeriesAggregationBuilder} aggregation with the given name.
-     */
-    public static TimeSeriesAggregationBuilder timeSeries(String name) {
-        return new TimeSeriesAggregationBuilder(name);
     }
 
 }

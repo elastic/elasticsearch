@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -15,12 +16,14 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceProvider;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.TreeSet;
+import java.util.List;
 
 public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericDocValues> {
 
@@ -30,10 +33,10 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup,
+            SourceProvider sourceProvider,
             ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
         ) {
-            super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
+            super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
         }
 
         @Override
@@ -42,7 +45,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
                 fieldName,
                 valuesSourceType,
                 valueFetcher,
-                sourceLookup,
+                sourceProvider,
                 toScriptFieldFactory
             );
         }
@@ -52,15 +55,15 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         String fieldName,
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
-        SourceLookup sourceLookup,
+        SourceProvider sourceProvider,
         ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
+        super(fieldName, valuesSourceType, valueFetcher, sourceProvider, toScriptFieldFactory);
     }
 
     @Override
-    public SourceValueFetcherSortedNumericLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
-        return new SourceValueFetcherSortedNumericLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
+    public SourceValueFetcherSortedNumericLeafFieldData loadDirect(LeafReaderContext context) {
+        return new SourceValueFetcherSortedNumericLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceProvider);
     }
 
     public static class SourceValueFetcherSortedNumericLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDocValues> {
@@ -69,15 +72,15 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
             ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup
+            SourceProvider sourceProvider
         ) {
-            super(toScriptFieldFactory, leafReaderContext, valueFetcher, sourceLookup);
+            super(toScriptFieldFactory, leafReaderContext, valueFetcher, sourceProvider);
         }
 
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
             return toScriptFieldFactory.getScriptFieldFactory(
-                new SourceValueFetcherSortedNumericDocValues(leafReaderContext, valueFetcher, sourceLookup),
+                new SourceValueFetcherSortedNumericDocValues(leafReaderContext, valueFetcher, sourceProvider),
                 name
             );
         }
@@ -88,34 +91,36 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         protected final LeafReaderContext leafReaderContext;
 
         protected final ValueFetcher valueFetcher;
-        protected final SourceLookup sourceLookup;
+        protected final SourceProvider sourceProvider;
 
-        protected TreeSet<Long> values;
+        protected final List<Long> values;
         protected Iterator<Long> iterator;
 
         public SourceValueFetcherSortedNumericDocValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
-            SourceLookup sourceLookup
+            SourceProvider sourceProvider
         ) {
             this.leafReaderContext = leafReaderContext;
             this.valueFetcher = valueFetcher;
-            this.sourceLookup = sourceLookup;
+            this.sourceProvider = sourceProvider;
+
+            values = new ArrayList<>();
         }
 
         @Override
         public boolean advanceExact(int doc) throws IOException {
-            sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-            values = new TreeSet<>();
-
-            for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+            values.clear();
+            Source source = sourceProvider.getSource(leafReaderContext, doc);
+            for (Object value : valueFetcher.fetchValues(source, doc, Collections.emptyList())) {
                 assert value instanceof Number;
                 values.add(((Number) value).longValue());
             }
 
+            values.sort(Long::compare);
             iterator = values.iterator();
 
-            return true;
+            return values.isEmpty() == false;
         }
 
         @Override
@@ -124,7 +129,7 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         }
 
         @Override
-        public long nextValue() throws IOException {
+        public long nextValue() {
             assert iterator.hasNext();
             return iterator.next();
         }
@@ -135,12 +140,12 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
         }
 
         @Override
-        public int nextDoc() throws IOException {
+        public int nextDoc() {
             throw new UnsupportedOperationException("not supported for source fallback");
         }
 
         @Override
-        public int advance(int target) throws IOException {
+        public int advance(int target) {
             throw new UnsupportedOperationException("not supported for source fallback");
         }
 

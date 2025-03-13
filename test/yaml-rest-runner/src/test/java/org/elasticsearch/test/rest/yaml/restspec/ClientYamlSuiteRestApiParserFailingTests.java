@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
@@ -88,6 +89,14 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
         );
     }
 
+    public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnDeprecated() throws Exception {
+        parseAndExpectParsingException(
+            BROKEN_DEPRECATED_DEF,
+            "indices.get_template.json",
+            "indices.get_template API: expected [deprecated] field in rest api definition to hold an object"
+        );
+    }
+
     public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParts() throws Exception {
         parseAndExpectParsingException(
             BROKEN_SPEC_PARTS,
@@ -163,5 +172,43 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
               "body": null
             }
           }
+        """;
+
+    // deprecated needs to be an object
+    private static final String BROKEN_DEPRECATED_DEF = """
+        {
+          "indices.get_template":{
+            "documentation":{
+              "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+              "description":"Returns an index template."
+            },
+            "headers": { "accept": ["application/json"] },
+            "stability": "stable",
+            "visibility": "public",
+            "deprecated" : true,
+            "url":{
+              "paths":[
+                {
+                  "path":"/_template",
+                  "methods":[
+                    "GET"
+                  ]
+                },
+                {
+                  "path":"/_template/{name}",
+                  "methods":[
+                    "GET"
+                  ],
+                  "parts":{
+                    "name":{
+                      "type":"list",
+                      "description":"The comma separated names of the index templates"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
         """;
 }

@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -18,6 +20,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -48,7 +51,7 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, reverseMul);
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
@@ -163,6 +166,11 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         final SortedBinaryDocValues dvs = docValuesFunc.apply(context);
+        final BinaryDocValues singleton = FieldData.unwrapSingleton(dvs);
+        return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedBinaryDocValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -172,6 +180,21 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
                         currentValue = dvs.nextValue();
                         next.collect(doc, bucket);
                     }
+                } else if (missingBucket) {
+                    currentValue = null;
+                    next.collect(doc, bucket);
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(BinaryDocValues dvs, LeafBucketCollector next) {
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (dvs.advanceExact(doc)) {
+                    currentValue = dvs.binaryValue();
+                    next.collect(doc, bucket);
                 } else if (missingBucket) {
                     currentValue = null;
                     next.collect(doc, bucket);

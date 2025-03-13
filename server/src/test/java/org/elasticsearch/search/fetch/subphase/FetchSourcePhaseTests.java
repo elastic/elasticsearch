@@ -1,22 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -49,6 +55,27 @@ public class FetchSourcePhaseTests extends ESTestCase {
 
         hitContext = hitExecute(source, true, "*", "field2");
         assertEquals(Collections.singletonMap("field1", "value"), hitContext.hit().getSourceAsMap());
+    }
+
+    public void testExcludesAll() throws IOException {
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field1", "value").field("field2", "value2").endObject();
+        HitContext hitContext = hitExecute(source, false, null, null);
+        assertNull(hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecute(source, true, "field1", "*");
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecute(source, true, null, "*");
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecute(source, true, "*", "*");
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecuteMultiple(source, true, new String[] { "field1", "field2" }, new String[] { "*", "field1" });
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecuteMultiple(source, true, null, new String[] { "field2", "*", "field1" });
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
     }
 
     public void testMultipleFiltering() throws IOException {
@@ -155,7 +182,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
     }
 
     private HitContext hitExecuteMultiple(
-        XContentBuilder source,
+        XContentBuilder sourceBuilder,
         boolean fetchSource,
         String[] includes,
         String[] excludes,
@@ -166,16 +193,22 @@ public class FetchSourcePhaseTests extends ESTestCase {
         when(fetchContext.fetchSourceContext()).thenReturn(fetchSourceContext);
         when(fetchContext.getIndexName()).thenReturn("index");
         SearchExecutionContext sec = mock(SearchExecutionContext.class);
-        when(sec.isSourceEnabled()).thenReturn(source != null);
+        when(sec.isSourceEnabled()).thenReturn(sourceBuilder != null);
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
+            Settings.EMPTY
+        );
+        when(sec.indexVersionCreated()).thenReturn(indexSettings.getIndexVersionCreated());
+        when(sec.getIndexSettings()).thenReturn(indexSettings);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
 
-        final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
+        final SearchHit searchHit = SearchHit.unpooled(1, null, nestedIdentity);
 
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();
         LeafReaderContext leafReaderContext = index.createSearcher().getIndexReader().leaves().get(0);
-        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1);
-        hitContext.sourceLookup().setSource(source == null ? null : BytesReference.bytes(source));
+        Source source = sourceBuilder == null ? Source.empty(null) : Source.fromBytes(BytesReference.bytes(sourceBuilder));
+        HitContext hitContext = new HitContext(searchHit, leafReaderContext, 1, Map.of(), source, null);
 
         FetchSourcePhase phase = new FetchSourcePhase();
         FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);

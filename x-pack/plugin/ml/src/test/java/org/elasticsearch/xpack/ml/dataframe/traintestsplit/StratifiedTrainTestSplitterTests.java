@@ -169,7 +169,7 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
 
         long expectedTotalTrainingCount = 0;
         for (long classCount : classCounts.values()) {
-            expectedTotalTrainingCount += trainingFraction * classCount;
+            expectedTotalTrainingCount += (long) (trainingFraction * classCount);
         }
         assertThat(actualTotalTrainingCount, greaterThanOrEqualTo(expectedTotalTrainingCount - 2));
         assertThat(actualTotalTrainingCount, lessThanOrEqualTo(expectedTotalTrainingCount));
@@ -214,7 +214,7 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
         // should be close to the training percent, which is set to 0.5
         for (int rowTrainingCount : trainingCountPerRow) {
             double meanCount = rowTrainingCount / (double) runCount;
-            assertThat(meanCount, is(closeTo(0.5, 0.13)));
+            assertThat(meanCount, is(closeTo(0.5, 0.14)));
         }
     }
 

@@ -64,7 +64,7 @@ public class TextTemplateEngine {
         return compiledTemplate.newInstance(mergedModel).execute();
     }
 
-    private String trimContentType(TextTemplate textTemplate) {
+    private static String trimContentType(TextTemplate textTemplate) {
         String template = textTemplate.getTemplate();
         if (template.startsWith("__") == false) {
             return template; // Doesn't even start with __ so can't have a content type
@@ -83,7 +83,7 @@ public class TextTemplateEngine {
         return template;
     }
 
-    private XContentType detectContentType(String content) {
+    private static XContentType detectContentType(String content) {
         if (content.startsWith("__")) {
             // There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
             int endOfContentName = content.indexOf("__::", 3);
@@ -94,7 +94,7 @@ public class TextTemplateEngine {
         return null;
     }
 
-    private String compileParams(XContentType contentType) {
+    private static String compileParams(XContentType contentType) {
         if (contentType == XContentType.JSON) {
             return "application/json";
         } else {

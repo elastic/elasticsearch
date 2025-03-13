@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.icu;
@@ -143,7 +144,8 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            SearchExecutionContext context
+            SearchExecutionContext context,
+            @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
@@ -326,7 +328,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             final CollatorParams params = collatorParams();
             final Collator collator = params.buildCollator();
             CollationFieldType ft = new CollationFieldType(
-                context.buildFullName(name),
+                context.buildFullName(leafName()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -335,15 +337,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
                 ignoreAbove.getValue(),
                 meta.getValue()
             );
-            return new ICUCollationKeywordFieldMapper(
-                name,
-                buildFieldType(),
-                ft,
-                multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                collator,
-                this
-            );
+            return new ICUCollationKeywordFieldMapper(leafName(), buildFieldType(), ft, builderParams(this, context), collator, this);
         }
     }
 
@@ -473,14 +467,13 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Collator collator,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo, false, null);
+        super(simpleName, mappedFieldType, builderParams);
         assert collator.isFrozen();
-        this.fieldType = fieldType;
+        this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.params = builder.collatorParams();
         this.ignoreAbove = builder.ignoreAbove.getValue();
         this.collator = collator;
@@ -507,7 +500,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName()).init(this);
+        return new Builder(leafName()).init(this);
     }
 
     @Override
@@ -525,7 +518,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         if (value.length() > ignoreAbove) {
-            context.addIgnoredField(name());
+            context.addIgnoredField(fullPath());
             return;
         }
 

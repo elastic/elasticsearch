@@ -38,8 +38,8 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     /**
      * Read an address for Elasticsearch suitable for the JDBC driver from the system properties.
      */
-    public static String elasticsearchAddress() {
-        String cluster = System.getProperty("tests.rest.cluster");
+    public String elasticsearchAddress() {
+        String cluster = getTestRestCluster();
         // JDBC only supports a single node at a time so we just give it one.
         return cluster.split(",")[0];
         /* This doesn't include "jdbc:es://" because we want the example in

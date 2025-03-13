@@ -13,12 +13,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ilm.AllocationRoutedStep.getPendingAllocations;
@@ -46,31 +46,36 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetadata idxMeta = clusterState.metadata().index(index);
+        IndexMetadata idxMeta = clusterState.metadata().getProject().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
-            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().getAction(), index.getName());
+            logger.debug("[{}] lifecycle action for index [{}] executed but index no longer exists", getKey().action(), index.getName());
             return new Result(false, null);
         }
         List<String> preferredTierConfiguration = idxMeta.getTierPreference();
         Optional<String> availableDestinationTier = DataTierAllocationDecider.preferredAvailableTier(
             preferredTierConfiguration,
             clusterState.getNodes(),
-            DesiredNodes.latestFromClusterState(clusterState)
+            DesiredNodes.latestFromClusterState(clusterState),
+            clusterState.metadata().nodeShutdowns()
         );
 
-        if (ActiveShardCount.ALL.enoughShardsActive(clusterState, index.getName()) == false) {
+        if (ActiveShardCount.ALL.enoughShardsActive(
+            clusterState.metadata().getProject(),
+            clusterState.routingTable(),
+            index.getName()
+        ) == false) {
             if (preferredTierConfiguration.isEmpty()) {
                 logger.debug(
                     "[{}] lifecycle action for index [{}] cannot make progress because not all shards are active",
-                    getKey().getAction(),
+                    getKey().action(),
                     index.getName()
                 );
             } else {
                 if (availableDestinationTier.isPresent()) {
                     logger.debug(
                         "[{}] migration of index [{}] to the {} tier preference cannot progress, as not all shards are active",
-                        getKey().getAction(),
+                        getKey().action(),
                         index.getName(),
                         preferredTierConfiguration
                     );
@@ -78,7 +83,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
                     logger.debug(
                         "[{}] migration of index [{}] to the next tier cannot progress as there is no available tier for the "
                             + "configured preferred tiers {} and not all shards are active",
-                        getKey().getAction(),
+                        getKey().action(),
                         index.getName(),
                         preferredTierConfiguration
                     );
@@ -92,7 +97,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
                 "index [{}] has no data tier routing preference setting configured and all its shards are active. considering "
                     + "the [{}] step condition met and continuing to the next step",
                 index.getName(),
-                getKey().getName()
+                getKey().name()
             );
             // the user removed the tier routing setting and all the shards are active so we'll cary on
             return new Result(true, null);
@@ -102,21 +107,19 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
 
         if (allocationPendingAllShards > 0) {
             String statusMessage = availableDestinationTier.map(
-                s -> String.format(
-                    Locale.ROOT,
+                s -> Strings.format(
                     "[%s] lifecycle action [%s] waiting for [%s] shards to be moved to the [%s] tier (tier "
                         + "migration preference configuration is %s)",
                     index.getName(),
-                    getKey().getAction(),
+                    getKey().action(),
                     allocationPendingAllShards,
                     s,
                     preferredTierConfiguration
                 )
             )
                 .orElseGet(
-                    () -> String.format(
-                        Locale.ROOT,
-                        "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are " + "available in the cluster",
+                    () -> Strings.format(
+                        "index [%s] has a preference for tiers %s, but no nodes for any of those tiers are available in the cluster",
                         index.getName(),
                         preferredTierConfiguration
                     )
@@ -126,7 +129,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
         } else {
             logger.debug(
                 "[{}] migration of index [{}] to tier [{}] (preference [{}]) complete",
-                getKey().getAction(),
+                getKey().action(),
                 index,
                 availableDestinationTier.orElse(""),
                 preferredTierConfiguration

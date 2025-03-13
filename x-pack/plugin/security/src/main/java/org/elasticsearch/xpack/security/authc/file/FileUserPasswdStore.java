@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -25,6 +24,8 @@ import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.FileReloadListener;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
 
@@ -32,6 +33,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -39,6 +41,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.core.Strings.format;
@@ -58,9 +61,9 @@ public class FileUserPasswdStore {
     FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
         file = resolveFile(config.env());
         settings = config.settings();
-        users = parseFileLenient(file, logger, settings);
+        users = doPrivileged((PrivilegedAction<Map<String, char[]>>) () -> parseFileLenient(file, logger, settings));
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileReloadListener(file, this::tryReload));
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -93,7 +96,7 @@ public class FileUserPasswdStore {
     }
 
     public static Path resolveFile(Environment env) {
-        return XPackPlugin.resolveConfigFile(env, "users");
+        return Security.resolveSecuredConfigFile(env, "users");
     }
 
     /**
@@ -179,7 +182,7 @@ public class FileUserPasswdStore {
 
     private void tryReload() {
         final Map<String, char[]> previousUsers = users;
-        users = parseFileLenient(file, logger, settings);
+        users = doPrivileged((PrivilegedAction<Map<String, char[]>>) () -> parseFileLenient(file, logger, settings));
 
         if (Maps.deepEquals(previousUsers, users) == false) {
             logger.info("users file [{}] changed. updating users...", file.toAbsolutePath());

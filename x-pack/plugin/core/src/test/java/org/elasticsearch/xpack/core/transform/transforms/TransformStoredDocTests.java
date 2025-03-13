@@ -48,6 +48,11 @@ public class TransformStoredDocTests extends AbstractSerializingTransformTestCas
     }
 
     @Override
+    protected TransformStoredDoc mutateInstance(TransformStoredDoc instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<TransformStoredDoc> instanceReader() {
         return TransformStoredDoc::new;
     }

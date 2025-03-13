@@ -13,12 +13,14 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestMoveToStepAction extends BaseRestHandler {
 
@@ -34,11 +36,22 @@ public class RestMoveToStepAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String index = restRequest.param("name");
-        XContentParser parser = restRequest.contentParser();
-        MoveToStepAction.Request request = MoveToStepAction.Request.parseRequest(index, parser);
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
-        return channel -> client.execute(MoveToStepAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        final var masterNodeTimeout = getMasterNodeTimeout(restRequest);
+        final var ackTimeout = getAckTimeout(restRequest);
+        final var index = restRequest.param("name");
+        final TransportMoveToStepAction.Request request;
+        try (XContentParser parser = restRequest.contentParser()) {
+            request = TransportMoveToStepAction.Request.parseRequest(
+                (currentStepKey, nextStepKey) -> new TransportMoveToStepAction.Request(
+                    masterNodeTimeout,
+                    ackTimeout,
+                    index,
+                    currentStepKey,
+                    nextStepKey
+                ),
+                parser
+            );
+        }
+        return channel -> client.execute(ILMActions.MOVE_TO_STEP, request, new RestToXContentListener<>(channel));
     }
 }

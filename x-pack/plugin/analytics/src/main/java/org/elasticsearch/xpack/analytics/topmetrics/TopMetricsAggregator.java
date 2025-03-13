@@ -40,11 +40,9 @@ import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.REGISTRY_KEY;
 
 /**
@@ -91,9 +89,6 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public boolean hasMetric(String name) {
-        if (size != 1) {
-            throw new IllegalArgumentException("[top_metrics] can only the be target if [size] is [1] but was [" + size + "]");
-        }
         for (MetricValues values : metrics.values) {
             if (values.name.equals(name)) {
                 return true;
@@ -104,14 +99,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public double metric(String name, long owningBucketOrd) {
-        assert size == 1;
-        /*
-         * Since size is always 1 we know that the index into the values
-         * array is same same as the bucket ordinal. Also, this will always
-         * be called after we've collected a bucket, so it won't just fetch
-         * garbage.
-         */
-        return metrics.metric(name, owningBucketOrd);
+        return metrics.metric(name, owningBucketOrd * size);
     }
 
     @Override
@@ -158,14 +146,19 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     static class Metrics implements BucketedSort.ExtraData, Releasable {
         private final MetricValues[] values;
+        private final List<String> names;
 
         Metrics(MetricValues[] values) {
             this.values = values;
+            names = new ArrayList<>(values.length);
+            for (MetricValues value : values) {
+                names.add(value.name);
+            }
         }
 
         boolean needsScores() {
-            for (int i = 0; i < values.length; i++) {
-                if (values[i].needsScores()) {
+            for (MetricValues value : values) {
+                if (value.needsScores()) {
                     return true;
                 }
             }
@@ -184,21 +177,21 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         BucketedSort.ResultBuilder<InternalTopMetrics.TopMetric> resultBuilder(DocValueFormat sortFormat) {
             return (index, sortValue) -> {
                 List<InternalTopMetrics.MetricValue> result = new ArrayList<>(values.length);
-                for (int i = 0; i < values.length; i++) {
-                    result.add(values[i].metricValue(index));
+                for (MetricValues value : values) {
+                    result.add(value.metricValue(index));
                 }
                 return new InternalTopMetrics.TopMetric(sortFormat, sortValue, result);
             };
         }
 
         List<String> names() {
-            return Arrays.stream(values).map(v -> v.name).collect(toList());
+            return names;
         }
 
         @Override
         public void swap(long lhs, long rhs) {
-            for (int i = 0; i < values.length; i++) {
-                values[i].swap(lhs, rhs);
+            for (MetricValues value : values) {
+                value.swap(lhs, rhs);
             }
         }
 
@@ -209,8 +202,8 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
                 loaders[i] = values[i].loader(ctx);
             }
             return (index, doc) -> {
-                for (int i = 0; i < loaders.length; i++) {
-                    loaders[i].loadFromDoc(index, doc);
+                for (Loader loader : loaders) {
+                    loader.loadFromDoc(index, doc);
                 }
             };
         }

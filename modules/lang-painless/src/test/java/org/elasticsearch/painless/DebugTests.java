@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -16,43 +17,52 @@ import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.script.ScriptException;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class DebugTests extends ScriptTestCase {
-    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(PainlessPlugin.BASE_WHITELISTS);
+    private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
+        PAINLESS_BASE_WHITELIST,
+        new HashMap<>(),
+        new HashMap<>()
+    );
 
     public void testExplain() {
         // Debug.explain can explain an object
         Object dummy = new Object();
-        PainlessExplainError e = expectScriptThrows(
-            PainlessExplainError.class,
-            () -> exec("Debug.explain(params.a)", singletonMap("a", dummy), true)
-        );
+        var wrapper = expectScriptThrows(ErrorCauseWrapper.class, () -> exec("Debug.explain(params.a)", singletonMap("a", dummy), true));
+        assertThat(wrapper.realCause.getClass(), equalTo(PainlessExplainError.class));
+        var e = (PainlessExplainError) wrapper.realCause;
         assertSame(dummy, e.getObjectToExplain());
         assertThat(e.getHeaders(painlessLookup), hasEntry("es.to_string", singletonList(dummy.toString())));
         assertThat(e.getHeaders(painlessLookup), hasEntry("es.java_class", singletonList("java.lang.Object")));
         assertThat(e.getHeaders(painlessLookup), hasEntry("es.painless_class", singletonList("java.lang.Object")));
 
         // Null should be ok
-        e = expectScriptThrows(PainlessExplainError.class, () -> exec("Debug.explain(null)"));
+        wrapper = expectScriptThrows(ErrorCauseWrapper.class, () -> exec("Debug.explain(null)"));
+        assertThat(wrapper.realCause.getClass(), equalTo(PainlessExplainError.class));
+        e = (PainlessExplainError) wrapper.realCause;
         assertNull(e.getObjectToExplain());
         assertThat(e.getHeaders(painlessLookup), hasEntry("es.to_string", singletonList("null")));
         assertThat(e.getHeaders(painlessLookup), not(hasKey("es.java_class")));
         assertThat(e.getHeaders(painlessLookup), not(hasKey("es.painless_class")));
 
         // You can't catch the explain exception
-        e = expectScriptThrows(PainlessExplainError.class, () -> exec("""
+        wrapper = expectScriptThrows(ErrorCauseWrapper.class, () -> exec("""
             try {
               Debug.explain(params.a)
             } catch (Exception e) {
               return 1
             }""", singletonMap("a", dummy), true));
+        assertThat(wrapper.realCause.getClass(), equalTo(PainlessExplainError.class));
+        e = (PainlessExplainError) wrapper.realCause;
         assertSame(dummy, e.getObjectToExplain());
     }
 

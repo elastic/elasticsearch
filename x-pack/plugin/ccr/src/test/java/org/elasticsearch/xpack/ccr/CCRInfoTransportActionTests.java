@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
@@ -16,8 +15,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -47,8 +49,9 @@ public class CCRInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() {
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -63,8 +66,9 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
     public void testEnabled() {
         Settings.Builder settings = Settings.builder().put("xpack.ccr.enabled", false);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             settings.build(),
             licenseState
@@ -72,13 +76,14 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         assertThat(featureSet.enabled(), equalTo(false));
 
         settings = Settings.builder().put("xpack.ccr.enabled", true);
-        featureSet = new CCRInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+        featureSet = new CCRInfoTransportAction(transportService, mock(ActionFilters.class), settings.build(), licenseState);
         assertThat(featureSet.enabled(), equalTo(true));
     }
 
     public void testName() {
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
         CCRInfoTransportAction featureSet = new CCRInfoTransportAction(
-            mock(TransportService.class),
+            transportService,
             mock(ActionFilters.class),
             Settings.EMPTY,
             licenseState
@@ -92,7 +97,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         int numFollowerIndices = randomIntBetween(0, 32);
         for (int i = 0; i < numFollowerIndices; i++) {
             IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index" + i)
-                .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+                .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(i)
@@ -102,7 +107,7 @@ public class CCRInfoTransportActionTests extends ESTestCase {
 
         // Add a regular index, to check that we do not take that one into account:
         IndexMetadata.Builder regularIndex = IndexMetadata.builder("my_index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .creationDate(numFollowerIndices);
@@ -136,17 +141,18 @@ public class CCRInfoTransportActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).metadata(metadata).build();
         Mockito.when(clusterService.state()).thenReturn(clusterState);
 
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var usageAction = new CCRUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             null,
-            null,
+            threadPool,
             mock(ActionFilters.class),
-            null,
             Settings.EMPTY,
             licenseState
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, clusterState, future);
+        usageAction.localClusterStateOperation(null, null, clusterState, future);
         CCRInfoTransportAction.Usage ccrUsage = (CCRInfoTransportAction.Usage) future.get().getUsage();
         assertThat(ccrUsage.enabled(), equalTo(true));
         assertThat(ccrUsage.available(), equalTo(false));

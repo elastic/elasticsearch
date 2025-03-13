@@ -1,18 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.Mapping;
@@ -46,7 +50,11 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
                 .endObject()
         );
 
-        Mapping parsedMapping = createMapperService(mapping).parseMapping("type", new CompressedXContent(mapping));
+        Mapping parsedMapping = createMapperService(mapping).parseMapping(
+            "type",
+            MapperService.MergeReason.MAPPING_UPDATE,
+            new CompressedXContent(mapping)
+        );
         assertEquals(mapping, parsedMapping.toCompressedXContent().toString());
         assertNotNull(parsedMapping.getMetadataMapperByClass(RankFeatureMetaFieldMapper.class));
     }
@@ -64,13 +72,28 @@ public class RankFeatureMetaFieldMapperTests extends MapperServiceTestCase {
         );
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
         BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
-        MapperParsingException e = expectThrows(
-            MapperParsingException.class,
+        DocumentParsingException e = expectThrows(
+            DocumentParsingException.class,
             () -> mapper.parse(new SourceToParse("1", bytes, XContentType.JSON))
         );
         assertThat(
             e.getCause().getMessage(),
             CoreMatchers.containsString("Field [" + rfMetaField + "] is a metadata field and cannot be added inside a document.")
         );
+    }
+
+    @Override
+    public void testFieldHasValue() {
+        assertTrue(getMappedFieldType().fieldHasValue(new FieldInfos(new FieldInfo[] { getFieldInfoWithName("_feature") })));
+    }
+
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        assertFalse(getMappedFieldType().fieldHasValue(FieldInfos.EMPTY));
+    }
+
+    @Override
+    public MappedFieldType getMappedFieldType() {
+        return new RankFeatureMetaFieldMapper.RankFeatureMetaFieldType();
     }
 }

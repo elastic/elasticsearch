@@ -10,14 +10,14 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.function.BiFunction;
 
 public final class MlParserUtils {
@@ -33,9 +33,12 @@ public final class MlParserUtils {
     public static <T, U> T parse(SearchHit hit, BiFunction<XContentParser, U, T> objectParser) {
         BytesReference source = hit.getSourceRef();
         try (
-            InputStream stream = source.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
+                    .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                source,
+                XContentType.JSON
+            )
         ) {
             return objectParser.apply(parser, null);
         } catch (IOException e) {

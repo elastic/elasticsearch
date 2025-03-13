@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase;
 
@@ -12,9 +13,11 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,14 +42,15 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
          * times with different configuration. That isn't possible with a `Map`.
          */
         List<DocValueField> fields = new ArrayList<>();
-        for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
-            MappedFieldType ft = context.getSearchExecutionContext().getFieldType(fieldAndFormat.field);
+        for (FieldAndFormat fieldAndFormat : dvContext.fields()) {
+            SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
+            MappedFieldType ft = searchExecutionContext.getFieldType(fieldAndFormat.field);
             if (ft == null) {
                 continue;
             }
             ValueFetcher fetcher = new DocValueFetcher(
                 ft.docValueFormat(fieldAndFormat.format, null),
-                context.searchLookup().getForField(ft, MappedFieldType.FielddataOperation.SEARCH)
+                searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH)
             );
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
@@ -60,6 +64,11 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+
+            @Override
             public void process(HitContext hit) throws IOException {
                 for (DocValueField f : fields) {
                     DocumentField hitField = hit.hit().field(f.field);
@@ -70,7 +79,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         hit.hit().setDocumentField(f.field, hitField);
                     }
                     List<Object> ignoredValues = new ArrayList<>();
-                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup(), ignoredValues));
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.source(), hit.docId(), ignoredValues));
                     // Doc value fetches should not return any ignored values
                     assert ignoredValues.isEmpty();
                 }

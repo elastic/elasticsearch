@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -25,7 +24,7 @@ public class DeleteCalendarEventAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "cluster:admin/xpack/ml/calendars/events/delete";
 
     private DeleteCalendarEventAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -39,6 +38,7 @@ public class DeleteCalendarEventAction extends ActionType<AcknowledgedResponse> 
         }
 
         public Request(String calendarId, String eventId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.calendarId = ExceptionsHelper.requireNonNull(calendarId, Calendar.ID.getPreferredName());
             this.eventId = ExceptionsHelper.requireNonNull(eventId, ScheduledEvent.EVENT_ID.getPreferredName());
         }
@@ -49,11 +49,6 @@ public class DeleteCalendarEventAction extends ActionType<AcknowledgedResponse> 
 
         public String getEventId() {
             return eventId;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

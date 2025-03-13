@@ -1,23 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.resolve;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,15 +52,21 @@ public class TransportResolveIndexActionTests extends ESTestCase {
             .build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
+        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
         try {
-            TransportService transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+            TransportService transportService = MockTransportService.createNewService(
+                Settings.EMPTY,
+                VersionInformation.CURRENT,
+                transportVersion,
+                threadPool
+            );
 
             ResolveIndexAction.Request request = new ResolveIndexAction.Request(new String[] { "test" }) {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     super.writeTo(out);
-                    if (out.getVersion().before(Version.CURRENT)) {
-                        throw new IllegalArgumentException("This request isn't serializable to nodes before " + Version.CURRENT);
+                    if (out.getTransportVersion().before(transportVersion)) {
+                        throw new IllegalArgumentException("This request isn't serializable before transport version " + transportVersion);
                     }
                 }
             };
@@ -69,8 +80,8 @@ public class TransportResolveIndexActionTests extends ESTestCase {
             ResolveIndexAction.TransportAction action = new ResolveIndexAction.TransportAction(
                 transportService,
                 clusterService,
-                threadPool,
                 actionFilters,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 null
             );
 
@@ -81,7 +92,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertEquals("This request isn't serializable to nodes before " + Version.CURRENT, ex.getCause().getMessage());
+            assertEquals("This request isn't serializable before transport version " + transportVersion, ex.getCause().getMessage());
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

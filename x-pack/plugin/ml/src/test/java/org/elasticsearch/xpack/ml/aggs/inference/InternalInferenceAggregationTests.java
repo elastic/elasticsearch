@@ -8,31 +8,22 @@
 package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResultsTests;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResultsTests;
-import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -40,24 +31,7 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     @Override
     protected SearchPlugin registerPlugin() {
-        return new MachineLearning(Settings.EMPTY);
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                new ParseField(InferencePipelineAggregationBuilder.NAME),
-                (p, c) -> ParsedInference.fromXContent(p, (String) c)
-            )
-        );
-    }
-
-    @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return p -> p.contains("top_classes") || p.contains("feature_importance");
+        return MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY);
     }
 
     @Override
@@ -89,43 +63,12 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).getReducer(null, 0));
     }
 
     @Override
     protected void assertReduced(InternalInferenceAggregation reduced, List<InternalInferenceAggregation> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected void assertFromXContent(InternalInferenceAggregation agg, ParsedAggregation parsedAggregation) {
-        ParsedInference parsed = ((ParsedInference) parsedAggregation);
-
-        InferenceResults result = agg.getInferenceResult();
-        if (result instanceof WarningInferenceResults warning) {
-            assertEquals(warning.getWarning(), parsed.getWarning());
-        } else if (result instanceof RegressionInferenceResults regression) {
-            assertEquals(regression.value(), parsed.getValue());
-            List<RegressionFeatureImportance> featureImportance = regression.getFeatureImportance();
-            if (featureImportance.isEmpty()) {
-                featureImportance = null;
-            }
-            assertEquals(featureImportance, parsed.getFeatureImportance());
-        } else if (result instanceof ClassificationInferenceResults classification) {
-            assertEquals(classification.predictedValue(), parsed.getValue());
-
-            List<ClassificationFeatureImportance> featureImportance = classification.getFeatureImportance();
-            if (featureImportance.isEmpty()) {
-                featureImportance = null;
-            }
-            assertEquals(featureImportance, parsed.getFeatureImportance());
-
-            List<TopClassEntry> topClasses = classification.getTopClasses();
-            if (topClasses.isEmpty()) {
-                topClasses = null;
-            }
-            assertEquals(topClasses, parsed.getTopClasses());
-        }
     }
 
     public void testGetProperty_givenEmptyPath() {
@@ -222,5 +165,10 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
             InternalInferenceAggregation internalAgg = new InternalInferenceAggregation("foo", Collections.emptyMap(), results);
             expectThrows(InvalidAggregationPathException.class, () -> internalAgg.getProperty(Collections.singletonList("top_classes")));
         }
+    }
+
+    @Override
+    protected InternalInferenceAggregation mutateInstance(InternalInferenceAggregation instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

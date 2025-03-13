@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -28,8 +29,9 @@ import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
@@ -46,30 +48,39 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, GeoPointFieldScript.CONTEXT) {
         @Override
-        AbstractScriptFieldType<?> createFieldType(
+        protected AbstractScriptFieldType<?> createFieldType(
             String name,
             GeoPointFieldScript.Factory factory,
             Script script,
-            Map<String, String> meta
+            Map<String, String> meta,
+            OnScriptError onScriptError
         ) {
-            return new GeoPointScriptFieldType(name, factory, getScript(), meta());
+            return new GeoPointScriptFieldType(name, factory, getScript(), meta(), onScriptError);
         }
 
         @Override
-        GeoPointFieldScript.Factory getParseFromSourceFactory() {
+        protected GeoPointFieldScript.Factory getParseFromSourceFactory() {
             return GeoPointFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        GeoPointFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected GeoPointFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return GeoPointFieldScript.leafAdapter(parentScriptFactory);
         }
     });
 
-    GeoPointScriptFieldType(String name, GeoPointFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+    GeoPointScriptFieldType(
+        String name,
+        GeoPointFieldScript.Factory scriptFactory,
+        Script script,
+        Map<String, String> meta,
+        OnScriptError onScriptError
+    ) {
         super(
             name,
-            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
             meta
@@ -154,7 +165,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     ) {
         return ctx -> {
             GeoPointFieldScript script = delegateLeafFactory.apply(ctx);
-            return new AbstractLongFieldScript(name, Map.of(), lookup, ctx) {
+            return new AbstractLongFieldScript(name, Map.of(), lookup, OnScriptError.FAIL, ctx) {
                 private int docId;
 
                 @Override
@@ -197,8 +208,8 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             }
 
             @Override
-            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
-                script.runForDoc(lookup.docId());
+            public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
+                script.runForDoc(doc);
                 if (script.count() == 0) {
                     return List.of();
                 }
@@ -207,6 +218,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
                     points.add(new GeoPoint(script.lats()[i], script.lons()[i]));
                 }
                 return formatter.apply(points);
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NEEDS_SOURCE;
             }
         };
     }

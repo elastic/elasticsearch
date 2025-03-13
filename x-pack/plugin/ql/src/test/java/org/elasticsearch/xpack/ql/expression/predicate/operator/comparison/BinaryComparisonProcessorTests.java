@@ -41,6 +41,11 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
     }
 
     @Override
+    protected BinaryComparisonProcessor mutateInstance(BinaryComparisonProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<BinaryComparisonProcessor> instanceReader() {
         return BinaryComparisonProcessor::new;
     }

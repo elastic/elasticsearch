@@ -11,7 +11,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
-public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQueryRequest> {
+public class SqlQueryRequestTests extends AbstractXContentSerializingTestCase<TestSqlQueryRequest> {
 
     public RequestInfo requestInfo;
 
@@ -70,14 +70,14 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             randomZone(),
             randomAlphaOfLength(10),
             between(1, Integer.MAX_VALUE),
-            randomTV(),
-            randomTV(),
+            randomTimeValue(),
+            randomTimeValue(),
             randomBoolean(),
             randomAlphaOfLength(10),
             requestInfo,
             randomBoolean(),
             false, // deprecated
-            randomTV(),
+            randomTimeValue(),
             randomBoolean(),
             randomTVGreaterThan(MIN_KEEP_ALIVE),
             randomBoolean()
@@ -104,7 +104,7 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
             request -> request.catalog(randomValueOtherThan(request.catalog(), () -> randomAlphaOfLength(10))),
             request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
-            request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
+            request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), ESTestCase::randomTimeValue)),
             request -> request.filter(
                 randomValueOtherThan(
                     request.filter(),
@@ -113,7 +113,9 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             ),
             request -> request.columnar(randomValueOtherThan(request.columnar(), ESTestCase::randomBoolean)),
             request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor)),
-            request -> request.waitForCompletionTimeout(randomValueOtherThan(request.waitForCompletionTimeout(), this::randomTV)),
+            request -> request.waitForCompletionTimeout(
+                randomValueOtherThan(request.waitForCompletionTimeout(), ESTestCase::randomTimeValue)
+            ),
             request -> request.keepOnCompletion(randomValueOtherThan(request.keepOnCompletion(), ESTestCase::randomBoolean)),
             request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE))),
             request -> request.allowPartialSearchResults(
@@ -171,14 +173,10 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
         return new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), requestInfo.clientId()));
     }
 
-    private TimeValue randomTV() {
-        return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
-    }
-
     private TimeValue randomTVGreaterThan(TimeValue min) {
         TimeValue value;
         do {
-            value = randomTV();
+            value = randomTimeValue();
         } while (value.getMillis() < min.getMillis());
         return value;
     }

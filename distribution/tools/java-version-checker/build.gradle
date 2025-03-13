@@ -1,28 +1,10 @@
 apply plugin: 'elasticsearch.build'
 
-sourceSets {
-  unsupportedJdkVersionEntrypoint
-}
-
-tasks.named(sourceSets.unsupportedJdkVersionEntrypoint.compileJavaTaskName).configure {
-  targetCompatibility = JavaVersion.VERSION_1_7
-}
-
-tasks.named("jar") {
-  manifest {
-    attributes("Multi-Release": "true")
-  }
-
-  from(sourceSets.unsupportedJdkVersionEntrypoint.output)
-  eachFile { details ->
-    if (details.path.equals("org/elasticsearch/tools/java_version_checker/JavaVersionChecker.class") &&
-      sourceSets.main.output.asFileTree.contains(details.file)) {
-      details.relativePath = details.relativePath.prepend("META-INF/versions/17")
-    }
-  }
+tasks.named("compileJava").configure {
+  options.release = 8
 }
 
 // TODO revisit forbiddenApis issues
-["javadoc", "forbiddenApisMain", "forbiddenApisUnsupportedJdkVersionEntrypoint"].each {
+["javadoc", "forbiddenApisMain"].each {
   tasks.named(it).configure { enabled = false }
 }

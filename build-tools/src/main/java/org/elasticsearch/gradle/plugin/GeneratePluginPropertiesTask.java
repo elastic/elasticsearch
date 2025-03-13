@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.plugin;
@@ -18,9 +19,13 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
@@ -37,14 +42,16 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
+@CacheableTask
 public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
-    private static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
+    public static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
+    public static final String STABLE_PROPERTIES_FILENAME = "stable-plugin-descriptor.properties";
+    private static final String DESCRIPTION = "Generates Elasticsearch Plugin descriptor file";
 
     @Inject
     public GeneratePluginPropertiesTask(ProjectLayout projectLayout) {
-        setDescription("Generate " + PROPERTIES_FILENAME);
-        getOutputFile().convention(projectLayout.getBuildDirectory().file("generated-descriptor/" + PROPERTIES_FILENAME));
+        setDescription(DESCRIPTION);
     }
 
     @Input
@@ -63,6 +70,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<String> getJavaVersion();
 
     @Input
+    @Optional
     public abstract Property<String> getClassname();
 
     @Input
@@ -78,16 +86,24 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<Boolean> getIsLicensed();
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getModuleInfoFile();
 
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
+    @Input
+    public abstract Property<Boolean> getIsStable();
+
     @TaskAction
     public void generatePropertiesFile() throws IOException {
         String classname = getClassname().getOrElse("");
-        if (classname.isEmpty()) {
+        boolean stablePlugin = getIsStable().getOrElse(false);
+        if (stablePlugin == false && classname.isEmpty()) {
             throw new InvalidUserDataException("classname is a required setting for esplugin");
+        }
+        if (stablePlugin && classname.isEmpty() == false) {
+            throw new InvalidUserDataException("classname is a forbidden for stable esplugin");
         }
 
         Map<String, Object> props = new HashMap<>();
@@ -129,4 +145,5 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         }
         return visitor.module.name;
     }
+
 }

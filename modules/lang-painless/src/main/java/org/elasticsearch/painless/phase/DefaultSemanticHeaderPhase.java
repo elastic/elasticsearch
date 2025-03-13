@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.node.SClass;
 import org.elasticsearch.painless.node.SFunction;
@@ -36,15 +38,13 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
         if (parameterCount != parameterNames.size()) {
             throw userFunctionNode.createError(
                 new IllegalStateException(
-                    "invalid function definition: "
-                        + "parameter types size ["
-                        + canonicalTypeNameParameters.size()
-                        + "] is not equal to "
-                        + "parameter names size ["
-                        + parameterNames.size()
-                        + "] for function ["
-                        + functionName
-                        + "]"
+                    Strings.format(
+                        "invalid function definition: "
+                            + "parameter types size [%d] is not equal to parameter names size [%d] for function [%s]",
+                        canonicalTypeNameParameters.size(),
+                        parameterNames.size(),
+                        functionName
+                    )
                 )
             );
         }
@@ -65,12 +65,11 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
         if (returnType == null) {
             throw userFunctionNode.createError(
                 new IllegalArgumentException(
-                    "invalid function definition: "
-                        + "return type ["
-                        + returnCanonicalTypeName
-                        + "] not found for function ["
-                        + functionKey
-                        + "]"
+                    Strings.format(
+                        "invalid function definition: return type [%s] not found for function [%s]",
+                        returnCanonicalTypeName,
+                        functionKey
+                    )
                 )
             );
         }
@@ -83,12 +82,11 @@ public class DefaultSemanticHeaderPhase extends UserTreeBaseVisitor<ScriptScope>
             if (paramType == null) {
                 throw userFunctionNode.createError(
                     new IllegalArgumentException(
-                        "invalid function definition: "
-                            + "parameter type ["
-                            + typeParameter
-                            + "] not found for function ["
-                            + functionKey
-                            + "]"
+                        Strings.format(
+                            "invalid function definition: parameter type [%s] not found for function [%s]",
+                            typeParameter,
+                            functionKey
+                        )
                     )
                 );
             }

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
@@ -9,7 +9,7 @@ dependencies {
 restResources {
   restApi {
     // needed for template installation, etc.
-    include '_common', 'indices', 'text_structure'
+    include '_common', 'bulk', 'indices', 'text_structure'
   }
   restTests {
     includeXpack 'text_structure'

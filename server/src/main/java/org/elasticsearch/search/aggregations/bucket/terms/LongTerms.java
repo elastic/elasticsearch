@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -21,6 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 /**
  * Result of the {@link TermsAggregator} when the field is some kind of whole number like a integer, long, or a date.
@@ -174,8 +178,8 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
             prototype.term,
             prototype.docCount,
             aggregations,
-            prototype.showDocCountError,
-            prototype.docCountError,
+            showTermDocCountError,
+            prototype.getDocCountError(),
             prototype.format
         );
     }
@@ -199,45 +203,70 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        boolean unsignedLongFormat = false;
-        boolean rawFormat = false;
-        for (InternalAggregation agg : aggregations) {
-            if (agg instanceof DoubleTerms) {
-                return agg.reduce(aggregations, reduceContext);
-            }
-            if (agg instanceof LongTerms) {
-                if (((LongTerms) agg).format == DocValueFormat.RAW) {
-                    rawFormat = true;
-                } else if (((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
-                    unsignedLongFormat = true;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        final Predicate<DocValueFormat> needsPromoting;
+        if (format == DocValueFormat.RAW) {
+            needsPromoting = docFormat -> docFormat == DocValueFormat.UNSIGNED_LONG_SHIFTED;
+        } else if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+            needsPromoting = docFormat -> docFormat == DocValueFormat.RAW;
+        } else {
+            needsPromoting = Predicates.never();
+        }
+        return new AggregatorReducer() {
+
+            private List<InternalAggregation> aggregations = new ArrayList<>(size);
+            private boolean isPromotedToDouble = false;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregation instanceof DoubleTerms doubleTerms) {
+                    if (isPromotedToDouble == false) {
+                        promoteToDouble(aggregations);
+                        isPromotedToDouble = true;
+                    }
+                    aggregations.add(doubleTerms);
+                } else if (aggregation instanceof LongTerms longTerms) {
+                    if (isPromotedToDouble || needsPromoting.test(longTerms.format)) {
+                        if (isPromotedToDouble == false) {
+                            promoteToDouble(aggregations);
+                            isPromotedToDouble = true;
+                        }
+                        aggregations.add(LongTerms.convertLongTermsToDouble(longTerms, format));
+                    } else {
+                        aggregations.add(aggregation);
+                    }
                 }
             }
-        }
-        if (rawFormat && unsignedLongFormat) { // if we have mixed formats, convert results to double format
-            List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
-            for (InternalAggregation agg : aggregations) {
-                if (agg instanceof LongTerms) {
-                    DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
-                    newAggs.add(dTerms);
-                } else {
-                    newAggs.add(agg);
+
+            private void promoteToDouble(List<InternalAggregation> aggregations) {
+                aggregations.replaceAll(aggregation -> LongTerms.convertLongTermsToDouble((LongTerms) aggregation, format));
+            }
+
+            @Override
+            public InternalAggregation get() {
+                try (
+                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) aggregations.get(0)).termsAggregationReducer(
+                        reduceContext,
+                        size
+                    )
+                ) {
+                    aggregations.forEach(processor::accept);
+                    aggregations = null; // release memory
+                    return processor.get();
                 }
             }
-            return newAggs.get(0).reduce(newAggs, reduceContext);
-        }
-        return super.reduce(aggregations, reduceContext);
+        };
     }
 
     @Override
     protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, LongTerms.Bucket prototype) {
-        return new Bucket(prototype.term, docCount, aggs, prototype.showDocCountError, docCountError, format);
+        return new Bucket(prototype.term, docCount, aggs, showTermDocCountError, docCountError, format);
     }
 
     /**
      * Converts a {@link LongTerms} into a {@link DoubleTerms}, returning the value of the specified long terms as doubles.
      */
-    static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
+    public static DoubleTerms convertLongTermsToDouble(LongTerms longTerms, DocValueFormat decimalFormat) {
         List<LongTerms.Bucket> buckets = longTerms.getBuckets();
         List<DoubleTerms.Bucket> newBuckets = new ArrayList<>();
         for (Terms.Bucket bucket : buckets) {
@@ -245,7 +274,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
                 new DoubleTerms.Bucket(
                     bucket.getKeyAsNumber().doubleValue(),
                     bucket.getDocCount(),
-                    (InternalAggregations) bucket.getAggregations(),
+                    bucket.getAggregations(),
                     longTerms.showTermDocCountError,
                     longTerms.showTermDocCountError ? bucket.getDocCountError() : 0,
                     decimalFormat

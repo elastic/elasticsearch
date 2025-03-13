@@ -147,22 +147,22 @@ public class DataFrameDataExtractorFactory {
         ActionListener<DataFrameDataExtractorFactory> listener
     ) {
         ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(client);
-        extractedFieldsDetectorFactory.createFromDest(config, ActionListener.wrap(extractedFieldsDetector -> {
+        extractedFieldsDetectorFactory.createFromDest(config, listener.delegateFailureAndWrap((delegate, extractedFieldsDetector) -> {
             ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
-
-            DataFrameDataExtractorFactory extractorFactory = new DataFrameDataExtractorFactory(
-                client,
-                config.getId(),
-                Collections.singletonList(config.getDest().getIndex()),
-                config.getSource().getParsedQuery(),
-                extractedFields,
-                config.getAnalysis().getRequiredFields(),
-                config.getHeaders(),
-                config.getAnalysis().supportsMissingValues(),
-                createTrainTestSplitterFactory(client, config, extractedFields),
-                Collections.emptyMap()
+            delegate.onResponse(
+                new DataFrameDataExtractorFactory(
+                    client,
+                    config.getId(),
+                    Collections.singletonList(config.getDest().getIndex()),
+                    config.getSource().getParsedQuery(),
+                    extractedFields,
+                    config.getAnalysis().getRequiredFields(),
+                    config.getHeaders(),
+                    config.getAnalysis().supportsMissingValues(),
+                    createTrainTestSplitterFactory(client, config, extractedFields),
+                    Collections.emptyMap()
+                )
             );
-            listener.onResponse(extractorFactory);
-        }, listener::onFailure));
+        }));
     }
 }

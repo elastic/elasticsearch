@@ -12,10 +12,10 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -42,7 +42,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         ThreadPool threadPool,
         XPackLicenseState licenseState,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         DatafeedManager datafeedManager
     ) {
         super(
@@ -52,9 +51,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             threadPool,
             actionFilters,
             PutDatafeedAction.Request::new,
-            indexNameExpressionResolver,
             PutDatafeedAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -70,7 +68,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         ClusterState state,
         ActionListener<PutDatafeedAction.Response> listener
     ) {
-        datafeedManager.putDatafeed(request, state, licenseState, securityContext, threadPool, listener);
+        datafeedManager.putDatafeed(request, state, securityContext, threadPool, listener);
     }
 
     @Override

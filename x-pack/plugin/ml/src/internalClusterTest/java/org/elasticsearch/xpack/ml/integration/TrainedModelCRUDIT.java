@@ -23,6 +23,7 @@ import org.junit.Before;
 
 import java.util.Base64;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 
@@ -90,26 +91,24 @@ public class TrainedModelCRUDIT extends MlSingleNodeTestCase {
                 new BytesArray(Base64.getDecoder().decode(BASE_64_ENCODED_MODEL)),
                 0,
                 RAW_MODEL_SIZE,
-                1
+                1,
+                false
             )
         ).actionGet();
 
         assertThat(
-            client().admin().indices().prepareGetIndex().addIndices(InferenceIndexConstants.nativeDefinitionStore()).get().indices().length,
+            client().admin()
+                .indices()
+                .prepareGetIndex(TEST_REQUEST_TIMEOUT)
+                .addIndices(InferenceIndexConstants.nativeDefinitionStore())
+                .get()
+                .indices().length,
             equalTo(1)
         );
 
         client().execute(DeleteTrainedModelAction.INSTANCE, new DeleteTrainedModelAction.Request(modelId)).actionGet();
 
-        assertThat(
-            client().prepareSearch(InferenceIndexConstants.nativeDefinitionStore())
-                .setTrackTotalHitsUpTo(1)
-                .setSize(0)
-                .get()
-                .getHits()
-                .getTotalHits().value,
-            equalTo(0L)
-        );
+        assertHitCount(client().prepareSearch(InferenceIndexConstants.nativeDefinitionStore()).setTrackTotalHitsUpTo(1).setSize(0), 0);
     }
 
 }

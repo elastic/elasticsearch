@@ -10,21 +10,22 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.ClosePointInTimeResponse;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
+import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
+import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -35,18 +36,17 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -55,6 +55,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -73,9 +75,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -88,10 +89,10 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 
 /**
  * A service that delete documents in the snapshot blob cache index when they are not required anymore.
- *
+ * <p>
  * This service runs on the data node that contains the snapshot blob cache primary shard. It listens to cluster state updates to find
  * searchable snapshot indices that are deleted and checks if the index snapshot is still used by other searchable snapshot indices. If the
- * index snapshot is not used anymore then i triggers the deletion of corresponding cached blobs in the snapshot blob cache index using a
+ * index snapshot is not used anymore then it triggers the deletion of corresponding cached blobs in the snapshot blob cache index using a
  * delete-by-query.
  */
 public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
@@ -144,6 +145,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
     private final Client clientWithOrigin;
     private final String systemIndexName;
     private final ThreadPool threadPool;
+    private final SystemIndexDescriptor systemIndexDescriptor;
 
     private volatile Scheduler.Cancellable periodicTask;
     private volatile TimeValue periodicTaskInterval;
@@ -157,10 +159,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
+        SystemIndices systemIndices,
         String systemIndexName
     ) {
         this.clientWithOrigin = new OriginSettingClient(Objects.requireNonNull(client), SEARCHABLE_SNAPSHOTS_ORIGIN);
         this.systemIndexName = Objects.requireNonNull(systemIndexName);
+        this.systemIndexDescriptor = Objects.requireNonNull(systemIndices.findMatchingDescriptor(systemIndexName));
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.periodicTaskInterval = SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING.get(settings);
@@ -180,10 +184,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK)) {
             return; // state not fully recovered
         }
-        final ShardRouting primary = systemIndexPrimaryShard(state);
-        if (primary == null
-            || primary.active() == false
-            || Objects.equals(state.nodes().getLocalNodeId(), primary.currentNodeId()) == false) {
+        if (systemIndexPrimaryShardActiveAndAssignedToLocalNode(state) == false) {
             // system index primary shard does not exist or is not assigned to this data node
             stopPeriodicTask();
             return;
@@ -219,7 +220,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                 final TimeValue delay = periodicTaskInterval;
                 if (delay.getMillis() > 0L) {
                     final PeriodicMaintenanceTask task = new PeriodicMaintenanceTask(periodicTaskKeepAlive, periodicTaskBatchSize);
-                    periodicTask = threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
+                    periodicTask = threadPool.schedule(task, delay, threadPool.generic());
                 } else {
                     periodicTask = null;
                 }
@@ -241,20 +242,24 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         }
     }
 
-    @Nullable
-    private ShardRouting systemIndexPrimaryShard(final ClusterState state) {
-        final IndexMetadata indexMetadata = state.metadata().index(systemIndexName);
-        if (indexMetadata != null) {
-            final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
-            if (indexRoutingTable != null) {
-                return indexRoutingTable.shard(0).primaryShard();
+    private boolean systemIndexPrimaryShardActiveAndAssignedToLocalNode(final ClusterState state) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
+            if (indexMetadata.isSystem() && systemIndexDescriptor.matchesIndexPattern(indexMetadata.getIndex().getName())) {
+                final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexMetadata.getIndex());
+                if (indexRoutingTable == null || indexRoutingTable.shard(0) == null) {
+                    continue;
+                }
+                final var primary = indexRoutingTable.shard(0).primaryShard();
+                if (primary != null && primary.active() && Objects.equals(state.nodes().getLocalNodeId(), primary.currentNodeId())) {
+                    return true;
+                }
             }
         }
-        return null;
+        return false;
     }
 
     private static boolean hasSearchableSnapshotWith(final ClusterState state, final String snapshotId, final String indexId) {
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (Objects.equals(snapshotId, SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings))
@@ -266,9 +271,13 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
         return false;
     }
 
+    private static Instant getExpirationTime(TimeValue retention, ThreadPool threadPool) {
+        return Instant.ofEpochMilli(threadPool.absoluteTimeInMillis()).minus(retention.duration(), retention.timeUnit().toChronoUnit());
+    }
+
     private static Map<String, Set<String>> listSearchableSnapshots(final ClusterState state) {
         Map<String, Set<String>> snapshots = null;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
             if (indexMetadata.isSearchableSnapshot()) {
                 final Settings indexSettings = indexMetadata.getSettings();
                 if (snapshots == null) {
@@ -307,12 +316,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
             final ClusterState state = event.state();
 
             for (Index deletedIndex : event.indicesDeleted()) {
-                final IndexMetadata indexMetadata = event.previousState().metadata().index(deletedIndex);
-                assert indexMetadata != null || state.metadata().indexGraveyard().containsIndex(deletedIndex)
+                final IndexMetadata indexMetadata = event.previousState().metadata().getProject().index(deletedIndex);
+                assert indexMetadata != null || state.metadata().getProject().indexGraveyard().containsIndex(deletedIndex)
                     : "no previous metadata found for " + deletedIndex;
                 if (indexMetadata != null) {
                     if (indexMetadata.isSearchableSnapshot()) {
-                        assert state.metadata().hasIndex(deletedIndex) == false;
+                        assert state.metadata().getProject().hasIndex(deletedIndex) == false;
 
                         final Settings indexSetting = indexMetadata.getSettings();
                         final String snapshotId = SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSetting);
@@ -396,236 +405,34 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
     /**
      * A maintenance task that periodically cleans up unused cache entries from the blob store cache index.
-     *
+     * <p>
      * This task first opens a point-in-time context on the blob store cache system index and uses it to search all documents. For each
      * document found the task verifies if it belongs to an existing searchable snapshot index. If the doc does not belong to any
      * index then it is deleted as part of a bulk request. Once the bulk is executed the next batch of documents is searched for. Once
      * all documents from the PIT have been verified the task closes the PIT and completes itself.
-     *
+     * <p>
      * The task executes every step (PIT opening, searches, bulk deletes, PIT closing) using the generic thread pool.
      * The same task instance is used for all the steps and makes sure that a closed instance is not executed again.
      */
-    private class PeriodicMaintenanceTask implements Runnable, Releasable {
-
+    private class PeriodicMaintenanceTask implements Runnable {
         private final TimeValue keepAlive;
         private final int batchSize;
 
-        private final AtomicReference<Exception> error = new AtomicReference<>();
-        private final AtomicBoolean closed = new AtomicBoolean();
+        private final ThrottledTaskRunner taskRunner;
         private final AtomicLong deletes = new AtomicLong();
         private final AtomicLong total = new AtomicLong();
-
-        private volatile Map<String, Set<String>> existingSnapshots;
-        private volatile Set<String> existingRepositories;
-        private volatile SearchResponse searchResponse;
-        private volatile Instant expirationTime;
-        private volatile String pointIntTimeId;
-        private volatile Object[] searchAfter;
 
         PeriodicMaintenanceTask(TimeValue keepAlive, int batchSize) {
             this.keepAlive = keepAlive;
             this.batchSize = batchSize;
+            this.taskRunner = new ThrottledTaskRunner(this.getClass().getCanonicalName(), 2, threadPool.generic());
         }
 
         @Override
         public void run() {
-            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
-            try {
-                ensureOpen();
-                if (pointIntTimeId == null) {
-                    final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(SNAPSHOT_BLOB_CACHE_INDEX);
-                    openRequest.keepAlive(keepAlive);
-                    clientWithOrigin.execute(OpenPointInTimeAction.INSTANCE, openRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(OpenPointInTimeResponse response) {
-                            logger.trace("periodic maintenance task initialized with point-in-time id [{}]", response.getPointInTimeId());
-                            PeriodicMaintenanceTask.this.pointIntTimeId = response.getPointInTimeId();
-                            executeNext(PeriodicMaintenanceTask.this);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (TransportActions.isShardNotAvailableException(e)) {
-                                complete(null);
-                            } else {
-                                complete(e);
-                            }
-                        }
-                    });
-                    return;
-                }
-
-                final String pitId = pointIntTimeId;
-                assert Strings.hasLength(pitId);
-
-                if (searchResponse == null) {
-                    final SearchSourceBuilder searchSource = new SearchSourceBuilder();
-                    searchSource.fetchField(new FieldAndFormat(CachedBlob.CREATION_TIME_FIELD, "epoch_millis"));
-                    searchSource.fetchSource(false);
-                    searchSource.trackScores(false);
-                    searchSource.sort(ShardDocSortField.NAME);
-                    searchSource.size(batchSize);
-                    if (searchAfter != null) {
-                        searchSource.searchAfter(searchAfter);
-                        searchSource.trackTotalHits(false);
-                    } else {
-                        searchSource.trackTotalHits(true);
-                    }
-                    final PointInTimeBuilder pointInTime = new PointInTimeBuilder(pitId);
-                    pointInTime.setKeepAlive(keepAlive);
-                    searchSource.pointInTimeBuilder(pointInTime);
-                    final SearchRequest searchRequest = new SearchRequest();
-                    searchRequest.source(searchSource);
-                    clientWithOrigin.execute(SearchAction.INSTANCE, searchRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(SearchResponse response) {
-                            if (searchAfter == null) {
-                                assert PeriodicMaintenanceTask.this.total.get() == 0L;
-                                PeriodicMaintenanceTask.this.total.set(response.getHits().getTotalHits().value);
-                            }
-                            PeriodicMaintenanceTask.this.searchResponse = response;
-                            PeriodicMaintenanceTask.this.searchAfter = null;
-                            executeNext(PeriodicMaintenanceTask.this);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            complete(e);
-                        }
-                    });
-                    return;
-                }
-
-                final SearchHit[] searchHits = searchResponse.getHits().getHits();
-                if (searchHits != null && searchHits.length > 0) {
-                    if (expirationTime == null) {
-                        final TimeValue retention = periodicTaskRetention;
-                        expirationTime = Instant.ofEpochMilli(threadPool.absoluteTimeInMillis())
-                            .minus(retention.duration(), retention.timeUnit().toChronoUnit());
-
-                        final ClusterState state = clusterService.state();
-                        // compute the list of existing searchable snapshots and repositories once
-                        existingSnapshots = listSearchableSnapshots(state);
-                        existingRepositories = state.metadata()
-                            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
-                            .repositories()
-                            .stream()
-                            .map(RepositoryMetadata::name)
-                            .collect(Collectors.toSet());
-                    }
-
-                    final BulkRequest bulkRequest = new BulkRequest();
-                    final Map<String, Set<String>> knownSnapshots = existingSnapshots;
-                    assert knownSnapshots != null;
-                    final Set<String> knownRepositories = existingRepositories;
-                    assert knownRepositories != null;
-                    final Instant expirationTimeCopy = this.expirationTime;
-                    assert expirationTimeCopy != null;
-
-                    Object[] lastSortValues = null;
-                    for (SearchHit searchHit : searchHits) {
-                        lastSortValues = searchHit.getSortValues();
-                        assert searchHit.getId() != null;
-                        try {
-                            boolean delete = false;
-
-                            // See {@link BlobStoreCacheService#generateId}
-                            // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
-                            final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
-                            assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
-
-                            final String repositoryName = parts[0];
-                            if (knownRepositories.contains(repositoryName) == false) {
-                                logger.trace("deleting blob store cache entry with id [{}]: repository does not exist", searchHit.getId());
-                                delete = true;
-                            } else {
-                                final Set<String> knownIndexIds = knownSnapshots.get(parts[1]);
-                                if (knownIndexIds == null || knownIndexIds.contains(parts[2]) == false) {
-                                    logger.trace("deleting blob store cache entry with id [{}]: not used", searchHit.getId());
-                                    delete = true;
-                                }
-                            }
-                            if (delete) {
-                                final Instant creationTime = getCreationTime(searchHit);
-                                if (creationTime.isAfter(expirationTimeCopy)) {
-                                    logger.trace(
-                                        "blob store cache entry with id [{}] was created recently, skipping deletion",
-                                        searchHit.getId()
-                                    );
-                                    continue;
-                                }
-                                bulkRequest.add(new DeleteRequest().index(searchHit.getIndex()).id(searchHit.getId()));
-                            }
-                        } catch (Exception e) {
-                            logger.warn(
-                                () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
-                                e
-                            );
-                        }
-                    }
-
-                    assert lastSortValues != null;
-                    if (bulkRequest.numberOfActions() == 0) {
-                        this.searchResponse = null;
-                        this.searchAfter = lastSortValues;
-                        executeNext(this);
-                        return;
-                    }
-
-                    final Object[] finalSearchAfter = lastSortValues;
-                    clientWithOrigin.execute(BulkAction.INSTANCE, bulkRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(BulkResponse response) {
-                            for (BulkItemResponse itemResponse : response.getItems()) {
-                                if (itemResponse.isFailed() == false) {
-                                    assert itemResponse.getResponse() instanceof DeleteResponse;
-                                    PeriodicMaintenanceTask.this.deletes.incrementAndGet();
-                                }
-                            }
-                            PeriodicMaintenanceTask.this.searchResponse = null;
-                            PeriodicMaintenanceTask.this.searchAfter = finalSearchAfter;
-                            executeNext(PeriodicMaintenanceTask.this);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            complete(e);
-                        }
-                    });
-                    return;
-                }
-                // we're done, complete the task
-                complete(null);
-            } catch (Exception e) {
-                complete(e);
-            }
-        }
-
-        public boolean isClosed() {
-            return closed.get();
-        }
-
-        private void ensureOpen() {
-            if (isClosed()) {
-                assert false : "should not use periodic task after close";
-                throw new IllegalStateException("Periodic maintenance task is closed");
-            }
-        }
-
-        @Override
-        public void close() {
-            if (closed.compareAndSet(false, true)) {
-                final Exception e = error.get();
-                if (e != null) {
-                    logger.warn(
-                        () -> format(
-                            "periodic maintenance task completed with failure (%s deleted documents out of a total of %s)",
-                            deletes.get(),
-                            total.get()
-                        ),
-                        e
-                    );
-                } else {
+            ActionListener.run(ActionListener.runAfter(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
                     logger.info(
                         () -> format(
                             "periodic maintenance task completed (%s deleted documents out of a total of %s)",
@@ -634,52 +441,226 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
                         )
                     );
                 }
-            }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(
+                        () -> format(
+                            "periodic maintenance task completed with failure (%s deleted documents out of a total of %s)",
+                            deletes.get(),
+                            total.get()
+                        ),
+                        e
+                    );
+                }
+            }, BlobStoreCacheMaintenanceService.this::startPeriodicTask), listener -> {
+                final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(SNAPSHOT_BLOB_CACHE_INDEX);
+                openRequest.keepAlive(keepAlive);
+                clientWithOrigin.execute(TransportOpenPointInTimeAction.TYPE, openRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(OpenPointInTimeResponse response) {
+                        logger.trace("periodic maintenance task initialized with point-in-time id [{}]", response.getPointInTimeId());
+                        threadPool.generic().execute(ActionRunnable.wrap(listener, l -> {
+                            final ClusterState state = clusterService.state();
+                            new RunningPeriodicMaintenanceTask(
+                                response.getPointInTimeId(),
+                                closingPitBefore(clientWithOrigin, response.getPointInTimeId(), l),
+                                getExpirationTime(periodicTaskRetention, threadPool),
+                                // compute the list of existing searchable snapshots and repositories up-front
+                                listSearchableSnapshots(state),
+                                RepositoriesMetadata.get(state)
+                                    .repositories()
+                                    .stream()
+                                    .map(RepositoryMetadata::name)
+                                    .collect(Collectors.toSet())
+                            ).run();
+                        }));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (TransportActions.isShardNotAvailableException(e)) {
+                            listener.onResponse(null);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }
+                });
+            });
         }
 
-        private void complete(@Nullable Exception failure) {
-            assert isClosed() == false;
-            final Releasable releasable = () -> {
-                try {
-                    final Exception previous = error.getAndSet(failure);
-                    assert previous == null : "periodic maintenance task already failed: " + previous;
-                    close();
-                } finally {
-                    startPeriodicTask();
+        private static ActionListener<Void> closingPitBefore(Client client, BytesReference pointInTimeId, ActionListener<Void> listener) {
+            return new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    closePit(client, pointInTimeId, () -> listener.onResponse(null));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    closePit(client, pointInTimeId, () -> listener.onFailure(e));
                 }
             };
-            boolean waitForRelease = false;
-            try {
-                final String pitId = pointIntTimeId;
-                if (Strings.hasLength(pitId)) {
-                    final ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId);
-                    clientWithOrigin.execute(ClosePointInTimeAction.INSTANCE, closeRequest, ActionListener.runAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClosePointInTimeResponse response) {
-                            if (response.isSucceeded()) {
-                                logger.debug("periodic maintenance task successfully closed point-in-time id [{}]", pitId);
-                            } else {
-                                logger.debug("point-in-time id [{}] not found", pitId);
-                            }
-                        }
+        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn(() -> "failed to close point-in-time id [" + pitId + "]", e);
-                        }
-                    }, () -> Releasables.close(releasable)));
-                    waitForRelease = true;
+        private static void closePit(Client client, BytesReference pointInTimeId, Runnable onCompletion) {
+            client.execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pointInTimeId), new ActionListener<>() {
+                @Override
+                public void onResponse(ClosePointInTimeResponse response) {
+                    if (response.isSucceeded()) {
+                        logger.debug("periodic maintenance task successfully closed point-in-time id [{}]", pointInTimeId);
+                    } else {
+                        logger.debug("point-in-time id [{}] not found", pointInTimeId);
+                    }
+                    onCompletion.run();
                 }
-            } finally {
-                if (waitForRelease == false) {
-                    Releasables.close(releasable);
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(() -> "failed to close point-in-time id [" + pointInTimeId + "]", e);
+                    onCompletion.run();
+                }
+            });
+        }
+
+        /**
+         * The maintenance task, once it has opened its PIT and started running so that it has all the state it needs to do its job.
+         */
+        private class RunningPeriodicMaintenanceTask implements Runnable {
+            private final BytesReference pointInTimeId;
+            private final RefCountingListener listeners;
+            private final Instant expirationTime;
+            private final Map<String, Set<String>> existingSnapshots;
+            private final Set<String> existingRepositories;
+
+            RunningPeriodicMaintenanceTask(
+                BytesReference pointInTimeId,
+                ActionListener<Void> listener,
+                Instant expirationTime,
+                Map<String, Set<String>> existingSnapshots,
+                Set<String> existingRepositories
+            ) {
+                this.pointInTimeId = pointInTimeId;
+                this.listeners = new RefCountingListener(listener);
+                this.expirationTime = expirationTime;
+                this.existingSnapshots = existingSnapshots;
+                this.existingRepositories = existingRepositories;
+            }
+
+            @Override
+            public void run() {
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                try (listeners) {
+                    executeSearch(new SearchRequest().source(getSearchSourceBuilder().trackTotalHits(true)), (searchResponse, refs) -> {
+                        assert total.get() == 0L;
+                        total.set(searchResponse.getHits().getTotalHits().value());
+                        handleSearchResponse(searchResponse, refs);
+                    });
                 }
             }
-        }
-    }
 
-    private void executeNext(PeriodicMaintenanceTask maintenanceTask) {
-        threadPool.generic().execute(maintenanceTask);
+            private void executeSearch(SearchRequest searchRequest, BiConsumer<SearchResponse, RefCounted> responseConsumer) {
+                clientWithOrigin.execute(TransportSearchAction.TYPE, searchRequest, listeners.acquire(searchResponse -> {
+                    searchResponse.mustIncRef();
+                    taskRunner.enqueueTask(ActionListener.runAfter(listeners.acquire(ref -> {
+                        final var refs = AbstractRefCounted.of(ref::close);
+                        try {
+                            responseConsumer.accept(searchResponse, refs);
+                        } finally {
+                            refs.decRef();
+                        }
+                    }), searchResponse::decRef));
+                }));
+            }
+
+            private SearchSourceBuilder getSearchSourceBuilder() {
+                return new SearchSourceBuilder().fetchField(new FieldAndFormat(CachedBlob.CREATION_TIME_FIELD, "epoch_millis"))
+                    .fetchSource(false)
+                    .trackScores(false)
+                    .sort(ShardDocSortField.NAME)
+                    .size(batchSize)
+                    .pointInTimeBuilder(new PointInTimeBuilder(pointInTimeId).setKeepAlive(keepAlive));
+            }
+
+            private void handleSearchResponse(SearchResponse searchResponse, RefCounted refs) {
+                assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+
+                if (listeners.isFailing()) {
+                    return;
+                }
+
+                final var searchHits = searchResponse.getHits().getHits();
+                if (searchHits == null || searchHits.length == 0) {
+                    return;
+                }
+
+                final BulkRequest bulkRequest = new BulkRequest();
+
+                Object[] lastSortValues = null;
+                for (SearchHit searchHit : searchHits) {
+                    lastSortValues = searchHit.getSortValues();
+                    assert searchHit.getId() != null;
+                    try {
+                        boolean delete = false;
+
+                        // See {@link BlobStoreCacheService#generateId}
+                        // doc id = {repository name}/{snapshot id}/{snapshot index id}/{shard id}/{file name}/@{file offset}
+                        final String[] parts = Objects.requireNonNull(searchHit.getId()).split("/");
+                        assert parts.length == 6 : Arrays.toString(parts) + " vs " + searchHit.getId();
+
+                        final String repositoryName = parts[0];
+                        if (existingRepositories.contains(repositoryName) == false) {
+                            logger.trace("deleting blob store cache entry with id [{}]: repository does not exist", searchHit.getId());
+                            delete = true;
+                        } else {
+                            final Set<String> knownIndexIds = existingSnapshots.get(parts[1]);
+                            if (knownIndexIds == null || knownIndexIds.contains(parts[2]) == false) {
+                                logger.trace("deleting blob store cache entry with id [{}]: not used", searchHit.getId());
+                                delete = true;
+                            }
+                        }
+                        if (delete) {
+                            final Instant creationTime = getCreationTime(searchHit);
+                            if (creationTime.isAfter(expirationTime)) {
+                                logger.trace(
+                                    "blob store cache entry with id [{}] was created recently, skipping deletion",
+                                    searchHit.getId()
+                                );
+                                continue;
+                            }
+                            bulkRequest.add(new DeleteRequest().index(searchHit.getIndex()).id(searchHit.getId()));
+                        }
+                    } catch (Exception e) {
+                        logger.warn(
+                            () -> format("exception when parsing blob store cache entry with id [%s], skipping", searchHit.getId()),
+                            e
+                        );
+                    }
+                }
+
+                if (bulkRequest.numberOfActions() > 0) {
+                    refs.mustIncRef();
+                    clientWithOrigin.execute(
+                        TransportBulkAction.TYPE,
+                        bulkRequest,
+                        ActionListener.releaseAfter(listeners.acquire(bulkResponse -> {
+                            for (BulkItemResponse itemResponse : bulkResponse.getItems()) {
+                                if (itemResponse.isFailed() == false) {
+                                    assert itemResponse.getResponse() instanceof DeleteResponse;
+                                    deletes.incrementAndGet();
+                                }
+                            }
+                        }), refs::decRef)
+                    );
+                }
+
+                assert lastSortValues != null;
+                executeSearch(
+                    new SearchRequest().source(getSearchSourceBuilder().trackTotalHits(false).searchAfter(lastSortValues)),
+                    this::handleSearchResponse
+                );
+            }
+        }
     }
 
     private static Instant getCreationTime(SearchHit searchHit) {

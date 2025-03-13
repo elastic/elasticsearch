@@ -1,0 +1,100 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+  - do:
+      cluster.put_component_template:
+        name: "logs-apm.app@custom"
+        body:
+          template:
+            settings:
+              mapping:
+                total_fields:
+                  limit: 20
+
+---
+"Test ignore_malformed":
+  - do:
+      bulk:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          # Passing a (non-coercable) string into a numeric field should not
+          # cause an indexing failure; it should just not be indexed.
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "numeric_labels": {"key": "string"}}'
+          - create: {}
+          - '{"@timestamp": "2017-06-22", "numeric_labels": {"key": 123}}'
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields: ["numeric_labels.*", "_ignored"]
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields: {"_ignored": ["numeric_labels.key"]} }
+  - match: { hits.hits.1.fields: {"numeric_labels.key": [123.0]} }
+
+---
+"Test ignore_dynamic_beyond_limit":
+  - do:
+      bulk:
+        index: logs-apm.app.svc1-testing
+        refresh: true
+        body:
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k1": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k2": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k3": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k4": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k5": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k6": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k7": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k8": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k9": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k10": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k11": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k12": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k13": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k14": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k15": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k16": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k17": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k18": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k19": ""}
+          - create: {}
+          - {"@timestamp": "2017-06-22", "k20": ""}
+
+  - is_false: errors
+
+  - do:
+      search:
+        index: logs-apm.app.svc1-testing
+        body:
+          query:
+            term:
+              _ignored:
+                value: k20
+  - length: { hits.hits: 1 }

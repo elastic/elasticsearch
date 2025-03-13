@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionStateUtils.newClusterStateWithLifecycleState;
@@ -30,7 +30,7 @@ public class LifecycleExecutionStateUtilsTests extends ESTestCase {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder(indexName)
-                    .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
+                    .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
                     .creationDate(randomNonNegativeLong())
                     .numberOfShards(1)
                     .numberOfReplicas(0)
@@ -39,14 +39,14 @@ public class LifecycleExecutionStateUtilsTests extends ESTestCase {
             .build();
 
         ClusterState clusterState1 = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        IndexMetadata indexMetadata1 = clusterState1.metadata().index(indexName);
+        IndexMetadata indexMetadata1 = clusterState1.metadata().getProject().index(indexName);
         assertThat(indexMetadata1.getLifecycleExecutionState(), sameInstance(LifecycleExecutionState.EMPTY_STATE));
 
         LifecycleExecutionState state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
 
         // setting the state via newClusterStateWithLifecycleState will set the state
         ClusterState clusterState2 = newClusterStateWithLifecycleState(clusterState1, index, state);
-        IndexMetadata indexMetadata2 = clusterState2.metadata().index(indexName);
+        IndexMetadata indexMetadata2 = clusterState2.metadata().getProject().index(indexName);
         assertThat(indexMetadata2.getLifecycleExecutionState().asMap(), is(state.asMap()));
 
         // but if the lifecycle state doesn't actually change, then you get the same cluster state back

@@ -1,22 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.Collection;
@@ -48,15 +54,30 @@ public class Queries {
         return Queries.newMatchNoDocsQuery("failed [" + field + "] query, caused by " + message);
     }
 
-    public static Query newNestedFilter() {
-        return not(newNonNestedFilter());
+    private static final IndexVersion NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION = IndexVersion.fromId(6010099);
+
+    /**
+     * Creates a new nested docs query
+     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
+     */
+    public static Query newNestedFilter(IndexVersion indexVersionCreated) {
+        if (indexVersionCreated.onOrAfter(NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION)) {
+            return not(newNonNestedFilter(indexVersionCreated));
+        } else {
+            return new PrefixQuery(new Term(NestedPathFieldMapper.NAME_PRE_V8, new BytesRef("__")));
+        }
     }
 
     /**
      * Creates a new non-nested docs query
+     * @param indexVersionCreated the index version created since newer indices can identify a parent field more efficiently
      */
-    public static Query newNonNestedFilter() {
-        return new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+    public static Query newNonNestedFilter(IndexVersion indexVersionCreated) {
+        if (indexVersionCreated.onOrAfter(NESTED_DOCS_IDENTIFIED_VIA_PRIMARY_TERMS_VERSION)) {
+            return new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        } else {
+            return not(newNestedFilter(indexVersionCreated));
+        }
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
@@ -102,7 +123,7 @@ public class Queries {
         }
         int optionalClauses = 0;
         for (BooleanClause c : query.clauses()) {
-            if (c.getOccur() == BooleanClause.Occur.SHOULD) {
+            if (c.occur() == BooleanClause.Occur.SHOULD) {
                 optionalClauses++;
             }
         }

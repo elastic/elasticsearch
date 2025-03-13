@@ -6,11 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -19,7 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 public class RestPostDataAction extends BaseRestHandler {
 
@@ -30,10 +30,7 @@ public class RestPostDataAction extends BaseRestHandler {
     public List<Route> routes() {
         final String msg = "Posting data directly to anomaly detection jobs is deprecated, "
             + "in a future major version it will be compulsory to use a datafeed";
-        return List.of(
-            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data").deprecated(msg, RestApiVersion.V_8).build(),
-            Route.builder(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data").deprecated(msg, RestApiVersion.V_7).build()
-        );
+        return List.of(Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data").deprecateAndKeep(msg).build());
     }
 
     @Override
@@ -46,13 +43,18 @@ public class RestPostDataAction extends BaseRestHandler {
         PostDataAction.Request request = new PostDataAction.Request(restRequest.param(Job.ID.getPreferredName()));
         request.setResetStart(restRequest.param(PostDataAction.Request.RESET_START.getPreferredName(), DEFAULT_RESET_START));
         request.setResetEnd(restRequest.param(PostDataAction.Request.RESET_END.getPreferredName(), DEFAULT_RESET_END));
-        request.setContent(restRequest.content(), restRequest.getXContentType());
+        var content = restRequest.content();
+        request.setContent(content, restRequest.getXContentType());
 
-        return channel -> client.execute(PostDataAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        return channel -> client.execute(
+            PostDataAction.INSTANCE,
+            request,
+            ActionListener.withRef(new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED), content)
+        );
     }
 
     @Override
-    public boolean supportsContentStream() {
+    public boolean supportsBulkContent() {
         return true;
     }
 }

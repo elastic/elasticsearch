@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +25,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 public class SamplerAggregationBuilder extends AbstractAggregationBuilder<SamplerAggregationBuilder> {
     public static final String NAME = "sampler";
@@ -64,13 +67,6 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     public SamplerAggregationBuilder shardSize(int shardSize) {
         this.shardSize = shardSize;
         return this;
-    }
-
-    /**
-     * Get the max num docs to be returned from each shard.
-     */
-    public int shardSize() {
-        return shardSize;
     }
 
     @Override
@@ -144,7 +140,12 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.ZERO;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
     }
 }

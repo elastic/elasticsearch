@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
@@ -43,8 +44,11 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final String originalMaster = internalCluster().getMasterName();
 
         logger.info("--> excluding master node {}", originalMaster);
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(originalMaster)).get();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get();
+        client().execute(
+            TransportAddVotingConfigExclusionsAction.TYPE,
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, originalMaster)
+        ).get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get();
         assertNotEquals(originalMaster, internalCluster().getMasterName());
     }
 
@@ -60,7 +64,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             internalCluster().client()
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForNodes("4")
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -71,7 +75,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final ClusterState clusterState = internalCluster().client()
             .admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setNodes(true)
             .setMetadata(true)
@@ -92,15 +96,12 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             if (sender.equals(excludedNodeName)) {
                 continue;
             }
-            final MockTransportService senderTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                sender
-            );
+            final var senderTransportService = MockTransportService.getInstance(sender);
             for (final String receiver : nodeNames) {
                 senderTransportService.addSendBehavior(
                     internalCluster().getInstance(TransportService.class, receiver),
                     (connection, requestId, action, request, options) -> {
-                        if (action.equals(PreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)) {
+                        if (action.equals(StatefulPreVoteCollector.REQUEST_PRE_VOTE_ACTION_NAME)) {
                             throw new ElasticsearchException("rejected");
                         }
                         connection.sendRequest(requestId, action, request, options);
@@ -114,7 +115,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
             internalCluster().client()
                 .admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForNodes("3")
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -124,7 +125,7 @@ public class VotingConfigurationIT extends ESIntegTestCase {
         final ClusterState newClusterState = internalCluster().client()
             .admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setNodes(true)
             .setMetadata(true)

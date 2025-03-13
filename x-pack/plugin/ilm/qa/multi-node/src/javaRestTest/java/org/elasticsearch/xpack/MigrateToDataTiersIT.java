@@ -46,7 +46,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createIndexWithSettings;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
@@ -101,11 +100,11 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, Map.of("data", "warm"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, Map.of("data", "cold")));
 
         createPolicy(
             client(),
@@ -114,7 +113,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(
@@ -130,13 +129,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         );
 
         // wait for the index to advance to the warm phase
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).phase(), equalTo("warm")), 30, TimeUnit.SECONDS);
         // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
-        assertBusy(
-            () -> assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).name(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
 
         // let's also have a policy that doesn't need migrating
         String rolloverOnlyPolicyName = "rollover-policy";
@@ -186,9 +181,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         updateIndexSettings(indexWithDataWarmRouting, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
 
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
-        migrateRequest.setJsonEntity("""
+        migrateRequest.setJsonEntity(Strings.format("""
             {"legacy_template_to_delete": "%s", "node_attribute": "data"}
-            """.formatted(templateName));
+            """, templateName));
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
         assertOK(migrateDeploymentResponse);
 
@@ -310,7 +305,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         String composableTemplate = "no_need_to_migrate_composable_template";
         {
             Request composableTemplateRequest = new Request("PUT", "/_index_template/" + composableTemplate);
-            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
+            Settings indexSettings = indexSettings(1, 0).build();
             composableTemplateRequest.setJsonEntity(
                 "{\"index_patterns\":  [\"1notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
             );
@@ -381,11 +376,11 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
-        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, Map.of("data", "warm"), null, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
-        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
+        coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, Map.of("data", "cold")));
 
         createPolicy(
             client(),
@@ -394,7 +389,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             new Phase("warm", TimeValue.ZERO, warmActions),
             new Phase("cold", TimeValue.timeValueDays(100), coldActions),
             null,
-            new Phase("delete", TimeValue.ZERO, singletonMap(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
+            new Phase("delete", TimeValue.ZERO, Map.of(DeleteAction.NAME, DeleteAction.WITH_SNAPSHOT_DELETE))
         );
 
         createIndexWithSettings(
@@ -410,13 +405,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         );
 
         // wait for the index to advance to the warm phase
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).getPhase(), equalTo("warm")), 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).phase(), equalTo("warm")), 30, TimeUnit.SECONDS);
         // let's wait for this index to have received the `require.data` configuration from the warm phase/allocate action
-        assertBusy(
-            () -> assertThat(getStepKeyForIndex(client(), index).getName(), equalTo(AllocationRoutedStep.NAME)),
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), index).name(), equalTo(AllocationRoutedStep.NAME)), 30, TimeUnit.SECONDS);
 
         String indexWithDataWarmRouting = "indexwithdatawarmrouting";
         Settings.Builder settings = Settings.builder()
@@ -481,7 +472,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
     private void createLegacyTemplate(String templateName) throws IOException {
         String indexPrefix = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
-        final StringEntity template = new StringEntity("""
+        final StringEntity template = new StringEntity(Strings.format("""
             {
               "index_patterns": "%s*",
               "settings": {
@@ -492,7 +483,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
                   }
                 }
               }
-            }""".formatted(indexPrefix), ContentType.APPLICATION_JSON);
+            }""", indexPrefix), ContentType.APPLICATION_JSON);
         Request templateRequest = new Request("PUT", "_template/" + templateName);
         templateRequest.setEntity(template);
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));

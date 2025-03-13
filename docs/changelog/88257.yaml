@@ -1,6 +1,0 @@
-pr: 88257
-summary: INFO logging of snapshot restore and completion
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 86610

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -52,12 +53,19 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
 
     void onFatalUncaught(final String threadName, final Throwable t) {
         final String message = "fatal error in thread [" + threadName + "], exiting";
-        logger.error(message, t);
+        logErrorMessage(t, message);
     }
 
     void onNonFatalUncaught(final String threadName, final Throwable t) {
         final String message = "uncaught exception in thread [" + threadName + "]";
-        logger.error(message, t);
+        logErrorMessage(t, message);
+    }
+
+    private static void logErrorMessage(Throwable t, String message) {
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            logger.error(message, t);
+            return null;
+        });
     }
 
     void halt(int status) {

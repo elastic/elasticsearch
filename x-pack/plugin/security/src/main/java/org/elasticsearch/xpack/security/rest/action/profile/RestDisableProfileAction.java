@@ -11,6 +11,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
@@ -22,6 +24,7 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestDisableProfileAction extends SecurityBaseRestHandler {
 
     public RestDisableProfileAction(Settings settings, XPackLicenseState licenseState) {
@@ -30,10 +33,7 @@ public class RestDisableProfileAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/profile/{uid}/_disable").build(),
-            Route.builder(PUT, "/_security/profile/{uid}/_disable").build()
-        );
+        return List.of(new Route(POST, "/_security/profile/{uid}/_disable"), new Route(PUT, "/_security/profile/{uid}/_disable"));
     }
 
     @Override

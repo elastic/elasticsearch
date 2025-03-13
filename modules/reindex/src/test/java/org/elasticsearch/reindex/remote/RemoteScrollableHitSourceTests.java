@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reindex.remote;
@@ -28,10 +29,10 @@ import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -61,6 +62,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -103,7 +105,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             }
 
             @Override
-            public ScheduledCancellable schedule(Runnable command, TimeValue delay, String name) {
+            public ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor name) {
                 command.run();
                 return null;
             }
@@ -436,7 +438,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                 HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
                 FutureCallback callback = (FutureCallback) invocationOnMock.getArguments()[3];
-                assertEquals(new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
+                assertEquals(ByteSizeValue.of(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
                 callback.failed(tooLong);
                 return null;
             }
@@ -614,8 +616,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     private <T> RejectAwareActionListener<T> wrapAsListener(Consumer<T> consumer) {
-        Consumer<Exception> throwing = e -> { throw new AssertionError(e); };
-        return RejectAwareActionListener.wrap(consumer::accept, throwing, throwing);
+        return RejectAwareActionListener.wrap(consumer::accept, ESTestCase::fail, ESTestCase::fail);
     }
 
     @SuppressWarnings("unchecked")

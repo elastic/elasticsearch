@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.lookup;
 
@@ -26,15 +27,57 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SCRIPT;
+import static org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation.SEARCH;
+
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup;
     private final LeafReaderContext reader;
 
+    /*
+      Field factories require a privileged action to advance to docids (files could be loaded). This wrapper
+      is a place for that privileged action to be cached so that it does not need to be recreated for every document.
+     */
+    class FieldFactoryWrapper {
+        final DocValuesScriptFieldFactory factory;
+        private final PrivilegedAction<Void> advancer;
+
+        FieldFactoryWrapper(DocValuesScriptFieldFactory factory) {
+            this.factory = factory;
+            this.advancer = () -> {
+                try {
+                    factory.setNextDocId(docId);
+                } catch (IOException ioe) {
+                    throw ExceptionsHelper.convertToElastic(ioe);
+                }
+                return null;
+            };
+        }
+
+        // advances the factory to the current docid for the enclosing LeafDocLookup
+        void advanceToDoc() {
+            AccessController.doPrivileged(this.advancer);
+        }
+    }
+
     private int docId = -1;
 
-    private final Map<String, DocValuesScriptFieldFactory> localCacheScriptFieldData = Maps.newMapWithExpectedSize(4);
+    /*
+    We run parallel caches for the fields-access API ( field('f') ) and
+    the doc-access API.( doc['f'] ) for two reasons:
+    1. correctness - the field cache can store fields that retrieve values
+                     from both doc values and source whereas the doc cache
+                     can only store doc values. This leads to cases such as text
+                     field where sharing a cache could lead to incorrect results in a
+                     script that uses both types of access (likely common during upgrades)
+    2. performance - to keep the performance reasonable we move all caching updates to
+                     per-segment computation as opposed to per-document computation
+    Note that we share doc values between both caches when possible.
+    */
+    final Map<String, FieldFactoryWrapper> fieldFactoryCache = Maps.newMapWithExpectedSize(4);
+    final Map<String, FieldFactoryWrapper> docFactoryCache = Maps.newMapWithExpectedSize(4);
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
@@ -50,56 +93,107 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, MappedFieldType.FielddataOperation options) {
-        DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(fieldName);
+    // used to load data for a field-style api accessor
+    private FieldFactoryWrapper getFactoryForField(String fieldName) {
+        final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
 
-        // do not use cached source fallback fields for old style doc access
-        if (options == MappedFieldType.FielddataOperation.SEARCH
-            && factory instanceof SourceValueFetcherIndexFieldData.ValueFetcherDocValues) {
-            factory = null;
+        if (fieldType == null) {
+            throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
         }
 
-        if (factory == null) {
-            final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
+        // Load the field data on behalf of the script. Otherwise, it would require
+        // additional permissions to deal with pagedbytes/ramusagestimator/etc.
+        return AccessController.doPrivileged((PrivilegedAction<FieldFactoryWrapper>) () -> {
+            IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
 
-            if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
+            FieldFactoryWrapper docFactory = null;
+
+            if (docFactoryCache.isEmpty() == false) {
+                docFactory = docFactoryCache.get(fieldName);
             }
 
-            // Load the field data on behalf of the script. Otherwise, it would require
-            // additional permissions to deal with pagedbytes/ramusagestimator/etc.
-            factory = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
-                @Override
-                public DocValuesScriptFieldFactory run() {
-                    return fieldDataLookup.apply(fieldType, options).load(reader).getScriptFieldFactory(fieldName);
-                }
-            });
+            // if this field has already been accessed via the doc-access API and the field-access API
+            // uses doc values then we share to avoid double-loading
+            FieldFactoryWrapper fieldFactory;
+            if (docFactory != null && indexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+                fieldFactory = docFactory;
+            } else {
+                fieldFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+            }
 
-            localCacheScriptFieldData.put(fieldName, factory);
-        }
+            fieldFactoryCache.put(fieldName, fieldFactory);
 
-        try {
-            factory.setNextDocId(docId);
-        } catch (IOException ioe) {
-            throw ExceptionsHelper.convertToElastic(ioe);
-        }
-
-        return factory;
+            return fieldFactory;
+        });
     }
 
     public Field<?> getScriptField(String fieldName) {
-        return getScriptFieldFactory(fieldName, MappedFieldType.FielddataOperation.SCRIPT).toScriptField();
+        FieldFactoryWrapper factoryWrapper = fieldFactoryCache.get(fieldName);
+
+        if (factoryWrapper == null) {
+            factoryWrapper = getFactoryForField(fieldName);
+        }
+        factoryWrapper.advanceToDoc();
+
+        return factoryWrapper.factory.toScriptField();
+    }
+
+    // used to load data for a doc-style api accessor
+    private FieldFactoryWrapper getFactoryForDoc(String fieldName) {
+        final MappedFieldType fieldType = fieldTypeLookup.apply(fieldName);
+
+        if (fieldType == null) {
+            throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping");
+        }
+
+        // Load the field data on behalf of the script. Otherwise, it would require
+        // additional permissions to deal with pagedbytes/ramusagestimator/etc.
+        return AccessController.doPrivileged((PrivilegedAction<FieldFactoryWrapper>) () -> {
+            FieldFactoryWrapper docFactory = null;
+            FieldFactoryWrapper fieldFactory = null;
+
+            if (fieldFactoryCache.isEmpty() == false) {
+                fieldFactory = fieldFactoryCache.get(fieldName);
+            }
+
+            if (fieldFactory != null) {
+                IndexFieldData<?> fieldIndexFieldData = fieldDataLookup.apply(fieldType, SCRIPT);
+
+                // if this field has already been accessed via the field-access API and the field-access API
+                // uses doc values then we share to avoid double-loading
+                if (fieldIndexFieldData instanceof SourceValueFetcherIndexFieldData == false) {
+                    docFactory = fieldFactory;
+                }
+            }
+
+            if (docFactory == null) {
+                IndexFieldData<?> indexFieldData = fieldDataLookup.apply(fieldType, SEARCH);
+                docFactory = new FieldFactoryWrapper(indexFieldData.load(reader).getScriptFieldFactory(fieldName));
+            }
+
+            docFactoryCache.put(fieldName, docFactory);
+
+            return docFactory;
+        });
     }
 
     @Override
     public ScriptDocValues<?> get(Object key) {
-        return getScriptFieldFactory(key.toString(), MappedFieldType.FielddataOperation.SEARCH).toScriptDocValues();
+        String fieldName = key.toString();
+        FieldFactoryWrapper factoryWrapper = docFactoryCache.get(fieldName);
+
+        if (factoryWrapper == null) {
+            factoryWrapper = getFactoryForDoc(key.toString());
+        }
+        factoryWrapper.advanceToDoc();
+
+        return factoryWrapper.factory.toScriptDocValues();
     }
 
     @Override
     public boolean containsKey(Object key) {
         String fieldName = key.toString();
-        return localCacheScriptFieldData.get(fieldName) != null || fieldTypeLookup.apply(fieldName) != null;
+        return docFactoryCache.containsKey(key) || fieldFactoryCache.containsKey(key) || fieldTypeLookup.apply(fieldName) != null;
     }
 
     @Override

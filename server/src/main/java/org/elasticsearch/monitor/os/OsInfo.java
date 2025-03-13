@@ -1,15 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -17,10 +21,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 
 public class OsInfo implements ReportingService.Info {
+    private static final TransportVersion DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT = TransportVersions.V_8_5_0;
 
     private final long refreshInterval;
     private final int availableProcessors;
-    private final int allocatedProcessors;
+    private final Processors allocatedProcessors;
     private final String name;
     private final String prettyName;
     private final String arch;
@@ -29,7 +34,7 @@ public class OsInfo implements ReportingService.Info {
     public OsInfo(
         final long refreshInterval,
         final int availableProcessors,
-        final int allocatedProcessors,
+        final Processors allocatedProcessors,
         final String name,
         final String prettyName,
         final String arch,
@@ -47,7 +52,11 @@ public class OsInfo implements ReportingService.Info {
     public OsInfo(StreamInput in) throws IOException {
         this.refreshInterval = in.readLong();
         this.availableProcessors = in.readInt();
-        this.allocatedProcessors = in.readInt();
+        if (in.getTransportVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
+            this.allocatedProcessors = Processors.readFrom(in);
+        } else {
+            this.allocatedProcessors = Processors.of((double) in.readInt());
+        }
         this.name = in.readOptionalString();
         this.prettyName = in.readOptionalString();
         this.arch = in.readOptionalString();
@@ -58,7 +67,11 @@ public class OsInfo implements ReportingService.Info {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeInt(availableProcessors);
-        out.writeInt(allocatedProcessors);
+        if (out.getTransportVersion().onOrAfter(DOUBLE_PRECISION_ALLOCATED_PROCESSORS_SUPPORT)) {
+            allocatedProcessors.writeTo(out);
+        } else {
+            out.writeInt(getAllocatedProcessors());
+        }
         out.writeOptionalString(name);
         out.writeOptionalString(prettyName);
         out.writeOptionalString(arch);
@@ -74,7 +87,11 @@ public class OsInfo implements ReportingService.Info {
     }
 
     public int getAllocatedProcessors() {
-        return this.allocatedProcessors;
+        return allocatedProcessors.roundUp();
+    }
+
+    public double getFractionalAllocatedProcessors() {
+        return allocatedProcessors.count();
     }
 
     public String getName() {
@@ -122,7 +139,7 @@ public class OsInfo implements ReportingService.Info {
             builder.field(Fields.VERSION, version);
         }
         builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
-        builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
+        builder.field(Fields.ALLOCATED_PROCESSORS, getAllocatedProcessors());
         builder.endObject();
         return builder;
     }

@@ -97,7 +97,7 @@ public class SecurityFeatureResetTests extends SecurityIntegTestCase {
     }
 
     public void testFeatureResetNoManageRole() {
-        final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
+        final ResetFeatureStateRequest req = new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT);
 
         client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("usr", SUPER_USER_PASSWD)))
             .admin()
@@ -112,7 +112,9 @@ public class SecurityFeatureResetTests extends SecurityIntegTestCase {
                 public void onFailure(Exception e) {
                     assertThat(
                         e.getMessage(),
-                        containsString("action [cluster:admin/features/reset] is unauthorized for user [usr] with roles [role2]")
+                        containsString(
+                            "action [cluster:admin/features/reset] is unauthorized for user [usr]" + " with effective roles [role2]"
+                        )
                     );
                 }
             });
@@ -122,7 +124,7 @@ public class SecurityFeatureResetTests extends SecurityIntegTestCase {
     }
 
     private void assertResetSuccessful(String user, SecureString password) {
-        final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
+        final ResetFeatureStateRequest req = new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT);
 
         client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(user, password)))
             .admin()

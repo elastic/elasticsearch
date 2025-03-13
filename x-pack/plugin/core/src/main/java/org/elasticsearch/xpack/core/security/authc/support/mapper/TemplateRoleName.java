@@ -116,32 +116,35 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
     }
 
     private static List<String> convertJsonToList(String evaluation) throws IOException {
-        final XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(XContentParserConfiguration.EMPTY, evaluation);
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.VALUE_STRING) {
-            return Collections.singletonList(parser.text());
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            return parser.list().stream().filter(Objects::nonNull).map(o -> {
-                if (o instanceof String) {
-                    return (String) o;
-                } else {
-                    throw new XContentParseException(
-                        "Roles array may only contain strings but found [" + o.getClass().getName() + "] [" + o + "]"
-                    );
-                }
-            }).collect(Collectors.toList());
-        } else {
-            throw new XContentParseException("Roles template must generate a string or an array of strings, but found [" + token + "]");
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, evaluation)
+        ) {
+            XContentParser.Token token = parser.currentToken();
+            if (token == null) {
+                token = parser.nextToken();
+            }
+            if (token == XContentParser.Token.VALUE_STRING) {
+                return Collections.singletonList(parser.text());
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                return parser.list().stream().filter(Objects::nonNull).map(o -> {
+                    if (o instanceof String) {
+                        return (String) o;
+                    } else {
+                        throw new XContentParseException(
+                            "Roles array may only contain strings but found [" + o.getClass().getName() + "] [" + o + "]"
+                        );
+                    }
+                }).collect(Collectors.toList());
+            } else {
+                throw new XContentParseException("Roles template must generate a string or an array of strings, but found [" + token + "]");
+            }
         }
     }
 
     private String parseTemplate(ScriptService scriptService, Map<String, Object> parameters) throws IOException {
-        final XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, template, XContentType.JSON);
-        return MustacheTemplateEvaluator.evaluate(scriptService, parser, parameters);
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, template, XContentType.JSON)) {
+            return MustacheTemplateEvaluator.evaluate(scriptService, parser, parameters);
+        }
     }
 
     private static BytesReference extractTemplate(XContentParser parser, Void ignore) throws IOException {
@@ -169,11 +172,6 @@ public class TemplateRoleName implements ToXContentObject, Writeable {
             .field(Fields.TEMPLATE.getPreferredName(), template.utf8ToString())
             .field(Fields.FORMAT.getPreferredName(), format.formatName())
             .endObject();
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     @Override

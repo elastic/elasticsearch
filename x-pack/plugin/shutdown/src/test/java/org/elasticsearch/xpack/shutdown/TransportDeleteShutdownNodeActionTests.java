@@ -10,22 +10,23 @@ package org.elasticsearch.xpack.shutdown;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.shutdown.TransportDeleteShutdownNodeAction.DeleteShutdownNodeExecutor;
 import org.elasticsearch.xpack.shutdown.TransportDeleteShutdownNodeAction.DeleteShutdownNodeTask;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import java.util.List;
@@ -46,22 +47,22 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
     @Mock
     private TaskContext<DeleteShutdownNodeTask> taskContext;
 
+    @Mock
+    private MasterServiceTaskQueue<DeleteShutdownNodeTask> taskQueue;
+
     @Before
     public void init() {
         MockitoAnnotations.openMocks(this);
         // TODO: it takes almost 2 seconds to create these mocks....WHY?!?
         var threadPool = mock(ThreadPool.class);
-        var transportService = mock(TransportService.class);
+        var transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         clusterService = mock(ClusterService.class);
+        var rerouteService = mock(RerouteService.class);
         var actionFilters = mock(ActionFilters.class);
-        var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        action = new TransportDeleteShutdownNodeAction(
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
+        when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<DeleteShutdownNodeTask>>any())).thenReturn(
+            taskQueue
         );
+        action = new TransportDeleteShutdownNodeAction(transportService, clusterService, rerouteService, threadPool, actionFilters);
     }
 
     public void testNoop() throws Exception {
@@ -70,12 +71,12 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         var metadata = Metadata.builder().putCustom(TYPE, nodesShutdownMetadata).build();
         var clusterStateWithShutdown = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
-        var request = new DeleteShutdownNodeAction.Request("node1");
+        var request = new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "node1");
         action.masterOperation(null, request, clusterStateWithShutdown, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(DeleteShutdownNodeTask.class);
-        var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
         var taskExecutor = ArgumentCaptor.forClass(DeleteShutdownNodeExecutor.class);
-        verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
+        verify(clusterService).createTaskQueue(any(), any(), taskExecutor.capture());
+        verify(taskQueue).submitTask(any(), updateTask.capture(), any());
         when(taskContext.getTask()).thenReturn(updateTask.getValue());
         ClusterState gotState = taskExecutor.getValue()
             .execute(new ClusterStateTaskExecutor.BatchExecutionContext<>(ClusterState.EMPTY_STATE, List.of(taskContext), () -> null));

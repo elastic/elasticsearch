@@ -71,7 +71,7 @@ public class Hop implements ToXContentFragment {
         if (vertices == null) {
             out.writeVInt(0);
         } else {
-            out.writeList(vertices);
+            out.writeCollection(vertices);
         }
     }
 

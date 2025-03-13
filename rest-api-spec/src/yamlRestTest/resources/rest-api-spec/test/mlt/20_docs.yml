@@ -2,25 +2,23 @@
 "Basic mlt query with docs":
   - do:
       indices.create:
-        index: test_1
-        body:
-          settings:
-            number_of_replicas: 0
+        index: mlt_test_index
+
   - do:
       index:
-          index:  test_1
+          index:  mlt_test_index
           id:     "1"
           body:   { foo: bar }
 
   - do:
       index:
-          index:  test_1
+          index:  mlt_test_index
           id:     "2"
           body:   { foo: baz }
 
   - do:
       index:
-          index:  test_1
+          index:  mlt_test_index
           id:     "3"
           body:   { foo: foo }
 
@@ -28,23 +26,40 @@
       indices.refresh: {}
 
   - do:
-      cluster.health:
-           wait_for_status: green
+      get:
+        index: mlt_test_index
+        id: "1"
+
+  - match: { _source.foo: "bar" }
+
+  - do:
+      get:
+        index: mlt_test_index
+        id: "2"
+
+  - match: { _source.foo: "baz" }
+
+  - do:
+      get:
+        index: mlt_test_index
+        id: "3"
+
+  - match: { _source.foo: "foo" }
 
   - do:
       search:
           rest_total_hits_as_int: true
-          index:   test_1
+          index:   mlt_test_index
           body:
             query:
               more_like_this:
                 like:
                   -
-                    _index: test_1
+                    _index: mlt_test_index
                     doc:
                       foo: bar
                   -
-                    _index: test_1
+                    _index: mlt_test_index
                     _id: "2"
                   -
                     _id: "3"

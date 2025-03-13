@@ -33,12 +33,14 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.Closeable;
@@ -72,12 +74,7 @@ import static org.elasticsearch.core.Strings.format;
  * match_all scroll searches in order to reindex the data.
  */
 public final class SourceOnlySnapshotRepository extends FilterRepository {
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>(
-        "delegate_type",
-        "",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    private static final Setting<String> DELEGATE_TYPE = Setting.simpleString("delegate_type", Setting.Property.NodeScope);
     public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting(
         "index.source_only",
         false,
@@ -106,7 +103,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 metadataToSnapshot(finalizeSnapshotContext.updatedShardGenerations().indices(), finalizeSnapshotContext.clusterMetadata()),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                finalizeSnapshotContext
+                finalizeSnapshotContext,
+                finalizeSnapshotContext::onDone
             )
         );
     }
@@ -114,7 +112,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
         Metadata.Builder builder = Metadata.builder(metadata);
         for (IndexId indexId : indices) {
-            IndexMetadata index = metadata.index(indexId.getName());
+            IndexMetadata index = metadata.getProject().index(indexId.getName());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index);
             // for a minimal restore we basically disable indexing on all fields and only create an index
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
@@ -137,8 +135,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     @Override
     public void snapshotShard(SnapshotShardContext context) {
         final MapperService mapperService = context.mapperService();
-        if (mapperService.documentMapper() != null // if there is no mapping this is null
-            && mapperService.documentMapper().sourceMapper().isComplete() == false) {
+        if ((mapperService.documentMapper() != null // if there is no mapping this is null
+            && mapperService.documentMapper().sourceMapper().isComplete() == false)
+            || (mapperService.documentMapper() == null && SourceFieldMapper.isStored(mapperService.getIndexSettings()) == false)) {
             context.onFailure(
                 new IllegalStateException(
                     "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
@@ -171,8 +170,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 protected void closeInternal() {
                     // do nothing;
                 }
-            }, Store.OnClose.EMPTY);
-            Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
+            }, Store.OnClose.EMPTY, mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort());
+            Supplier<Query> querySupplier = mapperService.hasNested()
+                ? () -> Queries.newNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated())
+                : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot;
             snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
@@ -191,8 +192,11 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            store.incRef();
-            toClose.add(store::decRef);
+            try (var ignored = context.withCommitRef()) {
+                // obtain commit ref first, ensuring the store is still open here, or else reporting aborted snapshots properly
+                store.incRef();
+                toClose.add(store::decRef);
+            }
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
@@ -202,15 +206,15 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                     mapperService,
                     context.snapshotId(),
                     context.indexId(),
-                    new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose))),
                     context.stateIdentifier(),
                     context.status(),
                     context.getRepositoryMetaVersion(),
-                    context.userMetadata(),
+                    context.snapshotStartTime(),
                     context
                 )
             );
-        } catch (IOException e) {
+        } catch (Exception e) {
             try {
                 IOUtils.close(toClose);
             } catch (IOException ex) {

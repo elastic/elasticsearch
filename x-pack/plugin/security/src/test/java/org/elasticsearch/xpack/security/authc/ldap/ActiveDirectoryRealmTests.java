@@ -318,7 +318,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
 
         // Refresh the role mappings
-        roleMapper.notifyRefresh();
+        roleMapper.clearRealmCachesOnLocalNode();
 
         for (int i = 0; i < count; i++) {
             PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
@@ -423,15 +423,19 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool);
 
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
-        when(mockSecurityIndex.isAvailable()).thenReturn(true);
-        when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(mockSecurityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.isIndexUpToDate()).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
 
         Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);
 
         final ScriptService scriptService = new ScriptService(
             settings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -586,6 +590,60 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         );
     }
 
+    public void testReloadBindPassword() throws Exception {
+        final RealmConfig.RealmIdentifier realmIdentifier = realmId("testReloadBindPassword");
+        final boolean useLegacyBindPassword = randomBoolean();
+        final boolean pooled = randomBoolean();
+        final Settings.Builder builder = Settings.builder()
+            .put(getFullSettingKey(realmIdentifier, PoolingSessionFactorySettings.BIND_DN), "CN=ironman@ad.test.elasticsearch.com")
+            .put(getFullSettingKey(realmIdentifier.getName(), ActiveDirectorySessionFactorySettings.POOL_ENABLED), pooled)
+            // explicitly disabling cache to always authenticate against AD server
+            .put(getFullSettingKey(realmIdentifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1)
+            // due to limitations of AD server we cannot change BIND password dynamically,
+            // so we start with the wrong (random) password and then reload and check if authentication succeeds
+            .put(bindPasswordSettings(realmIdentifier, useLegacyBindPassword, randomAlphaOfLengthBetween(3, 7)));
+
+        Settings settings = settings(realmIdentifier, builder.build());
+        RealmConfig config = setupRealm(realmIdentifier, settings);
+        try (ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, sslService, threadPool)) {
+            DnRoleMapper roleMapper = new DnRoleMapper(config, resourceWatcherService);
+            LdapRealm realm = new LdapRealm(config, sessionFactory, roleMapper, threadPool);
+            realm.initialize(Collections.singleton(realm), licenseState);
+
+            {
+                final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+                realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD.toCharArray())), future);
+                final AuthenticationResult<User> result = future.actionGet();
+                assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.CONTINUE));
+            }
+
+            realm.reload(bindPasswordSettings(realmIdentifier, useLegacyBindPassword, PASSWORD));
+
+            {
+                final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+                realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD.toCharArray())), future);
+                final AuthenticationResult<User> result = future.actionGet();
+                assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+            }
+
+            // Verify that reloading fails if password gets removed when bind dn is configured.
+            var e = expectThrows(Exception.class, () -> realm.reload(Settings.EMPTY));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "["
+                        + getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN)
+                        + "] is set but no bind password is specified. Without a corresponding bind password, "
+                        + "all "
+                        + realm.type()
+                        + " realm authentication will fail. Specify a bind password via ["
+                        + getFullSettingKey(config, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD)
+                        + "]."
+                )
+            );
+        }
+    }
+
     private void assertSingleLdapServer(ActiveDirectorySessionFactory sessionFactory, String hostname, int port) {
         assertThat(sessionFactory.getServerSet(), instanceOf(FailoverServerSet.class));
         FailoverServerSet fss = (FailoverServerSet) sessionFactory.getServerSet();
@@ -625,4 +683,17 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         assertThat(user, is(notNullValue()));
         return user;
     }
+
+    private Settings bindPasswordSettings(RealmConfig.RealmIdentifier realmIdentifier, boolean useLegacyBindPassword, String password) {
+        if (useLegacyBindPassword) {
+            return Settings.builder()
+                .put(getFullSettingKey(realmIdentifier, PoolingSessionFactorySettings.LEGACY_BIND_PASSWORD), password)
+                .build();
+        } else {
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString(getFullSettingKey(realmIdentifier, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD), password);
+            return Settings.builder().setSecureSettings(secureSettings).build();
+        }
+    }
+
 }

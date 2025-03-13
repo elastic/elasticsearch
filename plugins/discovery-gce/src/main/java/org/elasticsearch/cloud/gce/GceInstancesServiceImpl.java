@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cloud.gce;
@@ -24,15 +25,14 @@ import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
@@ -41,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 public class GceInstancesServiceImpl implements GceInstancesService {
 
@@ -53,10 +52,9 @@ public class GceInstancesServiceImpl implements GceInstancesService {
         true,
         Property.NodeScope
     );
-    public static final Setting<String> GCE_ROOT_URL = new Setting<>(
+    public static final Setting<String> GCE_ROOT_URL = Setting.simpleString(
         "cloud.gce.root_url",
         "https://www.googleapis.com",
-        Function.identity(),
         Property.NodeScope
     );
 
@@ -84,7 +82,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
                     return zoneInstances;
                 });
             } catch (IOException e) {
-                logger.warn((Supplier<?>) () -> "Problem fetching instance list for zone " + zoneId, e);
+                logger.warn(() -> "Problem fetching instance list for zone " + zoneId, e);
                 logger.debug("Full exception:", e);
                 // assist type inference
                 return Collections.<Instance>emptyList();
@@ -114,6 +112,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
 
     private final boolean validateCerts;
 
+    @SuppressWarnings("this-escape")
     public GceInstancesServiceImpl(Settings settings) {
         this.settings = settings;
         this.validateCerts = GCE_VALIDATE_CERTIFICATES.get(settings);

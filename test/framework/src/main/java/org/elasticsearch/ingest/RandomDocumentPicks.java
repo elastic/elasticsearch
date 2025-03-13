@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -68,6 +69,10 @@ public final class RandomDocumentPicks {
         while (randomEntry.getValue() instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) randomEntry.getValue();
+            // we have reached an empty map hence the max depth we can reach
+            if (map.isEmpty()) {
+                break;
+            }
             Map<String, Object> treeMap = new TreeMap<>(map);
             randomEntry = RandomPicks.randomFrom(random, treeMap.entrySet());
             key += "." + randomEntry.getKey();

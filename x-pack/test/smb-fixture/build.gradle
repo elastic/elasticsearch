@@ -1,1 +1,15 @@
-apply plugin: 'elasticsearch.test.fixtures'
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
+
+dependencies {
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+
+  api project(':test:fixtures:testcontainer-utils')
+  api "junit:junit:${versions.junit}"
+  api "org.testcontainers:testcontainers:${versions.testcontainer}"
+  api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+
+  // ensure we have proper logging during when used in tests
+  runtimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
+  runtimeOnly "org.hamcrest:hamcrest:${versions.hamcrest}"
+}

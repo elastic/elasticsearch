@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.example;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -64,7 +68,6 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             engine.authorizeRunAs(info, authzInfo, resultFuture);
             AuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
-            assertThat(result.isAuditable(), is(true));
         }
 
         // authorized
@@ -80,7 +83,6 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             engine.authorizeRunAs(info, authzInfo, resultFuture);
             AuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(true));
-            assertThat(result.isAuditable(), is(true));
         }
     }
 
@@ -97,7 +99,6 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             engine.authorizeClusterAction(requestInfo, authzInfo, resultFuture);
             AuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(true));
-            assertThat(result.isAuditable(), is(true));
         }
 
         // unauthorized
@@ -114,18 +115,18 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             engine.authorizeClusterAction(unauthReqInfo, authzInfo, resultFuture);
             AuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
-            assertThat(result.isAuditable(), is(true));
         }
     }
 
     public void testAuthorizeIndexAction() {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
-        Map<String, IndexAbstraction> indicesMap = new HashMap<>();
-        indicesMap.put("index", new ConcreteIndex(IndexMetadata.builder("index")
-            .settings(Settings.builder().put("index.version.created", Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build(), null));
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(IndexMetadata.builder("index")
+                .settings(Settings.builder().put("index.version.created", IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build(),
+                    false
+                ).build();
         // authorized
         {
             RequestInfo requestInfo =
@@ -139,13 +140,11 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                indicesMap, resultFuture);
+                project, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(true));
-            assertThat(result.isAuditable(), is(true));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
             assertNotNull(indicesAccessControl.getIndexPermissions("index"));
-            assertThat(indicesAccessControl.getIndexPermissions("index").isGranted(), is(true));
         }
 
         // unauthorized
@@ -161,10 +160,9 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
                 listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                indicesMap, resultFuture);
+                project, resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
-            assertThat(result.isAuditable(), is(true));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
             assertNull(indicesAccessControl.getIndexPermissions("index"));
         }

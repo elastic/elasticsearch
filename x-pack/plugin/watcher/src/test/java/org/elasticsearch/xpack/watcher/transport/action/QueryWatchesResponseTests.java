@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.watcher.transport.action;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class QueryWatchesResponseTests extends AbstractSerializingTestCase<QueryWatchesAction.Response> {
+public class QueryWatchesResponseTests extends AbstractXContentSerializingTestCase<QueryWatchesAction.Response> {
 
     private static final ConstructingObjectParser<QueryWatchesAction.Response.Item, Void> TEST_ITEM_PARSER = new ConstructingObjectParser<>(
         "query_watches_response_item",
@@ -104,6 +104,11 @@ public class QueryWatchesResponseTests extends AbstractSerializingTestCase<Query
             }
         }
         return new QueryWatchesAction.Response(numWatches + randomIntBetween(0, 100), items);
+    }
+
+    @Override
+    protected QueryWatchesAction.Response mutateInstance(QueryWatchesAction.Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     private Watch createWatch(String watchId) {

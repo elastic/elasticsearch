@@ -12,8 +12,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,7 +31,8 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<
     ClearPrivilegesCacheRequest,
     ClearPrivilegesCacheResponse,
     ClearPrivilegesCacheRequest.Node,
-    ClearPrivilegesCacheResponse.Node> {
+    ClearPrivilegesCacheResponse.Node,
+    Void> {
 
     private final CompositeRolesStore rolesStore;
     private final CacheInvalidatorRegistry cacheInvalidatorRegistry;
@@ -46,14 +48,11 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<
     ) {
         super(
             ClearPrivilegesCacheAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ClearPrivilegesCacheRequest::new,
             ClearPrivilegesCacheRequest.Node::new,
-            ThreadPool.Names.MANAGEMENT,
-            ClearPrivilegesCacheResponse.Node.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.rolesStore = rolesStore;
         this.cacheInvalidatorRegistry = cacheInvalidatorRegistry;
@@ -79,6 +78,7 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<
     }
 
     @Override
+    @FixForMultiProject(description = "Invalidation should be by project (for both the roles and privileges caches)")
     protected ClearPrivilegesCacheResponse.Node nodeOperation(ClearPrivilegesCacheRequest.Node request, Task task) {
         if (request.getApplicationNames() == null || request.getApplicationNames().length == 0) {
             cacheInvalidatorRegistry.invalidateCache("application_privileges");

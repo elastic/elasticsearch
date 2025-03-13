@@ -40,7 +40,11 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
     private static final byte WILDCARD_CHAR = '?';
 
     VersionFieldWildcardQuery(Term term, boolean caseInsensitive) {
-        super(term, toAutomaton(term, caseInsensitive), Integer.MAX_VALUE, true);
+        super(term, toAutomaton(term, caseInsensitive), true);
+    }
+
+    VersionFieldWildcardQuery(Term term, boolean caseInsensitive, RewriteMethod rewriteMethod) {
+        super(term, toAutomaton(term, caseInsensitive), true, rewriteMethod);
     }
 
     private static Automaton toAutomaton(Term wildcardquery, boolean caseInsensitive) {
@@ -101,7 +105,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     if (caseInsensitive == false) {
                         automata.add(Automata.makeChar(c));
                     } else {
-                        automata.add(AutomatonQueries.toCaseInsensitiveChar(c, Integer.MAX_VALUE));
+                        automata.add(AutomatonQueries.toCaseInsensitiveChar(c));
                     }
             }
             i += length;
@@ -110,7 +114,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
         if (containsPreReleaseSeparator == false) {
             automata.add(Operations.optional(Automata.makeChar(VersionEncoder.NO_PRERELEASE_SEPARATOR_BYTE)));
         }
-        return Operations.concatenate(automata);
+        return Operations.determinize(Operations.concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

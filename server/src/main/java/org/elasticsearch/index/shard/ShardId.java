@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -108,14 +109,17 @@ public class ShardId implements Comparable<ShardId>, ToXContentFragment, Writeab
 
     @Override
     public int compareTo(ShardId o) {
-        if (o.getId() == shardId) {
-            int compare = index.getName().compareTo(o.getIndex().getName());
-            if (compare != 0) {
-                return compare;
-            }
-            return index.getUUID().compareTo(o.getIndex().getUUID());
+        final int res = Integer.compare(shardId, o.shardId);
+        if (res != 0) {
+            return res;
         }
-        return Integer.compare(shardId, o.getId());
+        final Index index = this.index;
+        final Index otherIndex = o.index;
+        int compare = index.getName().compareTo(otherIndex.getName());
+        if (compare != 0) {
+            return compare;
+        }
+        return index.getUUID().compareTo(otherIndex.getUUID());
     }
 
     @Override

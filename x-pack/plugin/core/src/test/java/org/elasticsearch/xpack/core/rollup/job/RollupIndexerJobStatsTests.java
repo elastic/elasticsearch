@@ -7,14 +7,19 @@
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
-public class RollupIndexerJobStatsTests extends AbstractSerializingTestCase<RollupIndexerJobStats> {
+public class RollupIndexerJobStatsTests extends AbstractXContentSerializingTestCase<RollupIndexerJobStats> {
 
     @Override
     protected RollupIndexerJobStats createTestInstance() {
         return randomStats();
+    }
+
+    @Override
+    protected RollupIndexerJobStats mutateInstance(RollupIndexerJobStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -44,8 +49,4 @@ public class RollupIndexerJobStatsTests extends AbstractSerializingTestCase<Roll
         );
     }
 
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
-    }
 }

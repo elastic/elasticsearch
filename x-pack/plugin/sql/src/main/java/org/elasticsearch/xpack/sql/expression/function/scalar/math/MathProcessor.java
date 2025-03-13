@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -38,14 +38,14 @@ public class MathProcessor implements Processor {
             long lo = ((Number) l).longValue();
 
             if (lo == Long.MIN_VALUE) {
-                throw new QlIllegalArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
+                throw new InvalidArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
             }
 
             lo = lo < 0 ? -lo : lo;
 
             if (l instanceof Integer) {
                 if ((int) lo == Integer.MIN_VALUE) {
-                    throw new QlIllegalArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
+                    throw new InvalidArgumentException("[" + lo + "] cannot be negated since the result is outside the range");
                 }
                 return DataTypeConverter.safeToInt(lo);
             }

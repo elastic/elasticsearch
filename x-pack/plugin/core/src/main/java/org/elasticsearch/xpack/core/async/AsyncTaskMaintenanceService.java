@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.core.async;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -30,6 +33,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATION_TIME_FIELD;
 
@@ -56,23 +62,28 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     private static final Logger logger = LogManager.getLogger(AsyncTaskMaintenanceService.class);
 
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final String index;
     private final String localNodeId;
     private final ThreadPool threadPool;
     private final Client clientWithOrigin;
     private final TimeValue delay;
 
+    private final AtomicBoolean isPaused = new AtomicBoolean(false); // allow tests to simulate restarts
     private boolean isCleanupRunning;
+    private Collection<ProjectId> projectsToCleanup;
     private volatile Scheduler.Cancellable cancellable;
 
     public AsyncTaskMaintenanceService(
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         String localNodeId,
         Settings nodeSettings,
         ThreadPool threadPool,
         Client clientWithOrigin
     ) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.index = XPackPlugin.ASYNC_RESULTS_INDEX;
         this.localNodeId = localNodeId;
         this.threadPool = threadPool;
@@ -89,6 +100,29 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     protected void doStop() {
         clusterService.removeListener(this);
         stopCleanup();
+    }
+
+    // exposed for tests
+    public void pause() {
+        if (isPaused.compareAndSet(false, true)) {
+            synchronized (lifecycle) {
+                assert lifecycle.started();
+                doStop();
+            }
+        }
+    }
+
+    // exposed for tests
+    public boolean unpause() {
+        if (isPaused.compareAndSet(true, false)) {
+            synchronized (lifecycle) {
+                assert lifecycle.started();
+                doStart();
+            }
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Override
@@ -108,36 +142,58 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
         if (lifecycle.stoppedOrClosed()) {
             return;
         }
-        IndexRoutingTable indexRouting = state.routingTable().index(index);
-        if (indexRouting == null) {
-            stopCleanup();
-            return;
-        }
-        String primaryNodeId = indexRouting.shard(0).primaryShard().currentNodeId();
-        if (localNodeId.equals(primaryNodeId)) {
+
+        final List<ProjectId> projectsOnLocalNode = state.metadata().projects().keySet().stream().filter(project -> {
+            final IndexRoutingTable indexRouting = state.routingTable(project).index(index);
+            if (indexRouting == null) {
+                return false;
+            }
+            final String primaryNodeId = indexRouting.shard(0).primaryShard().currentNodeId();
+            return localNodeId.equals(primaryNodeId);
+        }).toList();
+
+        if (projectsOnLocalNode.isEmpty()) {
+            this.projectsToCleanup = null;
+            if (isCleanupRunning) {
+                stopCleanup();
+            }
+        } else {
+            this.projectsToCleanup = List.copyOf(projectsOnLocalNode);
             if (isCleanupRunning == false) {
                 isCleanupRunning = true;
                 executeNextCleanup();
             }
-        } else {
-            stopCleanup();
         }
     }
 
     synchronized void executeNextCleanup() {
         if (isCleanupRunning) {
-            long nowInMillis = System.currentTimeMillis();
-            DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index).setQuery(
-                QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis)
+            ActionListener<Void> listener = new CountDownActionListener(
+                this.projectsToCleanup.size(),
+                ActionListener.running(this::scheduleNextCleanup)
             );
-            clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, ActionListener.wrap(this::scheduleNextCleanup));
+            for (ProjectId project : this.projectsToCleanup) {
+                cleanupIndex(project, listener);
+            }
         }
+    }
+
+    private void cleanupIndex(ProjectId projectId, ActionListener<Void> listener) {
+        final long nowInMillis = System.currentTimeMillis();
+        final DeleteByQueryRequest toDelete = new DeleteByQueryRequest(index).setQuery(
+            QueryBuilders.rangeQuery(EXPIRATION_TIME_FIELD).lte(nowInMillis)
+        );
+
+        projectResolver.executeOnProject(
+            projectId,
+            () -> clientWithOrigin.execute(DeleteByQueryAction.INSTANCE, toDelete, listener.map(ignore -> null))
+        );
     }
 
     synchronized void scheduleNextCleanup() {
         if (isCleanupRunning) {
             try {
-                cancellable = threadPool.schedule(this::executeNextCleanup, delay, ThreadPool.Names.GENERIC);
+                cancellable = threadPool.schedule(this::executeNextCleanup, delay, threadPool.generic());
             } catch (EsRejectedExecutionException e) {
                 if (e.isExecutorShutdown()) {
                     logger.debug("failed to schedule next maintenance task; shutting down", e);

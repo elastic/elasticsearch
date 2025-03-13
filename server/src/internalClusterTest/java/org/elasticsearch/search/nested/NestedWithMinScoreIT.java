@@ -1,16 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.nested;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -97,7 +96,7 @@ public class NestedWithMinScoreIT extends ESIntegTestCase {
         doc.endArray();
         doc.endObject();
 
-        client().prepareIndex("test").setId("d1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(doc).get();
+        prepareIndex("test").setId("d1").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).setSource(doc).get();
         final BoolQueryBuilder childQuery = new BoolQueryBuilder().filter(
             new MatchPhraseQueryBuilder("toolTracks.data", "cash dispenser, automated teller machine, automatic teller machine")
         ).filter(new RangeQueryBuilder("toolTracks.confidence").from(0.8));
@@ -113,8 +112,6 @@ public class NestedWithMinScoreIT extends ESIntegTestCase {
         if (randomBoolean()) {
             source.trackTotalHitsUpTo(randomBoolean() ? Integer.MAX_VALUE : randomIntBetween(1, 1000));
         }
-        SearchRequest searchRequest = new SearchRequest("test").source(source);
-        final SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        ElasticsearchAssertions.assertSearchHits(searchResponse, "d1");
+        ElasticsearchAssertions.assertSearchHits(prepareSearch("test").setSource(source), "d1");
     }
 }

@@ -16,14 +16,15 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.ml.inference.pytorch.PriorityProcessWorkerExecutorService;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.when;
 public class DeploymentManagerTests extends ESTestCase {
 
     private ThreadPool tp;
+    private InferenceAuditor inferenceAuditor;
 
     @Before
     public void managerSetup() {
@@ -58,6 +60,7 @@ public class DeploymentManagerTests extends ESTestCase {
                 "xpack.ml.native_inference_comms_thread_pool"
             )
         );
+        inferenceAuditor = mock(InferenceAuditor.class);
     }
 
     @After
@@ -71,40 +74,46 @@ public class DeploymentManagerTests extends ESTestCase {
         when(task.getId()).thenReturn(taskId);
         when(task.isStopped()).thenReturn(Boolean.FALSE);
         when(task.getModelId()).thenReturn("test-rejected");
+        when(task.getDeploymentId()).thenReturn("test-rejected-deployment");
 
         DeploymentManager deploymentManager = new DeploymentManager(
             mock(Client.class),
             mock(NamedXContentRegistry.class),
             tp,
-            mock(PyTorchProcessFactory.class)
+            mock(PyTorchProcessFactory.class),
+            10,
+            inferenceAuditor
         );
 
-        PriorityProcessWorkerExecutorService executorService = new PriorityProcessWorkerExecutorService(
+        PriorityProcessWorkerExecutorService priorityExecutorService = new PriorityProcessWorkerExecutorService(
             tp.getThreadContext(),
             "test reject",
             10
         );
-        executorService.shutdown();
+        priorityExecutorService.shutdown();
 
         AtomicInteger rejectedCount = new AtomicInteger();
 
         DeploymentManager.ProcessContext context = mock(DeploymentManager.ProcessContext.class);
         PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1", threadSettings -> {});
         when(context.getResultProcessor()).thenReturn(resultProcessor);
-        when(context.getExecutorService()).thenReturn(executorService);
+        when(context.getPriorityProcessWorker()).thenReturn(priorityExecutorService);
         when(context.getRejectedExecutionCount()).thenReturn(rejectedCount);
 
         deploymentManager.addProcessContext(taskId, context);
         deploymentManager.infer(
             task,
             mock(InferenceConfig.class),
-            Map.of(),
+            NlpInferenceInput.fromText("foo"),
             false,
             TimeValue.timeValueMinutes(1),
+            TrainedModelPrefixStrings.PrefixType.NONE,
             null,
+            randomBoolean(),
             ActionListener.wrap(result -> fail("unexpected success"), e -> assertThat(e, instanceOf(EsRejectedExecutionException.class)))
         );
 
         assertThat(rejectedCount.intValue(), equalTo(1));
     }
+
 }

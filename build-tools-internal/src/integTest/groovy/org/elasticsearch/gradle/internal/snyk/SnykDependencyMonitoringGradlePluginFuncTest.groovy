@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.snyk
@@ -35,18 +36,22 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
             version = "$version"
 
             repositories {
-                mavenCentral() 
+                mavenCentral()
             }
-            
+
             dependencies {
                 implementation 'org.apache.lucene:lucene-monitor:9.2.0'
+            }
+
+            tasks.named('generateSnykDependencyGraph').configure {
+                remoteUrl = "http://acme.org"
             }
         """
         when:
         def build = gradleRunner("generateSnykDependencyGraph").build()
         then:
         build.task(":generateSnykDependencyGraph").outcome == TaskOutcome.SUCCESS
-        JSONAssert.assertEquals(file("build/snyk/dependencies.json").text, """{
+        JSONAssert.assertEquals("""{
             "meta": {
                 "method": "custom gradle",
                 "id": "gradle",
@@ -101,7 +106,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
                         {
                             "nodeId": "org.apache.lucene:lucene-core@9.2.0",
                             "deps": [
-                                
+
                             ],
                             "pkgId": "org.apache.lucene:lucene-core@9.2.0"
                         },
@@ -155,8 +160,8 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
                 ]
             },
             "target": {
-                "remoteUrl": "http://github.com/elastic/elasticsearch.git",
-                "branch": "unknown"
+                "remoteUrl": "http://acme.org",
+                "branch": "$version"
             },
             "targetReference": "$version",
             "projectAttributes": {
@@ -164,7 +169,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
                   "$expectedLifecycle"
                 ]
             }
-        }""", true)
+        }""", file("build/snyk/dependencies.json").text, true)
 
         where:
         version        | expectedLifecycle

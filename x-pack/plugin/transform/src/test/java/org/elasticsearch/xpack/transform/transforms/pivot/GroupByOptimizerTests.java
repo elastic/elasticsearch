@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 
 import java.util.Collection;
@@ -77,8 +77,8 @@ public class GroupByOptimizerTests extends ESTestCase {
 
         groups.put("terms1", randomTermsGroupSourceNoScript("t1"));
         // create with scripts
-        groups.put("date1", randomDateHistogramGroupSource(Version.CURRENT, true, "d1"));
-        groups.put("terms2", randomTermsGroupSource(Version.CURRENT, true, "t2"));
+        groups.put("date1", randomDateHistogramGroupSource(TransformConfigVersion.CURRENT, true, "d1"));
+        groups.put("terms2", randomTermsGroupSource(TransformConfigVersion.CURRENT, true, "t2"));
         groups.put("date2", randomDateHistogramGroupSourceNoScript("d2"));
         groups.put("date3", randomDateHistogramGroupSourceNoScript("d3"));
 

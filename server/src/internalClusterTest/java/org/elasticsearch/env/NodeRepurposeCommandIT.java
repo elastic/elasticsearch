@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
@@ -32,10 +33,10 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         );
 
         logger.info("--> creating index");
-        prepareCreate(indexName, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).get();
+        prepareCreate(indexName, indexSettings(1, 0)).get();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
+        prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         ensureGreen();
 
@@ -81,7 +82,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().startCoordinatingOnlyNode(dataNodeDataPathSettings);
 
         assertTrue(indexExists(indexName));
-        expectThrows(NoShardAvailableActionException.class, () -> client().prepareGet(indexName, "1").get());
+        expectThrows(NoShardAvailableActionException.class, client().prepareGet(indexName, "1"));
 
         logger.info("--> Restarting and repurposing other node");
 

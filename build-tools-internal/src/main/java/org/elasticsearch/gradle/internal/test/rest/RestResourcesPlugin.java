@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
@@ -11,6 +12,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -37,7 +39,7 @@ import static org.gradle.api.tasks.SourceSet.TEST_SOURCE_SET_NAME;
  *   }
  * }
  * </pre>
- * Will copy the entire core Rest API specifications (assuming the project has tests) and any of the the X-pack specs starting with enrich*.
+ * Will copy the entire core Rest API specifications (assuming the project has tests) and any of the X-pack specs starting with enrich*.
  * It is recommended (but not required) to also explicitly declare which core specs your project depends on to help optimize the caching
  * behavior.
  * <i>For example:</i>
@@ -64,7 +66,7 @@ import static org.gradle.api.tasks.SourceSet.TEST_SOURCE_SET_NAME;
  *   }
  * }
  * </pre>
- * Will copy any of the the x-pack tests that start with graph, and will copy the X-pack graph specification, as well as the full core
+ * Will copy any of the x-pack tests that start with graph, and will copy the X-pack graph specification, as well as the full core
  * Rest API specification.
  * <p>
  * Additionally you can specify which sourceSetName resources should be copied to. The default is the yamlRestTest source set.
@@ -76,6 +78,9 @@ public class RestResourcesPlugin implements Plugin<Project> {
 
     public static final String COPY_YAML_TESTS_TASK = "copyYamlTestsTask";
     public static final String COPY_REST_API_SPECS_TASK = "copyRestApiSpecsTask";
+    public static final String YAML_TESTS_USAGE = "yaml-tests";
+    public static final String YAML_XPACK_TESTS_USAGE = "yaml-xpack-tests";
+    public static final String YAML_SPEC_USAGE = "yaml-spec";
     private static final String EXTENSION_NAME = "restResources";
 
     @Override
@@ -86,8 +91,14 @@ public class RestResourcesPlugin implements Plugin<Project> {
         SourceSet defaultSourceSet = sourceSets.maybeCreate(TEST_SOURCE_SET_NAME);
 
         // tests
-        Configuration testConfig = project.getConfigurations().create("restTestConfig");
-        Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig");
+        Configuration testConfig = project.getConfigurations().create("restTestConfig", config -> {
+            config.setCanBeConsumed(false);
+            config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_TESTS_USAGE));
+        });
+        Configuration xpackTestConfig = project.getConfigurations().create("restXpackTestConfig", config -> {
+            config.setCanBeConsumed(false);
+            config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_XPACK_TESTS_USAGE));
+        });
         // core
         // we guard this reference to :rest-api-spec with a find to make testing easier
         var restApiSpecProjectAvailable = project.findProject(":rest-api-spec") != null;
@@ -104,8 +115,17 @@ public class RestResourcesPlugin implements Plugin<Project> {
                 .project(Map.of("path", ":x-pack:plugin", "configuration", "restXpackTests"));
             project.getDependencies().add(xpackTestConfig.getName(), restXPackTestdependency);
         }
-        project.getConfigurations().create("restTests");
-        project.getConfigurations().create("restXpackTests");
+        project.getConfigurations()
+            .create(
+                "restTests",
+                config -> config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_TESTS_USAGE))
+            );
+        project.getConfigurations()
+            .create(
+                "restXpackTests",
+                config -> config.getAttributes()
+                    .attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_XPACK_TESTS_USAGE))
+            );
 
         Provider<CopyRestTestsTask> copyRestYamlTestTask = project.getTasks()
             .register(COPY_YAML_TESTS_TASK, CopyRestTestsTask.class, task -> {
@@ -121,13 +141,24 @@ public class RestResourcesPlugin implements Plugin<Project> {
             });
 
         // api
-        Configuration specConfig = project.getConfigurations().create("restSpec"); // name chosen for passivity
+        Configuration specConfig = project.getConfigurations()
+            .create(
+                "restSpec", // name chosen for passivity
+                config -> {
+                    config.setCanBeConsumed(false);
+                    config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_SPEC_USAGE));
+                }
+            );
         if (restApiSpecProjectAvailable) {
             Dependency restSpecDependency = project.getDependencies()
                 .project(Map.of("path", ":rest-api-spec", "configuration", "restSpecs"));
             project.getDependencies().add(specConfig.getName(), restSpecDependency);
         }
-        project.getConfigurations().create("restSpecs");
+        project.getConfigurations()
+            .create(
+                "restSpecs",
+                config -> config.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, YAML_SPEC_USAGE))
+            );
 
         Provider<CopyRestApiTask> copyRestYamlApiTask = project.getTasks()
             .register(COPY_REST_API_SPECS_TASK, CopyRestApiTask.class, task -> {

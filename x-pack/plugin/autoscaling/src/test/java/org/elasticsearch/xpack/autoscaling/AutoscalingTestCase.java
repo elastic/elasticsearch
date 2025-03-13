@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -35,6 +36,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
+
 public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static AutoscalingDeciderResult randomAutoscalingDeciderResult() {
@@ -49,7 +52,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
                 randomNullableByteSizeValue(),
                 randomNullableByteSizeValue(),
                 randomInt(1000),
-                (float) randomInt(64)
+                randomProcessors()
             )
         );
     }
@@ -57,7 +60,9 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     public static AutoscalingDeciderResults randomAutoscalingDeciderResults() {
         final SortedMap<String, AutoscalingDeciderResult> results = IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(i -> Tuple.tuple(Integer.toString(i), randomAutoscalingDeciderResult()))
-            .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new IllegalStateException(); }, TreeMap::new));
+            .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> {
+                throw new IllegalStateException();
+            }, TreeMap::new));
         AutoscalingCapacity capacity = new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources());
         return new AutoscalingDeciderResults(capacity, randomNodes(), results);
     }
@@ -77,7 +82,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     protected static AutoscalingCapacity.AutoscalingResources randomAutoscalingResources() {
-        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue(), (float) randomInt(128));
+        return new AutoscalingCapacity.AutoscalingResources(randomByteSizeValue(), randomByteSizeValue(), randomProcessors());
     }
 
     private static AutoscalingCapacity.AutoscalingResources randomNullValueAutoscalingResources() {
@@ -96,7 +101,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         return new AutoscalingCapacity.AutoscalingResources(
             addStorage ? randomByteSizeValue() : null,
             addMemory ? randomByteSizeValue() : null,
-            addProcessors ? (float) randomInt(128) : null
+            addProcessors ? randomProcessors() : null
         );
     }
 
@@ -104,20 +109,19 @@ public abstract class AutoscalingTestCase extends ESTestCase {
         String prefix = randomAlphaOfLength(5);
         return IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(
-                i -> new DiscoveryNode(
+                i -> DiscoveryNodeUtils.create(
                     prefix + i,
                     buildNewFakeTransportAddress(),
                     Map.of(),
-                    randomRoles().stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet()),
-                    Version.CURRENT
+                    randomRoles().stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet())
                 )
             )
-            .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
+            .collect(Collectors.toCollection(() -> new TreeSet<>(DISCOVERY_NODE_COMPARATOR)));
     }
 
     public static ByteSizeValue randomByteSizeValue() {
         // do not want to test any overflow.
-        return new ByteSizeValue(randomLongBetween(0, Long.MAX_VALUE >> 16));
+        return ByteSizeValue.ofBytes(randomLongBetween(0, Long.MAX_VALUE >> 16));
     }
 
     public static ByteSizeValue randomNullableByteSizeValue() {
@@ -151,6 +155,10 @@ public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static AutoscalingPolicy randomAutoscalingPolicyOfName(final String name) {
         return new AutoscalingPolicy(name, randomRoles(), randomAutoscalingDeciders());
+    }
+
+    public static Processors randomProcessors() {
+        return Processors.of(randomDoubleBetween(Double.MIN_VALUE, 512.9999999, true));
     }
 
     public static AutoscalingPolicy mutateAutoscalingPolicy(final AutoscalingPolicy instance) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -98,14 +99,6 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     /* (non-Javadoc)
-     * @see org.elasticsearch.search.suggest.phrase.CandidateGenerator#isKnownWord(org.apache.lucene.util.BytesRef)
-     */
-    @Override
-    public boolean isKnownWord(BytesRef term) throws IOException {
-        return termStats(term).docFreq > 0;
-    }
-
-    /* (non-Javadoc)
      * @see org.elasticsearch.search.suggest.phrase.CandidateGenerator#frequency(org.apache.lucene.util.BytesRef)
      */
     @Override
@@ -128,10 +121,6 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return new TermStats(0, 0);
     }
 
-    public String getField() {
-        return field;
-    }
-
     @Override
     public CandidateSet drawCandidates(CandidateSet set) throws IOException {
         Candidate original = set.originalTerm;
@@ -144,7 +133,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                  * because that's what {@link DirectSpellChecker#suggestSimilar} expects
                  * when filtering terms.
                  */
-                int threshold = thresholdTermFrequency(original.termStats.docFreq);
+                int threshold = thresholdTermFrequency(original.termStats.docFreq());
                 if (threshold == Integer.MAX_VALUE) {
                     // the threshold is the max possible frequency so we can skip the search
                     return set;
@@ -181,15 +170,14 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         if (preFilter == null) {
             return term;
         }
-        final BytesRefBuilder result = byteSpare;
         analyze(preFilter, term, field, new TokenConsumer() {
 
             @Override
-            public void nextToken() throws IOException {
-                this.fillBytesRef(result);
+            public void nextToken() {
+                this.fillBytesRef(byteSpare);
             }
         }, spare);
-        return result.get();
+        return byteSpare.get();
     }
 
     protected void postFilter(
@@ -238,7 +226,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     private static double score(TermStats termStats, double errorScore, long dictionarySize) {
-        return errorScore * (((double) termStats.totalTermFreq + 1) / ((double) dictionarySize + 1));
+        return errorScore * (((double) termStats.totalTermFreq() + 1) / ((double) dictionarySize + 1));
     }
 
     // package protected for test
@@ -344,11 +332,10 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             if (getClass() != obj.getClass()) return false;
             Candidate other = (Candidate) obj;
             if (term == null) {
-                if (other.term != null) return false;
+                return other.term == null;
             } else {
-                if (term.equals(other.term) == false) return false;
+                return term.equals(other.term) != false;
             }
-            return true;
         }
 
         /** Lower scores sort first; if scores are equal, then later (zzz) terms sort first */
@@ -364,7 +351,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     @Override
-    public Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore, boolean userInput) throws IOException {
+    public Candidate createCandidate(BytesRef term, TermStats termStats, double channelScore, boolean userInput) {
         return new Candidate(term, termStats, channelScore, score(termStats, channelScore, sumTotalTermFreq), userInput);
     }
 

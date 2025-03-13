@@ -1,17 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -66,6 +70,17 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat((Integer) lengthAssertion.getExpectedValue(), equalTo(22));
     }
 
+    public void testParseIsAfter() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 2021-05-25T12:30:00.000Z}");
+
+        IsAfterAssertion isAfterAssertion = IsAfterAssertion.parse(parser);
+
+        assertThat(isAfterAssertion, notNullValue());
+        assertThat(isAfterAssertion.getField(), equalTo("field"));
+        assertThat(isAfterAssertion.getExpectedValue(), instanceOf(String.class));
+        assertThat(isAfterAssertion.getExpectedValue(), equalTo("2021-05-25T12:30:00.000Z"));
+    }
+
     public void testParseMatchSimpleIntegerValue() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, "{ field: 10 }");
 
@@ -97,9 +112,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(matchAssertion.getField(), equalTo("matches"));
         assertThat(matchAssertion.getExpectedValue(), instanceOf(List.class));
         List<?> strings = (List<?>) matchAssertion.getExpectedValue();
-        assertThat(strings.size(), equalTo(2));
-        assertThat(strings.get(0).toString(), equalTo("test_percolator_1"));
-        assertThat(strings.get(1).toString(), equalTo("test_percolator_2"));
+        assertThat(strings, transformedItemsMatch(Object::toString, contains("test_percolator_1", "test_percolator_2")));
     }
 
     @SuppressWarnings("unchecked")
@@ -169,5 +182,39 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         parser = createParser(YamlXContent.yamlXContent, "{ field: { foo: 13, bar: 15 } }");
         exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
         assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
+    }
+
+    public void testExists() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, "get.fields._timestamp");
+
+        ExistsAssertion existsAssertion = ExistsAssertion.parse(parser);
+
+        assertThat(existsAssertion, notNullValue());
+        assertThat(existsAssertion.getField(), equalTo("get.fields._timestamp"));
+
+        existsAssertion.doAssert(randomFrom(1, "", "non-empty", List.of(), Map.of()), existsAssertion.getExpectedValue());
+
+        AssertionError e = expectThrows(AssertionError.class, () -> existsAssertion.doAssert(null, existsAssertion.getExpectedValue()));
+        assertThat(e.getMessage(), containsString("field [get.fields._timestamp] does not exist"));
+    }
+
+    public void testDoesNotExist() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent, "get.fields._timestamp");
+
+        NotExistsAssertion existnotExistsAssertion = NotExistsAssertion.parse(parser);
+
+        assertThat(existnotExistsAssertion, notNullValue());
+        assertThat(existnotExistsAssertion.getField(), equalTo("get.fields._timestamp"));
+
+        existnotExistsAssertion.doAssert(null, existnotExistsAssertion.getExpectedValue());
+
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> existnotExistsAssertion.doAssert(
+                randomFrom(1, "", "non-empty", List.of(), Map.of(), 0, false),
+                existnotExistsAssertion.getExpectedValue()
+            )
+        );
+        assertThat(e.getMessage(), containsString("field [get.fields._timestamp] exists, but should not"));
     }
 }

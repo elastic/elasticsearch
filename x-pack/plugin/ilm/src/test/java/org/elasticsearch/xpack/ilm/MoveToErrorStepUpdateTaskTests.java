@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 
-import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.containsString;
@@ -47,20 +47,17 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         policy = randomAlphaOfLength(10);
         LifecyclePolicy lifecyclePolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policy);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policy))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policy))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
         index = indexMetadata.getIndex();
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(
-            Collections.singletonMap(
-                policy,
-                new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
-            ),
+            Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())),
             OperationMode.RUNNING
         );
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(indexMetadata))
             .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
             .build();
@@ -85,10 +82,10 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
             state -> {}
         );
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState lifecycleState = newState.getMetadata().getProject().index(index).getLifecycleExecutionState();
         StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
-        assertThat(actualKey, equalTo(new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), ErrorStep.NAME)));
-        assertThat(lifecycleState.failedStep(), equalTo(currentStepKey.getName()));
+        assertThat(actualKey, equalTo(new StepKey(currentStepKey.phase(), currentStepKey.action(), ErrorStep.NAME)));
+        assertThat(lifecycleState.failedStep(), equalTo(currentStepKey.name()));
         assertThat(lifecycleState.phaseTime(), nullValue());
         assertThat(lifecycleState.actionTime(), nullValue());
         assertThat(lifecycleState.stepTime(), equalTo(now));
@@ -146,17 +143,17 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
     private void setStateToKey(StepKey stepKey) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            clusterState.metadata().index(index).getLifecycleExecutionState()
+            clusterState.metadata().getProject().index(index).getLifecycleExecutionState()
         );
-        lifecycleState.setPhase(stepKey.getPhase());
-        lifecycleState.setAction(stepKey.getAction());
-        lifecycleState.setStep(stepKey.getName());
+        lifecycleState.setPhase(stepKey.phase());
+        lifecycleState.setAction(stepKey.action());
+        lifecycleState.setStep(stepKey.name());
 
         clusterState = ClusterState.builder(clusterState)
             .metadata(
                 Metadata.builder(clusterState.getMetadata())
                     .put(
-                        IndexMetadata.builder(clusterState.getMetadata().index(index))
+                        IndexMetadata.builder(clusterState.getMetadata().getProject().index(index))
                             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
                     )
             )

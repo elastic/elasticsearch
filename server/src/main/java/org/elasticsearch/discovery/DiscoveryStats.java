@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
@@ -43,28 +43,16 @@ public class DiscoveryStats implements Writeable, ToXContentFragment {
     public DiscoveryStats(StreamInput in) throws IOException {
         queueStats = in.readOptionalWriteable(PendingClusterStateStats::new);
         publishStats = in.readOptionalWriteable(PublishClusterStateStats::new);
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            clusterStateUpdateStats = in.readOptionalWriteable(ClusterStateUpdateStats::new);
-        } else {
-            clusterStateUpdateStats = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_16_0)) {
-            applierRecordingStats = in.readOptionalWriteable(ClusterApplierRecordingService.Stats::new);
-        } else {
-            applierRecordingStats = null;
-        }
+        clusterStateUpdateStats = in.readOptionalWriteable(ClusterStateUpdateStats::new);
+        applierRecordingStats = in.readOptionalWriteable(ClusterApplierRecordingService.Stats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(queueStats);
         out.writeOptionalWriteable(publishStats);
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeOptionalWriteable(clusterStateUpdateStats);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeOptionalWriteable(applierRecordingStats);
-        }
+        out.writeOptionalWriteable(clusterStateUpdateStats);
+        out.writeOptionalWriteable(applierRecordingStats);
     }
 
     @Override

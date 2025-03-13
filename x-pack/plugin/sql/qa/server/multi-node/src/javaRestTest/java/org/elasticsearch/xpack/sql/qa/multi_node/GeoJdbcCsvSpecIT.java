@@ -7,10 +7,21 @@
 
 package org.elasticsearch.xpack.sql.qa.multi_node;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.geo.GeoCsvSpecTestCase;
-import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
+import org.junit.ClassRule;
+
+import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 
 public class GeoJdbcCsvSpecIT extends GeoCsvSpecTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     public GeoJdbcCsvSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase) {
         super(fileName, groupName, testName, lineNumber, testCase);
     }

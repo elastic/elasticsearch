@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.lucene.queries;
 
@@ -16,10 +17,12 @@ import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.InPlaceMergeSorter;
 
 import java.io.IOException;
@@ -67,19 +70,19 @@ public abstract class BlendedTermQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
-        IndexReaderContext context = reader.getContext();
         TermStates[] ctx = new TermStates[terms.length];
         int[] docFreqs = new int[ctx.length];
         for (int i = 0; i < terms.length; i++) {
-            ctx[i] = TermStates.build(context, terms[i], true);
+            ctx[i] = TermStates.build(searcher, terms[i], true);
             docFreqs[i] = ctx[i].docFreq();
         }
 
+        final IndexReader reader = searcher.getIndexReader();
         final int maxDoc = reader.maxDoc();
         blend(ctx, maxDoc, reader);
         return topLevelQuery(terms, ctx, docFreqs, maxDoc);
@@ -148,7 +151,18 @@ public abstract class BlendedTermQuery extends Query {
             if (prev > current) {
                 actualDf++;
             }
-            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, Math.min(maxDoc, actualDf));
+
+            int docCount = reader.getDocCount(terms[i].field());
+
+            // IMPORTANT: we make two adjustments here to ensure the new document frequency is valid:
+            // 1. We take a minimum with docCount, which is the total number of documents that contain
+            // this field. The document frequency must always be less than the document count.
+            // 2. We also take a minimum with maxDoc. Earlier, maxDoc is adjusted to the minimum of
+            // maxDoc and minTTF. So taking the minimum ensures that the document frequency is never
+            // greater than the total term frequency, which would be illegal.
+            int newDocFreq = Math.min(Math.min(actualDf, docCount), maxDoc);
+
+            contexts[i] = ctx = adjustDF(reader.getContext(), ctx, newDocFreq);
             prev = current;
             sumTTF += ctx.totalTermFreq();
         }
@@ -175,7 +189,11 @@ public abstract class BlendedTermQuery extends Query {
         int df = termContext.docFreq();
         long ttf = sumTTF;
         for (int i = 0; i < len; i++) {
-            TermState termState = termContext.get(leaves.get(i));
+            IOSupplier<TermState> termStateSupplier = termContext.get(leaves.get(i));
+            if (termStateSupplier == null) {
+                continue;
+            }
+            TermState termState = termStateSupplier.get();
             if (termState == null) {
                 continue;
             }
@@ -199,7 +217,11 @@ public abstract class BlendedTermQuery extends Query {
         }
         TermStates newCtx = new TermStates(readerContext);
         for (int i = 0; i < len; ++i) {
-            TermState termState = ctx.get(leaves.get(i));
+            IOSupplier<TermState> termStateSupplier = ctx.get(leaves.get(i));
+            if (termStateSupplier == null) {
+                continue;
+            }
+            TermState termState = termStateSupplier.get();
             if (termState == null) {
                 continue;
             }

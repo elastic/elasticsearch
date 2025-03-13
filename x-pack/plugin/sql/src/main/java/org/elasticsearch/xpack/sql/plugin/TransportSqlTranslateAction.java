@@ -10,8 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,7 +47,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         PlanExecutor planExecutor,
         SqlLicenseChecker sqlLicenseChecker
     ) {
-        super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new);
+        super(SqlTranslateAction.NAME, transportService, actionFilters, SqlTranslateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
@@ -84,10 +85,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
             cfg,
             request.query(),
             request.params(),
-            ActionListener.wrap(
-                searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)),
-                listener::onFailure
-            )
+            listener.delegateFailureAndWrap((l, searchSourceBuilder) -> l.onResponse(new SqlTranslateResponse(searchSourceBuilder)))
         );
     }
 }

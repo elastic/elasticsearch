@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-suggest-user-profile.html",
       "description":"Get suggestions for user profiles that match specified search criteria."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"private",
     "headers":{
       "accept": [ "application/json"],

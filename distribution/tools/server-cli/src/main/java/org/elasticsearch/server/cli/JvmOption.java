@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
+
+import org.elasticsearch.common.Strings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -29,6 +32,11 @@ class JvmOption {
     private final String origin;
 
     JvmOption(String value, String origin) {
+        if (origin == null) {
+            throw new IllegalStateException(Strings.format("""
+                Elasticsearch could not determine the origin of JVM option [%s]. \
+                This indicates that it is running in an unsupported configuration.""", value));
+        }
         this.value = value;
         this.origin = origin;
     }

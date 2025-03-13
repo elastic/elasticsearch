@@ -1,0 +1,29 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  name = 'x-pack-profiling'
+  description = 'The profiling plugin adds support for retrieving data from Universal Profiling.'
+  classname = 'org.elasticsearch.xpack.profiling.ProfilingPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(path: xpackModule('mapper-counted-keyword'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('mapper-unsigned-long'))
+  testImplementation project(path: xpackModule('mapper-version'))
+  testImplementation project(path: xpackModule('ilm'))
+  testImplementation project(':modules:data-streams')
+}
+tasks.named("dependencyLicenses").configure {
+  ignoreFile 'cloudcarbonfootprint-LICENSE.txt'
+  ignoreFile 'cloudcarbonfootprint-NOTICE.txt'
+}

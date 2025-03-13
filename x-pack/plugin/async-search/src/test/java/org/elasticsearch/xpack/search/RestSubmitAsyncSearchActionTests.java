@@ -13,6 +13,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
@@ -28,11 +29,9 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
 
-    private RestSubmitAsyncSearchAction action;
-
     @Before
     public void setUpAction() {
-        action = new RestSubmitAsyncSearchAction();
+        RestSubmitAsyncSearchAction action = new RestSubmitAsyncSearchAction(new UsageService().getSearchUsageHolder(), nf -> false);
         controller().registerHandler(action);
     }
 
@@ -66,14 +65,9 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
     }
 
     public void testParameters() throws Exception {
-        String tvString = randomTimeValue(1, 100);
-        doTestParameter("keep_alive", tvString, TimeValue.parseTimeValue(tvString, ""), SubmitAsyncSearchRequest::getKeepAlive);
-        doTestParameter(
-            "wait_for_completion_timeout",
-            tvString,
-            TimeValue.parseTimeValue(tvString, ""),
-            SubmitAsyncSearchRequest::getWaitForCompletionTimeout
-        );
+        TimeValue tv = randomTimeValue(1, 100);
+        doTestParameter("keep_alive", tv.getStringRep(), tv, SubmitAsyncSearchRequest::getKeepAlive);
+        doTestParameter("wait_for_completion_timeout", tv.getStringRep(), tv, SubmitAsyncSearchRequest::getWaitForCompletionTimeout);
         boolean keepOnCompletion = randomBoolean();
         doTestParameter(
             "keep_on_completion",
@@ -89,6 +83,14 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
             Integer.toString(batchedReduceSize),
             batchedReduceSize,
             r -> r.getSearchRequest().getBatchedReduceSize()
+        );
+
+        boolean ccsMinimizeRoundtrips = randomBoolean();
+        doTestParameter(
+            "ccs_minimize_roundtrips",
+            Boolean.toString(ccsMinimizeRoundtrips),
+            ccsMinimizeRoundtrips,
+            r -> r.getSearchRequest().isCcsMinimizeRoundtrips()
         );
     }
 

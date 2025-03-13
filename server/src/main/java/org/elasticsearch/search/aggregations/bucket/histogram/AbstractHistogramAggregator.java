@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -44,6 +46,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     protected final DoubleBounds hardBounds;
     protected final LongKeyedBucketOrds bucketOrds;
 
+    @SuppressWarnings("this-escape")
     public AbstractHistogramAggregator(
         String name,
         AggregatorFactories factories,
@@ -77,11 +80,11 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, (bucketValue, docCount, subAggregationResults) -> {
             double roundKey = Double.longBitsToDouble(bucketValue);
             double key = roundKey * interval + offset;
-            return new InternalHistogram.Bucket(key, docCount, keyed, formatter, subAggregationResults);
+            return new InternalHistogram.Bucket(key, docCount, formatter, subAggregationResults);
         }, (owningBucketOrd, buckets) -> {
             // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
             CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());

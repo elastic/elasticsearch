@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -21,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -89,7 +93,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for (Idx idx : indices.values()) {
             IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(idx.name)
-                .settings(settings(Version.CURRENT))
+                .settings(settings(IndexVersion.current()))
                 .numberOfShards(idx.numShards())
                 .numberOfReplicas(idx.numReplicas());
             for (ShardRouting shardRouting : idx.routing) {
@@ -106,17 +110,16 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
             }
             IndexMetadata idxMeta = idxMetaBuilder.build();
             builder.put(idxMeta, false);
-            IndexRoutingTable.Builder tableBuilder = new IndexRoutingTable.Builder(idxMeta.getIndex()).initializeAsRecovery(idxMeta);
-            Map<Integer, IndexShardRoutingTable> shardIdToRouting = new HashMap<>();
+            IndexRoutingTable.Builder tableBuilder = new IndexRoutingTable.Builder(
+                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
+                idxMeta.getIndex()
+            ).initializeAsRecovery(idxMeta);
+            Map<Integer, IndexShardRoutingTable.Builder> shardIdToRouting = new HashMap<>();
             for (ShardRouting r : idx.routing) {
-                IndexShardRoutingTable refData = new IndexShardRoutingTable.Builder(r.shardId()).addShard(r).build();
-                if (shardIdToRouting.containsKey(r.getId())) {
-                    refData = new IndexShardRoutingTable.Builder(shardIdToRouting.get(r.getId())).addShard(r).build();
-                }
-                shardIdToRouting.put(r.getId(), refData);
+                shardIdToRouting.computeIfAbsent(r.shardId().getId(), i -> new IndexShardRoutingTable.Builder(r.shardId())).addShard(r);
             }
-            for (IndexShardRoutingTable t : shardIdToRouting.values()) {
-                tableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(t));
+            for (IndexShardRoutingTable.Builder t : shardIdToRouting.values()) {
+                tableBuilder.addIndexShard(t);
             }
             IndexRoutingTable table = tableBuilder.build();
             routingTableBuilder.add(table);
@@ -128,9 +131,11 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         for (String node : nodes) {
             builderDiscoNodes.add(newNode(node));
         }
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).nodes(builderDiscoNodes.build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(builderDiscoNodes.build())
+            .build();
         if (balanceFirst()) {
             clusterState = rebalance(clusterState);
         }
@@ -145,7 +150,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
 
     private ClusterState rebalance(ClusterState clusterState) {
         AllocationService strategy = createAllocationService(Settings.builder().build());
-        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
         int numRelocations = 0;
         while (true) {
             List<ShardRouting> initializing = shardsWithState(clusterState.getRoutingNodes(), INITIALIZING);

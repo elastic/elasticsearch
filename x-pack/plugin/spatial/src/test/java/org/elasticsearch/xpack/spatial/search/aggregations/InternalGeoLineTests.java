@@ -6,19 +6,13 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -53,7 +47,7 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
             }
         }
         boolean complete = length <= size;
-        return new InternalGeoLine(name, points, sortVals, metadata, complete, randomBoolean(), sortOrder, size);
+        return new InternalGeoLine(name, points, sortVals, metadata, complete, randomBoolean(), sortOrder, size, false, false);
     }
 
     @Override
@@ -90,7 +84,7 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
             case 7 -> size = size + 1;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoLine(name, line, sortVals, metadata, complete, includeSorts, sortOrder, size);
+        return new InternalGeoLine(name, line, sortVals, metadata, complete, includeSorts, sortOrder, size, false, false);
     }
 
     @Override
@@ -128,33 +122,13 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
             }
         }
 
-        new PathArraySorter(finalList, finalSortVals, reduced.sortOrder()).sort();
+        PathArraySorter.forOrder(reduced.sortOrder()).apply(finalList, finalSortVals).sort();
 
         // cap to max length
         long[] finalCappedPoints = Arrays.copyOf(finalList, Math.min(reduced.size(), mergedLength));
         double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(reduced.size(), mergedLength));
 
-        if (SortOrder.DESC.equals(reduced.sortOrder())) {
-            new PathArraySorter(finalCappedPoints, finalCappedSortVals, SortOrder.ASC).sort();
-        }
-
         assertArrayEquals(finalCappedSortVals, reduced.sortVals(), 0d);
         assertArrayEquals(finalCappedPoints, reduced.line());
-    }
-
-    @Override
-    protected void assertFromXContent(InternalGeoLine aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        // There is no ParsedGeoLine yet so we cannot test it here
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(GeoLineAggregationBuilder.NAME), (p, c) -> {
-                assumeTrue("There is no ParsedGeoLine yet", false);
-                return null;
-            })
-        );
     }
 }

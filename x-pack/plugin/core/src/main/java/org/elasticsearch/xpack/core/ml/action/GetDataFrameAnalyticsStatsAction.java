@@ -49,7 +49,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/stats/get";
 
     private GetDataFrameAnalyticsStatsAction() {
-        super(NAME, GetDataFrameAnalyticsStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
@@ -75,7 +75,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             id = in.readString();
             allowNoMatch = in.readBoolean();
             pageParams = in.readOptionalWriteable(PageParams::new);
-            expandedIds = in.readStringList();
+            expandedIds = in.readStringCollectionAsList();
         }
 
         public void setExpandedIds(List<String> expandedIds) {
@@ -207,7 +207,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 id = in.readString();
                 state = DataFrameAnalyticsState.fromStream(in);
                 failureReason = in.readOptionalString();
-                progress = in.readList(PhaseProgress::new);
+                progress = in.readCollectionAsList(PhaseProgress::new);
                 dataCounts = new DataCounts(in);
                 memoryUsage = new MemoryUsage(in);
                 analysisStats = in.readOptionalNamedWriteable(AnalysisStats.class);
@@ -312,7 +312,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
                 out.writeString(id);
                 state.writeTo(out);
                 out.writeOptionalString(failureReason);
-                out.writeList(progress);
+                out.writeCollection(progress);
                 dataCounts.writeTo(out);
                 memoryUsage.writeTo(out);
                 out.writeOptionalNamedWriteable(analysisStats);
@@ -356,7 +356,7 @@ public class GetDataFrameAnalyticsStatsAction extends ActionType<GetDataFrameAna
             }
         }
 
-        private QueryPage<Stats> stats;
+        private final QueryPage<Stats> stats;
 
         public Response(QueryPage<Stats> stats) {
             this(Collections.emptyList(), Collections.emptyList(), stats);

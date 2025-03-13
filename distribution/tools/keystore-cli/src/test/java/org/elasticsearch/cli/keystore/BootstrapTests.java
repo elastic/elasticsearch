@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cli.keystore;
 
@@ -41,7 +42,7 @@ public class BootstrapTests extends ESTestCase {
 
     public void testLoadSecureSettings() throws Exception {
         final char[] password = KeyStoreWrapperTests.getPossibleKeystorePassword();
-        final Path configPath = env.configFile();
+        final Path configPath = env.configDir();
         final SecureString seed;
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
             seed = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(keyStoreWrapper).build());

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
@@ -25,14 +26,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.script.ScriptTermStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A query that allows for a pluggable boost function / filter. If it matches
@@ -76,8 +80,8 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        protected ScoreFunction rewrite(IndexReader reader) throws IOException {
-            Query newFilter = filter.rewrite(reader);
+        protected ScoreFunction rewrite(IndexSearcher searcher) throws IOException {
+            Query newFilter = filter.rewrite(searcher);
             if (newFilter == filter) {
                 return this;
             }
@@ -201,16 +205,16 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten = super.rewrite(reader);
+    public Query rewrite(IndexSearcher searcher) throws IOException {
+        Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;
         }
-        Query newQ = subQuery.rewrite(reader);
+        Query newQ = subQuery.rewrite(searcher);
         ScoreFunction[] newFunctions = new ScoreFunction[functions.length];
         boolean needsRewrite = (newQ != subQuery);
         for (int i = 0; i < functions.length; i++) {
-            newFunctions[i] = functions[i].rewrite(reader);
+            newFunctions[i] = functions[i].rewrite(searcher);
             needsRewrite |= (newFunctions[i] != functions[i]);
         }
         if (needsRewrite) {
@@ -241,6 +245,14 @@ public class FunctionScoreQuery extends Query {
                     1f
                 );
             }
+            if (functions[i] instanceof ScriptScoreFunction scriptScoreFunction && scriptScoreFunction.needsTermStats()) {
+                subQueryScoreMode = org.apache.lucene.search.ScoreMode.COMPLETE;
+                // We collect the different terms used in the child query.
+                final Set<Term> terms = new HashSet<>();
+                this.visit(QueryVisitor.termCollector(terms));
+                scriptScoreFunction.setTermStatsFactory((ctx, docIdSupplier) -> new ScriptTermStats(searcher, ctx, docIdSupplier, terms));
+
+            }
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);
         return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryScoreMode.needsScores());
@@ -259,44 +271,65 @@ public class FunctionScoreQuery extends Query {
             this.needsScores = needsScores;
         }
 
-        private FunctionFactorScorer functionScorer(LeafReaderContext context) throws IOException {
-            Scorer subQueryScorer = subQueryWeight.scorer(context);
-            if (subQueryScorer == null) {
+        private ScorerSupplier functionScorerSupplier(LeafReaderContext context) throws IOException {
+            ScorerSupplier subQueryScorerSupplier = subQueryWeight.scorerSupplier(context);
+            if (subQueryScorerSupplier == null) {
                 return null;
             }
-            final long leadCost = subQueryScorer.iterator().cost();
-            final LeafScoreFunction[] leafFunctions = new LeafScoreFunction[functions.length];
-            final Bits[] docSets = new Bits[functions.length];
-            for (int i = 0; i < functions.length; i++) {
-                ScoreFunction function = functions[i];
-                leafFunctions[i] = function.getLeafScoreFunction(context);
-                if (filterWeights[i] != null) {
-                    ScorerSupplier filterScorerSupplier = filterWeights[i].scorerSupplier(context);
-                    docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier, leadCost);
-                } else {
-                    docSets[i] = new Bits.MatchAllBits(context.reader().maxDoc());
+            return new ScorerSupplier() {
+                @Override
+                public Scorer get(long leadCost) throws IOException {
+                    Scorer subQueryScorer = subQueryScorerSupplier.get(leadCost);
+                    final LeafScoreFunction[] leafFunctions = new LeafScoreFunction[functions.length];
+                    final Bits[] docSets = new Bits[functions.length];
+                    for (int i = 0; i < functions.length; i++) {
+                        ScoreFunction function = functions[i];
+                        leafFunctions[i] = function.getLeafScoreFunction(context);
+                        if (filterWeights[i] != null) {
+                            ScorerSupplier filterScorerSupplier = filterWeights[i].scorerSupplier(context);
+                            docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier, leadCost);
+                        } else {
+                            docSets[i] = new Bits.MatchAllBits(context.reader().maxDoc());
+                        }
+                    }
+                    return new FunctionFactorScorer(
+                        subQueryScorer,
+                        scoreMode,
+                        functions,
+                        maxBoost,
+                        leafFunctions,
+                        docSets,
+                        combineFunction,
+                        needsScores
+                    );
                 }
-            }
-            return new FunctionFactorScorer(
-                this,
-                subQueryScorer,
-                scoreMode,
-                functions,
-                maxBoost,
-                leafFunctions,
-                docSets,
-                combineFunction,
-                needsScores
-            );
+
+                @Override
+                public long cost() {
+                    return subQueryScorerSupplier.cost();
+                }
+            };
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            Scorer scorer = functionScorer(context);
-            if (scorer != null && minScore != null) {
-                scorer = new MinScoreScorer(this, scorer, minScore);
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            ScorerSupplier scorerSupplier = functionScorerSupplier(context);
+
+            if (scorerSupplier == null || minScore == null) {
+                return scorerSupplier;
             }
-            return scorer;
+
+            return new ScorerSupplier() {
+                @Override
+                public Scorer get(long leadCost) throws IOException {
+                    return new MinScoreScorer(scorerSupplier.get(leadCost), minScore);
+                }
+
+                @Override
+                public long cost() {
+                    return scorerSupplier.cost();
+                }
+            };
         }
 
         @Override
@@ -343,7 +376,8 @@ public class FunctionScoreQuery extends Query {
                 } else if (singleFunction && functionsExplanations.size() == 1) {
                     factorExplanation = functionsExplanations.get(0);
                 } else {
-                    FunctionFactorScorer scorer = functionScorer(context);
+
+                    FunctionFactorScorer scorer = (FunctionFactorScorer) functionScorerSupplier(context).get(1L);
                     int actualDoc = scorer.iterator().advance(doc);
                     assert (actualDoc == doc);
                     double score = scorer.computeScore(doc, expl.getValue().floatValue());
@@ -378,7 +412,6 @@ public class FunctionScoreQuery extends Query {
         private final boolean needsScores;
 
         private FunctionFactorScorer(
-            CustomBoostFactorWeight w,
             Scorer scorer,
             ScoreMode scoreMode,
             ScoreFunction[] functions,
@@ -388,7 +421,7 @@ public class FunctionScoreQuery extends Query {
             CombineFunction scoreCombiner,
             boolean needsScores
         ) throws IOException {
-            super(scorer, w);
+            super(scorer);
             this.scoreMode = scoreMode;
             this.functions = functions;
             this.leafFunctions = leafFunctions;

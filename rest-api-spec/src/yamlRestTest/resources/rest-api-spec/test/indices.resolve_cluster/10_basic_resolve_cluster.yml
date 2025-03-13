@@ -1,0 +1,183 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "resolve cluster introduced in 8.13"
+      test_runner_features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          aliases:
+            my_alias1: {}
+            my_alias2: {}
+
+  - do:
+      indices.create:
+        index: index2
+
+  - do:
+      indices.close:
+        index: index2
+
+---
+"Resolve cluster with indices and aliases":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+        expand_wildcards: closed
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+    # still true because resolve_index/resolve_cluster does not check closed status of aliases
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+---
+"Resolve cluster with closed index":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: 'index2'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: false}  # false since doing a search with this index pattern gives an error
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'index2*'
+        expand_wildcards: open,closed
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: false}
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'index2*'
+        expand_wildcards: closed
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: false}
+  - exists: (local).version.number
+
+---
+"Resolve cluster using alias":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_alias2'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_ali*'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+---
+"Resolve cluster using alias and index that does not exist":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_alias2,doesnotexist*'
+        expand_wildcards: all
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: 'my_alias2,doesnotexist'
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - is_false: (local).matching_indices  # should not be present
+  - is_false: (local).version  # should not be present
+  - match: {(local).error: "no such index [doesnotexist]"}
+
+---
+"Test resolve cluster optional params are accepted":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "resolve cluster introduced in 8.13"
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+        expand_wildcards: all
+        ignore_unavailable: true
+        ignore_throttled: true
+        allow_no_indices: true
+      allowed_warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - is_false: (local).error # should not be present
+  - exists: (local).version.number
+
+  - do:
+      indices.resolve_cluster:
+        name: '*'
+        expand_wildcards: open
+        ignore_unavailable: false
+        ignore_throttled: false
+        allow_no_indices: false
+      allowed_warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
+
+  - match: {(local).connected: true}
+  - match: {(local).skip_unavailable: false}
+  - match: {(local).matching_indices: true}
+  - is_false: (local).error # should not be present
+  - exists: (local).version.number
+
+---
+"Resolve cluster with no index expression":
+  - requires:
+      cluster_features: ["gte_v8.18.0"]
+      reason: "resolve cluster with no index expression introduced in 8.18"
+
+  - do:
+      indices.resolve_cluster:
+        timeout: 400s
+
+  - is_false: (local).error # should not be present - body should be empty since no remotes configured

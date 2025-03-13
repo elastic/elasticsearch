@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -12,7 +13,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,6 +35,7 @@ public class ScriptModule {
         LongFieldScript.CONTEXT,
         StringFieldScript.CONTEXT,
         GeoPointFieldScript.CONTEXT,
+        GeometryFieldScript.CONTEXT,
         IpFieldScript.CONTEXT,
         CompositeFieldScript.CONTEXT
     );
@@ -63,12 +64,12 @@ public class ScriptModule {
                 SimilarityWeightScript.CONTEXT,
                 TemplateScript.CONTEXT,
                 TemplateScript.INGEST_CONTEXT,
-                MovingFunctionScript.CONTEXT,
                 ScriptedMetricAggContexts.InitScript.CONTEXT,
                 ScriptedMetricAggContexts.MapScript.CONTEXT,
                 ScriptedMetricAggContexts.CombineScript.CONTEXT,
                 ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-                IntervalFilterScript.CONTEXT
+                IntervalFilterScript.CONTEXT,
+                DoubleValuesScript.CONTEXT
             ),
             RUNTIME_FIELDS_CONTEXTS.stream()
         ).collect(Collectors.toMap(c -> c.name, Function.identity()));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -19,7 +20,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
@@ -133,8 +133,10 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
         double idcg = 0;
 
         if (normalize) {
-            List<Integer> allRatings = ratedDocs.stream().mapToInt(RatedDocument::getRating).boxed().collect(Collectors.toList());
-            Collections.sort(allRatings, Comparator.nullsLast(Collections.reverseOrder()));
+            List<Integer> allRatings = ratedDocs.stream()
+                .map(RatedDocument::getRating)
+                .sorted(Collections.reverseOrder())
+                .collect(Collectors.toList());
             idcg = computeDCG(allRatings.subList(0, Math.min(ratingsInSearchHits.size(), allRatings.size())));
             if (idcg != 0) {
                 result = dcg / idcg;
@@ -258,11 +260,9 @@ public class DiscountedCumulativeGain implements EvaluationMetric {
             return builder;
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
-            NAME,
-            true,
-            args -> { return new Detail((Double) args[0], (Double) args[1] != null ? (Double) args[1] : 0.0d, (Integer) args[2]); }
-        );
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
+            return new Detail((Double) args[0], (Double) args[1] != null ? (Double) args[1] : 0.0d, (Integer) args[2]);
+        });
 
         static {
             PARSER.declareDouble(constructorArg(), DCG_FIELD);

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -17,6 +16,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -66,7 +66,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -119,8 +118,9 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final String followerIndex,
         final int numberOfDocuments
     ) throws IOException {
-        final ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest().masterNodeTimeout(TimeValue.MAX_VALUE);
-        final String chunkSize = new ByteSizeValue(randomFrom(4, 128, 1024), ByteSizeUnit.KB).getStringRep();
+        final ClusterUpdateSettingsRequest settingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .masterNodeTimeout(TimeValue.MAX_VALUE);
+        final String chunkSize = ByteSizeValue.of(randomFrom(4, 128, 1024), ByteSizeUnit.KB).getStringRep();
         settingsRequest.persistentSettings(Settings.builder().put(CcrSettings.RECOVERY_CHUNK_SIZE.getKey(), chunkSize));
         assertAcked(followerClient().admin().cluster().updateSettings(settingsRequest).actionGet());
 
@@ -140,7 +140,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         logger.info("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -152,7 +152,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final Settings.Builder settingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true);
-        return new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST).indexSettings(settingsBuilder)
+        return new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, leaderClusterRepoName, CcrRepository.LATEST).indexSettings(settingsBuilder)
             .indices(leaderIndex)
             .indicesOptions(indicesOptions)
             .renamePattern("^(.*)$")
@@ -177,8 +177,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
-        final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+        final PlainActionFuture<RestoreInfo> future = startRestore(clusterService, restoreService, restoreRequest);
 
         // ensure that a retention lease has been put in place on each shard
         assertBusy(() -> {
@@ -229,15 +228,20 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
 
         // block the recovery from completing; this ensures the background sync is still running
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
         for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
             final MockTransportService senderTransportService = (MockTransportService) getFollowerCluster().getInstance(
                 TransportService.class,
                 senderNode.getName()
             );
             senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (ClearCcrRestoreSessionAction.NAME.equals(action)
-                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.NAME).equals(action)) {
+                if (ClearCcrRestoreSessionAction.INTERNAL_NAME.equals(action)
+                    || TransportActionProxy.getProxyAction(ClearCcrRestoreSessionAction.INTERNAL_NAME).equals(action)) {
                     try {
                         latch.await();
                     } catch (final InterruptedException e) {
@@ -248,8 +252,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             });
         }
 
-        final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
+        final PlainActionFuture<RestoreInfo> future = startRestore(clusterService, restoreService, restoreRequest);
 
         try {
             assertRetentionLeaseRenewal(numberOfShards, numberOfReplicas, followerIndex, leaderIndex);
@@ -266,9 +269,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final RestoreInfo restoreInfo = future.actionGet();
 
-        assertEquals(restoreInfo.totalShards(), restoreInfo.
-
-            successfulShards());
+        assertEquals(restoreInfo.totalShards(), restoreInfo.successfulShards());
 
         assertEquals(0, restoreInfo.failedShards());
         for (int i = 0; i < numberOfDocuments; i++) {
@@ -293,10 +294,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
         final ClusterService clusterService = getFollowerCluster().getCurrentMasterNodeInstance(ClusterService.class);
 
-        final PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
-        restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
-
-        final RestoreInfo restoreInfo = future.actionGet();
+        final RestoreInfo restoreInfo = startRestore(clusterService, restoreService, restoreRequest).actionGet();
         final long start = System.nanoTime();
 
         /*
@@ -304,19 +302,24 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
          * times that we sample the retention leases, which would cause our check to fail.
          */
         final TimeValue syncIntervalSetting = IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(
-            leaderClient().admin().indices().prepareGetSettings(leaderIndex).get().getIndexToSettings().get(leaderIndex)
+            leaderClient().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, leaderIndex)
+                .get()
+                .getIndexToSettings()
+                .get(leaderIndex)
         );
         final long syncEnd = System.nanoTime();
         Thread.sleep(Math.max(0, randomIntBetween(2, 4) * syncIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(syncEnd - start)));
 
         final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(leaderIndex)
             .get();
-        final String leaderUUID = leaderIndexClusterState.getState().metadata().index(leaderIndex).getIndexUUID();
+        final String leaderUUID = leaderIndexClusterState.getState().metadata().getProject().index(leaderIndex).getIndexUUID();
 
         /*
          * We want to ensure that the background renewal is cancelled at the end of recovery. To do this, we will sleep a small multiple
@@ -343,12 +346,16 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                         .cluster()
-                        .prepareState()
+                        .prepareState(TEST_REQUEST_TIMEOUT)
                         .clear()
                         .setMetadata(true)
                         .setIndices(followerIndex)
                         .get();
-                    final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+                    final String followerUUID = followerIndexClusterState.getState()
+                        .metadata()
+                        .getProject()
+                        .index(followerIndex)
+                        .getIndexUUID();
                     final RetentionLease retentionLease = currentRetentionLeases.values().iterator().next();
                     final String expectedRetentionLeaseId = retentionLeaseId(
                         getFollowerCluster().getClusterName(),
@@ -386,12 +393,16 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                     .cluster()
-                    .prepareState()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
                     .clear()
                     .setMetadata(true)
                     .setIndices(followerIndex)
                     .get();
-                final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+                final String followerUUID = followerIndexClusterState.getState()
+                    .metadata()
+                    .getProject()
+                    .index(followerIndex)
+                    .getIndexUUID();
                 final RetentionLease retentionLease = currentRetentionLeases.values().iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
                 // we assert that retention leases are being renewed by an increase in the timestamp
@@ -438,7 +449,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             randomSubsetOf(randomIntBetween(0, numberOfShards), IntStream.range(0, numberOfShards).boxed().collect(Collectors.toSet()))
         );
 
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
         try {
             for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
                 final MockTransportService senderTransportService = (MockTransportService) getFollowerCluster().getInstance(
@@ -446,8 +462,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.REMOVE.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.REMOVE.name()).equals(action)) {
                         final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
                         if (shardIds.contains(removeRequest.getShardId().id())) {
                             final String primaryShardNodeId = getLeaderCluster().clusterService()
@@ -465,10 +481,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                             final IndexShard primary = getLeaderCluster().getInstance(IndicesService.class, primaryShardNodeName)
                                 .getShardOrNull(removeRequest.getShardId());
                             final CountDownLatch latch = new CountDownLatch(1);
-                            primary.removeRetentionLease(
-                                retentionLeaseId,
-                                ActionListener.wrap(r -> latch.countDown(), e -> fail(e.toString()))
-                            );
+                            primary.removeRetentionLease(retentionLeaseId, ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
                             try {
                                 latch.await();
                             } catch (final InterruptedException e) {
@@ -483,7 +496,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             pauseFollow(followerIndex);
             assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
-            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+            assertAcked(
+                followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
+            );
 
             final IndicesStatsResponse afterUnfollowStats = leaderClient().admin()
                 .indices()
@@ -529,7 +547,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
             randomSubsetOf(randomIntBetween(1, numberOfShards), IntStream.range(0, numberOfShards).boxed().collect(Collectors.toSet()))
         );
 
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
         try {
             for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
                 final MockTransportService senderTransportService = (MockTransportService) getFollowerCluster().getInstance(
@@ -537,8 +560,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Remove.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Remove.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.REMOVE.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.REMOVE.name()).equals(action)) {
                         final RetentionLeaseActions.RemoveRequest removeRequest = (RetentionLeaseActions.RemoveRequest) request;
                         if (shardIds.contains(removeRequest.getShardId().id())) {
                             throw randomBoolean()
@@ -552,26 +575,29 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             final ElasticsearchException e = expectThrows(
                 ElasticsearchException.class,
-                () -> followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet()
+                () -> followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
             );
 
             final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setIndices(followerIndex)
                 .get();
-            final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+            final String followerUUID = followerIndexClusterState.getState().metadata().getProject().index(followerIndex).getIndexUUID();
 
             final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
                 .cluster()
-                .prepareState()
+                .prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setIndices(leaderIndex)
                 .get();
-            final String leaderUUID = leaderIndexClusterState.getState().metadata().index(leaderIndex).getIndexUUID();
+            final String leaderUUID = leaderIndexClusterState.getState().metadata().getProject().index(leaderIndex).getIndexUUID();
 
             assertThat(
                 e.getMetadata("es.failed_to_remove_retention_leases"),
@@ -636,7 +662,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final int numberOfDocuments = randomIntBetween(128, 2048);
         logger.debug("indexing [{}] docs", numberOfDocuments);
         for (int i = 0; i < numberOfDocuments; i++) {
-            final String source = String.format(Locale.ROOT, "{\"f\":%d}", i);
+            final String source = Strings.format("{\"f\":%d}", i);
             leaderClient().prepareIndex(leaderIndex).setId(Integer.toString(i)).setSource(source, XContentType.JSON).get();
             if (rarely()) {
                 leaderClient().admin().indices().prepareFlush(leaderIndex).setForce(true).setWaitIfOngoing(true).get();
@@ -708,19 +734,24 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
          * times that we sample the retention leases, which would cause our check to fail.
          */
         final TimeValue syncIntervalSetting = IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(
-            leaderClient().admin().indices().prepareGetSettings(leaderIndex).get().getIndexToSettings().get(leaderIndex)
+            leaderClient().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, leaderIndex)
+                .get()
+                .getIndexToSettings()
+                .get(leaderIndex)
         );
         final long syncEnd = System.nanoTime();
         Thread.sleep(Math.max(0, randomIntBetween(2, 4) * syncIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(syncEnd - start)));
 
         final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(leaderIndex)
             .get();
-        final String leaderUUID = leaderIndexClusterState.getState().metadata().index(leaderIndex).getIndexUUID();
+        final String leaderUUID = leaderIndexClusterState.getState().metadata().getProject().index(leaderIndex).getIndexUUID();
         /*
          * We want to ensure that the background renewal is cancelled after pausing. To do this, we will sleep a small multiple of the renew
          * interval. If the renews are not cancelled, we expect that a renewal would have been sent while we were sleeping. After we wake
@@ -746,12 +777,16 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                     final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                         .cluster()
-                        .prepareState()
+                        .prepareState(TEST_REQUEST_TIMEOUT)
                         .clear()
                         .setMetadata(true)
                         .setIndices(followerIndex)
                         .get();
-                    final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+                    final String followerUUID = followerIndexClusterState.getState()
+                        .metadata()
+                        .getProject()
+                        .index(followerIndex)
+                        .getIndexUUID();
                     final RetentionLease retentionLease = currentRetentionLeases.values().iterator().next();
                     final String expectedRetentionLeaseId = retentionLeaseId(
                         getFollowerCluster().getClusterName(),
@@ -789,12 +824,16 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                 assertThat(Strings.toString(shardsStats.get(i)), currentRetentionLeases.values(), hasSize(1));
                 final ClusterStateResponse followerIndexClusterState = followerClient().admin()
                     .cluster()
-                    .prepareState()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
                     .clear()
                     .setMetadata(true)
                     .setIndices(followerIndex)
                     .get();
-                final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+                final String followerUUID = followerIndexClusterState.getState()
+                    .metadata()
+                    .getProject()
+                    .index(followerIndex)
+                    .getIndexUUID();
                 final RetentionLease retentionLease = currentRetentionLeases.values().iterator().next();
                 assertThat(retentionLease.id(), equalTo(getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID)));
                 // we assert that retention leases are not being renewed by an unchanged timestamp
@@ -850,7 +889,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
 
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
         try {
             for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
                 final MockTransportService senderTransportService = (MockTransportService) getFollowerCluster().getInstance(
@@ -858,8 +902,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.RENEW.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.RENEW.name()).equals(action)) {
                         final RetentionLeaseActions.RenewRequest renewRequest = (RetentionLeaseActions.RenewRequest) request;
                         final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
                         if (retentionLeaseId.equals(renewRequest.getId())) {
@@ -885,7 +929,7 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                                 logger.info("--> removing retention lease [{}] on the leader", retentionLeaseId);
                                 primary.removeRetentionLease(
                                     retentionLeaseId,
-                                    ActionListener.wrap(r -> innerLatch.countDown(), e -> fail(e.toString()))
+                                    ActionTestUtils.assertNoFailureListener(r -> innerLatch.countDown())
                                 );
                                 logger.info(
                                     "--> waiting for the removed retention lease [{}] to be synced on the leader",
@@ -959,7 +1003,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
         final CountDownLatch unfollowLatch = new CountDownLatch(1);
         final CountDownLatch responseLatch = new CountDownLatch(1);
 
-        final ClusterStateResponse followerClusterState = followerClient().admin().cluster().prepareState().clear().setNodes(true).get();
+        final ClusterStateResponse followerClusterState = followerClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get();
 
         try {
             for (final DiscoveryNode senderNode : followerClusterState.getState().nodes()) {
@@ -968,8 +1017,8 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
                     senderNode.getName()
                 );
                 senderTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                    if (RetentionLeaseActions.Renew.ACTION_NAME.equals(action)
-                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.Renew.ACTION_NAME).equals(action)) {
+                    if (RetentionLeaseActions.RENEW.name().equals(action)
+                        || TransportActionProxy.getProxyAction(RetentionLeaseActions.RENEW.name()).equals(action)) {
                         final String retentionLeaseId = getRetentionLeaseId(followerIndex, leaderIndex);
                         logger.info("--> blocking renewal request for retention lease [{}] until unfollowed", retentionLeaseId);
                         try {
@@ -1004,7 +1053,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
             pauseFollow(followerIndex);
             assertAcked(followerClient().admin().indices().close(new CloseIndexRequest(followerIndex)).actionGet());
-            assertAcked(followerClient().execute(UnfollowAction.INSTANCE, new UnfollowAction.Request(followerIndex)).actionGet());
+            assertAcked(
+                followerClient().execute(
+                    UnfollowAction.INSTANCE,
+                    new UnfollowAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, followerIndex)
+                ).actionGet()
+            );
 
             unfollowLatch.countDown();
 
@@ -1052,12 +1106,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
 
         final ClusterStateResponse followerIndexClusterState = followerClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(followerIndex)
             .get();
-        final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+        final String followerUUID = followerIndexClusterState.getState().metadata().getProject().index(followerIndex).getIndexUUID();
 
         final BroadcastResponse forgetFollowerResponse = leaderClient().execute(
             ForgetFollowerAction.INSTANCE,
@@ -1164,21 +1218,21 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
     private String getRetentionLeaseId(final String followerIndex, final String leaderIndex) {
         final ClusterStateResponse followerIndexClusterState = followerClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(followerIndex)
             .get();
-        final String followerUUID = followerIndexClusterState.getState().metadata().index(followerIndex).getIndexUUID();
+        final String followerUUID = followerIndexClusterState.getState().metadata().getProject().index(followerIndex).getIndexUUID();
 
         final ClusterStateResponse leaderIndexClusterState = leaderClient().admin()
             .cluster()
-            .prepareState()
+            .prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices(leaderIndex)
             .get();
-        final String leaderUUID = leaderIndexClusterState.getState().metadata().index(leaderIndex).getIndexUUID();
+        final String leaderUUID = leaderIndexClusterState.getState().metadata().getProject().index(leaderIndex).getIndexUUID();
 
         return getRetentionLeaseId(followerIndex, followerUUID, leaderIndex, leaderUUID);
     }

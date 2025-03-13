@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -18,14 +19,17 @@ import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,55 +42,65 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-public class TransportGetAliasesAction extends TransportMasterNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
+public class TransportGetAliasesAction extends TransportLocalProjectMetadataAction<GetAliasesRequest, GetAliasesResponse> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
+    private final ThreadContext threadContext;
 
     @Inject
     public TransportGetAliasesAction(
         TransportService transportService,
-        ClusterService clusterService,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         super(
             GetAliasesAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            GetAliasesRequest::new,
-            indexNameExpressionResolver,
-            GetAliasesResponse::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getTaskManager(),
+            clusterService,
+            clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT),
+            projectResolver
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
+        this.threadContext = clusterService.threadPool().getThreadContext();
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetAliasesRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetAliasesRequest request, ProjectState state) {
         // Resolve with system index access since we're just checking blocks
         return state.blocks()
             .indicesBlockedException(
+                state.projectId(),
                 ClusterBlockLevel.METADATA_READ,
-                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request)
+                indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state.metadata(), request)
             );
     }
 
     @Override
-    protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
+    protected void localClusterStateOperation(
+        Task task,
+        GetAliasesRequest request,
+        ProjectState state,
+        ActionListener<GetAliasesResponse> listener
+    ) {
         assert Transports.assertNotTransportThread("no need to avoid the context switch and may be expensive if there are many aliases");
+        final var cancellableTask = (CancellableTask) task;
         // resolve all concrete indices upfront and warn/error later
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
+        final ProjectMetadata projectMetadata = state.metadata();
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(projectMetadata, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
-        Map<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request.aliases(), concreteIndices);
+        Map<String, List<AliasMetadata>> aliases = projectMetadata.findAliases(request.aliases(), concreteIndices);
+        cancellableTask.ensureNotCancelled();
         listener.onResponse(
             new GetAliasesResponse(
-                postProcess(request, concreteIndices, aliases, state, systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices),
-                postProcess(indexNameExpressionResolver, request, state)
+                postProcess(request, concreteIndices, aliases, projectMetadata, systemIndexAccessLevel, threadContext, systemIndices),
+                postProcess(indexNameExpressionResolver, request, projectMetadata)
             )
         );
     }
@@ -98,7 +112,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         GetAliasesRequest request,
         String[] concreteIndices,
         Map<String, List<AliasMetadata>> aliases,
-        ClusterState state,
+        ProjectMetadata projectMetadata,
         SystemIndexAccessLevel systemIndexAccessLevel,
         ThreadContext threadContext,
         SystemIndices systemIndices
@@ -106,7 +120,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>(aliases);
         for (String index : concreteIndices) {
-            IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
+            IndexAbstraction ia = projectMetadata.getIndicesLookup().get(index);
             assert ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
             if (ia.getParentDataStream() != null) {
                 // Don't include backing indices of data streams,
@@ -122,7 +136,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         }
         final Map<String, List<AliasMetadata>> finalResponse = Collections.unmodifiableMap(mapBuilder);
         if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
-            checkSystemIndexAccess(request, systemIndices, state, finalResponse, systemIndexAccessLevel, threadContext);
+            checkSystemIndexAccess(systemIndices, projectMetadata, finalResponse, systemIndexAccessLevel, threadContext);
         }
         return finalResponse;
     }
@@ -130,37 +144,24 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     static Map<String, List<DataStreamAlias>> postProcess(
         IndexNameExpressionResolver resolver,
         GetAliasesRequest request,
-        ClusterState state
+        ProjectMetadata projectMetadata
     ) {
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
-        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
-        List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
-        for (String requestedDataStream : requestedDataStreams) {
-            List<DataStreamAlias> aliases = state.metadata()
-                .dataStreamAliases()
-                .values()
-                .stream()
-                .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
-                .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
-                .toList();
-            if (aliases.isEmpty() == false) {
-                result.put(requestedDataStream, aliases);
-            }
-        }
-        return result;
+        List<String> requestedDataStreams = resolver.dataStreamNames(projectMetadata, request.indicesOptions(), request.indices());
+
+        return projectMetadata.findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
     }
 
     private static void checkSystemIndexAccess(
-        GetAliasesRequest request,
         SystemIndices systemIndices,
-        ClusterState state,
+        ProjectMetadata projectMetadata,
         Map<String, List<AliasMetadata>> aliasesMap,
         SystemIndexAccessLevel systemIndexAccessLevel,
         ThreadContext threadContext
     ) {
         final Predicate<String> systemIndexAccessAllowPredicate;
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
-            systemIndexAccessAllowPredicate = indexName -> false;
+            systemIndexAccessAllowPredicate = Predicates.never();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
             systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
         } else {
@@ -170,7 +171,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         List<String> netNewSystemIndices = new ArrayList<>();
         List<String> systemIndicesNames = new ArrayList<>();
         aliasesMap.keySet().forEach(indexName -> {
-            IndexMetadata index = state.metadata().index(indexName);
+            IndexMetadata index = projectMetadata.index(indexName);
             if (index != null && index.isSystem()) {
                 if (systemIndexAccessAllowPredicate.test(indexName) == false) {
                     if (systemIndices.isNetNewSystemIndex(indexName)) {

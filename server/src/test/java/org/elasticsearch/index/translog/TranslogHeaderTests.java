@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -17,9 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -32,7 +31,7 @@ public class TranslogHeaderTests extends ESTestCase {
         final long generation = randomNonNegativeLong();
         final Path translogFile = createTempDir().resolve(Translog.getFilename(generation));
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            outHeader.write(channel);
+            outHeader.write(channel, true);
             assertThat(outHeader.sizeInBytes(), equalTo((int) channel.position()));
         }
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
@@ -51,37 +50,30 @@ public class TranslogHeaderTests extends ESTestCase {
         final TranslogCorruptedException corruption = expectThrows(TranslogCorruptedException.class, () -> {
             try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.READ)) {
                 TranslogHeader.read(randomBoolean() ? outHeader.getTranslogUUID() : UUIDs.randomBase64UUID(), translogFile, channel);
-            } catch (IllegalStateException e) {
-                // corruption corrupted the version byte making this look like a v2, v1 or v0 translog
-                assertThat(
-                    "version " + TranslogHeader.VERSION_CHECKPOINTS + "-or-earlier translog",
-                    e.getMessage(),
-                    anyOf(
-                        containsString("pre-2.0 translog found"),
-                        containsString("pre-1.4 translog found"),
-                        containsString("pre-6.3 translog found")
-                    )
-                );
-                throw new TranslogCorruptedException(translogFile.toString(), "adjusted translog version", e);
             }
         });
         assertThat(corruption.getMessage(), not(containsString("this translog file belongs to a different translog")));
     }
 
     public void testLegacyTranslogVersions() {
-        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v0.binary", IllegalStateException.class, "pre-1.4 translog");
-        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1.binary", IllegalStateException.class, "pre-2.0 translog");
-        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v2.binary", IllegalStateException.class, "pre-6.3 translog");
-        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1-truncated.binary", IllegalStateException.class, "pre-2.0 translog");
+        final String expectedMessage = "translog header corrupted";
+        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v0.binary", TranslogCorruptedException.class, expectedMessage);
+        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v1.binary", TranslogCorruptedException.class, expectedMessage);
+        checkFailsToOpen("/org/elasticsearch/index/translog/translog-v2.binary", TranslogCorruptedException.class, expectedMessage);
+        checkFailsToOpen(
+            "/org/elasticsearch/index/translog/translog-v1-truncated.binary",
+            TranslogCorruptedException.class,
+            expectedMessage
+        );
         checkFailsToOpen(
             "/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary",
             TranslogCorruptedException.class,
-            "translog looks like version 1 or later, but has corrupted header"
+            expectedMessage
         );
         checkFailsToOpen(
             "/org/elasticsearch/index/translog/translog-v1-corrupted-body.binary",
-            IllegalStateException.class,
-            "pre-2.0 translog"
+            TranslogCorruptedException.class,
+            expectedMessage
         );
     }
 
@@ -92,7 +84,7 @@ public class TranslogHeaderTests extends ESTestCase {
         final Path translogLocation = createTempDir();
         final Path translogFile = translogLocation.resolve(Translog.getFilename(generation));
         try (FileChannel channel = FileChannel.open(translogFile, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            outHeader.write(channel);
+            outHeader.write(channel, true);
             assertThat(outHeader.sizeInBytes(), equalTo((int) channel.position()));
         }
         TestTranslog.corruptFile(logger, random(), translogFile, false);
@@ -101,7 +93,7 @@ public class TranslogHeaderTests extends ESTestCase {
                 TranslogHeader.read(randomValueOtherThan(translogUUID, UUIDs::randomBase64UUID), translogFile, channel);
             }
         });
-        assertThat(error, either(instanceOf(IllegalStateException.class)).or(instanceOf(TranslogCorruptedException.class)));
+        assertThat(error, instanceOf(TranslogCorruptedException.class));
     }
 
     private <E extends Exception> void checkFailsToOpen(String file, Class<E> expectedErrorType, String expectedMessage) {

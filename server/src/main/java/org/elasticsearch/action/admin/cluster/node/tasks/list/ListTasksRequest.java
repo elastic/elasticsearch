@@ -1,22 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.regex.Regex.simpleMatch;
@@ -40,9 +43,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         super(in);
         detailed = in.readBoolean();
         waitForCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-            descriptions = in.readStringArray();
-        }
+        descriptions = in.readStringArray();
     }
 
     @Override
@@ -50,9 +51,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         super.writeTo(out);
         out.writeBoolean(detailed);
         out.writeBoolean(waitForCompletion);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeStringArray(descriptions);
-        }
+        out.writeStringArray(descriptions);
     }
 
     @Override
@@ -119,4 +118,8 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         return this;
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
 }

@@ -63,4 +63,9 @@ public class MonitoringMigrateAlertsResponseTests extends AbstractWireSerializin
         }
         return new MonitoringMigrateAlertsResponse(results);
     }
+
+    @Override
+    protected MonitoringMigrateAlertsResponse mutateInstance(MonitoringMigrateAlertsResponse instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
 }

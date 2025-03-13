@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class SegmentsStats implements Writeable, ToXContentFragment {
 
@@ -38,7 +40,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
     public SegmentsStats(StreamInput in) throws IOException {
         count = in.readVLong();
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readLong(); // memoryInBytes
             in.readLong(); // termsMemoryInBytes
             in.readLong(); // storedFieldsMemoryInBytes
@@ -105,7 +107,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getIndexWriterMemory() {
-        return new ByteSizeValue(indexWriterMemoryInBytes);
+        return ByteSizeValue.ofBytes(indexWriterMemoryInBytes);
     }
 
     /**
@@ -116,7 +118,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getVersionMapMemory() {
-        return new ByteSizeValue(versionMapMemoryInBytes);
+        return ByteSizeValue.ofBytes(versionMapMemoryInBytes);
     }
 
     /**
@@ -127,7 +129,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     }
 
     public ByteSizeValue getBitsetMemory() {
-        return new ByteSizeValue(bitsetMemoryInBytes);
+        return ByteSizeValue.ofBytes(bitsetMemoryInBytes);
     }
 
     /**
@@ -171,6 +173,24 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SegmentsStats that = (SegmentsStats) o;
+        return count == that.count
+            && indexWriterMemoryInBytes == that.indexWriterMemoryInBytes
+            && versionMapMemoryInBytes == that.versionMapMemoryInBytes
+            && maxUnsafeAutoIdTimestamp == that.maxUnsafeAutoIdTimestamp
+            && bitsetMemoryInBytes == that.bitsetMemoryInBytes
+            && Objects.equals(files, that.files);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(count, indexWriterMemoryInBytes, versionMapMemoryInBytes, maxUnsafeAutoIdTimestamp, bitsetMemoryInBytes, files);
+    }
+
     static final class Fields {
         static final String SEGMENTS = "segments";
         static final String COUNT = "count";
@@ -201,7 +221,7 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(count);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeLong(0L); // memoryInBytes
             out.writeLong(0L); // termsMemoryInBytes
             out.writeLong(0L); // storedFieldsMemoryInBytes
@@ -231,19 +251,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         private final long max;
 
         FileStats(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-                this.ext = in.readString();
-                this.total = in.readVLong();
-                this.count = in.readVLong();
-                this.min = in.readVLong();
-                this.max = in.readVLong();
-            } else {
-                this.ext = in.readString();
-                this.total = in.readLong();
-                this.count = 0L;
-                this.min = 0L;
-                this.max = 0L;
-            }
+            this.ext = in.readString();
+            this.total = in.readVLong();
+            this.count = in.readVLong();
+            this.min = in.readVLong();
+            this.max = in.readVLong();
         }
 
         public FileStats(String ext, long total, long count, long min, long max) {
@@ -276,16 +288,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-                out.writeString(ext);
-                out.writeVLong(total);
-                out.writeVLong(count);
-                out.writeVLong(min);
-                out.writeVLong(max);
-            } else {
-                out.writeString(ext);
-                out.writeLong(total);
-            }
+            out.writeString(ext);
+            out.writeVLong(total);
+            out.writeVLong(count);
+            out.writeVLong(min);
+            out.writeVLong(max);
         }
 
         @Override
@@ -305,6 +312,19 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FileStats that = (FileStats) o;
+            return Objects.equals(ext, that.ext) && total == that.total && count == that.count && min == that.min && max == that.max;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(ext, total, count, min, max);
         }
 
         public static FileStats merge(FileStats o1, FileStats o2) {

@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,32 +47,24 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
-        super(
-            XPackUsageFeatureAction.INDEX_LIFECYCLE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
         Metadata metadata = state.metadata();
-        IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
+        IndexLifecycleMetadata lifecycleMetadata = metadata.getProject().custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
         if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
-            metadata.indices().values().forEach(value -> {
+            metadata.getProject().indices().values().forEach(value -> {
                 String policyName = value.getLifecyclePolicyName();
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {
@@ -105,7 +97,7 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 
-    private void collectActionConfigurations(String actionName, LifecycleAction action, ActionConfigStats.Builder consumer) {
+    private static void collectActionConfigurations(String actionName, LifecycleAction action, ActionConfigStats.Builder consumer) {
         switch (actionName) {
             case AllocateAction.NAME -> {
                 AllocateAction allocateAction = (AllocateAction) action;
@@ -116,17 +108,17 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                 consumer.setForceMergeMaxNumberOfSegments(forceMergeAction.getMaxNumSegments());
             }
             case RolloverAction.NAME -> {
-                RolloverAction rolloverAction = (RolloverAction) action;
-                consumer.setRolloverMaxAge(rolloverAction.getMaxAge());
-                consumer.setRolloverMaxDocs(rolloverAction.getMaxDocs());
-                consumer.setRolloverMaxPrimaryShardDocs(rolloverAction.getMaxPrimaryShardDocs());
-                consumer.setRolloverMaxPrimaryShardSize(rolloverAction.getMaxPrimaryShardSize());
-                consumer.setRolloverMaxSize(rolloverAction.getMaxSize());
-                consumer.setRolloverMinAge(rolloverAction.getMinAge());
-                consumer.setRolloverMinDocs(rolloverAction.getMinDocs());
-                consumer.setRolloverMinPrimaryShardDocs(rolloverAction.getMinPrimaryShardDocs());
-                consumer.setRolloverMinPrimaryShardSize(rolloverAction.getMinPrimaryShardSize());
-                consumer.setRolloverMinSize(rolloverAction.getMinSize());
+                RolloverConditions rolloverConditions = ((RolloverAction) action).getConditions();
+                consumer.setRolloverMaxAge(rolloverConditions.getMaxAge());
+                consumer.setRolloverMaxDocs(rolloverConditions.getMaxDocs());
+                consumer.setRolloverMaxPrimaryShardDocs(rolloverConditions.getMaxPrimaryShardDocs());
+                consumer.setRolloverMaxPrimaryShardSize(rolloverConditions.getMaxPrimaryShardSize());
+                consumer.setRolloverMaxSize(rolloverConditions.getMaxSize());
+                consumer.setRolloverMinAge(rolloverConditions.getMinAge());
+                consumer.setRolloverMinDocs(rolloverConditions.getMinDocs());
+                consumer.setRolloverMinPrimaryShardDocs(rolloverConditions.getMinPrimaryShardDocs());
+                consumer.setRolloverMinPrimaryShardSize(rolloverConditions.getMinPrimaryShardSize());
+                consumer.setRolloverMinSize(rolloverConditions.getMinSize());
             }
             case SetPriorityAction.NAME -> {
                 SetPriorityAction setPriorityAction = (SetPriorityAction) action;

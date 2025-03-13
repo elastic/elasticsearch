@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -24,18 +26,48 @@ public class HealthIndicatorServiceTests extends ESTestCase {
         Set<HealthIndicatorImpact> impacts = new HashSet<>();
         for (int i = 0; i < 10; i++) {
             impacts.add(
-                new HealthIndicatorImpact(randomIntBetween(5, 20), randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())))
+                new HealthIndicatorImpact(
+                    randomAlphaOfLength(10),
+                    randomAlphaOfLength(10),
+                    randomIntBetween(5, 20),
+                    randomAlphaOfLength(20),
+                    List.of(randomFrom(ImpactArea.values()))
+                )
             );
         }
-        HealthIndicatorImpact impact1 = new HealthIndicatorImpact(1, randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())));
-        HealthIndicatorImpact impact2 = new HealthIndicatorImpact(2, randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())));
-        HealthIndicatorImpact impact3 = new HealthIndicatorImpact(3, randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())));
+        HealthIndicatorImpact impact1 = new HealthIndicatorImpact(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            1,
+            randomAlphaOfLength(20),
+            List.of(randomFrom(ImpactArea.values()))
+        );
+        HealthIndicatorImpact impact2 = new HealthIndicatorImpact(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            2,
+            randomAlphaOfLength(20),
+            List.of(randomFrom(ImpactArea.values()))
+        );
+        HealthIndicatorImpact impact3 = new HealthIndicatorImpact(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(10),
+            3,
+            randomAlphaOfLength(20),
+            List.of(randomFrom(ImpactArea.values()))
+        );
         impacts.add(impact2);
         impacts.add(impact1);
         impacts.add(impact3);
         for (int i = 0; i < 10; i++) {
             impacts.add(
-                new HealthIndicatorImpact(randomIntBetween(5, 20), randomAlphaOfLength(20), List.of(randomFrom(ImpactArea.values())))
+                new HealthIndicatorImpact(
+                    randomAlphaOfLength(10),
+                    randomAlphaOfLength(10),
+                    randomIntBetween(5, 20),
+                    randomAlphaOfLength(20),
+                    List.of(randomFrom(ImpactArea.values()))
+                )
             );
         }
         HealthIndicatorResult result = service.createIndicator(
@@ -59,7 +91,7 @@ public class HealthIndicatorServiceTests extends ESTestCase {
             }
 
             @Override
-            public HealthIndicatorResult calculate(boolean explain) {
+            public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
                 return null;
             }
         };

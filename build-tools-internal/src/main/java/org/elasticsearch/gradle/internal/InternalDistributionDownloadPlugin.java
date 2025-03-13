@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -19,19 +20,21 @@ import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
-import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.provider.Provider;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.gradle.util.GradleUtils.projectDependency;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * An internal elasticsearch build plugin that registers additional
@@ -45,6 +48,8 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+        var buildParams = loadBuildParams(project).get();
+
         DistributionDownloadPlugin distributionDownloadPlugin = project.getPlugins().apply(DistributionDownloadPlugin.class);
         Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
@@ -53,7 +58,10 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         distributionDownloadPlugin.setDockerAvailability(
             dockerSupport.map(dockerSupportService -> dockerSupportService.getDockerAvailability().isAvailable())
         );
-        registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
+        registerInternalDistributionResolutions(
+            DistributionDownloadPlugin.getRegistrationsContainer(project),
+            buildParams.getBwcVersionsProvider()
+        );
     }
 
     /**
@@ -64,19 +72,19 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
      * <p>
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
      */
-    private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
-        resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
+    private void registerInternalDistributionResolutions(List<DistributionResolution> resolutions, Provider<BwcVersions> bwcVersions) {
+        resolutions.add(new DistributionResolution("local-build", (project, distribution) -> {
             if (isCurrentVersion(distribution)) {
                 // non-external project, so depend on local build
                 return new ProjectBasedDistributionDependency(
-                    config -> projectDependency(project, distributionProjectPath(distribution), config)
+                    config -> projectDependency(project.getDependencies(), distributionProjectPath(distribution), config)
                 );
             }
             return null;
         }));
 
-        resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
-            BwcVersions.UnreleasedVersionInfo unreleasedInfo = BuildParams.getBwcVersions()
+        resolutions.add(new DistributionResolution("bwc", (project, distribution) -> {
+            BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.get()
                 .unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
                 if (distribution.getBundledJdk() == false) {
@@ -89,7 +97,30 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
                 }
                 String projectConfig = getProjectConfig(distribution, unreleasedInfo);
                 return new ProjectBasedDistributionDependency(
-                    (config) -> projectDependency(project, unreleasedInfo.gradleProjectPath(), projectConfig)
+                    (config) -> projectDependency(project.getDependencies(), unreleasedInfo.gradleProjectPath(), projectConfig)
+                );
+            }
+            return null;
+        }));
+
+        // Distribution resolution for "override" versions. This allows for building from source for any version, including the current
+        // version of existing released versions from a commit form the main branch. This is done by passing certain system properties, ex:
+        //
+        // -Dtests.bwc.refspec.main=deadbeef -Dtests.bwc.main.version=9.0.0
+        //
+        // The 'test.bwc.main.version' property should map to the version returned by the commit referenced in 'tests.bwc.refspec.main'.
+        resolutions.add(new DistributionResolution("override", (project, distribution) -> {
+            String versionProperty = System.getProperty("tests.bwc.main.version");
+            // We use this phony version as a placeholder for the real version
+            if (distribution.getVersion().equals("0.0.0")) {
+                BwcVersions.UnreleasedVersionInfo unreleasedVersionInfo = new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(versionProperty),
+                    "main",
+                    ":distribution:bwc:main"
+                );
+                String projectConfig = getProjectConfig(distribution, unreleasedVersionInfo);
+                return new ProjectBasedDistributionDependency(
+                    (config) -> projectDependency(project.getDependencies(), unreleasedVersionInfo.gradleProjectPath(), projectConfig)
                 );
             }
             return null;
@@ -114,6 +145,13 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         } else {
             return distributionProjectName;
         }
+    }
+
+    private static Dependency projectDependency(DependencyHandler dependencyHandler, String projectPath, String projectConfig) {
+        Map<String, Object> depConfig = new HashMap<>();
+        depConfig.put("path", projectPath);
+        depConfig.put("configuration", projectConfig);
+        return dependencyHandler.project(depConfig);
     }
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {
@@ -157,26 +195,23 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER) {
             return projectName + "docker" + archString + "-export";
         }
-        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_UBI) {
-            return projectName + "ubi-docker" + archString + "-export";
-        }
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_IRONBANK) {
             return projectName + "ironbank-docker" + archString + "-export";
-        }
-        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_CLOUD) {
-            return projectName + "cloud-docker" + archString + "-export";
         }
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_CLOUD_ESS) {
             return projectName + "cloud-ess-docker" + archString + "-export";
         }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_WOLFI) {
+            return projectName + "wolfi-docker" + archString + "-export";
+        }
         return projectName + distribution.getType().getName();
     }
 
-    private static class ProjectBasedDistributionDependency implements DistributionDependency {
+    public static class ProjectBasedDistributionDependency implements DistributionDependency {
 
         private Function<String, Dependency> function;
 
-        ProjectBasedDistributionDependency(Function<String, Dependency> function) {
+        public ProjectBasedDistributionDependency(Function<String, Dependency> function) {
             this.function = function;
         }
 

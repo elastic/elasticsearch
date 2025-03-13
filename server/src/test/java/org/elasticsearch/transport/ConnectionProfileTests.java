@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -71,6 +72,12 @@ public class ConnectionProfileTests extends ESTestCase {
         );
         assertEquals("type [PING] is already registered", illegalArgumentException.getMessage());
         builder.addConnections(4, TransportRequestOptions.Type.REG);
+
+        final String transportProfile = randomFrom(TransportSettings.DEFAULT_PROFILE, randomAlphaOfLengthBetween(5, 12), null);
+        if (transportProfile != null) {
+            builder.setTransportProfile(transportProfile);
+        }
+
         ConnectionProfile build = builder.build();
         if (randomBoolean()) {
             build = new ConnectionProfile.Builder(build).build();
@@ -104,6 +111,12 @@ public class ConnectionProfileTests extends ESTestCase {
             assertEquals(pingInterval, build.getPingInterval());
         } else {
             assertNull(build.getPingInterval());
+        }
+
+        if (transportProfile != null) {
+            assertEquals(transportProfile, build.getTransportProfile());
+        } else {
+            assertEquals(TransportSettings.DEFAULT_PROFILE, build.getTransportProfile());
         }
 
         List<Integer> list = new ArrayList<>(10);
@@ -246,6 +259,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(TransportSettings.TRANSPORT_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
         assertEquals(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(Settings.EMPTY), profile.getCompressionScheme());
         assertEquals(TransportSettings.PING_SCHEDULE.get(Settings.EMPTY), profile.getPingInterval());
+        assertEquals(TransportSettings.DEFAULT_PROFILE, profile.getTransportProfile());
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(nonMasterNode());
         assertEquals(12, profile.getNumConnections());
@@ -254,6 +268,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(2, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(TransportSettings.DEFAULT_PROFILE, profile.getTransportProfile());
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(nonDataNode());
         assertEquals(11, profile.getNumConnections());
@@ -262,6 +277,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(TransportSettings.DEFAULT_PROFILE, profile.getTransportProfile());
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(removeRoles(nonDataNode(), Set.of(DiscoveryNodeRole.MASTER_ROLE)));
         assertEquals(10, profile.getNumConnections());
@@ -270,5 +286,6 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+        assertEquals(TransportSettings.DEFAULT_PROFILE, profile.getTransportProfile());
     }
 }

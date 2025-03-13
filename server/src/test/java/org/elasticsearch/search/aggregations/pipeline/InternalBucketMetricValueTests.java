@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.Arrays;
@@ -34,26 +34,12 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
 
     @Override
     public void testReduceRandom() {
-        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).reduce(null, null));
+        expectThrows(UnsupportedOperationException.class, () -> createTestInstance("name", null).getReducer(null, 0));
     }
 
     @Override
     protected void assertReduced(InternalBucketMetricValue reduced, List<InternalBucketMetricValue> inputs) {
         // no test since reduce operation is unsupported
-    }
-
-    @Override
-    protected void assertFromXContent(InternalBucketMetricValue bucketMetricValue, ParsedAggregation parsedAggregation) {
-        BucketMetricValue parsed = ((BucketMetricValue) parsedAggregation);
-        assertArrayEquals(bucketMetricValue.keys(), parsed.keys());
-        if (Double.isInfinite(bucketMetricValue.value()) == false) {
-            assertEquals(bucketMetricValue.value(), parsed.value(), 0);
-            assertEquals(bucketMetricValue.getValueAsString(), parsed.getValueAsString());
-        } else {
-            // we write Double.NEGATIVE_INFINITY and Double.POSITIVE_INFINITY to xContent as 'null', so we
-            // cannot differentiate between them. Also we cannot recreate the exact String representation
-            assertEquals(parsed.value(), Double.NEGATIVE_INFINITY, 0);
-        }
     }
 
     @Override

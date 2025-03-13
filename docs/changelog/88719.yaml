@@ -1,5 +1,0 @@
-pr: 88719
-summary: Convert disk watermarks to RelativeByteSizeValues
-area: Infra/Settings
-type: enhancement
-issues: []

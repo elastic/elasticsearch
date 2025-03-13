@@ -8,10 +8,11 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -23,15 +24,12 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.TIMEOUT;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteTrainedModelAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(DELETE, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
-                .replaces(DELETE, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8)
-                .build()
-        );
+        return List.of(new Route(DELETE, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}"));
     }
 
     @Override
@@ -45,7 +43,7 @@ public class RestDeleteTrainedModelAction extends BaseRestHandler {
         DeleteTrainedModelAction.Request request = new DeleteTrainedModelAction.Request(modelId);
         if (restRequest.hasParam(TIMEOUT.getPreferredName())) {
             TimeValue timeout = restRequest.paramAsTime(TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
-            request.timeout(timeout);
+            request.ackTimeout(timeout);
         }
         request.setForce(restRequest.paramAsBoolean(DeleteTrainedModelAction.Request.FORCE.getPreferredName(), request.isForce()));
         return channel -> client.execute(DeleteTrainedModelAction.INSTANCE, request, new RestToXContentListener<>(channel));

@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "resolve index api only supported in 7.9+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:
@@ -54,8 +54,6 @@ setup:
   - do:
       indices.close:
         index: test_index2
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       indices.create:
@@ -66,8 +64,8 @@ setup:
 
 ---
 "Resolve index with indices, aliases, and data streams":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "resolve index api only supported in 7.9+"
 
   - do:
@@ -110,13 +108,13 @@ setup:
 
 ---
 "Resolve index with hidden and closed indices":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "resolve index api only supported in 7.9+"
 
   - do:
       indices.resolve_index:
-        name: ['*','-.ml*']
+        name: ['*','-.ml*', '-.ds-ilm-history*', '-ilm-history*']
         expand_wildcards: [all]
 
   - match: {indices.0.name: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/"}

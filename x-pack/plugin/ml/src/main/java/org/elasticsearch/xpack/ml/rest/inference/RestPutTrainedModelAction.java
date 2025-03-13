@@ -7,9 +7,10 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -19,17 +20,15 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestPutTrainedModelAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(PUT, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
-                .replaces(PUT, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8)
-                .build()
-        );
+        return List.of(new Route(PUT, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}"));
     }
 
     @Override
@@ -42,8 +41,14 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
         String id = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         boolean deferDefinitionDecompression = restRequest.paramAsBoolean(PutTrainedModelAction.DEFER_DEFINITION_DECOMPRESSION, false);
-        PutTrainedModelAction.Request putRequest = PutTrainedModelAction.Request.parseRequest(id, deferDefinitionDecompression, parser);
-        putRequest.timeout(restRequest.paramAsTime("timeout", putRequest.timeout()));
+        boolean waitForCompletion = restRequest.paramAsBoolean("wait_for_completion", false);
+        PutTrainedModelAction.Request putRequest = PutTrainedModelAction.Request.parseRequest(
+            id,
+            deferDefinitionDecompression,
+            waitForCompletion,
+            parser
+        );
+        putRequest.ackTimeout(getAckTimeout(restRequest));
         return channel -> client.execute(PutTrainedModelAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }
 }

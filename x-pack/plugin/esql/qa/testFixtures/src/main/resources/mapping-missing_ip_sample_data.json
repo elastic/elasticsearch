@@ -1,0 +1,13 @@
+{
+    "properties": {
+        "@timestamp": {
+            "type": "date"
+        },
+        "event_duration": {
+            "type": "long"
+        },
+        "message": {
+            "type": "keyword"
+        }
+    }
+}

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -41,7 +42,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     MultiSearchTemplateRequest(StreamInput in) throws IOException {
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
-        requests = in.readList(SearchTemplateRequest::new);
+        requests = in.readCollectionAsList(SearchTemplateRequest::new);
     }
 
     /**
@@ -116,7 +117,7 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
-        out.writeList(requests);
+        out.writeCollection(requests);
     }
 
     @Override
@@ -142,12 +143,12 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
                 MultiSearchRequest.writeSearchRequestParams(searchRequest, xContentBuilder);
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
                 templateRequest.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
         }
         return output.toByteArray();
     }

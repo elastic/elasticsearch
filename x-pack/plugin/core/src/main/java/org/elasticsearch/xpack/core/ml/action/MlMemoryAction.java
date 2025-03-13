@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -61,7 +60,7 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
     static final String JAVA_INFERENCE_IN_BYTES = "java_inference_in_bytes";
 
     private MlMemoryAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -69,6 +68,7 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
         private final String nodeId;
 
         public Request(String nodeId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.nodeId = ExceptionsHelper.requireNonNull(nodeId, "nodeId");
         }
 
@@ -85,11 +85,6 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
 
         public String getNodeId() {
             return nodeId;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override
@@ -153,16 +148,16 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
 
             public MlMemoryStats(StreamInput in) throws IOException {
                 super(in);
-                memTotal = new ByteSizeValue(in);
-                memAdjustedTotal = new ByteSizeValue(in);
-                mlMax = new ByteSizeValue(in);
-                mlNativeCodeOverhead = new ByteSizeValue(in);
-                mlAnomalyDetectors = new ByteSizeValue(in);
-                mlDataFrameAnalytics = new ByteSizeValue(in);
-                mlNativeInference = new ByteSizeValue(in);
-                jvmHeapMax = new ByteSizeValue(in);
-                jvmInferenceMax = new ByteSizeValue(in);
-                jvmInference = new ByteSizeValue(in);
+                memTotal = ByteSizeValue.readFrom(in);
+                memAdjustedTotal = ByteSizeValue.readFrom(in);
+                mlMax = ByteSizeValue.readFrom(in);
+                mlNativeCodeOverhead = ByteSizeValue.readFrom(in);
+                mlAnomalyDetectors = ByteSizeValue.readFrom(in);
+                mlDataFrameAnalytics = ByteSizeValue.readFrom(in);
+                mlNativeInference = ByteSizeValue.readFrom(in);
+                jvmHeapMax = ByteSizeValue.readFrom(in);
+                jvmInferenceMax = ByteSizeValue.readFrom(in);
+                jvmInference = ByteSizeValue.readFrom(in);
             }
 
             public ByteSizeValue getMemTotal() {
@@ -318,12 +313,12 @@ public class MlMemoryAction extends ActionType<MlMemoryAction.Response> {
 
         @Override
         protected List<MlMemoryStats> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(MlMemoryStats::new);
+            return in.readCollectionAsList(MlMemoryStats::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<MlMemoryStats> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         @Override

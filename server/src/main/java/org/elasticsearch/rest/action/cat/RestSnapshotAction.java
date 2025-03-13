@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.ResolvedRepositories;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -29,10 +30,12 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Cat API class to display information about snapshots
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSnapshotAction extends AbstractCatAction {
 
     @Override
@@ -45,15 +48,17 @@ public class RestSnapshotAction extends AbstractCatAction {
         return "cat_snapshot_action";
     }
 
+    private static final String[] MATCH_ALL_PATTERNS = { ResolvedRepositories.ALL_PATTERN };
+
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
-        final String[] matchAll = { TransportGetRepositoriesAction.ALL_PATTERN };
-        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest().repositories(request.paramAsStringArray("repository", matchAll))
-            .snapshots(matchAll);
+        final var getSnapshotsRequest = new GetSnapshotsRequest(
+            getMasterNodeTimeout(request),
+            request.paramAsStringArray("repository", MATCH_ALL_PATTERNS),
+            MATCH_ALL_PATTERNS
+        );
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
-
-        getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
 
         return channel -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<>(channel) {
             @Override
@@ -91,24 +96,6 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     private Table buildTable(RestRequest req, GetSnapshotsResponse getSnapshotsResponse) {
         Table table = getTableWithHeader(req);
-
-        if (getSnapshotsResponse.isFailed()) {
-            ElasticsearchException causes = null;
-
-            for (ElasticsearchException e : getSnapshotsResponse.getFailures().values()) {
-                if (causes == null) {
-                    causes = e;
-                } else {
-                    causes.addSuppressed(e);
-                }
-            }
-            throw new ElasticsearchException(
-                "Repositories ["
-                    + Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet())
-                    + "] failed to retrieve snapshots",
-                causes
-            );
-        }
 
         for (SnapshotInfo snapshotStatus : getSnapshotsResponse.getSnapshots()) {
             table.startRow();

@@ -7,19 +7,19 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource.Type;
 
 import java.io.IOException;
@@ -35,16 +35,16 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
+public class GroupConfigTests extends AbstractXContentSerializingTestCase<GroupConfig> {
 
     // array of illegal characters, see {@link AggregatorFactories#VALID_AGG_NAME}
     private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = { '[', ']', '>' };
 
     public static GroupConfig randomGroupConfig() {
-        return randomGroupConfig(Version.CURRENT);
+        return randomGroupConfig(TransformConfigVersion.CURRENT);
     }
 
-    public static GroupConfig randomGroupConfig(Version version) {
+    public static GroupConfig randomGroupConfig(TransformConfigVersion version) {
         return randomGroupConfig(() -> randomSingleGroupSource(version));
     }
 
@@ -66,7 +66,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         return new GroupConfig(source, groups);
     }
 
-    public static SingleGroupSource randomSingleGroupSource(Version version) {
+    public static SingleGroupSource randomSingleGroupSource(TransformConfigVersion version) {
         Type type = randomFrom(SingleGroupSource.Type.values());
         switch (type) {
             case TERMS:
@@ -91,6 +91,11 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
     @Override
     protected GroupConfig createTestInstance() {
         return randomGroupConfig();
+    }
+
+    @Override
+    protected GroupConfig mutateInstance(GroupConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
@@ -31,8 +32,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.singletonMap("ONE", "1"),
-            Collections.singletonList("%{ONE:one}"),
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
             fieldName,
             false,
             false,
@@ -49,8 +50,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.emptyMap(),
-            Collections.singletonList("(?<a>(?i)A)"),
+            PatternBank.EMPTY,
+            List.of("(?<a>(?i)A)"),
             fieldName,
             false,
             false,
@@ -67,8 +68,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.singletonMap("ONE", "1"),
-            Collections.singletonList("%{ONE:one}"),
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
             fieldName,
             false,
             false,
@@ -87,8 +88,8 @@ public class GrokProcessorTests extends ESTestCase {
             () -> new GrokProcessor(
                 randomAlphaOfLength(10),
                 null,
-                Collections.singletonMap("ONE", "1"),
-                Collections.singletonList("%{NOTONE:not_one}"),
+                new PatternBank(Map.of("ONE", "1")),
+                List.of("%{NOTONE:not_one}"),
                 fieldName,
                 false,
                 false,
@@ -106,26 +107,26 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.emptyMap(),
-            Collections.singletonList(fieldName),
+            PatternBank.EMPTY,
+            List.of(fieldName),
             fieldName,
             false,
             false,
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
-        assertThat(doc, equalTo(originalDoc));
+        assertIngestDocument(doc, originalDoc);
     }
 
     public void testNullField() {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        doc.setFieldValue(fieldName, null);
+        doc.setFieldValue(fieldName, (Object) null);
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.singletonMap("ONE", "1"),
-            Collections.singletonList("%{ONE:one}"),
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
             fieldName,
             false,
             false,
@@ -138,13 +139,13 @@ public class GrokProcessorTests extends ESTestCase {
     public void testNullFieldWithIgnoreMissing() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        originalIngestDocument.setFieldValue(fieldName, null);
+        originalIngestDocument.setFieldValue(fieldName, (Object) null);
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.singletonMap("ONE", "1"),
-            Collections.singletonList("%{ONE:one}"),
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
             fieldName,
             false,
             true,
@@ -161,8 +162,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.singletonMap("ONE", "1"),
-            Collections.singletonList("%{ONE:one}"),
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
             fieldName,
             false,
             false,
@@ -179,8 +180,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.singletonMap("ONE", "1"),
-            Collections.singletonList("%{ONE:one}"),
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
             fieldName,
             false,
             true,
@@ -196,8 +197,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.singletonMap("ONE", "1"),
-            Collections.singletonList("%{ONE:one}"),
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
             fieldName,
             false,
             false,
@@ -214,8 +215,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            Collections.singletonMap("ONE", "1"),
-            Collections.singletonList("%{ONE:one}"),
+            new PatternBank(Map.of("ONE", "1")),
+            List.of("%{ONE:one}"),
             fieldName,
             false,
             true,
@@ -236,8 +237,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
-            Arrays.asList("%{ONE:one}", "%{TWO:two}", "%{THREE:three}"),
+            new PatternBank(patternBank),
+            List.of("%{ONE:one}", "%{TWO:two}", "%{THREE:three}"),
             fieldName,
             false,
             false,
@@ -260,8 +261,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
-            Arrays.asList("%{ONE:one}", "%{TWO:two}", "%{THREE:three}"),
+            new PatternBank(patternBank),
+            List.of("%{ONE:one}", "%{TWO:two}", "%{THREE:three}"),
             fieldName,
             true,
             false,
@@ -283,8 +284,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
-            Arrays.asList("%{ONE:one}"),
+            new PatternBank(patternBank),
+            List.of("%{ONE:one}"),
             fieldName,
             true,
             false,
@@ -297,17 +298,17 @@ public class GrokProcessorTests extends ESTestCase {
 
     public void testCombinedPatterns() {
         String combined;
-        combined = GrokProcessor.combinePatterns(Arrays.asList(""), false);
+        combined = GrokProcessor.combinePatterns(List.of(""), false);
         assertThat(combined, equalTo(""));
-        combined = GrokProcessor.combinePatterns(Arrays.asList(""), true);
+        combined = GrokProcessor.combinePatterns(List.of(""), true);
         assertThat(combined, equalTo(""));
-        combined = GrokProcessor.combinePatterns(Arrays.asList("foo"), false);
+        combined = GrokProcessor.combinePatterns(List.of("foo"), false);
         assertThat(combined, equalTo("foo"));
-        combined = GrokProcessor.combinePatterns(Arrays.asList("foo"), true);
+        combined = GrokProcessor.combinePatterns(List.of("foo"), true);
         assertThat(combined, equalTo("foo"));
-        combined = GrokProcessor.combinePatterns(Arrays.asList("foo", "bar"), false);
+        combined = GrokProcessor.combinePatterns(List.of("foo", "bar"), false);
         assertThat(combined, equalTo("(?:foo)|(?:bar)"));
-        combined = GrokProcessor.combinePatterns(Arrays.asList("foo", "bar"), true);
+        combined = GrokProcessor.combinePatterns(List.of("foo", "bar"), true);
         assertThat(combined, equalTo("(?<_ingest._grok_match_index.0>foo)|(?<_ingest._grok_match_index.1>bar)"));
     }
 
@@ -322,8 +323,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
-            Arrays.asList("%{ONE:first}-%{TWO:second}", "%{ONE:first}-%{THREE:second}"),
+            new PatternBank(patternBank),
+            List.of("%{ONE:first}-%{TWO:second}", "%{ONE:first}-%{THREE:second}"),
             fieldName,
             randomBoolean(),
             randomBoolean(),
@@ -334,7 +335,7 @@ public class GrokProcessorTests extends ESTestCase {
         assertThat(doc.getFieldValue("second", String.class), equalTo("3"));
     }
 
-    public void testFirstWinNamedCapture() throws Exception {
+    public void testShouldCaptureAllSameNameGroupsAsList() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         IngestDocument doc = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         doc.setFieldValue(fieldName, "12");
@@ -343,15 +344,15 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
-            Collections.singletonList("%{ONETWO:first}%{ONETWO:first}"),
+            new PatternBank(patternBank),
+            List.of("%{ONETWO:first}%{ONETWO:first}"),
             fieldName,
             randomBoolean(),
             randomBoolean(),
             MatcherWatchdog.noop()
         );
         processor.execute(doc);
-        assertThat(doc.getFieldValue("first", String.class), equalTo("1"));
+        assertEquals(doc.getFieldValue("first", List.class), List.of("1", "2"));
     }
 
     public void testUnmatchedNamesNotIncludedInDocument() throws Exception {
@@ -364,8 +365,8 @@ public class GrokProcessorTests extends ESTestCase {
         GrokProcessor processor = new GrokProcessor(
             randomAlphaOfLength(10),
             null,
-            patternBank,
-            Collections.singletonList("%{ONETWO:first}|%{THREE:second}"),
+            new PatternBank(patternBank),
+            List.of("%{ONETWO:first}|%{THREE:second}"),
             fieldName,
             randomBoolean(),
             randomBoolean(),

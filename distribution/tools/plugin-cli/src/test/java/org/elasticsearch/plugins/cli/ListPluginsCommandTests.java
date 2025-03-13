@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.cli;
@@ -64,7 +65,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
         final boolean hasNativeController
     ) throws IOException {
         PluginTestUtil.writePluginProperties(
-            env.pluginsFile().resolve(name),
+            env.pluginsDir().resolve(name),
             "description",
             description,
             "name",
@@ -83,9 +84,9 @@ public class ListPluginsCommandTests extends CommandTestCase {
     }
 
     public void testPluginsDirMissing() throws Exception {
-        Files.delete(env.pluginsFile());
+        Files.delete(env.pluginsDir());
         IOException e = expectThrows(IOException.class, () -> execute());
-        assertEquals("Plugins directory missing: " + env.pluginsFile(), e.getMessage());
+        assertEquals("Plugins directory missing: " + env.pluginsDir(), e.getMessage());
     }
 
     public void testNoPlugins() throws Exception {
@@ -111,7 +112,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
         execute("-v");
         assertEquals(
             buildMultiline(
-                "Plugins directory: " + env.pluginsFile(),
+                "Plugins directory: " + env.pluginsDir(),
                 "fake_plugin",
                 "- Plugin information:",
                 "Name: fake_plugin",
@@ -133,7 +134,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
         execute("-v");
         assertEquals(
             buildMultiline(
-                "Plugins directory: " + env.pluginsFile(),
+                "Plugins directory: " + env.pluginsDir(),
                 "fake_plugin1",
                 "- Plugin information:",
                 "Name: fake_plugin1",
@@ -156,7 +157,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
         execute("-v");
         assertEquals(
             buildMultiline(
-                "Plugins directory: " + env.pluginsFile(),
+                "Plugins directory: " + env.pluginsDir(),
                 "fake_plugin1",
                 "- Plugin information:",
                 "Name: fake_plugin1",
@@ -192,14 +193,14 @@ public class ListPluginsCommandTests extends CommandTestCase {
     }
 
     public void testPluginWithoutDescriptorFile() throws Exception {
-        final Path pluginDir = env.pluginsFile().resolve("fake1");
+        final Path pluginDir = env.pluginsDir().resolve("fake1");
         Files.createDirectories(pluginDir);
         var e = expectThrows(IllegalStateException.class, () -> execute());
         assertThat(e.getMessage(), equalTo("Plugin [fake1] is missing a descriptor properties file."));
     }
 
     public void testPluginWithWrongDescriptorFile() throws Exception {
-        final Path pluginDir = env.pluginsFile().resolve("fake1");
+        final Path pluginDir = env.pluginsDir().resolve("fake1");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc");
         var e = expectThrows(IllegalArgumentException.class, () -> execute());
         assertThat(e.getMessage(), startsWith("property [name] is missing for plugin"));
@@ -207,7 +208,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
 
     public void testExistingIncompatiblePlugin() throws Exception {
         PluginTestUtil.writePluginProperties(
-            env.pluginsFile().resolve("fake_plugin1"),
+            env.pluginsDir().resolve("fake_plugin1"),
             "description",
             "fake desc 1",
             "name",
@@ -215,7 +216,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
             "version",
             "1.0",
             "elasticsearch.version",
-            Version.fromString("1.0.0").toString(),
+            "1.0.0",
             "java.version",
             System.getProperty("java.specification.version"),
             "classname",

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node.selection;
@@ -12,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.TaskId;
 
@@ -21,12 +23,6 @@ import java.util.Map;
  * Main component used for selecting the health node of the cluster
  */
 public class HealthNode extends AllocatedPersistentTask {
-
-    public static final boolean FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.health_node_feature_flag_enabled"));
-
-    public static boolean isEnabled() {
-        return FEATURE_FLAG_ENABLED;
-    }
 
     public static final String TASK_NAME = "health-node";
 
@@ -41,8 +37,7 @@ public class HealthNode extends AllocatedPersistentTask {
 
     @Nullable
     public static PersistentTasksCustomMetadata.PersistentTask<?> findTask(ClusterState clusterState) {
-        PersistentTasksCustomMetadata taskMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        return taskMetadata == null ? null : taskMetadata.getTask(TASK_NAME);
+        return ClusterPersistentTasksCustomMetadata.getTaskWithId(clusterState, TASK_NAME);
     }
 
     @Nullable

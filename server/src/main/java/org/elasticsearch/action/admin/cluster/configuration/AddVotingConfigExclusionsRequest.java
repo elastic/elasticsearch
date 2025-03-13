@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,23 +41,28 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
      * Construct a request to add voting config exclusions for master-eligible nodes matching the given node names, and wait for a
      * default 30 seconds for these exclusions to take effect, removing the nodes from the voting configuration.
      *
+     * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy
+     *                          processing other tasks.
      * @param nodeNames Names of the nodes to add - see {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}
      */
-    public AddVotingConfigExclusionsRequest(String... nodeNames) {
-        this(Strings.EMPTY_ARRAY, nodeNames, TimeValue.timeValueSeconds(30));
+    public AddVotingConfigExclusionsRequest(TimeValue masterNodeTimeout, String... nodeNames) {
+        this(masterNodeTimeout, Strings.EMPTY_ARRAY, nodeNames, TimeValue.timeValueSeconds(30));
     }
 
     /**
      * Construct a request to add voting config exclusions for master-eligible nodes matching the given descriptions, and wait for these
      * nodes to be removed from the voting configuration.
      *
-     * @param nodeIds   Ids of the nodes whose exclusions to add - see
-     *                  {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
-     * @param nodeNames Names of the nodes whose exclusions to add - see
-     *                  {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
-     * @param timeout   How long to wait for the added exclusions to take effect and be removed from the voting configuration.
+     * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy
+     *                          processing other tasks.
+     * @param nodeIds           Ids of the nodes whose exclusions to add - see
+     *                          {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
+     * @param nodeNames         Names of the nodes whose exclusions to add - see
+     *                          {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}.
+     * @param timeout           How long to wait for the added exclusions to take effect and be removed from the voting configuration.
      */
-    public AddVotingConfigExclusionsRequest(String[] nodeIds, String[] nodeNames, TimeValue timeout) {
+    public AddVotingConfigExclusionsRequest(TimeValue masterNodeTimeout, String[] nodeIds, String[] nodeNames, TimeValue timeout) {
+        super(masterNodeTimeout);
         if (timeout.compareTo(TimeValue.ZERO) < 0) {
             throw new IllegalArgumentException("timeout [" + timeout + "] must be non-negative");
         }
@@ -72,7 +78,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
     public AddVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             final String[] legacyNodeDescriptions = in.readStringArray();
             if (legacyNodeDescriptions.length > 0) {
                 throw new IllegalArgumentException("legacy [node_name] field was deprecated and must be empty");
@@ -185,7 +191,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
         out.writeStringArray(nodeIds);

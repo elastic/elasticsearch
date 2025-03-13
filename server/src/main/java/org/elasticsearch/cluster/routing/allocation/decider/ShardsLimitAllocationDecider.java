@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -16,7 +17,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.function.BiPredicate;
 
@@ -70,9 +70,8 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
-    public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
-        this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
+    public ShardsLimitAllocationDecider(ClusterSettings clusterSettings) {
+        clusterSettings.initializeAndWatch(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
     }
 
     private void setClusterShardLimit(int clusterShardLimit) {
@@ -82,7 +81,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return doDecide(
-            allocation.metadata().getIndexSafe(shardRouting.index()),
+            allocation.metadata().indexMetadata(shardRouting.index()),
             shardRouting,
             node,
             allocation,

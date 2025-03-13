@@ -1,4 +1,9 @@
 setup:
+  - skip:
+      reason: "https://github.com/elastic/elasticsearch/issues/109476"
+      known_issues:
+        - cluster_feature: "gte_v8.13.0"
+          fixed_by: "gte_v8.14.0"
   - do:
       indices.create:
         index:  test
@@ -85,7 +90,6 @@ setup:
 
 ---
 "field collapsing and from":
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -280,24 +284,6 @@ setup:
   - match: { hits.hits.1._index: test }
   - match: { hits.hits.1.fields.numeric_group: [1] }
   - match: { hits.hits.1.sort: [1] }
-
----
-"field collapsing and rescore":
-
-  - do:
-      catch:      /cannot use \`collapse\` in conjunction with \`rescore\`/
-      search:
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          collapse: { field: numeric_group }
-          rescore:
-            window_size: 20
-            query:
-              rescore_query:
-                match_all: {}
-              query_weight: 1
-              rescore_query_weight: 2
 
 ---
 "no hits and inner_hits":
@@ -515,3 +501,15 @@ setup:
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._seq_no: 0 }
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._primary_term: 1 }
+---
+"Test collapse with inner_hits and missing name fails":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: fixed in 8.13
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          collapse: { field: numeric_group, inner_hits: { size: 1 } }
+          sort: [{ sort: desc }]

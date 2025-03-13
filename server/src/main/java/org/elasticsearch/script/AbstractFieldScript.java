@@ -1,23 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
@@ -31,7 +34,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
      */
     public static final int MAX_VALUES = 100;
 
-    static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
+    protected static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<>(
             name,
             factoryClass,
@@ -61,25 +64,36 @@ public abstract class AbstractFieldScript extends DocBasedScript {
         );
     }
 
+    @SuppressWarnings("unchecked")
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
         "_source",
-        value -> ((SourceLookup) value).source()
+        value -> ((Supplier<Source>) value).get().source()
     );
 
     protected final String fieldName;
-    protected final SourceLookup sourceLookup;
+    protected final Supplier<Source> source;
     private final Map<String, Object> params;
+    private final OnScriptError onScriptError;
 
-    public AbstractFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
-        super(new DocValuesDocReader(searchLookup, ctx));
+    public AbstractFieldScript(
+        String fieldName,
+        Map<String, Object> params,
+        SearchLookup searchLookup,
+        LeafReaderContext ctx,
+        OnScriptError onScriptError
+    ) {
+        this(fieldName, params, new DocValuesDocReader(searchLookup, ctx), onScriptError);
+    }
 
+    private AbstractFieldScript(String fieldName, Map<String, Object> params, DocReader docReader, OnScriptError onScriptError) {
+        super(docReader);
         this.fieldName = fieldName;
-        Map<String, Object> docAsMap = docAsMap();
-        this.sourceLookup = (SourceLookup) docAsMap.get("_source");
+        this.source = docReader.source();
         params = new HashMap<>(params);
-        params.put("_source", sourceLookup);
-        params.put("_fields", docAsMap.get("_fields"));
+        params.put("_source", this.source);
+        params.put("_fields", docReader.docAsMap().get("_fields"));
         this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
+        this.onScriptError = onScriptError;
     }
 
     /**
@@ -90,7 +104,7 @@ public abstract class AbstractFieldScript extends DocBasedScript {
     }
 
     protected List<Object> extractFromSource(String path) {
-        return XContentMapValues.extractRawValues(path, sourceLookup.source());
+        return XContentMapValues.extractRawValues(path, source.get().source());
     }
 
     protected final void emitFromCompositeScript(CompositeFieldScript compositeFieldScript) {
@@ -130,6 +144,25 @@ public abstract class AbstractFieldScript extends DocBasedScript {
                     MAX_VALUES
                 )
             );
+        }
+    }
+
+    protected abstract void prepareExecute();
+
+    /**
+     * Execute the script for the provided {@code docId}.
+     */
+    public final void runForDoc(int docId) {
+        prepareExecute();
+        setDocument(docId);
+        try {
+            execute();
+        } catch (Exception e) {
+            if (onScriptError == OnScriptError.CONTINUE) {
+                // ignore
+            } else {
+                throw e;
+            }
         }
     }
 

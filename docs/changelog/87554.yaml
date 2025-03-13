@@ -1,5 +1,0 @@
-pr: 87554
-summary: "[TSDB] Add Kahan support to downsampling summation"
-area: "Rollup"
-type: enhancement
-issues: []

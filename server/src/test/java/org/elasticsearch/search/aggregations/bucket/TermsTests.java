@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -20,6 +21,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.ToLongFunction;
 
 public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder> {
 
@@ -164,4 +166,60 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         return orders;
     }
 
+    public void testSupportsParallelCollection() {
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("map");
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(-1, 100)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").executionHint("global_ordinals");
+            assertTrue(terms.supportsParallelCollection(field -> 0));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.order(randomBoolean() ? BucketOrder.key(randomBoolean()) : BucketOrder.compound(BucketOrder.key(randomBoolean())));
+            if (randomBoolean()) {
+                terms.shardSize(randomIntBetween(1, 100));
+            }
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(0, 49)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.order(randomBoolean() ? BucketOrder.key(randomBoolean()) : BucketOrder.compound(BucketOrder.key(randomBoolean())));
+            if (randomBoolean()) {
+                terms.shardSize(randomIntBetween(1, 100));
+            }
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(51, 100)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            assertFalse(terms.supportsParallelCollection(field -> -1));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            assertTrue(terms.supportsParallelCollection(field -> 0));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.subAggregation(new TermsAggregationBuilder("name") {
+                @Override
+                public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+                    return false;
+                }
+            });
+            assertFalse(terms.supportsParallelCollection(field -> 0));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.shardSize(10);
+            assertTrue(terms.supportsParallelCollection(field -> randomIntBetween(1, 9)));
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(10, 100)));
+        }
+        {
+            TermsAggregationBuilder terms = new TermsAggregationBuilder("terms");
+            terms.shardSize(randomIntBetween(1, 100));
+            terms.minDocCount(0);
+            assertFalse(terms.supportsParallelCollection(field -> randomIntBetween(1, 100)));
+        }
+    }
 }

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 
 import java.io.IOException;
 import java.util.Map;
@@ -26,7 +27,7 @@ public interface VersionedNamedWriteable extends NamedWriteable {
     /**
      * The minimal version of the recipient this object can be sent to
      */
-    Version getMinimalSupportedVersion();
+    TransportVersion getMinimalSupportedVersion();
 
     /**
      * Tests whether or not the custom should be serialized. The criteria is the output stream must be at least the minimum supported
@@ -39,7 +40,7 @@ public interface VersionedNamedWriteable extends NamedWriteable {
      * @return true if the custom should be serialized and false otherwise
      */
     static <T extends VersionedNamedWriteable> boolean shouldSerialize(final StreamOutput out, final T custom) {
-        return out.getVersion().onOrAfter(custom.getMinimalSupportedVersion());
+        return out.getTransportVersion().onOrAfter(custom.getMinimalSupportedVersion());
     }
 
     /**
@@ -50,15 +51,19 @@ public interface VersionedNamedWriteable extends NamedWriteable {
      * @param <T>     type of customs in map
      */
     static <T extends VersionedNamedWriteable> void writeVersionedWritables(StreamOutput out, Map<String, T> customs) throws IOException {
-        // filter out custom states not supported by the other node
-        int numberOfCustoms = 0;
-        for (final T value : customs.values()) {
+        writeVersionedWriteables(out, customs.values());
+    }
+
+    static void writeVersionedWriteables(StreamOutput out, Iterable<? extends VersionedNamedWriteable> writeables) throws IOException {
+        // filter out objects not supported by the stream version
+        int numberOfCompatibleValues = 0;
+        for (var value : writeables) {
             if (shouldSerialize(out, value)) {
-                numberOfCustoms++;
+                numberOfCompatibleValues++;
             }
         }
-        out.writeVInt(numberOfCustoms);
-        for (final T value : customs.values()) {
+        out.writeVInt(numberOfCompatibleValues);
+        for (var value : writeables) {
             if (shouldSerialize(out, value)) {
                 out.writeNamedWriteable(value);
             }

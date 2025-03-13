@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -12,14 +13,13 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DissectProcessorFactoryTests extends ESTestCase {
 
@@ -36,7 +36,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         config.put("append_separator", appendSeparator);
         config.put("ignore_missing", true);
 
-        DissectProcessor processor = factory.create(null, processorTag, null, config);
+        DissectProcessor processor = factory.create(null, processorTag, null, config, null);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.field, equalTo(fieldName));
         assertThat(processor.pattern, equalTo(pattern));
@@ -49,16 +49,16 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         DissectProcessor.Factory factory = new DissectProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("pattern", "%{a},%{b},%{c}");
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
-        assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config, null));
+        assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
 
     public void testCreateMissingPattern() {
         DissectProcessor.Factory factory = new DissectProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", randomAlphaOfLength(10));
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config));
-        assertThat(e.getMessage(), Matchers.equalTo("[pattern] required property is missing"));
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, "_tag", null, config, null));
+        assertThat(e.getMessage(), equalTo("[pattern] required property is missing"));
     }
 
     public void testCreateMissingOptionals() {
@@ -66,7 +66,7 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("pattern", "%{a},%{b},%{c}");
         config.put("field", randomAlphaOfLength(10));
-        DissectProcessor processor = factory.create(null, "_tag", null, config);
+        DissectProcessor processor = factory.create(null, "_tag", null, config, null);
         assertThat(processor.appendSeparator, equalTo(""));
         assertThat(processor.ignoreMissing, is(false));
     }
@@ -76,6 +76,6 @@ public class DissectProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("pattern", "no keys defined");
         config.put("field", randomAlphaOfLength(10));
-        expectThrows(DissectException.class, () -> factory.create(null, "_tag", null, config));
+        expectThrows(DissectException.class, () -> factory.create(null, "_tag", null, config, null));
     }
 }

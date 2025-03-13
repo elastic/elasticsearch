@@ -19,10 +19,15 @@ public class GetAutoFollowPatternRequestTests extends AbstractWireSerializingTes
 
     @Override
     protected GetAutoFollowPatternAction.Request createTestInstance() {
-        GetAutoFollowPatternAction.Request request = new GetAutoFollowPatternAction.Request();
+        GetAutoFollowPatternAction.Request request = new GetAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             request.setName(randomAlphaOfLength(4));
         }
         return request;
+    }
+
+    @Override
+    protected GetAutoFollowPatternAction.Request mutateInstance(GetAutoFollowPatternAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

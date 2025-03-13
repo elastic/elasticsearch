@@ -42,7 +42,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -72,6 +71,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -135,6 +135,12 @@ public class HttpClient implements Closeable {
         clientBuilder.evictExpiredConnections();
         clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);
         clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
+        /*
+         * This client will potentially be used by multiple users. We do not want it to keep any state like cookies, because that will
+         * result in that state unexpectedly being shared across all users.
+         */
+        clientBuilder.disableCookieManagement();
+
         clientBuilder.setRedirectStrategy(new DefaultRedirectStrategy() {
             @Override
             public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response, HttpContext context)
@@ -268,17 +274,22 @@ public class HttpClient implements Closeable {
             // headers
             Header[] headers = response.getAllHeaders();
             Map<String, String[]> responseHeaders = Maps.newMapWithExpectedSize(headers.length);
+            /*
+             * Headers are not case sensitive, so in the following loop we lowercase all of them. We also roll up all values for the same
+             * case-insensitive header into a list.
+             */
             for (Header header : headers) {
-                if (responseHeaders.containsKey(header.getName())) {
-                    String[] old = responseHeaders.get(header.getName());
+                String lowerCaseHeaderName = header.getName().toLowerCase(Locale.ROOT);
+                if (responseHeaders.containsKey(lowerCaseHeaderName)) {
+                    String[] old = responseHeaders.get(lowerCaseHeaderName);
                     String[] values = new String[old.length + 1];
 
                     System.arraycopy(old, 0, values, 0, old.length);
                     values[values.length - 1] = header.getValue();
 
-                    responseHeaders.put(header.getName(), values);
+                    responseHeaders.put(lowerCaseHeaderName, values);
                 } else {
-                    responseHeaders.put(header.getName(), new String[] { header.getValue() });
+                    responseHeaders.put(lowerCaseHeaderName, new String[] { header.getValue() });
                 }
             }
 
@@ -322,7 +333,7 @@ public class HttpClient implements Closeable {
      *
      * @return An HTTP proxy instance, if no settings are configured this will be an HttpProxy.NO_PROXY instance
      */
-    private HttpProxy getProxyFromSettings(Settings settings) {
+    private static HttpProxy getProxyFromSettings(Settings settings) {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);
         Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings)
             ? Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings))
@@ -428,7 +439,7 @@ public class HttpClient implements Closeable {
         }
 
         Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(Strings.EMPTY_ARRAY));
-        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        whiteListAutomaton = Operations.determinize(whiteListAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         return new CharacterRunAutomaton(whiteListAutomaton);
     }
 }

@@ -10,15 +10,16 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
@@ -34,11 +35,11 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     }
 
     public static final String TYPE = "http";
-    private final HttpClient httpClient;
+    private final WebhookService webhookService;
     private final TextTemplateEngine templateEngine;
 
-    public HttpEmailAttachementParser(HttpClient httpClient, TextTemplateEngine templateEngine) {
-        this.httpClient = httpClient;
+    public HttpEmailAttachementParser(WebhookService webhookService, TextTemplateEngine templateEngine) {
+        this.webhookService = webhookService;
         this.templateEngine = templateEngine;
     }
 
@@ -82,9 +83,9 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
         Map<String, Object> model = Variables.createCtxParamsMap(context, payload);
         HttpRequest httpRequest = attachment.getRequestTemplate().render(templateEngine, model);
 
-        HttpResponse response = httpClient.execute(httpRequest);
+        HttpResponse response = webhookService.modifyAndExecuteHttpRequest(httpRequest).v2();
         // check for status 200, only then append attachment
-        if (response.status() >= 200 && response.status() < 300) {
+        if (RestStatus.isSuccessful(response.status())) {
             if (response.hasContent()) {
                 String contentType = attachment.getContentType();
                 String attachmentContentType = Strings.hasLength(contentType) ? contentType : response.contentType();

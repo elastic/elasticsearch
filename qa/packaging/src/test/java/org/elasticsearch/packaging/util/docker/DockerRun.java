@@ -174,6 +174,7 @@ public class DockerRun {
             case DOCKER_IRON_BANK -> "-ironbank";
             case DOCKER_CLOUD_ESS -> "-cloud-ess";
             case DOCKER_WOLFI -> "-wolfi";
+            case DOCKER_FIPS -> "-fips";
             default -> throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
         };
 

@@ -385,12 +385,14 @@ public class DockerTests extends PackagingTestCase {
         if (distribution.packaging == Packaging.DOCKER || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
             // In these images, the `cacerts` file ought to be a symlink here
             assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
-        } else if (distribution.packaging == Packaging.DOCKER_WOLFI || distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
-            // In these images, the `cacerts` file ought to be a symlink here
-            assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
-        } else {
-            fail("Unknown distribution: " + distribution.packaging);
-        }
+        } else if (distribution.packaging == Packaging.DOCKER_WOLFI
+            || distribution.packaging == Packaging.DOCKER_CLOUD_ESS
+            || distribution.packaging == Packaging.DOCKER_FIPS) {
+                // In these images, the `cacerts` file ought to be a symlink here
+                assertThat(path, equalTo("/etc/ssl/certs/java/cacerts"));
+            } else {
+                fail("Unknown distribution: " + distribution.packaging);
+            }
     }
 
     /**

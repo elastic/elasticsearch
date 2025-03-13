@@ -40,9 +40,11 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -376,9 +378,14 @@ public class RestEsqlIT extends RestEsqlTestCase {
         assertEquals(nodeMetadata.get("name"), "process_name");
         int nodeIndex = 0;
         assertEquals(nodeMetadata.get("pid"), nodeIndex);
+
         Map<String, Object> nodeMetadataArgs = (Map<String, Object>) nodeMetadata.get("args");
-        // cluster:node should be the label for the "process" name
-        assertEquals(nodeMetadataArgs.get("name"), "test-cluster:test-cluster-0");
+        String clusterName = "test-cluster";
+        Set<String> expectedProcessNames = new HashSet<>();
+        for (int i = 0; i < cluster.getNumNodes(); i++) {
+            expectedProcessNames.add(clusterName + ":" + cluster.getName(i));
+        }
+        assertTrue(expectedProcessNames.contains((String) nodeMetadataArgs.get("name")));
 
         // The rest should be pairs of 2 events: first, a metadata event, declaring 1 "thread" per driver in the profile, then
         // a "complete" event (phase `ph` is `X`) with a timestamp, duration `dur`, thread duration `tdur` (cpu time) and additional

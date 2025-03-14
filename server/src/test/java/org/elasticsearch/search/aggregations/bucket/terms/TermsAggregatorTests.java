@@ -141,6 +141,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -286,8 +287,18 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchNoDocsQuery() throws Exception {
+        for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
+            testMatchNoDocsQuery(executionMode);
+        }
+        testMatchNoDocsQuery(null);
+    }
+
+    private void testMatchNoDocsQuery(TermsAggregatorFactory.ExecutionMode hint) throws Exception {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string");
+        if (hint != null) {
+            aggregationBuilder.executionHint(hint.toString());
+        }
         CheckedConsumer<RandomIndexWriter, IOException> createIndex = iw -> {
             iw.addDocument(doc(fieldType, "a", "b"));
             iw.addDocument(doc(fieldType, "", "c", "a"));
@@ -298,12 +309,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             createIndex,
             (InternalTerms<?, ?> result) -> { assertEquals(0, result.getBuckets().size()); },
             new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
-                .withCheckAggregator(checkTopLevelAggregatorNoRewrites(TermsAggregatorFactory.ExecutionMode.MAP))
+                .withCheckAggregator(checkTopLevelAggregator(hint == null ? TermsAggregatorFactory.ExecutionMode.MAP : hint))
         );
-
-        debugTestCase(aggregationBuilder, new MatchNoDocsQuery(), createIndex, (result, impl, debug) -> {
-            assertEquals(impl, MapStringTermsAggregator.class);
-        }, fieldType);
     }
 
     public void testStringShardMinDocCount() throws IOException {
@@ -362,7 +369,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(0L, result.getBuckets().get(1).getDocCount());
                 },
                     new AggTestConfig(aggregationBuilder, fieldType).withQuery(new TermQuery(new Term("string", "e")))
-                        .withCheckAggregator(checkTopLevelAggregatorNoRewrites(executionMode))
+                        .withCheckAggregator(checkTopLevelAggregator(executionMode))
                 );
             }
 
@@ -389,7 +396,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(0L, result.getBuckets().get(1).getDocCount());
                 },
                     new AggTestConfig(aggregationBuilder, fieldType).withQuery(new TermQuery(new Term("string", "e")))
-                        .withCheckAggregator(checkTopLevelAggregatorNoRewrites(executionMode))
+                        .withCheckAggregator(checkTopLevelAggregator(executionMode))
                 );
             }
         }
@@ -432,7 +439,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(0L, result.getBuckets().get(1).getDocCount());
                 },
                     new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
-                        .withCheckAggregator(checkTopLevelAggregatorNoRewrites(executionMode))
+                        .withCheckAggregator(checkTopLevelAggregator(executionMode))
                 );
             }
 
@@ -459,7 +466,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     assertEquals(0L, result.getBuckets().get(1).getDocCount());
                 },
                     new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
-                        .withCheckAggregator(checkTopLevelAggregatorNoRewrites(executionMode))
+                        .withCheckAggregator(checkTopLevelAggregator(executionMode))
                 );
             }
         }
@@ -2356,10 +2363,13 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         return randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 
-    private Consumer<Aggregator> checkTopLevelAggregatorNoRewrites(TermsAggregatorFactory.ExecutionMode executionMode) {
+    private Consumer<Aggregator> checkTopLevelAggregator(TermsAggregatorFactory.ExecutionMode executionMode) {
         return switch (executionMode) {
             case MAP -> a -> assertThat(a, instanceOf(MapStringTermsAggregator.class));
-            case GLOBAL_ORDINALS -> a -> assertThat(a, instanceOf(GlobalOrdinalsStringTermsAggregator.class));
+            case GLOBAL_ORDINALS -> a -> assertThat(
+                a,
+                anyOf(instanceOf(GlobalOrdinalsStringTermsAggregator.class), instanceOf(StringTermsAggregatorFromFilters.class))
+            );
         };
     }
 }

@@ -41,47 +41,6 @@ public class PolicyUtils {
 
     private static final Logger logger = LogManager.getLogger(PolicyUtils.class);
 
-    public static List<Scope> mergeScopes(List<Scope> mainScopes, List<Scope> additionalScopes) {
-        var result = new ArrayList<Scope>();
-        var additionalScopesMap = additionalScopes.stream().collect(Collectors.toMap(Scope::moduleName, Scope::entitlements));
-        for (var mainScope : mainScopes) {
-            List<Entitlement> additionalEntitlements = additionalScopesMap.remove(mainScope.moduleName());
-            if (additionalEntitlements == null) {
-                result.add(mainScope);
-            } else {
-                result.add(new Scope(mainScope.moduleName(), mergeEntitlements(mainScope.entitlements(), additionalEntitlements)));
-            }
-        }
-
-        for (var remainingEntry : additionalScopesMap.entrySet()) {
-            result.add(new Scope(remainingEntry.getKey(), remainingEntry.getValue()));
-        }
-        return result;
-    }
-
-    static List<Entitlement> mergeEntitlements(List<Entitlement> a, List<Entitlement> b) {
-        Map<Class<? extends Entitlement>, Entitlement> entitlementMap = a.stream()
-            .collect(Collectors.toMap(Entitlement::getClass, Function.identity()));
-
-        for (var entitlement : b) {
-            entitlementMap.merge(entitlement.getClass(), entitlement, PolicyUtils::mergeEntitlement);
-        }
-        return entitlementMap.values().stream().toList();
-    }
-
-    static Entitlement mergeEntitlement(Entitlement entitlement1, Entitlement entitlement2) {
-        return switch (entitlement1) {
-            case FilesEntitlement e -> new FilesEntitlement(
-                Stream.concat(e.filesData().stream(), ((FilesEntitlement) entitlement2).filesData().stream()).toList()
-            );
-            case WriteSystemPropertiesEntitlement e -> new WriteSystemPropertiesEntitlement(
-                Stream.concat(e.properties().stream(), ((WriteSystemPropertiesEntitlement) entitlement2).properties().stream())
-                    .collect(Collectors.toUnmodifiableSet())
-            );
-            default -> entitlement1;
-        };
-    }
-
     public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {
         public PluginData {
             requireNonNull(pluginPath);
@@ -193,4 +152,49 @@ public class PolicyUtils {
         return Set.of(ALL_UNNAMED);
     }
 
+    public static List<Scope> mergeScopes(List<Scope> mainScopes, List<Scope> additionalScopes) {
+        var result = new ArrayList<Scope>();
+        var additionalScopesMap = additionalScopes.stream().collect(Collectors.toMap(Scope::moduleName, Scope::entitlements));
+        for (var mainScope : mainScopes) {
+            List<Entitlement> additionalEntitlements = additionalScopesMap.remove(mainScope.moduleName());
+            if (additionalEntitlements == null) {
+                result.add(mainScope);
+            } else {
+                result.add(new Scope(mainScope.moduleName(), mergeEntitlements(mainScope.entitlements(), additionalEntitlements)));
+            }
+        }
+
+        for (var remainingEntry : additionalScopesMap.entrySet()) {
+            result.add(new Scope(remainingEntry.getKey(), remainingEntry.getValue()));
+        }
+        return result;
+    }
+
+    static List<Entitlement> mergeEntitlements(List<Entitlement> a, List<Entitlement> b) {
+        Map<Class<? extends Entitlement>, Entitlement> entitlementMap = a.stream()
+            .collect(Collectors.toMap(Entitlement::getClass, Function.identity()));
+
+        for (var entitlement : b) {
+            entitlementMap.merge(entitlement.getClass(), entitlement, PolicyUtils::mergeEntitlement);
+        }
+        return entitlementMap.values().stream().toList();
+    }
+
+    static Entitlement mergeEntitlement(Entitlement entitlement1, Entitlement entitlement2) {
+        return switch (entitlement1) {
+            case FilesEntitlement e -> merge(e, (FilesEntitlement) entitlement2);
+            case WriteSystemPropertiesEntitlement e -> merge(e, (WriteSystemPropertiesEntitlement) entitlement2);
+            default -> entitlement1;
+        };
+    }
+
+    private static FilesEntitlement merge(FilesEntitlement a, FilesEntitlement b) {
+        return new FilesEntitlement(Stream.concat(a.filesData().stream(), b.filesData().stream()).distinct().toList());
+    }
+
+    private static WriteSystemPropertiesEntitlement merge(WriteSystemPropertiesEntitlement a, WriteSystemPropertiesEntitlement b) {
+        return new WriteSystemPropertiesEntitlement(
+            Stream.concat(a.properties().stream(), b.properties().stream()).collect(Collectors.toUnmodifiableSet())
+        );
+    }
 }

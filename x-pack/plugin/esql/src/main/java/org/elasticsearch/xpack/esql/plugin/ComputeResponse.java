@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverProfile;
@@ -29,7 +30,7 @@ final class ComputeResponse extends TransportResponse {
     public final int successfulShards;
     public final int skippedShards;
     public final int failedShards;
-    public final List<Exception> failures;
+    public final List<ShardSearchFailure> failures;
 
     ComputeResponse(List<DriverProfile> profiles) {
         this(profiles, null, null, null, null, null, List.of());
@@ -42,7 +43,7 @@ final class ComputeResponse extends TransportResponse {
         Integer successfulShards,
         Integer skippedShards,
         Integer failedShards,
-        List<Exception> failures
+        List<ShardSearchFailure> failures
     ) {
         this.profiles = profiles;
         this.took = took;
@@ -78,7 +79,7 @@ final class ComputeResponse extends TransportResponse {
             this.failedShards = 0;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)) {
-            this.failures = in.readCollectionAsImmutableList(StreamInput::readException);
+            this.failures = in.readCollectionAsImmutableList(ShardSearchFailure::readShardSearchFailure);
         } else {
             this.failures = List.of();
         }
@@ -102,7 +103,7 @@ final class ComputeResponse extends TransportResponse {
             out.writeVInt(failedShards);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE)) {
-            out.writeCollection(failures, StreamOutput::writeException);
+            out.writeCollection(failures, (o, v) -> v.writeTo(o));
         }
     }
 
@@ -130,7 +131,7 @@ final class ComputeResponse extends TransportResponse {
         return failedShards;
     }
 
-    public List<Exception> getFailures() {
+    public List<ShardSearchFailure> getFailures() {
         return failures;
     }
 }

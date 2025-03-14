@@ -555,7 +555,7 @@ public class PolicyManager {
             var moduleName = callerClass.getModule().getName();
             var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
             var notEntitledLogger = LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
-            notEntitledLogger.warn("Not entitled: " + message, exception);
+            notEntitledLogger.warn("Not entitled:", exception);
         }
         throw exception;
     }

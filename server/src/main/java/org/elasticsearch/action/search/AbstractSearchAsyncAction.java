@@ -27,13 +27,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -88,11 +86,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
-    private final AtomicInteger successfulOps = new AtomicInteger();
+    private final AtomicInteger successfulOps;
     private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
-    protected final List<SearchShardIterator> toSkipShardsIts;
     protected final List<SearchShardIterator> shardsIts;
     private final SearchShardIterator[] shardIterators;
     private final AtomicInteger outstandingShards;
@@ -100,9 +97,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
+    private final int skippedCount;
 
     // protected for tests
-    protected final List<Releasable> releasables = new ArrayList<>();
+    protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
 
     AbstractSearchAsyncAction(
         String name,
@@ -125,18 +123,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
-        final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
         final List<SearchShardIterator> iterators = new ArrayList<>();
+        int skipped = 0;
         for (final SearchShardIterator iterator : shardsIts) {
             if (iterator.skip()) {
-                toSkipIterators.add(iterator);
+                skipped++;
             } else {
                 iterators.add(iterator);
             }
         }
-        this.toSkipShardsIts = toSkipIterators;
+        this.skippedCount = skipped;
         this.shardsIts = iterators;
-        outstandingShards = new AtomicInteger(shardsIts.size());
+        outstandingShards = new AtomicInteger(iterators.size());
+        successfulOps = new AtomicInteger(skipped);
         this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
         // we later compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
@@ -151,7 +150,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.executor = executor;
         this.request = request;
         this.task = task;
-        this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
+        this.listener = ActionListener.runBefore(listener, () -> doneFuture.onResponse(null));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
@@ -167,11 +166,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void notifyListShards(
         SearchProgressListener progressListener,
         SearchResponse.Clusters clusters,
-        SearchSourceBuilder sourceBuilder
+        SearchRequest searchRequest,
+        List<SearchShardIterator> allIterators
     ) {
+        final List<SearchShard> skipped = new ArrayList<>(allIterators.size() - shardsIts.size());
+        for (SearchShardIterator iter : allIterators) {
+            if (iter.skip()) {
+                skipped.add(new SearchShard(iter.getClusterAlias(), iter.shardId()));
+            }
+        }
+        var sourceBuilder = searchRequest.source();
         progressListener.notifyListShards(
             SearchProgressListener.buildSearchShardsFromIter(this.shardsIts),
-            SearchProgressListener.buildSearchShardsFromIter(toSkipShardsIts),
+            skipped,
             clusters,
             sourceBuilder == null || sourceBuilder.size() > 0,
             timeProvider
@@ -182,7 +189,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
      */
     public void addReleasable(Releasable releasable) {
-        releasables.add(releasable);
+        var doneFuture = this.doneFuture;
+        if (doneFuture.isDone()) {
+            releasable.close();
+        } else {
+            doneFuture.addListener(ActionListener.releasing(releasable));
+        }
     }
 
     /**
@@ -215,35 +227,27 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     protected final void run() {
-        for (final SearchShardIterator iterator : toSkipShardsIts) {
-            assert iterator.skip();
-            skipShard(iterator);
+        if (outstandingShards.get() == 0) {
+            onPhaseDone();
+            return;
         }
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {
             shardIndexMap.put(shardIterators[i], i);
         }
-        if (shardsIts.size() > 0) {
-            doCheckNoMissingShards(getName(), request, shardsIts);
-            for (int i = 0; i < shardsIts.size(); i++) {
-                final SearchShardIterator shardRoutings = shardsIts.get(i);
-                assert shardRoutings.skip() == false;
-                assert shardIndexMap.containsKey(shardRoutings);
-                int shardIndex = shardIndexMap.get(shardRoutings);
-                final SearchShardTarget routing = shardRoutings.nextOrNull();
-                if (routing == null) {
-                    failOnUnavailable(shardIndex, shardRoutings);
-                } else {
-                    performPhaseOnShard(shardIndex, shardRoutings, routing);
-                }
+        doCheckNoMissingShards(getName(), request, shardsIts);
+        for (int i = 0; i < shardsIts.size(); i++) {
+            final SearchShardIterator shardRoutings = shardsIts.get(i);
+            assert shardRoutings.skip() == false;
+            assert shardIndexMap.containsKey(shardRoutings);
+            int shardIndex = shardIndexMap.get(shardRoutings);
+            final SearchShardTarget routing = shardRoutings.nextOrNull();
+            if (routing == null) {
+                failOnUnavailable(shardIndex, shardRoutings);
+            } else {
+                performPhaseOnShard(shardIndex, shardRoutings, routing);
             }
         }
-    }
-
-    void skipShard(SearchShardIterator iterator) {
-        successfulOps.incrementAndGet();
-        assert iterator.skip();
-        successfulShardExecution();
     }
 
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
@@ -343,7 +347,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             "Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
                             discrepancy,
                             successfulOps.get(),
-                            toSkipShardsIts.size(),
+                            skippedCount,
                             getNumShards(),
                             currentPhase
                         );
@@ -585,7 +589,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             scrollId,
             getNumShards(),
             numSuccess,
-            toSkipShardsIts.size(),
+            skippedCount,
             buildTookInMillis(),
             failures,
             clusters,

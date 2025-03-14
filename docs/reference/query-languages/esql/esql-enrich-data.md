@@ -15,6 +15,14 @@ For example, you can use `ENRICH` to:
 * Add product information to retail orders based on product IDs
 * Supplement contact information based on an email address
 
+[`ENRICH`](/reference/query-languages/esql/esql-commands.md#esql-enrich) is similar to [`LOOKUP join`](/reference/query-languages/esql/esql-commands.md#esql-lookup-join) in the fact that they both help you join data together. You should use `ENRICH` when:
+
+* Enrichment data doesn't change frequently
+* You can accept index-time overhead
+* You are working with structured enrichment patterns
+* You can accept having multiple matches combined into multi-values
+* You can accept being limited to predefined match fields
+* `ENRICH` has a simplified security model. There are no restirctions to specific enrich policies or document and field level security.
 
 ### How the `ENRICH` command works [esql-how-enrich-works]
 
@@ -93,7 +101,7 @@ To begin, add documents to one or more source indices. These documents should co
 
 You can manage source indices just like regular {{es}} indices using the [document](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-document) and [index](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-indices) APIs.
 
-You also can set up [{{beats}}](beats://docs/reference/index.md), such as a [{{filebeat}}](beats://docs/reference/filebeat/filebeat-installation-configuration.md), to automatically send and index documents to your source indices. See [Getting started with {{beats}}](beats://docs/reference/index.md).
+You also can set up [{{beats}}](beats://reference/index.md), such as a [{{filebeat}}](beats://reference/filebeat/filebeat-installation-configuration.md), to automatically send and index documents to your source indices. See [Getting started with {{beats}}](beats://reference/index.md).
 
 
 ### Create an enrich policy [esql-create-enrich-policy]

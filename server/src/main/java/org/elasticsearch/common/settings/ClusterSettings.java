@@ -577,6 +577,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
         IndexingPressure.MAX_INDEXING_BYTES,
         IndexingPressure.MAX_COORDINATING_BYTES,
+        IndexingPressure.MAX_OPERATION_SIZE,
         IndexingPressure.MAX_PRIMARY_BYTES,
         IndexingPressure.MAX_REPLICA_BYTES,
         IndexingPressure.SPLIT_BULK_THRESHOLD,

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.qa.rest;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -19,6 +21,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -28,6 +31,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -50,6 +54,8 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Creates indices with many different mappings and fetches values from them to make sure
@@ -59,6 +65,21 @@ import static org.hamcrest.Matchers.containsString;
  */
 public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
+
+    @ParametersFactory(argumentFormatting = "%s")
+    public static List<Object[]> args() throws Exception {
+        return List.of(
+            new Object[] { null },
+            new Object[] { MappedFieldType.FieldExtractPreference.NONE },
+            new Object[] { MappedFieldType.FieldExtractPreference.STORED }
+        );
+    }
+
+    protected final MappedFieldType.FieldExtractPreference preference;
+
+    protected FieldExtractorTestCase(MappedFieldType.FieldExtractPreference preference) {
+        this.preference = preference;
+    }
 
     @Before
     public void notOld() {
@@ -1275,6 +1296,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             {"Responses.process": 222,"process.parent.command_line":"run2.bat"}""");
 
         Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
+        // If we're loading from _source we load the nested field.
         assertResultMap(
             result,
             List.of(
@@ -1284,7 +1306,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line.text", "text")
             ),
             List.of(
-                matchesList().item(null).item(null).item("run1.bat").item("run1.bat"),
+                matchesList().item(null).item(pidMatcher()).item("run1.bat").item("run1.bat"),
                 matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
             )
         );
@@ -1313,7 +1335,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line.text", "text")
             ),
             List.of(
-                matchesList().item(null).item(null).item("run1.bat").item("run1.bat"),
+                matchesList().item(null).item(pidMatcher()).item("run1.bat").item("run1.bat"),
                 matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
             )
         );
@@ -1331,8 +1353,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 columnInfo("process.parent.command_line", "keyword"),
                 columnInfo("process.parent.command_line.text", "text")
             ),
-            List.of(matchesList().item(null).item(null).item("run1.bat").item("run1.bat"))
+            List.of(matchesList().item(null).item(pidMatcher()).item("run1.bat").item("run1.bat"))
         );
+    }
+
+    protected Matcher<Integer> pidMatcher() {
+        // TODO these should all always return null because the parent is nested
+        return preference == MappedFieldType.FieldExtractPreference.STORED ? equalTo(111) : nullValue(Integer.class);
     }
 
     private void assumeIndexResolverNestedFieldsNameClashFixed() throws IOException {
@@ -1446,7 +1473,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     private record StoreAndDocValues(Boolean store, Boolean docValues) {}
 
-    private static class Test {
+    private class Test {
         private final String type;
         private final Map<String, Test> subFields = new TreeMap<>();
 
@@ -1722,8 +1749,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         return err.replaceAll("\\\\\n\s+\\\\", "");
     }
 
-    private static Map<String, Object> runEsql(String query) throws IOException {
-        return runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query(query));
+    private Map<String, Object> runEsql(String query) throws IOException {
+        RestEsqlTestCase.RequestObjectBuilder request = new RestEsqlTestCase.RequestObjectBuilder().query(query);
+        if (preference != null) {
+            request = request.pragmas(
+                Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build()
+            );
+        }
+        return runEsqlSync(request);
     }
-
 }

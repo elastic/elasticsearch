@@ -103,7 +103,7 @@ public class InboundPipelineTests extends ESTestCase {
                     final TransportVersion version = randomFrom(TransportVersion.current(), TransportVersions.MINIMUM_COMPATIBLE);
                     final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
                     final boolean isRequest = randomBoolean();
-                    Compression.Scheme compressionScheme = getCompressionScheme(version);
+                    Compression.Scheme compressionScheme = getCompressionScheme();
                     final long requestId = totalMessages++;
 
                     final MessageData messageData;
@@ -193,16 +193,8 @@ public class InboundPipelineTests extends ESTestCase {
         }
     }
 
-    private static Compression.Scheme getCompressionScheme(TransportVersion version) {
-        if (randomBoolean()) {
-            return null;
-        } else {
-            if (version.before(Compression.Scheme.LZ4_VERSION)) {
-                return Compression.Scheme.DEFLATE;
-            } else {
-                return randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
-            }
-        }
+    private static Compression.Scheme getCompressionScheme() {
+        return randomFrom((Compression.Scheme) null, Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
     }
 
     public void testDecodeExceptionIsPropagated() throws IOException {

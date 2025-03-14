@@ -150,7 +150,8 @@ public class DeepSeekService extends SenderService {
 
     @Override
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
-        return parsePersistedConfigWithSecrets(modelId, taskType, config, config);
+        var serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        return DeepSeekChatCompletionModel.readFromStorage(modelId, taskType, NAME, serviceSettingsMap, null);
     }
 
     @Override

@@ -100,6 +100,7 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -709,6 +710,30 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig() {
 
+        // Parsing a persistent configuration using model_version succeeds
+        {
+            var service = createService(mock(Client.class));
+            var settings = new HashMap<String, Object>();
+            settings.put(
+                ModelConfigurations.SERVICE_SETTINGS,
+                new HashMap<>(
+                    Map.of(
+                        ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS,
+                        1,
+                        ElasticsearchInternalServiceSettings.NUM_THREADS,
+                        4,
+                        "model_version",
+                        ".elser_model_2"
+                    )
+                )
+            );
+
+            var model = service.parsePersistedConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings);
+            assertThat(model, instanceOf(ElserInternalModel.class));
+            ElserInternalModel elserInternalModel = (ElserInternalModel) model;
+            assertThat(elserInternalModel.getServiceSettings().modelId(), is(".elser_model_2"));
+        }
+
         // Null model variant
         {
             var service = createService(mock(Client.class));
@@ -727,11 +752,12 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            expectThrows(
+            var exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> service.parsePersistedConfig(randomInferenceEntityId, TaskType.TEXT_EMBEDDING, settings)
             );
 
+            assertThat(exception.getMessage(), containsString(randomInferenceEntityId));
         }
 
         // Invalid model variant

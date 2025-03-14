@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testUpdateIndexTemplateToMigrateFromDataStreamLifecycleToIlm
   issue: https://github.com/elastic/elasticsearch/issues/124849
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testUpdateIndexTemplateFromILMtoBothILMAndDataStreamLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124850
 
 # Examples:
 #

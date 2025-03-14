@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
-import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle.DownsamplingRound;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -946,7 +946,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         DataStreamGlobalRetention globalRetention
     ) {
         if (lifecycle == null
-            || lifecycle.isEnabled() == false
+            || lifecycle.enabled() == false
             || lifecycle.getEffectiveDataRetention(globalRetention, isInternal()) == null) {
             return List.of();
         }
@@ -967,13 +967,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *
      * An empty list is returned for indices that are not time series.
      */
-    public List<Round> getDownsamplingRoundsFor(
+    public List<DownsamplingRound> getDownsamplingRoundsFor(
         Index index,
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier
     ) {
         assert backingIndices.indices.contains(index) : "the provided index must be a backing index for this datastream";
-        if (lifecycle == null || lifecycle.getDownsamplingRounds() == null) {
+        if (lifecycle == null || lifecycle.downsampling() == null) {
             return List.of();
         }
 
@@ -986,8 +986,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexGenerationTime != null) {
             long nowMillis = nowSupplier.getAsLong();
             long indexGenerationTimeMillis = indexGenerationTime.millis();
-            List<Round> orderedRoundsForIndex = new ArrayList<>(lifecycle.getDownsamplingRounds().size());
-            for (Round round : lifecycle.getDownsamplingRounds()) {
+            List<DownsamplingRound> orderedRoundsForIndex = new ArrayList<>(lifecycle.downsampling().size());
+            for (DownsamplingRound round : lifecycle.downsampling()) {
                 if (nowMillis >= indexGenerationTimeMillis + round.after().getMillis()) {
                     orderedRoundsForIndex.add(round);
                 }
@@ -1076,11 +1076,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * access method.
      */
     private boolean isIndexManagedByDataStreamLifecycle(IndexMetadata indexMetadata) {
-        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.isEnabled()) {
+        if (indexMetadata.getLifecyclePolicyName() != null && lifecycle != null && lifecycle.enabled()) {
             // when both ILM and data stream lifecycle are configured, choose depending on the configured preference for this backing index
             return PREFER_ILM_SETTING.get(indexMetadata.getSettings()) == false;
         }
-        return lifecycle != null && lifecycle.isEnabled();
+        return lifecycle != null && lifecycle.enabled();
     }
 
     /**

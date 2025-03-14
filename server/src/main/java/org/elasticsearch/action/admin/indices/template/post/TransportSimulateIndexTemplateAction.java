@@ -344,9 +344,9 @@ public class TransportSimulateIndexTemplateAction extends TransportLocalProjectM
         );
 
         Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
-        DataStreamLifecycle lifecycle = resolveLifecycle(simulatedProject, matchingTemplate);
+        DataStreamLifecycle.Template lifecycle = resolveLifecycle(simulatedProject, matchingTemplate);
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
-            lifecycle = DataStreamLifecycle.DEFAULT;
+            lifecycle = DataStreamLifecycle.Template.DEFAULT;
         }
         return new Template(
             settings,

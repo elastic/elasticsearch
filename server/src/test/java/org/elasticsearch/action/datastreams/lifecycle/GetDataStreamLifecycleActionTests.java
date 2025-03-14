@@ -96,7 +96,7 @@ public class GetDataStreamLifecycleActionTests extends ESTestCase {
         TimeValue globalDefaultRetention = TimeValue.timeValueDays(10);
         TimeValue globalMaxRetention = TimeValue.timeValueDays(50);
         DataStreamGlobalRetention globalRetention = new DataStreamGlobalRetention(globalDefaultRetention, globalMaxRetention);
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle(new DataStreamLifecycle.Retention(configuredRetention), null, null);
+        DataStreamLifecycle lifecycle = new DataStreamLifecycle(true, configuredRetention, null);
         {
             boolean isInternalDataStream = true;
             GetDataStreamLifecycleAction.Response.DataStreamLifecycle explainIndexDataStreamLifecycle = createDataStreamLifecycle(

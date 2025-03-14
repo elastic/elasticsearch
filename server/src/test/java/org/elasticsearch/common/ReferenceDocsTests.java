@@ -184,4 +184,11 @@ public class ReferenceDocsTests extends ESTestCase {
             )
         );
     }
+
+    // for manual verification
+    public void testShowAllLinks() {
+        for (final var link : ReferenceDocs.values()) {
+            logger.info("--> {}", link);
+        }
+    }
 }

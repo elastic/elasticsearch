@@ -1,0 +1,5 @@
+pr: 124931
+summary: Fix system data stream snapshot bug
+area: "Snapshot/Restore, Infra/Core"
+type: bug
+issues: []

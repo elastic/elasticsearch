@@ -456,7 +456,7 @@ public class EsExecutors {
 
         @Override
         public boolean offer(E e) {
-            if (e == EsThreadPoolExecutor.NOOP_PROBE) { // referential equality
+            if (e == EsThreadPoolExecutor.WORKER_PROBE) { // referential equality
                 // this probe ensures a worker is available after force queueing a task via ForceQueuePolicy
                 return super.offer(e);
             }
@@ -521,7 +521,7 @@ public class EsExecutors {
 
         @Override
         public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
-            if (task == EsThreadPoolExecutor.NOOP_PROBE) { // referential equality
+            if (task == EsThreadPoolExecutor.WORKER_PROBE) { // referential equality
                 return;
             }
             if (rejectAfterShutdown) {
@@ -549,7 +549,7 @@ public class EsExecutors {
                 if (probeWorkerPool && task == queue.peek()) { // referential equality
                     // If the task is at the head of the queue, we can assume the queue was previously empty. In this case available workers
                     // might have timed out in the meanwhile. To prevent the task from starving, we submit a noop probe to the executor.
-                    executor.execute(EsThreadPoolExecutor.NOOP_PROBE);
+                    executor.execute(EsThreadPoolExecutor.WORKER_PROBE);
                 }
             } catch (final InterruptedException e) {
                 assert false : "a scaling queue never blocks so a put to it can never be interrupted";

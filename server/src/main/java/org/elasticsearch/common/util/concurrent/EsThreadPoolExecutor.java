@@ -29,8 +29,9 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
 
-    // probe to
-    static final Runnable NOOP_PROBE = () -> {};
+    // noop probe to prevent starvation of work in the work queue due to ForceQueuePolicy
+    // https://github.com/elastic/elasticsearch/issues/124667
+    static final Runnable WORKER_PROBE = () -> {};
 
     private final ThreadContext contextHolder;
 
@@ -81,7 +82,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        final Runnable wrappedRunnable = command != NOOP_PROBE ? wrapRunnable(command) : NOOP_PROBE;
+        final Runnable wrappedRunnable = command != WORKER_PROBE ? wrapRunnable(command) : WORKER_PROBE;
         try {
             super.execute(wrappedRunnable);
         } catch (Exception e) {

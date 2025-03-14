@@ -43,8 +43,7 @@ public class ShapeFieldDataGenerator implements FieldDataGenerator {
     @Override
     public Object generateValue(Map<String, Object> fieldMapping) {
         if (fieldMapping == null) {
-            // dynamically mapped and dynamic mapping does not play well with this type (it gets mapped as an object)
-            // return null to skip indexing this field
+            // ???
             return null;
         }
 

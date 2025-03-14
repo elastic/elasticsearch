@@ -555,6 +555,8 @@ public class EsExecutors {
                 if (probeWorkerPool && task == queue.peek()) { // referential equality
                     // If the task is at the head of the queue, we can assume the queue was previously empty. In this case available workers
                     // might have timed out in the meanwhile. To prevent the task from starving, we submit a noop probe to the executor.
+                    // Note, this deliberately doesn't check getPoolSize()==0 to avoid potential race conditions,
+                    // as the count in the atomic state (used by workerCountOf) is decremented first.
                     executor.execute(EsThreadPoolExecutor.WORKER_PROBE);
                 }
             } catch (final InterruptedException e) {

@@ -100,8 +100,6 @@ public class PolicyManager {
         }
     }
 
-    private static final ConcurrentHashMap<String, Logger> MODULE_LOGGERS = new ConcurrentHashMap<>();
-
     private FileAccessTree getDefaultFileAccess(String componentName, Path componentPath) {
         return FileAccessTree.of(componentName, UNKNOWN_COMPONENT_NAME, FilesEntitlement.EMPTY, pathLookup, componentPath, List.of());
     }
@@ -579,6 +577,16 @@ public class PolicyManager {
         var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
         return MODULE_LOGGERS.computeIfAbsent(PolicyManager.class.getName() + loggerSuffix, LogManager::getLogger);
     }
+
+    /**
+     * We want to use the same {@link Logger} object for a given name, because we want {@link ModuleEntitlements}
+     * {@code equals} and {@code hashCode} to work.
+     * <p>
+     * This would not be required if LogManager
+     * <a href="https://github.com/elastic/elasticsearch/issues/87511">memoized the loggers</a>,
+     * but here we are.
+     */
+    private static final ConcurrentHashMap<String, Logger> MODULE_LOGGERS = new ConcurrentHashMap<>();
 
     public void checkManageThreadsEntitlement(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, ManageThreadsEntitlement.class);

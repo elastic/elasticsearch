@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.inference;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -52,7 +51,7 @@ public class RerankOperator extends AsyncOperator<Page> {
                 + queryText
                 + " rerank_fields="
                 + rerankFieldsEvaluatorFactories.keySet()
-                + " scoreChannel="
+                + " score_channel="
                 + scoreChannel
                 + "]";
         }
@@ -137,6 +136,19 @@ public class RerankOperator extends AsyncOperator<Page> {
         return fetchFromBuffer();
     }
 
+    @Override
+    public String toString() {
+        return "RerankOperator[inference_id="
+            + inferenceId
+            + " query="
+            + queryText
+            + " rerank_fields="
+            + List.of(rerankFieldNames)
+            + " score_channel="
+            + scoreChannel
+            + "]";
+    }
+
     private void buildOutput(Page inputPage, InferenceAction.Response inferenceResponse, ActionListener<Page> listener) {
         if (inferenceResponse.getResults() instanceof RankedDocsResults rankedDocsResults) {
             buildOutput(inputPage, rankedDocsResults, listener);
@@ -194,6 +206,7 @@ public class RerankOperator extends AsyncOperator<Page> {
     }
 
     private void buildInferenceRequest(Page inputPage, ActionListener<InferenceAction.Request> listener) {
+
         Block[] inputBlocks = inputBlocks(inputPage);
 
         try {
@@ -201,8 +214,10 @@ public class RerankOperator extends AsyncOperator<Page> {
             if (inputBlocks.length > 0) for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
                 inputs[pos] = toYaml(inputBlocks, pos);
             }
-            listener.onResponse(InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build());
-        } catch(IOException e) {
+            listener.onResponse(
+                InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build()
+            );
+        } catch (Exception e) {
             listener.onFailure(e);
         } finally {
             Releasables.closeExpectNoException(inputBlocks);
@@ -212,11 +227,16 @@ public class RerankOperator extends AsyncOperator<Page> {
     private Block[] inputBlocks(Page inputPage) {
         Block[] blocks = new Block[rerankFieldsEvaluators.length];
 
-        for (int i = 0; i < rerankFieldsEvaluators.length; i++) {
-            blocks[i] = rerankFieldsEvaluators[i].eval(inputPage);
-        }
+        try {
+            for (int i = 0; i < rerankFieldsEvaluators.length; i++) {
+                blocks[i] = rerankFieldsEvaluators[i].eval(inputPage);
+            }
 
-        return blocks;
+            return blocks;
+        } catch(Exception e) {
+            Releasables.closeExpectNoException(blocks);
+            throw e;
+        }
     }
 
     private String toYaml(Block[] inputBlocks, int position) throws IOException {
@@ -236,21 +256,13 @@ public class RerankOperator extends AsyncOperator<Page> {
     private Object toYaml(Object value) {
         try {
             return switch (value) {
-                case BytesRef b -> toYaml(b);
+                case BytesRef b -> b.utf8ToString();
                 case List<?> l -> l.stream().map(this::toYaml).toList();
                 default -> value;
             };
-        } catch (Error e) {
-            throw new IllegalStateException(LoggerMessageFormat.format("Unexpected error while processing value: {}", e.getMessage()), e);
-        }
-    }
-
-    private String toYaml(BytesRef b) {
-        try {
-            return b.utf8ToString();
-        } catch (Exception | Error e) {
-            // TODO better handling of these cases.
-            return "";
+        } catch (Error | Exception e) {
+            // Swallow errors caused by invalid byteref.
+            return null;
         }
     }
 }

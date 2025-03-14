@@ -66,6 +66,25 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         populateIndexWithFailingFields(REMOTE_CLUSTER_2, "fail-cluster2", remote2.failingShards);
     }
 
+    private void assertClusterPartial(EsqlQueryResponse resp, String clusterAlias, ClusterSetup cluster) {
+        assertClusterPartial(resp, clusterAlias, cluster.okShards + cluster.failingShards, cluster.okShards);
+    }
+
+    private void assertClusterPartial(EsqlQueryResponse resp, String clusterAlias, int totalShards, int okShards) {
+        EsqlExecutionInfo.Cluster clusterInfo = resp.getExecutionInfo().getCluster(clusterAlias);
+        assertThat(clusterInfo.getTotalShards(), equalTo(totalShards));
+        assertThat(clusterInfo.getSuccessfulShards(), lessThanOrEqualTo(okShards));
+        assertThat(clusterInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+    }
+
+    private void assertClusterSuccess(EsqlQueryResponse resp, String clusterAlias, int numShards) {
+        EsqlExecutionInfo.Cluster clusterInfo = resp.getExecutionInfo().getCluster(clusterAlias);
+        assertThat(clusterInfo.getTotalShards(), equalTo(numShards));
+        assertThat(clusterInfo.getSuccessfulShards(), equalTo(numShards));
+        assertThat(clusterInfo.getFailedShards(), equalTo(0));
+        assertThat(clusterInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+    }
+
     public void testPartialResults() throws Exception {
         populateIndices();
         EsqlQueryRequest request = new EsqlQueryRequest();
@@ -91,22 +110,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 assertTrue(returnedIds.add(id));
                 assertThat(id, is(in(allIds)));
             }
-            if (request.includeCCSMetadata()) {
-                EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
-                assertThat(localInfo.getTotalShards(), equalTo(local.okShards + local.failingShards));
-                assertThat(localInfo.getSuccessfulShards(), lessThanOrEqualTo(local.okShards));
-                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
 
-                EsqlExecutionInfo.Cluster remote1Info = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
-                assertThat(remote1Info.getTotalShards(), equalTo(remote1.okShards + remote1.failingShards));
-                assertThat(remote1Info.getSuccessfulShards(), lessThanOrEqualTo(remote1.okShards));
-                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-
-                EsqlExecutionInfo.Cluster remote2Info = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_2);
-                assertThat(remote2Info.getTotalShards(), equalTo(remote2.okShards + remote2.failingShards));
-                assertThat(remote2Info.getSuccessfulShards(), lessThanOrEqualTo(remote2.okShards));
-                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-            }
+            assertClusterPartial(resp, LOCAL_CLUSTER, local);
+            assertClusterPartial(resp, REMOTE_CLUSTER_1, remote1);
+            assertClusterPartial(resp, REMOTE_CLUSTER_2, remote2);
         }
     }
 
@@ -128,22 +135,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 assertTrue(returnedIds.add(id));
             }
             assertThat(returnedIds, equalTo(allIds));
-            if (request.includeCCSMetadata()) {
-                EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
-                assertThat(localInfo.getTotalShards(), equalTo(local.okShards));
-                assertThat(localInfo.getSuccessfulShards(), equalTo(local.okShards));
-                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
 
-                EsqlExecutionInfo.Cluster remote1Info = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
-                assertThat(remote1Info.getTotalShards(), equalTo(remote1.okShards));
-                assertThat(remote1Info.getSuccessfulShards(), equalTo(remote1.okShards));
-                assertThat(remote1Info.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-
-                EsqlExecutionInfo.Cluster remote2Info = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_2);
-                assertThat(remote2Info.getTotalShards(), equalTo(remote2.failingShards));
-                assertThat(remote2Info.getSuccessfulShards(), equalTo(0));
-                assertThat(remote2Info.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-            }
+            assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
+            assertClusterSuccess(resp, REMOTE_CLUSTER_1, remote1.okShards);
+            assertClusterPartial(resp, REMOTE_CLUSTER_2, remote2.failingShards, 0);
         }
     }
 
@@ -195,15 +190,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                     assertTrue(returnedIds.add(id));
                 }
                 assertThat(returnedIds, equalTo(Sets.union(local.okIds, remote1.okIds)));
-                if (request.includeCCSMetadata()) {
-                    EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
-                    assertThat(localInfo.getTotalShards(), equalTo(localInfo.getTotalShards()));
-                    assertThat(localInfo.getSuccessfulShards(), equalTo(localInfo.getSuccessfulShards()));
-                    assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
 
-                    EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
-                    assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-                }
+                EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+                assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
             }
         } finally {
             for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
@@ -248,15 +238,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                     assertTrue(returnedIds.add(id));
                 }
                 assertThat(returnedIds, equalTo(local.okIds));
-                if (request.includeCCSMetadata()) {
-                    EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
-                    assertThat(localInfo.getTotalShards(), equalTo(local.okShards));
-                    assertThat(localInfo.getSuccessfulShards(), equalTo(local.okShards));
-                    assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
 
-                    EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
-                    assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-                }
+                EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+                assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
             }
         } finally {
             for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
@@ -299,13 +284,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                     assertTrue(returnedIds.add(id));
                 }
                 assertThat(returnedIds, equalTo(remote1.okIds));
-                if (request.includeCCSMetadata()) {
-                    EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
-                    assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+                EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
+                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
 
-                    EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
-                    assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-                }
+                assertClusterSuccess(resp, REMOTE_CLUSTER_1, remote1.okShards);
             }
         } finally {
             for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {

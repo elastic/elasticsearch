@@ -954,6 +954,47 @@ false                  | null
 false                  | null
 ;
 
+startsWithLucenePushdown
+
+from hosts
+| where starts_with(host, "bet") and starts_with(host_group, "Kuber")
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+startsWithLuceneDisabledPushdown
+
+from hosts
+| where host == "unknown host" or (starts_with(host, "bet") and starts_with(host_group, "Kuber"))
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+startsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
+
+from hosts
+| where starts_with(description, "epsilon")
+| keep description
+| sort description;
+
+warningRegex: evaluation of \[starts_with\(description, \\\"epsilon\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+description:text
+epsilon gw instance
+;
+
 substringOfText
 
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
@@ -1199,6 +1240,148 @@ Bernatsky      |false
 ;
 
 
+endsWithLucenePushdown
+
+from hosts
+| where ends_with(host, "ta") and ends_with(host_group, "cluster")
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+endsWithLuceneDisabledPushdown
+
+from hosts
+| where host == "unknown host" or (ends_with(host, "ta") and ends_with(host_group, "cluster"))
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+endsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
+
+from hosts
+| where ends_with(description, "host")
+| keep description
+| sort description;
+
+warningRegex: evaluation of \[ends_with\(description, \\\"host\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+description:text
+;
+
+
+lucenePushdownMultipleWhere
+
+from hosts
+| where starts_with(host, "bet")
+| keep host, host_group
+| sort host, host_group
+| where ends_with(host_group, "cluster");
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+lucenePushdownMultipleIndices
+required_capability: index_metadata_field
+required_capability: casting_operator
+
+from airports* metadata _index
+| where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
+| keep abbrev, name, _index
+| sort abbrev, name, _index;
+
+abbrev:keyword | name:text | _index:keyword
+LUH            | Sahnewal  | airports
+LUH            | Sahnewal  | airports_mp
+LUH            | Sahnewal  | airports_no_doc_values
+LUH            | Sahnewal  | airports_not_indexed
+LUH            | Sahnewal  | airports_not_indexed_nor_doc_values
+LUH            | Sahnewal  | airports_web
+;
+
+lucenePushdownOr
+required_capability: casting_operator
+
+from airports
+| where starts_with(name::keyword, "Sahn") or ends_with(abbrev, "UH")
+| keep abbrev, name
+| sort abbrev, name;
+
+abbrev:keyword | name:text
+AUH            | Abu Dhabi Int'l  
+LUH            | Sahnewal         
+RUH            | King Khalid Int'l
+;
+
+lucenePushdownMultipleOr
+required_capability: casting_operator
+
+from airports
+| where starts_with(name::keyword, "Sahn") or ends_with(abbrev, "UH") or starts_with(abbrev, "OOL")
+| keep abbrev, name
+| sort abbrev, name;
+
+abbrev:keyword | name:text
+AUH            | Abu Dhabi Int'l
+LUH            | Sahnewal
+OOL            | Gold Coast
+RUH            | King Khalid Int'l
+;
+
+lucenePushdownMultipleAnd
+required_capability: index_metadata_field
+required_capability: casting_operator
+
+from airports metadata _index
+| where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
+| where ends_with(name::keyword, "al")
+| keep abbrev, name, _index
+| sort abbrev, name, _index;
+
+abbrev:keyword | name:text | _index:keyword
+LUH            | Sahnewal  | airports
+;
+
+lucenePushdownMixAndOr
+required_capability: casting_operator
+
+from airports
+| where starts_with(name::keyword, "Sahn") and (starts_with(name::keyword, "Abc") or ends_with(abbrev, "UH"))
+| keep abbrev, name, scalerank
+| sort abbrev, name;
+
+abbrev:keyword | name:text | scalerank:integer
+LUH            | Sahnewal  | 9
+;
+
+lucenePushdownMixOrAnd
+required_capability: index_metadata_field
+required_capability: casting_operator
+
+from airports* metadata _index
+| where starts_with(name::keyword, "Sahn") or (starts_with(abbrev, "G") and ends_with(name::keyword, "Falls Int'l"))
+| where ends_with(_index, "airports")
+| keep abbrev, name, scalerank, _index
+| sort abbrev;
+
+abbrev:keyword | name:text         | scalerank:integer | _index:keyword
+GTF            | Great Falls Int'l | 8                 | airports      
+LUH            | Sahnewal          | 9                 | airports
+;
 
 toLowerRow#[skip:-8.12.99]
 // tag::to_lower[]
@@ -1222,6 +1405,20 @@ emp_no:integer  | first_name:keyword    | name_lower:keyword
 ;
 
 
+toLowerMv
+required_capability: to_lower_mv
+// tag::to_lower_mv[]
+ROW v = TO_LOWER(["Some", "Text"])
+// end::to_lower_mv[]
+;
+
+// tag::to_lower_mv-result[]
+   v:keyword
+["some", "text"]
+// end::to_lower_mv-result[]
+;
+
+
 toUpperRow#[skip:-8.12.99]
 // tag::to_upper[]
 ROW message = "Some Text"
@@ -1241,6 +1438,20 @@ from employees | sort emp_no | eval name_upper = TO_UPPER(first_name) | keep emp
 
 emp_no:integer  | first_name:keyword    | name_upper:keyword
 10001           | Georgi                | GEORGI
+;
+
+
+toUpperMv
+required_capability: to_lower_mv
+// tag::to_upper_mv[]
+ROW v = TO_UPPER(["Some", "Text"])
+// end::to_upper_mv[]
+;
+
+// tag::to_upper_mv-result[]
+   v:keyword
+["SOME", "TEXT"]
+// end::to_upper_mv-result[]
 ;
 
 
@@ -1812,7 +2023,7 @@ base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
 // tag::from_base64[]
-row a = "ZWxhc3RpYw==" 
+row a = "ZWxhc3RpYw=="
 | eval d = from_base64(a)
 // end::from_base64[]
 ;

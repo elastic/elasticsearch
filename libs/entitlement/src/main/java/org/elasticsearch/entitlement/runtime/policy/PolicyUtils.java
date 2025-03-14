@@ -35,9 +35,9 @@ import java.util.stream.Stream;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
 
-public class PolicyParserUtils {
+public class PolicyUtils {
 
-    private static final Logger logger = LogManager.getLogger(PolicyParserUtils.class);
+    private static final Logger logger = LogManager.getLogger(PolicyUtils.class);
 
     public static List<Scope> mergeScopes(List<Scope> mainScopes, List<Scope> additionalScopes) {
         var result = new ArrayList<Scope>();

@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESTestCase.WithoutSecurityManager
-public class PolicyParserUtilsTests extends ESTestCase {
+public class PolicyUtilsTests extends ESTestCase {
 
     public void testCreatePluginPolicyWithOverride() {
 
@@ -48,7 +48,7 @@ public class PolicyParserUtilsTests extends ESTestCase {
             )
         );
 
-        var policy = PolicyParserUtils.parsePolicyOverrideIfExists(
+        var policy = PolicyUtils.parsePolicyOverrideIfExists(
             base64EncodedPolicy,
             "9.0.0",
             true,
@@ -81,7 +81,7 @@ public class PolicyParserUtilsTests extends ESTestCase {
             )
         );
 
-        var policy = PolicyParserUtils.parsePolicyOverrideIfExists(
+        var policy = PolicyUtils.parsePolicyOverrideIfExists(
             base64EncodedPolicy,
             "abcdef",
             true,
@@ -109,7 +109,7 @@ public class PolicyParserUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyParserUtils.parsePolicyOverrideIfExists(
+        var policy = PolicyUtils.parsePolicyOverrideIfExists(
             base64EncodedPolicy,
             "9.1.0",
             true,
@@ -137,7 +137,7 @@ public class PolicyParserUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyParserUtils.parsePolicyOverrideIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
+        var policy = PolicyUtils.parsePolicyOverrideIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
 
         assertThat(policy, nullValue());
     }
@@ -155,7 +155,7 @@ public class PolicyParserUtilsTests extends ESTestCase {
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyParserUtils.parsePolicyOverrideIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
+        var policy = PolicyUtils.parsePolicyOverrideIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
 
         assertThat(policy, nullValue());
     }

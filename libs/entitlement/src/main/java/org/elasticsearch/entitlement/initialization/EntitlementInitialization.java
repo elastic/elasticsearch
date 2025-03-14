@@ -23,7 +23,7 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
-import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
@@ -273,7 +273,7 @@ public class EntitlementInitialization {
             "server",
             bootstrapArgs.serverPolicyPatch() == null
                 ? serverScopes
-                : PolicyParserUtils.mergeScopes(serverScopes, bootstrapArgs.serverPolicyPatch().scopes())
+                : PolicyUtils.mergeScopes(serverScopes, bootstrapArgs.serverPolicyPatch().scopes())
         );
 
         // agents run without a module, so this is a special hack for the apm agent

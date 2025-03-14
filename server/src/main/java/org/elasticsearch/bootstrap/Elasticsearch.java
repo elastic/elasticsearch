@@ -36,7 +36,7 @@ import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
-import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -242,14 +242,14 @@ class Elasticsearch {
 
             var pluginData = Stream.concat(
                 modulesBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
                 pluginsBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
 
             var pluginPolicyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
-            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData, pluginPolicyOverrides, Build.current().version());
-            var serverPolicyOverride = PolicyParserUtils.parsePolicyOverrideIfExists(
+            var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyOverrides, Build.current().version());
+            var serverPolicyOverride = PolicyUtils.parsePolicyOverrideIfExists(
                 System.getProperty(SERVER_POLICY_OVERRIDE),
                 Build.current().version(),
                 false,

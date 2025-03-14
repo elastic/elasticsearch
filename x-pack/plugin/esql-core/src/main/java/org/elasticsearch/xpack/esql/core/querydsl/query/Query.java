@@ -28,6 +28,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * </p>
  */
 public abstract class Query {
+
+    // Boosting used to remove scoring from queries that don't contribute to it
+    public static final float NO_SCORE_BOOST = 0.0f;
+
     private final Source source;
 
     protected Query(Source source) {
@@ -51,7 +55,7 @@ public abstract class Query {
     public final QueryBuilder toQueryBuilder() {
         QueryBuilder builder = asBuilder();
         if (scorable() == false) {
-            builder.boost(0.0f);
+            builder = unscore(builder);
         }
         return builder;
     }
@@ -102,5 +106,12 @@ public abstract class Query {
      */
     public boolean scorable() {
         return false;
+    }
+
+    /**
+     * Removes score from a query builder, so score is not affected by the query
+     */
+    public static QueryBuilder unscore(QueryBuilder builder) {
+        return builder.boost(NO_SCORE_BOOST);
     }
 }

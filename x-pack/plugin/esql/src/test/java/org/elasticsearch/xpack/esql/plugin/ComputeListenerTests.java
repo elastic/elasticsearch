@@ -56,7 +56,7 @@ public class ComputeListenerTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    private List<DriverProfile> randomProfiles() {
+    private ComputeListener.CollectedProfiles randomProfiles() {
         int numProfiles = randomIntBetween(0, 2);
         List<DriverProfile> profiles = new ArrayList<>(numProfiles);
         for (int i = 0; i < numProfiles; i++) {
@@ -75,20 +75,22 @@ public class ComputeListenerTests extends ESTestCase {
                 )
             );
         }
-        return profiles;
+        // NOCOMMIT - add random planner profiles?
+        return new ComputeListener.CollectedProfiles(profiles, List.of());
     }
 
     public void testEmpty() {
-        PlainActionFuture<List<DriverProfile>> results = new PlainActionFuture<>();
+        PlainActionFuture<ComputeListener.CollectedProfiles> results = new PlainActionFuture<>();
         try (var ignored = new ComputeListener(threadPool, () -> {}, results)) {
             assertFalse(results.isDone());
         }
         assertTrue(results.isDone());
-        assertThat(results.actionGet(10, TimeUnit.SECONDS), empty());
+        assertThat(results.actionGet(10, TimeUnit.SECONDS).getDriverProfiles(), empty());
+        assertThat(results.actionGet(10, TimeUnit.SECONDS).getPlannerProfiles(), empty());
     }
 
     public void testCollectComputeResults() {
-        PlainActionFuture<List<DriverProfile>> future = new PlainActionFuture<>();
+        PlainActionFuture<ComputeListener.CollectedProfiles> future = new PlainActionFuture<>();
         List<DriverProfile> allProfiles = new ArrayList<>();
         AtomicInteger onFailure = new AtomicInteger();
         try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, future)) {
@@ -104,7 +106,7 @@ public class ComputeListenerTests extends ESTestCase {
                 } else {
                     var profiles = randomProfiles();
                     allProfiles.addAll(profiles);
-                    ActionListener<List<DriverProfile>> subListener = computeListener.acquireCompute();
+                    ActionListener<ComputeListener.CollectedProfiles> subListener = computeListener.acquireCompute();
                     threadPool.schedule(
                         ActionRunnable.wrap(subListener, l -> l.onResponse(profiles)),
                         TimeValue.timeValueNanos(between(0, 100)),

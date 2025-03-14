@@ -38,6 +38,9 @@ final class ComputeListener implements Releasable {
     private final ResponseHeadersCollector responseHeaders;
     private final Runnable runOnFailure;
 
+    /**
+     * Holds the collection of driver profiles and query planning profiles from the individual nodes processing the query.
+     */
     public static class CollectedProfiles implements Writeable {
         public static final CollectedProfiles EMPTY = new CollectedProfiles(List.of(), List.of());
 

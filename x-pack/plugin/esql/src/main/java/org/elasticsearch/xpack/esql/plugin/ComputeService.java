@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -172,7 +171,13 @@ public class ComputeService {
             try (
                 var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
                     updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                    return new Result(physicalPlan.output(), collectedPages, profiles.getDriverProfiles(), profiles.getPlannerProfiles(), execInfo);
+                    return new Result(
+                        physicalPlan.output(),
+                        collectedPages,
+                        profiles.getDriverProfiles(),
+                        profiles.getPlannerProfiles(),
+                        execInfo
+                    );
                 }))
             ) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
@@ -204,7 +209,7 @@ public class ComputeService {
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
             execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
-            return new Result(outputAttributes, collectedPages, profiles, , execInfo);
+            return new Result(outputAttributes, collectedPages, profiles.getDriverProfiles(), profiles.getPlannerProfiles(), execInfo);
         }))) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
@@ -279,7 +284,7 @@ public class ComputeService {
                                             EsqlExecutionInfo.Cluster.Status.PARTIAL
                                         ).setFailures(List.of(new ShardSearchFailure(e))).build()
                                     );
-                                    dataNodesListener.onResponse(List.of());
+                                    dataNodesListener.onResponse(ComputeListener.CollectedProfiles.EMPTY);
                                 } else {
                                     dataNodesListener.onFailure(e);
                                 }
@@ -339,7 +344,12 @@ public class ComputeService {
         }
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<ComputeListener.CollectedProfiles> listener) {
+    void runCompute(
+        CancellableTask task,
+        ComputeContext context,
+        PhysicalPlan plan,
+        ActionListener<ComputeListener.CollectedProfiles> listener
+    ) {
         listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
         for (int i = 0; i < context.searchContexts().size(); i++) {

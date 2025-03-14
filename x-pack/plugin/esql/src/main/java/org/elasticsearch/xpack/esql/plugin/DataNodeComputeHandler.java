@@ -16,7 +16,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -270,7 +269,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
                 if (searchContexts.isEmpty()) {
-                    batchListener.onResponse(List.of());
+                    batchListener.onResponse(ComputeListener.CollectedProfiles.EMPTY);
                     return;
                 }
                 var computeContext = new ComputeContext(

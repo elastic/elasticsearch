@@ -16,6 +16,10 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.Iterator;
 
+/**
+ * Stores profiling information about the query plan.  This can be the top level planning on the coordinating node, or the local
+ * planning on the data nodes.
+ */
 public class PlannerProfile implements Writeable, ChunkedToXContentObject {
 
     public static final PlannerProfile EMPTY = new PlannerProfile();

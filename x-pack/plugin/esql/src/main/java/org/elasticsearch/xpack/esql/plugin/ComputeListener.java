@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,17 +30,38 @@ import java.util.List;
 final class ComputeListener implements Releasable {
     private final EsqlRefCountingListener refs;
     private final List<DriverProfile> collectedProfiles;
+    private final List<PlannerProfile> collectedPlannerProfiles;
     private final ResponseHeadersCollector responseHeaders;
     private final Runnable runOnFailure;
 
-    ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<List<DriverProfile>> delegate) {
+    public static class CollectedProfiles {
+        private List<DriverProfile> driverProfiles;
+        private List<PlannerProfile> plannerProfiles;
+
+        CollectedProfiles(List<DriverProfile> driverProfiles, List<PlannerProfile> plannerProfiles) {
+            this.driverProfiles = driverProfiles;
+            this.plannerProfiles = plannerProfiles;
+        }
+
+        public List<DriverProfile> getDriverProfiles() {
+            return driverProfiles;
+        }
+
+        public List<PlannerProfile> getPlannerProfiles() {
+            return plannerProfiles;
+        }
+
+    }
+
+    ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<CollectedProfiles> delegate) {
         this.runOnFailure = runOnFailure;
         this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
         this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
+        this.collectedPlannerProfiles = Collections.synchronizedList(new ArrayList<>());
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
         this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
             responseHeaders.finish();
-            delegate.onResponse(collectedProfiles.stream().toList());
+            delegate.onResponse(new CollectedProfiles(collectedProfiles.stream().toList(), collectedPlannerProfiles.stream().toList()));
         }));
     }
 
@@ -60,12 +82,17 @@ final class ComputeListener implements Releasable {
     /**
      * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
      */
-    ActionListener<List<DriverProfile>> acquireCompute() {
+    ActionListener<CollectedProfiles> acquireCompute() {
         final ActionListener<Void> delegate = acquireAvoid();
         return ActionListener.wrap(profiles -> {
             responseHeaders.collect();
-            if (profiles != null && profiles.isEmpty() == false) {
-                collectedProfiles.addAll(profiles);
+            if (profiles != null) {
+                if (profiles.getDriverProfiles().isEmpty() == false) {
+                    collectedProfiles.addAll(profiles.getDriverProfiles());
+                }
+                if (profiles.getPlannerProfiles().isEmpty() == false) {
+                    collectedPlannerProfiles.addAll(profiles.getPlannerProfiles());
+                }
             }
             delegate.onResponse(null);
         }, e -> {

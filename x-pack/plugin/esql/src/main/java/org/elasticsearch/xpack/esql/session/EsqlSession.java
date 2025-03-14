@@ -260,6 +260,8 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         PlanTuple tuple = subPlanIterator.next();
+        List<PlannerProfile> plannerProfiles = new ArrayList<>();
+        plannerProfiles.add(plannerProfile);
 
         runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
             try {
@@ -301,8 +303,9 @@ public class EsqlSession {
                     // In the production path, this is runner.run calls ComputeService.execute
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.addAll(finalResult.profiles());
+                        plannerProfiles.addAll(finalResult.plannerProfiles());
                         finalListener.onResponse(
-                            new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, plannerProfile, executionInfo)
+                            new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, plannerProfiles, executionInfo)
                         );
                     }));
                 } else {

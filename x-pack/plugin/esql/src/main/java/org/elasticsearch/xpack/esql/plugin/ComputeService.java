@@ -172,7 +172,7 @@ public class ComputeService {
             try (
                 var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
                     updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                    return new Result(physicalPlan.output(), collectedPages, profiles, , execInfo);
+                    return new Result(physicalPlan.output(), collectedPages, profiles.getDriverProfiles(), profiles.getPlannerProfiles(), execInfo);
                 }))
             ) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());

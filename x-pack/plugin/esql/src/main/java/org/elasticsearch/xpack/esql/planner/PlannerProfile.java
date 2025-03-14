@@ -20,6 +20,8 @@ public class PlannerProfile implements NamedWriteable, ChunkedToXContentObject {
 
     public static final PlannerProfile EMPTY = new PlannerProfile();
 
+    private final boolean isLocalPlanning;
+
     public PlannerProfile() {
         // NOCOMMIT
         throw new UnsupportedOperationException();

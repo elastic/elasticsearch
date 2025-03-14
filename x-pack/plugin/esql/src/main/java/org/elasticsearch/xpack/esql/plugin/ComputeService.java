@@ -345,12 +345,7 @@ public class ComputeService {
         }
     }
 
-    void runCompute(
-        CancellableTask task,
-        ComputeContext context,
-        PhysicalPlan plan,
-        ActionListener<CollectedProfiles> listener
-    ) {
+    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<CollectedProfiles> listener) {
         listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
         for (int i = 0; i < context.searchContexts().size(); i++) {

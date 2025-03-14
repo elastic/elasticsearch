@@ -49,7 +49,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-ec2");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-gce");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:mapper-annotated-text");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:mapper-murmur3");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:store-smb");
         map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");

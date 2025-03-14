@@ -62,11 +62,19 @@ public class ReferenceDocsTests extends ESTestCase {
         return new BytesArray(stringBuilder.toString()).streamInput();
     }
 
-    public void testSuccess() throws IOException {
+    public void testSuccessNoFragments() throws IOException {
         final var linksMap = ReferenceDocs.readLinksBySymbol(getResourceStream((i, l) -> l));
         assertEquals(ReferenceDocs.values().length, linksMap.size());
         for (ReferenceDocs link : ReferenceDocs.values()) {
-            assertEquals(TEST_LINK_PLACEHOLDER, linksMap.get(link.name()));
+            assertEquals(new ReferenceDocs.LinkComponents(TEST_LINK_PLACEHOLDER, ""), linksMap.get(link.name()));
+        }
+    }
+
+    public void testSuccessWithFragments() throws IOException {
+        final var linksMap = ReferenceDocs.readLinksBySymbol(getResourceStream((i, l) -> l + "#test-fragment"));
+        assertEquals(ReferenceDocs.values().length, linksMap.size());
+        for (ReferenceDocs link : ReferenceDocs.values()) {
+            assertEquals(new ReferenceDocs.LinkComponents(TEST_LINK_PLACEHOLDER, "#test-fragment"), linksMap.get(link.name()));
         }
     }
 

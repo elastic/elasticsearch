@@ -25,11 +25,14 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -44,6 +47,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
@@ -94,7 +98,16 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         ShardContext ctx = new MockShardContext(reader, 0);
         Function<ShardContext, Query> queryFunction = c -> new MatchAllDocsQuery();
         int maxPageSize = between(10, Math.max(10, numDocs));
-        return new LuceneSourceOperator.Factory(List.of(ctx), queryFunction, dataPartitioning, 1, maxPageSize, limit, scoring);
+        int taskConcurrency = randomIntBetween(1, 4);
+        return new LuceneSourceOperator.Factory(
+            List.of(ctx),
+            queryFunction,
+            dataPartitioning,
+            taskConcurrency,
+            maxPageSize,
+            limit,
+            scoring
+        );
     }
 
     @Override
@@ -120,23 +133,34 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
 
     public void testEarlyTermination() {
         int size = between(1_000, 20_000);
-        int limit = between(10, size);
+        int limit = between(0, Integer.MAX_VALUE);
         LuceneSourceOperator.Factory factory = simple(randomFrom(DataPartitioning.values()), size, limit, scoring);
-        try (SourceOperator sourceOperator = factory.get(driverContext())) {
-            assertFalse(sourceOperator.isFinished());
-            int collected = 0;
-            while (sourceOperator.isFinished() == false) {
-                Page page = sourceOperator.getOutput();
-                if (page != null) {
-                    collected += page.getPositionCount();
-                    page.releaseBlocks();
-                }
-                if (collected >= limit) {
-                    assertTrue("source operator is not finished after reaching limit", sourceOperator.isFinished());
-                    assertThat(collected, equalTo(limit));
-                }
-            }
+        int taskConcurrency = factory.taskConcurrency();
+        final AtomicInteger receivedRows = new AtomicInteger();
+        List<Driver> drivers = new ArrayList<>();
+        for (int i = 0; i < taskConcurrency; i++) {
+            DriverContext driverContext = driverContext();
+            SourceOperator sourceOperator = factory.get(driverContext);
+            SinkOperator sinkOperator = new PageConsumerOperator(p -> {
+                receivedRows.addAndGet(p.getPositionCount());
+                p.releaseBlocks();
+            });
+            Driver driver = new Driver(
+                "driver" + i,
+                0,
+                0,
+                driverContext,
+                () -> "test",
+                sourceOperator,
+                List.of(),
+                sinkOperator,
+                TimeValue.timeValueNanos(1),
+                () -> {}
+            );
+            drivers.add(driver);
         }
+        OperatorTestCase.runDriver(drivers);
+        assertThat(receivedRows.get(), equalTo(Math.min(limit, size)));
     }
 
     public void testEmpty() {

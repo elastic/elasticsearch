@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
@@ -150,8 +149,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[2];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -164,10 +162,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send Google AI Studio embeddings request to [%s]", getUrl(webServer)))
-        );
+        assertThat(thrownException.getMessage(), is("Failed to send Google AI Studio embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -181,16 +176,13 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send Google AI Studio embeddings request to [%s]", getUrl(webServer)))
-        );
+        assertThat(thrownException.getMessage(), is("Failed to send Google AI Studio embeddings request. Cause: failed"));
     }
 
     private ExecutableAction createAction(String url, String apiKey, String modelName, Sender sender) {
         var model = createModel(modelName, apiKey, url);
         var requestManager = new GoogleAiStudioEmbeddingsRequestManager(model, TruncatorTests.createTruncator(), threadPool);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "Google AI Studio embeddings");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio embeddings");
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -429,7 +430,7 @@ public class ComputeService {
         });
     }
 
-    CancellableTask createGroupTask(Task parentTask, Supplier<String> description) {
+    CancellableTask createGroupTask(Task parentTask, Supplier<String> description) throws TaskCancelledException {
         final TaskManager taskManager = transportService.getTaskManager();
         return (CancellableTask) taskManager.register(
             "transport",

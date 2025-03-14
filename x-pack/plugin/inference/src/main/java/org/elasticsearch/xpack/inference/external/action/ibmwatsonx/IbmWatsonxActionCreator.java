@@ -34,7 +34,7 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
 
     @Override
     public ExecutableAction create(IbmWatsonxEmbeddingsModel model, Map<String, Object> taskSettings) {
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "IBM WatsonX embeddings");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("IBM WatsonX embeddings");
         return new SenderExecutableAction(
             sender,
             getEmbeddingsRequestManager(model, serviceComponents.truncator(), serviceComponents.threadPool()),
@@ -46,10 +46,7 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
     public ExecutableAction create(IbmWatsonxRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = IbmWatsonxRerankModel.of(model, taskSettings);
         var requestCreator = IbmWatsonxRerankRequestManager.of(overriddenModel, serviceComponents.threadPool());
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            overriddenModel.getServiceSettings().uri(),
-            "Ibm Watsonx rerank"
-        );
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Ibm Watsonx rerank");
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
 

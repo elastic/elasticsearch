@@ -172,14 +172,18 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
             this.serializeMode = serializeMode;
-            this.mode = new Parameter<>(
-                "mode",
-                true,
-                () -> null,
-                (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
-                m -> toType(m).enabled.explicit() ? null : toType(m).mode,
+            this.mode = new Parameter<>("mode", true, () -> null, (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)), m -> {
+                var sfm = toType(m);
+                if (sfm.enabled.explicit()) {
+                    return null;
+                } else if (sfm.serializeMode) {
+                    return sfm.mode;
+                } else {
+                    return null;
+                }
+            },
                 (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
-                v -> v.toString().toLowerCase(Locale.ROOT)
+                v -> v != null ? v.toString().toLowerCase(Locale.ROOT) : null
             ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
                 // don't emit if `enabled` is configured
                 .setSerializerCheck((includeDefaults, isConfigured, value) -> serializeMode && value != null);
@@ -300,11 +304,20 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
             return DEFAULT;
         }
+        SourceFieldMapper sourceFieldMapper;
         if (c.indexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
-            return resolveStaticInstance(settingSourceMode);
+            sourceFieldMapper = resolveStaticInstance(settingSourceMode);
         } else {
-            return new SourceFieldMapper(settingSourceMode, Explicit.IMPLICIT_TRUE, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, true);
+            sourceFieldMapper = new SourceFieldMapper(
+                settingSourceMode,
+                Explicit.IMPLICIT_TRUE,
+                Strings.EMPTY_ARRAY,
+                Strings.EMPTY_ARRAY,
+                true
+            );
         }
+        indexMode.validateSourceFieldMapper(sourceFieldMapper);
+        return sourceFieldMapper;
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),

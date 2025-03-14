@@ -15,6 +15,8 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.internal.spi.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -84,12 +86,16 @@ public abstract class Command implements Closeable {
             return;
         }
 
+        LoggerFactory loggerFactory = LoggerFactory.provider();
         if (options.has(silentOption)) {
             terminal.setVerbosity(Terminal.Verbosity.SILENT);
+            loggerFactory.setRootLevel(Level.OFF);
         } else if (options.has(verboseOption)) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
+            loggerFactory.setRootLevel(Level.DEBUG);
         } else {
             terminal.setVerbosity(Terminal.Verbosity.NORMAL);
+            loggerFactory.setRootLevel(Level.INFO);
         }
 
         execute(terminal, options, processInfo);

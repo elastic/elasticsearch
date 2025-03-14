@@ -52,7 +52,7 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
     private boolean keepOnCompletion;
     private boolean onSnapshotBuild = Build.current().isSnapshot();
     private boolean acceptedPragmaRisks = false;
-    private boolean allowPartialResults = false;
+    private Boolean allowPartialResults = null;
 
     /**
      * "Tables" provided in the request for use with things like {@code LOOKUP}.
@@ -232,12 +232,13 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         return tables;
     }
 
-    public boolean allowPartialResults() {
+    public Boolean allowPartialResults() {
         return allowPartialResults;
     }
 
-    public void allowPartialResults(boolean allowPartialResults) {
+    public EsqlQueryRequest allowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+        return this;
     }
 
     @Override

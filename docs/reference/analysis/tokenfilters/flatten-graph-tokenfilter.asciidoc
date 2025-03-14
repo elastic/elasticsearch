@@ -32,7 +32,7 @@ To see how the `flatten_graph` filter works, you first need to produce a token
 graph containing multi-position tokens.
 
 The following <<indices-analyze,analyze API>> request uses the `synonym_graph`
-filter to add `dns` as a multi-position synonym for `domain name system` in the
+filter to add `internet phonebook` as a multi-position synonym for `domain name system` in the
 text `domain name system is fragile`:
 
 [source,console]
@@ -43,17 +43,17 @@ GET /_analyze
   "filter": [
     {
       "type": "synonym_graph",
-      "synonyms": [ "dns, domain name system" ]
+      "synonyms": [ "internet phonebook, domain name system" ]
     }
   ],
   "text": "domain name system is fragile"
 }
 ----
 
-The filter produces the following token graph with `dns` as a multi-position
+The filter produces the following token graph with `internet phonebook` as a multi-position
 token.
 
-image::images/analysis/token-graph-dns-synonym-ex.svg[align="center"]
+image::images/analysis/token-graph-dns-synonym-ex2.svg[align="center"]
 
 ////
 [source,console-result]
@@ -61,47 +61,55 @@ image::images/analysis/token-graph-dns-synonym-ex.svg[align="center"]
 {
   "tokens": [
     {
-      "token": "dns",
+      "token": "internet",
       "start_offset": 0,
       "end_offset": 18,
       "type": "SYNONYM",
-      "position": 0,
-      "positionLength": 3
+      "position": 0
     },
     {
       "token": "domain",
       "start_offset": 0,
       "end_offset": 6,
       "type": "<ALPHANUM>",
-      "position": 0
+      "position": 0,
+      "positionLength": 2
+    },
+    {
+      "token": "phonebook",
+      "start_offset": 0,
+      "end_offset": 18,
+      "type": "SYNONYM",
+      "position": 1,
+      "positionLength": 3
     },
     {
       "token": "name",
       "start_offset": 7,
       "end_offset": 11,
       "type": "<ALPHANUM>",
-      "position": 1
+      "position": 2
     },
     {
       "token": "system",
       "start_offset": 12,
       "end_offset": 18,
       "type": "<ALPHANUM>",
-      "position": 2
+      "position": 3
     },
     {
       "token": "is",
       "start_offset": 19,
       "end_offset": 21,
       "type": "<ALPHANUM>",
-      "position": 3
+      "position": 4
     },
     {
       "token": "fragile",
       "start_offset": 22,
       "end_offset": 29,
       "type": "<ALPHANUM>",
-      "position": 4
+      "position": 5
     }
   ]
 }
@@ -122,7 +130,7 @@ GET /_analyze
   "filter": [
     {
       "type": "synonym_graph",
-      "synonyms": [ "dns, domain name system" ]
+      "synonyms": [ "internet phonebook, domain name system" ]
     },
     "flatten_graph"
   ],
@@ -133,7 +141,7 @@ GET /_analyze
 The filter produces the following flattened token graph, which is suitable for
 indexing.
 
-image::images/analysis/token-graph-dns-invalid-ex.svg[align="center"]
+image::images/analysis/token-graph-dns-synonym-flattened-ex2.svg[align="center"]
 
 ////
 [source,console-result]
@@ -141,12 +149,11 @@ image::images/analysis/token-graph-dns-invalid-ex.svg[align="center"]
 {
   "tokens": [
     {
-      "token": "dns",
+      "token": "internet",
       "start_offset": 0,
-      "end_offset": 18,
+      "end_offset": 6,
       "type": "SYNONYM",
-      "position": 0,
-      "positionLength": 3
+      "position": 0
     },
     {
       "token": "domain",
@@ -154,6 +161,14 @@ image::images/analysis/token-graph-dns-invalid-ex.svg[align="center"]
       "end_offset": 6,
       "type": "<ALPHANUM>",
       "position": 0
+    },
+    {
+      "token": "phonebook",
+      "start_offset": 7,
+      "end_offset": 18,
+      "type": "SYNONYM",
+      "position": 1,
+      "positionLength": 2
     },
     {
       "token": "name",

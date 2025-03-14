@@ -1,6 +1,19 @@
 [[paginate-search-results]]
 === Paginate search results
 
+{es} uses pagination to segment large result sets into manageable pages for efficient retrieval and processing.
+
+{es} supports three pagination techniques:
+
+
+* <<from-and-size-pagination, From and size pagination>>: Ideal for creating a list of pages that users can navigate.
+* <<search-after, Search after>>: Supports infinite scroll or allows loading additional results with a "next" button.
+* <<scroll-search-results, Scroll>>: Historically used to retrieve all matching documents. The <<search-after, search after>> method with the <<point-in-time-api, point in time API>> is now recommended for better efficiency and reliability.
+
+[discrete]
+[[from-and-size-pagination]]
+=== From and size pagination
+
 By default, searches return the top 10 matching hits. To page through a larger
 set of results, you can use the <<search-search,search API>>'s `from` and `size`
 parameters. The `from` parameter defines the number of hits to skip, defaulting
@@ -25,13 +38,15 @@ Avoid using `from` and `size` to page too deeply or request too many results at
 once. Search requests usually span multiple shards. Each shard must load its
 requested hits and the hits for any previous pages into memory. For deep pages
 or large sets of results, these operations can significantly increase memory and
-CPU usage, resulting in degraded performance or node failures.
+CPU usage. If not properly managed, these operations can result in degraded performance or node failures.
 
 By default, you cannot use `from` and `size` to page through more than 10,000
 hits. This limit is a safeguard set by the
 <<index-max-result-window,`index.max_result_window`>> index setting. If you need
 to page through more than 10,000 hits, use the <<search-after,`search_after`>>
 parameter instead.
+
+Pagination is stateless, so search result order may change when navigating between pages. To maintain consistent order, use the <<point-in-time-api, point in time API>> for stateful pagination.
 
 WARNING: {es} uses Lucene's internal doc IDs as tie-breakers. These internal doc
 IDs can be completely different across replicas of the same data. When paging
@@ -43,7 +58,7 @@ are not ordered consistently.
 === Search after
 
 You can use the `search_after` parameter to retrieve the next page of hits
-using a set of <<sort-search-results,sort values>> from the previous page.
+using a set of <<sort-search-results,sort values>> from the previous page. This approach is ideal for scenarios where users click a "next" or "load more" button, rather than selecting a specific page.
 
 Using `search_after` requires multiple search requests with the same `query` and
 `sort` values. The first step is to run an initial request. The following

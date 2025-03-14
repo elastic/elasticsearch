@@ -26,10 +26,6 @@ import org.elasticsearch.action.admin.cluster.desirednodes.TransportGetDesiredNo
 import org.elasticsearch.action.admin.cluster.desirednodes.TransportUpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
-import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
-import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction;
-import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
-import org.elasticsearch.action.admin.cluster.migration.TransportPostFeatureUpgradeAction;
 import org.elasticsearch.action.admin.cluster.node.capabilities.TransportNodesCapabilitiesAction;
 import org.elasticsearch.action.admin.cluster.node.features.TransportNodesFeaturesAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
@@ -283,7 +279,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestDeleteSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetDesiredBalanceAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetDesiredNodesAction;
-import org.elasticsearch.rest.action.admin.cluster.RestGetFeatureUpgradeStatusAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptContextAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetScriptLanguageAction;
@@ -297,7 +292,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
-import org.elasticsearch.rest.action.admin.cluster.RestPostFeatureUpgradeAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPrevalidateNodeRemovalAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
@@ -671,10 +665,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportSnapshotsStatusAction.TYPE, TransportSnapshotsStatusAction.class);
         actions.register(SnapshottableFeaturesAction.INSTANCE, TransportSnapshottableFeaturesAction.class);
         actions.register(ResetFeatureStateAction.INSTANCE, TransportResetFeatureStateAction.class);
-        actions.register(GetFeatureUpgradeStatusAction.INSTANCE, TransportGetFeatureUpgradeStatusAction.class);
-        actions.register(PostFeatureUpgradeAction.INSTANCE, TransportPostFeatureUpgradeAction.class);
         actions.register(TransportGetShardSnapshotAction.TYPE, TransportGetShardSnapshotAction.class);
-
         actions.register(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         actions.register(IndicesSegmentsAction.INSTANCE, TransportIndicesSegmentsAction.class);
         actions.register(TransportIndicesShardStoresAction.TYPE, TransportIndicesShardStoresAction.class);
@@ -872,8 +863,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSnapshotsStatusAction());
         registerHandler.accept(new RestSnapshottableFeaturesAction());
         registerHandler.accept(new RestResetFeatureStateAction());
-        registerHandler.accept(new RestGetFeatureUpgradeStatusAction());
-        registerHandler.accept(new RestPostFeatureUpgradeAction());
         registerHandler.accept(new RestGetIndicesAction());
         registerHandler.accept(new RestIndicesStatsAction());
         registerHandler.accept(new RestIndicesSegmentsAction());

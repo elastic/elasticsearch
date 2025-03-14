@@ -342,7 +342,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
             var nullValueAdjusted = nullValue != null ? adjustSourceValue(nullValue, scalingFactor) : null;
 
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<>(nullValue) {
+            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<Double>(nullValue) {
                 @Override
                 public void convertValue(Object value, List<Double> accumulator) {
                     if (coerce && value.equals("")) {

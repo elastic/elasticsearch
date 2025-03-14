@@ -669,7 +669,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
             var nullValueBytes = nullValue != null ? new BytesRef(nullValue) : null;
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<>(nullValueBytes) {
+            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<BytesRef>(nullValueBytes) {
                 @Override
                 public void convertValue(Object value, List<BytesRef> accumulator) {
                     String stringValue = ((BytesRef) value).utf8ToString();
@@ -943,6 +943,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final int ignoreAbove;
     private final String offsetsFieldName;
     private final SourceKeepMode indexSourceKeepMode;
+    private final String originalName;
 
     private KeywordFieldMapper(
         String simpleName,
@@ -971,6 +972,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.ignoreAbove = builder.ignoreAbove.getValue();
         this.offsetsFieldName = offsetsFieldName;
         this.indexSourceKeepMode = indexSourceKeepMode;
+        this.originalName = isSyntheticSource ? fullPath() + "._original" : null;
     }
 
     @Override
@@ -1129,7 +1131,7 @@ public final class KeywordFieldMapper extends FieldMapper {
      * for synthetic source.
      */
     private String originalName() {
-        return fullPath() + "._original";
+        return originalName;
     }
 
     @Override

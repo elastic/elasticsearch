@@ -1,11 +1,11 @@
 ---
 "Bulk indexing of monitoring data":
   - skip:
-      features: ["allowed_warnings"]
+      features: ["allowed_warnings_regex"]
 
   - do:
-      allowed_warnings:
-        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+      allowed_warnings_regex:
+        - "\\[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.*"
       cluster.put_settings:
         body:
           persistent:
@@ -172,11 +172,11 @@
 ---
 "Bulk indexing of monitoring data on closed indices should throw an export exception":
   - skip:
-      features: ["allowed_warnings"]
+      features: ["allowed_warnings", "allowed_warnings_regex"]
 
   - do:
-      allowed_warnings:
-        - "[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+      allowed_warnings_regex:
+        - "\\[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.*"
       cluster.put_settings:
         body:
           persistent:

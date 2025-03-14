@@ -1976,6 +1976,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert Thread.holdsLock(mutex) == false : "must not hold the mutex here";
                 engineLock.writeLock().lock();
                 try {
+                    verifyNotClosed();
                     IOUtils.close(getAndSetCurrentEngine(null));
                 } finally {
                     engineLock.writeLock().unlock();

@@ -1816,7 +1816,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final Engine engine = engineOrNull;
                     // When closeExecutor is EsExecutors.DIRECT_EXECUTOR_SERVICE, the following runnable will run within the current thread
                     // while the read lock is held, which is OK. When closeExecutor is a generic thread or the cluster state applier thread
-                    // it will then run without any engine lock held, which is OK because no engine changes are allowed  after the state is
+                    // it will then run without any engine lock held, which is OK because no engine changes are allowed after the state is
                     // changed to CLOSED.
                     closeExecutor.execute(ActionRunnable.run(closeListener, new CheckedRunnable<>() {
                         @Override

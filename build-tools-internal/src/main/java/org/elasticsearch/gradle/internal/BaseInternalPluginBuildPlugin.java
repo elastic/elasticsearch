@@ -81,29 +81,6 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         if (isModule == false || isXPackModule) {
             addNoticeGeneration(project, extension);
         }
-        project.afterEvaluate(p -> {
-            @SuppressWarnings("unchecked")
-            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-                .getExtensions()
-                .getByName(TestClustersPlugin.EXTENSION_NAME);
-            p.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
-                // Auto add any dependent modules
-                findModulePath(project, pluginName).ifPresent(
-                    path -> testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(path))
-                );
-            });
-        });
-    }
-
-    Optional<String> findModulePath(Project project, String pluginName) {
-        return project.getRootProject()
-            .getAllprojects()
-            .stream()
-            .filter(p -> GradleUtils.isModuleProject(p.getPath()))
-            .filter(p -> p.getPlugins().hasPlugin(PluginBuildPlugin.class))
-            .filter(p -> p.getExtensions().getByType(PluginPropertiesExtension.class).getName().equals(pluginName))
-            .findFirst()
-            .map(Project::getPath);
     }
 
     /**

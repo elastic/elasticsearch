@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.deepseek;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ToXContent;
@@ -29,6 +31,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public class DeepSeekChatCompletionRequest implements Request {
+    private static final Logger logger = LogManager.getLogger(DeepSeekChatCompletionRequest.class);
     private static final String MODEL_FIELD = "model";
     private static final String MAX_TOKENS = "max_tokens";
 
@@ -47,7 +50,11 @@ public class DeepSeekChatCompletionRequest implements Request {
         httpPost.setEntity(createEntity());
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        httpPost.setHeader(createAuthBearerHeader(model.apiKey()));
+        model.apiKey()
+            .ifPresentOrElse(
+                apiKey -> httpPost.setHeader(createAuthBearerHeader(apiKey)),
+                () -> logger.debug("No auth token present in request, sending without auth...")
+            );
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }

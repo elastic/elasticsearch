@@ -76,9 +76,9 @@ public class StXMax extends UnaryScalarFunction {
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
-            return new StXMaxFromWKBGeoEvaluator.Factory(toEvaluator.apply(field()), source());
+            return new StXMaxFromWKBGeoEvaluator.Factory(source(), toEvaluator.apply(field()));
         }
-        return new StXMaxFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
+        return new StXMaxFromWKBEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 
     @Override

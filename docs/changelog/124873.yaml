@@ -1,0 +1,5 @@
+pr: 124873
+summary: Restore V8 REST compatibility around highlight `force_source` parameter
+area: Highlighting
+type: bug
+issues: []

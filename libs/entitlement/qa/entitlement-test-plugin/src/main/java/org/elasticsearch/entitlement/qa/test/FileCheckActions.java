@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.qa.test;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
+import org.elasticsearch.env.Environment;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -22,9 +23,11 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.URISyntaxException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
@@ -43,6 +46,7 @@ import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
 import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.createTempFileForWrite;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_ALLOWED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
@@ -561,6 +565,30 @@ class FileCheckActions {
         // an overload distinct from ofFile with no OpenOptions, and so it needs its
         // own instrumentation and its own test.
         HttpResponse.BodySubscribers.ofFile(readFile(), CREATE, WRITE);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void readAccessConfigDirectory(Environment environment) {
+        Files.exists(environment.configDir());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessConfigDirectory(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("to_create");
+        Files.createFile(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void readAccessSourcePath() throws URISyntaxException {
+        var sourcePath = Paths.get(EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        Files.exists(sourcePath);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessSourcePath() throws IOException, URISyntaxException {
+        var sourcePath = Paths.get(EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        var file = sourcePath.getParent().resolve("to_create");
+        Files.createFile(file);
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

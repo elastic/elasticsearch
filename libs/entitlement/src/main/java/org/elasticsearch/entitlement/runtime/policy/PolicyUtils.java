@@ -12,6 +12,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -29,6 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -44,10 +46,10 @@ public class PolicyUtils {
         var additionalScopesMap = additionalScopes.stream().collect(Collectors.toMap(Scope::moduleName, Scope::entitlements));
         for (var mainScope : mainScopes) {
             List<Entitlement> additionalEntitlements = additionalScopesMap.remove(mainScope.moduleName());
-            if (additionalEntitlements != null) {
-                result.add(new Scope(mainScope.moduleName(), mergeEntitlements(mainScope.entitlements(), additionalEntitlements)));
-            } else {
+            if (additionalEntitlements == null) {
                 result.add(mainScope);
+            } else {
+                result.add(new Scope(mainScope.moduleName(), mergeEntitlements(mainScope.entitlements(), additionalEntitlements)));
             }
         }
 
@@ -58,24 +60,26 @@ public class PolicyUtils {
     }
 
     static List<Entitlement> mergeEntitlements(List<Entitlement> a, List<Entitlement> b) {
-        Map<Class<? extends Entitlement>, List<Entitlement>> allEntitlements = Stream.concat(a.stream(), b.stream())
-            .collect(Collectors.groupingBy(Entitlement::getClass));
+        Map<Class<? extends Entitlement>, Entitlement> entitlementMap = a.stream()
+            .collect(Collectors.toMap(Entitlement::getClass, Function.identity()));
 
-        List<Entitlement> result = new ArrayList<>();
-        for (var entitlements : allEntitlements.entrySet()) {
-            var entitlementClass = entitlements.getKey();
-            if (entitlementClass.equals(FilesEntitlement.class)) {
-                var filesData = entitlements.getValue().stream().flatMap(entitlement -> {
-                    FilesEntitlement filesEntitlement = (FilesEntitlement) entitlement;
-                    return filesEntitlement.filesData().stream();
-                }).filter(x -> x.platform().isCurrent()).distinct();
-
-                result.add(new FilesEntitlement(filesData.toList()));
-            } else {
-                result.add(entitlements.getValue().get(0));
-            }
+        for (var entitlement : b) {
+            entitlementMap.merge(entitlement.getClass(), entitlement, PolicyUtils::mergeEntitlement);
         }
-        return result;
+        return entitlementMap.values().stream().toList();
+    }
+
+    static Entitlement mergeEntitlement(Entitlement entitlement1, Entitlement entitlement2) {
+        return switch (entitlement1) {
+            case FilesEntitlement e -> new FilesEntitlement(
+                Stream.concat(e.filesData().stream(), ((FilesEntitlement) entitlement2).filesData().stream()).toList()
+            );
+            case WriteSystemPropertiesEntitlement e -> new WriteSystemPropertiesEntitlement(
+                Stream.concat(e.properties().stream(), ((WriteSystemPropertiesEntitlement) entitlement2).properties().stream())
+                    .collect(Collectors.toUnmodifiableSet())
+            );
+            default -> entitlement1;
+        };
     }
 
     public record PluginData(Path pluginPath, boolean isModular, boolean isExternalPlugin) {

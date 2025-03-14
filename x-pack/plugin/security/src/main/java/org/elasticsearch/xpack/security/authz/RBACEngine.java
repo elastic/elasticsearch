@@ -905,6 +905,8 @@ public class RBACEngine implements AuthorizationEngine {
             } else {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
                     if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                        // data check is correct, even for failure indices -- in this context, we treat them as regular indices, and
+                        // only include them if direct data access to them is granted (e.g., if a role has `read` over "*")
                         && predicate.test(indexAbstraction, IndexComponentSelector.DATA)) {
                         indicesAndAliases.add(indexAbstraction.getName());
                     }
@@ -1072,31 +1074,31 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
-        private final CachedSupplier<Set<String>> authorizedAndAvailableSupplier;
-        private final CachedSupplier<Set<String>> failureStoreAuthorizedAndAvailableSupplier;
+        private final CachedSupplier<Set<String>> authorizedAndAvailableDataResources;
+        private final CachedSupplier<Set<String>> authorizedAndAvailableFailuresResources;
         private final BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate;
 
         AuthorizedIndices(
-            Supplier<Set<String>> authorizedAndAvailableSupplier,
-            Supplier<Set<String>> failureStoreAuthorizedAndAvailableSupplier,
+            Supplier<Set<String>> authorizedAndAvailableDataResources,
+            Supplier<Set<String>> authorizedAndAvailableFailuresResources,
             BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate
         ) {
-            this.authorizedAndAvailableSupplier = CachedSupplier.wrap(authorizedAndAvailableSupplier);
-            this.failureStoreAuthorizedAndAvailableSupplier = CachedSupplier.wrap(failureStoreAuthorizedAndAvailableSupplier);
+            this.authorizedAndAvailableDataResources = CachedSupplier.wrap(authorizedAndAvailableDataResources);
+            this.authorizedAndAvailableFailuresResources = CachedSupplier.wrap(authorizedAndAvailableFailuresResources);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
         @Override
         public Set<String> all(IndexComponentSelector selector) {
-            Objects.requireNonNull(selector);
+            Objects.requireNonNull(selector, "must specify a selector to get authorized indices");
             return IndexComponentSelector.FAILURES.equals(selector)
-                ? failureStoreAuthorizedAndAvailableSupplier.get()
-                : authorizedAndAvailableSupplier.get();
+                ? authorizedAndAvailableFailuresResources.get()
+                : authorizedAndAvailableDataResources.get();
         }
 
         @Override
         public boolean check(String name, IndexComponentSelector selector) {
-            Objects.requireNonNull(selector);
+            Objects.requireNonNull(selector, "must specify a selector for authorization check");
             return isAuthorizedPredicate.test(name, selector);
         }
     }

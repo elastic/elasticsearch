@@ -360,6 +360,9 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testAutomaticForceMerge
   issue: https://github.com/elastic/elasticsearch/issues/124846
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
+  issue: https://github.com/elastic/elasticsearch/issues/124848
 
 # Examples:
 #

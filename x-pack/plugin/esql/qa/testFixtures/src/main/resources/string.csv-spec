@@ -1403,6 +1403,20 @@ emp_no:integer  | first_name:keyword    | name_lower:keyword
 ;
 
 
+toLowerMv
+required_capability: to_lower_mv
+// tag::to_lower_mv[]
+ROW v = TO_LOWER(["Some", "Text"])
+// end::to_lower_mv[]
+;
+
+// tag::to_lower_mv-result[]
+   v:keyword
+["some", "text"]
+// end::to_lower_mv-result[]
+;
+
+
 toUpperRow#[skip:-8.12.99]
 // tag::to_upper[]
 ROW message = "Some Text"
@@ -1422,6 +1436,20 @@ from employees | sort emp_no | eval name_upper = TO_UPPER(first_name) | keep emp
 
 emp_no:integer  | first_name:keyword    | name_upper:keyword
 10001           | Georgi                | GEORGI
+;
+
+
+toUpperMv
+required_capability: to_lower_mv
+// tag::to_upper_mv[]
+ROW v = TO_UPPER(["Some", "Text"])
+// end::to_upper_mv[]
+;
+
+// tag::to_upper_mv-result[]
+   v:keyword
+["SOME", "TEXT"]
+// end::to_upper_mv-result[]
 ;
 
 

@@ -42,7 +42,7 @@ public class ToBoolean extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(BOOLEAN, (field, source) -> field),
+        Map.entry(BOOLEAN, (source, field) -> field),
         Map.entry(KEYWORD, ToBooleanFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToBooleanFromStringEvaluator.Factory::new),
         Map.entry(SEMANTIC_TEXT, ToBooleanFromStringEvaluator.Factory::new),

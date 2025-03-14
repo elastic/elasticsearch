@@ -1424,6 +1424,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
     }
 
+    @Nullable
+    public IndexReshardingMetadata getReshardingMetadata() {
+        return reshardingMetadata;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -1558,6 +1563,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final IndexMetadataStats stats;
         private final Double indexWriteLoadForecast;
         private final Long shardSizeInBytesForecast;
+        private final IndexReshardingMetadata reshardingMetadata;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -1597,6 +1603,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             stats = after.stats;
             indexWriteLoadForecast = after.writeLoadForecast;
             shardSizeInBytesForecast = after.shardSizeInBytesForecast;
+            reshardingMetadata = after.reshardingMetadata;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -1669,6 +1676,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 eventIngestedRange = IndexLongFieldRange.UNKNOWN;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+                reshardingMetadata = in.readOptionalWriteable(IndexReshardingMetadata::new);
+            } else {
+                reshardingMetadata = null;
+            }
         }
 
         @Override
@@ -1707,6 +1719,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 out.writeOptionalLong(shardSizeInBytesForecast);
             }
             eventIngestedRange.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+                out.writeOptionalWriteable(reshardingMetadata);
+            }
         }
 
         @Override
@@ -1739,6 +1754,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);
+            builder.reshardingMetadata(reshardingMetadata);
             return builder.build(true);
         }
     }
@@ -1810,6 +1826,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
         builder.eventIngestedRange(IndexLongFieldRange.readFrom(in));
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+            builder.reshardingMetadata(in.readOptionalWriteable(IndexReshardingMetadata::new));
+        }
         return builder.build(true);
     }
 
@@ -1859,6 +1878,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeOptionalLong(shardSizeInBytesForecast);
         }
         eventIngestedRange.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_RESHARDING_METADATA)) {
+            out.writeOptionalWriteable(reshardingMetadata);
+        }
     }
 
     @Override

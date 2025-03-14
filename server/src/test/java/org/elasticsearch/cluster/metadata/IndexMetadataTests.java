@@ -166,6 +166,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getForecastedWriteLoad(), fromXContentMeta.getForecastedWriteLoad());
         assertEquals(metadata.getForecastedShardSizeInBytes(), fromXContentMeta.getForecastedShardSizeInBytes());
         assertEquals(metadata.getInferenceFields(), fromXContentMeta.getInferenceFields());
+        assertEquals(metadata.getReshardingMetadata(), fromXContentMeta.getReshardingMetadata());
 
         final BytesStreamOutput out = new BytesStreamOutput();
         metadata.writeTo(out);
@@ -192,6 +193,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getForecastedShardSizeInBytes(), deserialized.getForecastedShardSizeInBytes());
             assertEquals(metadata.getInferenceFields(), deserialized.getInferenceFields());
             assertEquals(metadata.getEventIngestedRange(), deserialized.getEventIngestedRange());
+            assertEquals(metadata.getReshardingMetadata(), deserialized.getReshardingMetadata());
         }
     }
 

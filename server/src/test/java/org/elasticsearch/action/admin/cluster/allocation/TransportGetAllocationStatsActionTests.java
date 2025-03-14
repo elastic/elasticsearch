@@ -41,7 +41,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -96,7 +95,8 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             EnumSet.of(Metric.ALLOCATIONS),
             EnumSet.of(Metric.FS),
             EnumSet.noneOf(Metric.class),
-            EnumSet.allOf(Metric.class)
+            EnumSet.allOf(Metric.class),
+            EnumSet.copyOf(randomSubsetOf(between(1, Metric.values().length), EnumSet.allOf(Metric.class)))
         )) {
             var request = new TransportGetAllocationStatsAction.Request(
                 TimeValue.ONE_MINUTE,

@@ -786,6 +786,40 @@ public class EsExecutorsTests extends ESTestCase {
         );
     }
 
+    public void testScalingWithEmptyCoreAndLargerMaxSize() {
+        // TODO currently the reproduction of the starvation bug does not work if max pool size > 1
+        // https://github.com/elastic/elasticsearch/issues/124867
+        testScalingWithEmptyCore(
+            EsExecutors.newScaling(
+                getTestName(),
+                0,
+                between(2, 5),
+                0,
+                TimeUnit.MILLISECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getTestName()),
+                threadContext
+            )
+        );
+    }
+
+    public void testScalingWithEmptyCoreAndKeepAliveAndLargerMaxSize() {
+        // TODO currently the reproduction of the starvation bug does not work if max pool size > 1
+        // https://github.com/elastic/elasticsearch/issues/124867
+        testScalingWithEmptyCore(
+            EsExecutors.newScaling(
+                getTestName(),
+                0,
+                between(2, 5),
+                1,
+                TimeUnit.MILLISECONDS,
+                true,
+                EsExecutors.daemonThreadFactory(getTestName()),
+                threadContext
+            )
+        );
+    }
+
     public void testScalingWithEmptyCoreAndWorkerPoolProbing() {
         // https://github.com/elastic/elasticsearch/issues/124667 is difficult to reproduce if max pool size > 1.
         // if probing mitigates the bug for max pool size = 1, we're good for larger pool sizes as well.

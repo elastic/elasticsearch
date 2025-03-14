@@ -106,6 +106,10 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         return new TypeResolution("unresolved attribute [" + qualifiedName() + "]");
     }
 
+    public boolean match(Attribute attribute) {
+        return Objects.equals(qualifier(), attribute.qualifier()) && Objects.equals(name(), attribute.name());
+    }
+
     @Override
     public DataType dataType() {
         throw new UnresolvedException("dataType", this);

@@ -311,7 +311,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         var qualifierPattern = ctx.qualifier;
         // TODO: This does not take into account parameters for qualifiers at all; at least we need to validate against this, or enable it.
-        String qualifier = qualifierPattern == null? null : qualifierPattern.ID_PATTERN().getText();
+        String qualifier = qualifierPattern == null ? null : qualifierPattern.ID_PATTERN().getText();
 
         var src = source(ctx);
         StringBuilder patternString = new StringBuilder();

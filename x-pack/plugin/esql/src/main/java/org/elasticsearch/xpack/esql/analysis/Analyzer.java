@@ -1040,18 +1040,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    // TODO: here
     private static List<Attribute> resolveAgainstList(UnresolvedNamePattern up, Collection<Attribute> attrList) {
         UnresolvedAttribute ua = new UnresolvedAttribute(up.source(), up.qualifier(), up.pattern());
-        Predicate<Attribute> matcher = a -> up.match(a.name());
+        Predicate<Attribute> matcher = up::match;
         var matches = AnalyzerRules.maybeResolveAgainstList(matcher, () -> ua, attrList, true, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedNamePattern.errorMessage(up.pattern(), list));
     }
 
-    // TODO: here
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
         var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
-        return potentialCandidatesIfNoMatchesFound(ua, matches, attrList, list -> UnresolvedAttribute.errorMessage(ua.qualifiedName(), list));
+        return potentialCandidatesIfNoMatchesFound(
+            ua,
+            matches,
+            attrList,
+            list -> UnresolvedAttribute.errorMessage(ua.qualifiedName(), list)
+        );
     }
 
     private static List<Attribute> potentialCandidatesIfNoMatchesFound(

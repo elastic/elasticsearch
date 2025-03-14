@@ -317,7 +317,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "EsqlExecutionInfo{" + "overallTook=" + overallTook + ", clusterInfo=" + clusterInfo + '}';
+        return "EsqlExecutionInfo{"
+            + "overallTook="
+            + overallTook
+            + ", isPartial="
+            + isPartial
+            + ", isStopped="
+            + isStopped
+            + ", clusterInfo="
+            + clusterInfo
+            + '}';
     }
 
     @Override

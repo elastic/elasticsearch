@@ -37,9 +37,9 @@ import static org.hamcrest.Matchers.nullValue;
 @ESTestCase.WithoutSecurityManager
 public class PolicyUtilsTests extends ESTestCase {
 
-    public void testCreatePluginPolicyWithOverride() {
+    public void testCreatePluginPolicyWithPatch() {
 
-        var policyForOverride = """
+        var policyPatch = """
             versions:
               - 9.0.0
               - 9.0.0-SNAPSHOT
@@ -50,7 +50,7 @@ public class PolicyUtilsTests extends ESTestCase {
                 - set_https_connection_properties
             """;
         var base64EncodedPolicy = new String(
-            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            Base64.getEncoder().encode(policyPatch.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
         final Policy expectedPolicy = new Policy(
@@ -61,7 +61,7 @@ public class PolicyUtilsTests extends ESTestCase {
             )
         );
 
-        var policy = PolicyUtils.parsePolicyOverrideIfExists(
+        var policy = PolicyUtils.parseEncodedPolicyIfExists(
             base64EncodedPolicy,
             "9.0.0",
             true,
@@ -72,9 +72,9 @@ public class PolicyUtilsTests extends ESTestCase {
         assertThat(policy, equalTo(expectedPolicy));
     }
 
-    public void testCreatePluginPolicyWithOverrideAnyVersion() {
+    public void testCreatePluginPolicyWithPatchAnyVersion() {
 
-        var policyForOverride = """
+        var policyPatch = """
             policy:
               entitlement-module-name:
                 - load_native_libraries
@@ -82,7 +82,7 @@ public class PolicyUtilsTests extends ESTestCase {
                 - set_https_connection_properties
             """;
         var base64EncodedPolicy = new String(
-            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            Base64.getEncoder().encode(policyPatch.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
 
@@ -94,7 +94,7 @@ public class PolicyUtilsTests extends ESTestCase {
             )
         );
 
-        var policy = PolicyUtils.parsePolicyOverrideIfExists(
+        var policy = PolicyUtils.parseEncodedPolicyIfExists(
             base64EncodedPolicy,
             "abcdef",
             true,
@@ -105,9 +105,9 @@ public class PolicyUtilsTests extends ESTestCase {
         assertThat(policy, equalTo(expectedPolicy));
     }
 
-    public void testNoOverriddenPolicyWithVersionMismatch() {
+    public void testNoPatchWithVersionMismatch() {
 
-        var policyForOverride = """
+        var policyPatch = """
             versions:
               - 9.0.0
               - 9.0.0-SNAPSHOT
@@ -118,11 +118,11 @@ public class PolicyUtilsTests extends ESTestCase {
                 - set_https_connection_properties
             """;
         var base64EncodedPolicy = new String(
-            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            Base64.getEncoder().encode(policyPatch.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parsePolicyOverrideIfExists(
+        var policy = PolicyUtils.parseEncodedPolicyIfExists(
             base64EncodedPolicy,
             "9.1.0",
             true,
@@ -133,9 +133,9 @@ public class PolicyUtilsTests extends ESTestCase {
         assertThat(policy, nullValue());
     }
 
-    public void testNoOverriddenPolicyWithValidationError() {
+    public void testNoPatchWithValidationError() {
 
-        var policyForOverride = """
+        var policyPatch = """
             versions:
               - 9.0.0
               - 9.0.0-SNAPSHOT
@@ -146,29 +146,29 @@ public class PolicyUtilsTests extends ESTestCase {
                 - set_https_connection_properties
             """;
         var base64EncodedPolicy = new String(
-            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            Base64.getEncoder().encode(policyPatch.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parsePolicyOverrideIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
+        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
 
         assertThat(policy, nullValue());
     }
 
-    public void testNoOverriddenPolicyWithParsingError() {
+    public void testNoPatchWithParsingError() {
 
-        var policyForOverride = """
+        var policyPatch = """
             entitlement-module-name:
               - load_native_libraries
             entitlement-module-name-2:
               - set_https_connection_properties
             """;
         var base64EncodedPolicy = new String(
-            Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
+            Base64.getEncoder().encode(policyPatch.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
 
-        var policy = PolicyUtils.parsePolicyOverrideIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
+        var policy = PolicyUtils.parseEncodedPolicyIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
 
         assertThat(policy, nullValue());
     }

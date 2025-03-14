@@ -57,7 +57,7 @@ public class PolicyUtils {
             String pluginName = pluginRoot.getFileName().toString();
             final Set<String> moduleNames = getModuleNames(pluginRoot, entry.isModular());
 
-            var overriddenPolicy = parsePolicyOverrideIfExists(
+            var overriddenPolicy = parseEncodedPolicyIfExists(
                 overrides.get(pluginName),
                 version,
                 entry.isExternalPlugin(),
@@ -76,25 +76,25 @@ public class PolicyUtils {
         return pluginPolicies;
     }
 
-    public static Policy parsePolicyOverrideIfExists(
-        String policyOverride,
+    public static Policy parseEncodedPolicyIfExists(
+        String encodedPolicy,
         String version,
         boolean externalPlugin,
         String layerName,
         Set<String> moduleNames
     ) {
-        if (policyOverride != null) {
+        if (encodedPolicy != null) {
             try {
-                var versionedPolicy = decodeOverriddenPluginPolicy(policyOverride, layerName, externalPlugin);
-                validatePolicyScopes(layerName, versionedPolicy.policy(), moduleNames, "<override>");
+                var versionedPolicy = decodeEncodedPolicy(encodedPolicy, layerName, externalPlugin);
+                validatePolicyScopes(layerName, versionedPolicy.policy(), moduleNames, "<patch>");
 
                 // Empty versions defaults to "any"
                 if (versionedPolicy.versions().isEmpty() || versionedPolicy.versions().contains(version)) {
-                    logger.info("Using policy override for layer [{}]", layerName);
+                    logger.info("Using policy patch for layer [{}]", layerName);
                     return versionedPolicy.policy();
                 } else {
                     logger.warn(
-                        "Found a policy override with version mismatch. The override will not be applied. "
+                        "Found a policy patch with version mismatch. The patch will not be applied. "
                             + "Layer [{}]; policy versions [{}]; current version [{}]",
                         layerName,
                         String.join(",", versionedPolicy.versions()),
@@ -103,7 +103,7 @@ public class PolicyUtils {
                 }
             } catch (Exception ex) {
                 logger.warn(
-                    Strings.format("Found a policy override with invalid content. The override will not be applied. Layer [%s]", layerName),
+                    Strings.format("Found a policy patch with invalid content. The patch will not be applied. Layer [%s]", layerName),
                     ex
                 );
             }
@@ -111,8 +111,7 @@ public class PolicyUtils {
         return null;
     }
 
-    static VersionedPolicy decodeOverriddenPluginPolicy(String base64String, String layerName, boolean isExternalPlugin)
-        throws IOException {
+    static VersionedPolicy decodeEncodedPolicy(String base64String, String layerName, boolean isExternalPlugin) throws IOException {
         byte[] policyDefinition = Base64.getDecoder().decode(base64String);
         return new PolicyParser(new ByteArrayInputStream(policyDefinition), layerName, isExternalPlugin).parseVersionedPolicy();
     }

@@ -249,7 +249,7 @@ class Elasticsearch {
 
             var pluginPolicyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
             var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyOverrides, Build.current().version());
-            var serverPolicyOverride = PolicyUtils.parsePolicyOverrideIfExists(
+            var serverPolicyPatch = PolicyUtils.parseEncodedPolicyIfExists(
                 System.getProperty(SERVER_POLICY_OVERRIDE),
                 Build.current().version(),
                 false,
@@ -263,7 +263,7 @@ class Elasticsearch {
             Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
                 .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
             EntitlementBootstrap.bootstrap(
-                serverPolicyOverride,
+                serverPolicyPatch,
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
                 nodeEnv.settings()::getValues,

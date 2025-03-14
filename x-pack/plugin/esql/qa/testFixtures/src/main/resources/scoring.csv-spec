@@ -437,6 +437,7 @@ disjunctionScoresPushableNonPushableFunctions
 required_capability: metadata_score
 required_capability: match_operator_colon
 required_capability: full_text_functions_disjunctions_score
+required_capability: non_full_text_functions_scoring
 
 from books metadata _score 
 | where match(title, "Lord") or length(title) > 100

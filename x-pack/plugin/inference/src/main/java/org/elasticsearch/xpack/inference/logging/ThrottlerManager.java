@@ -56,7 +56,7 @@ public class ThrottlerManager implements Closeable {
      * This setting specifies how often a thread will run to emit repeated log messages.
      */
     public static final Setting<TimeValue> LOG_EMIT_INTERVAL = Setting.timeSetting(
-        "xpack.inference.logging.log_interval",
+        "xpack.inference.logging.interval",
         DEFAULT_LOG_EMIT_INTERVAL,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic

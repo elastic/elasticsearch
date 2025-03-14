@@ -357,3 +357,115 @@ _id:keyword
 2
 3
 ;
+
+scoresNonPushableFunctions
+
+required_capability: metadata_score
+
+from books metadata _score 
+| where length(title) > 100
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+2924            | 1.0
+8678            | 1.0
+;
+
+scoresPushableFunctions
+
+required_capability: metadata_score
+
+from books metadata _score 
+| where year >= 2017
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword | _score:double
+6818            | 1.0
+7400            | 1.0
+8480            | 1.0
+8534            | 1.0
+8615            | 1.0
+;
+
+conjunctionScoresPushableNonPushableFunctions
+
+required_capability: metadata_score
+required_capability: match_function
+
+from books metadata _score 
+| where match(title, "Lord") and length(title) > 20
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+2675            | 2.5619282722473145
+2714            | 1.9245924949645996
+7140            | 1.746896743774414 
+4023            | 1.5062403678894043
+;
+
+conjunctionScoresPushableFunctions
+
+required_capability: metadata_score
+required_capability: match_function
+
+from books metadata _score 
+| where match(title, "Lord") and ratings > 4.6
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+7140            | 2.746896743774414 
+4023            | 2.5062403678894043
+;
+
+disjunctionScoresPushableNonPushableFunctions
+
+required_capability: metadata_score
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions_score
+
+from books metadata _score 
+| where match(title, "Lord") or length(title) > 100
+| keep book_no, _score
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+2675            | 3.5619282722473145
+2714            | 2.9245924949645996
+7140            | 2.746896743774414
+4023            | 2.5062403678894043
+2924            | 1.0
+8678            | 1.0
+;
+
+
+disjunctionScoresMultipleClauses
+
+required_capability: metadata_score
+required_capability: match_operator_colon
+required_capability: full_text_functions_disjunctions_score
+
+from books metadata _score 
+| where (title: "Lord" and length(title) > 40) or (author: "Dostoevsky" and length(title) > 40) 
+| keep book_no, _score 
+| sort _score desc, book_no asc
+;
+
+book_no:keyword |  _score:double
+8086            | 2.786686897277832 
+9801            | 2.786686897277832 
+1937            | 2.1503653526306152
+8534            | 2.1503653526306152
+2714            | 1.9245924949645996
+7140            | 1.746896743774414 
+4023            | 1.5062403678894043
+2924            | 1.2732219696044922
+;

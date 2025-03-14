@@ -75,6 +75,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils.POLICY_OVERRIDE_PREFIX;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
@@ -242,7 +243,9 @@ class Elasticsearch {
                 pluginsBundles.stream()
                     .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
-            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData);
+
+            var policyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
+            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData, policyOverrides, Build.current().version());
 
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
@@ -257,6 +260,7 @@ class Elasticsearch {
                 nodeEnv.repoDirs(),
                 nodeEnv.configDir(),
                 nodeEnv.libDir(),
+                nodeEnv.modulesDir(),
                 nodeEnv.pluginsDir(),
                 sourcePaths,
                 nodeEnv.logsDir(),
@@ -279,6 +283,35 @@ class Elasticsearch {
         }
 
         bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    private static Map<String, String> collectPluginPolicyOverrides(
+        Set<PluginBundle> modulesBundles,
+        Set<PluginBundle> pluginsBundles,
+        Logger logger
+    ) {
+        var policyOverrides = new HashMap<String, String>();
+        var systemProperties = BootstrapInfo.getSystemProperties();
+        systemProperties.keys().asIterator().forEachRemaining(key -> {
+            var value = systemProperties.get(key);
+            if (key instanceof String k && k.startsWith(POLICY_OVERRIDE_PREFIX) && value instanceof String v) {
+                policyOverrides.put(k.substring(POLICY_OVERRIDE_PREFIX.length()), v);
+            }
+        });
+        var pluginNames = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+            .map(bundle -> bundle.pluginDescriptor().getName())
+            .collect(Collectors.toUnmodifiableSet());
+
+        for (var overriddenPluginName : policyOverrides.keySet()) {
+            if (pluginNames.contains(overriddenPluginName) == false) {
+                logger.warn(
+                    "Found command-line override for unknown plugin [{}] (available plugins: [{}])",
+                    overriddenPluginName,
+                    String.join(", ", pluginNames)
+                );
+            }
+        }
+        return policyOverrides;
     }
 
     private static class EntitlementSelfTester {

@@ -24,7 +24,6 @@ import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class ToDoubleTests extends AbstractScalarFunctionTestCase {
@@ -36,7 +35,6 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         // TODO multivalue fields
         String read = "Attribute[channel=0]";
-        Function<String, String> evaluatorName = s -> "ToDoubleFrom" + s + "Evaluator[field=" + read + "]";
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryDouble(
@@ -49,17 +47,17 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
             List.of()
         );
 
-        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName.apply("Boolean"), DataType.DOUBLE, b -> b ? 1d : 0d, List.of());
+        TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName("Boolean", "bool"), DataType.DOUBLE, b -> b ? 1d : 0d, List.of());
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Long"),
+            evaluatorName("Long", "l"),
             TestCaseSupplier.dateCases(),
             DataType.DOUBLE,
             i -> (double) ((Instant) i).toEpochMilli(),
             List.of()
         );
         // random strings that don't look like a double
-        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("String"), DataType.DOUBLE, bytesRef -> null, bytesRef -> {
+        TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName("String", "in"), DataType.DOUBLE, bytesRef -> null, bytesRef -> {
             var exception = expectThrows(
                 InvalidArgumentException.class,
                 () -> EsqlDataTypeConverter.stringToDouble(bytesRef.utf8ToString())
@@ -71,7 +69,7 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
         });
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            evaluatorName.apply("UnsignedLong"),
+            evaluatorName("UnsignedLong", "l"),
             DataType.DOUBLE,
             BigInteger::doubleValue,
             BigInteger.ZERO,
@@ -80,7 +78,7 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            evaluatorName.apply("Long"),
+            evaluatorName("Long", "l"),
             DataType.DOUBLE,
             l -> (double) l,
             Long.MIN_VALUE,
@@ -89,7 +87,7 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            evaluatorName.apply("Int"),
+            evaluatorName("Int", "i"),
             DataType.DOUBLE,
             i -> (double) i,
             Integer.MIN_VALUE,
@@ -100,7 +98,7 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
         // strings of random numbers
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("String"),
+            evaluatorName("String", "in"),
             TestCaseSupplier.castToDoubleSuppliersFromRange(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
                 .stream()
                 .map(
@@ -126,7 +124,7 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Int"),
+            evaluatorName("Int", "i"),
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomInt(1000), DataType.COUNTER_INTEGER)),
             DataType.DOUBLE,
             l -> ((Integer) l).doubleValue(),
@@ -134,7 +132,7 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            evaluatorName.apply("Long"),
+            evaluatorName("Long", "l"),
             List.of(new TestCaseSupplier.TypedDataSupplier("counter", () -> randomLongBetween(1, 1000), DataType.COUNTER_LONG)),
             DataType.DOUBLE,
             l -> ((Long) l).doubleValue(),
@@ -142,6 +140,11 @@ public class ToDoubleTests extends AbstractScalarFunctionTestCase {
         );
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+    }
+
+    private static String evaluatorName(String inner, String next) {
+        String read = "Attribute[channel=0]";
+        return "ToDoubleFrom" + inner + "Evaluator[" + next + "=" + read + "]";
     }
 
     @Override

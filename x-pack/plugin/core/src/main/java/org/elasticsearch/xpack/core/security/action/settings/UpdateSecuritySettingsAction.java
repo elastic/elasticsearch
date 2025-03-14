@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -116,13 +115,8 @@ public class UpdateSecuritySettingsAction {
             this.profilesIndexSettings = Objects.requireNonNullElse(profilesIndexSettings, Collections.emptyMap());
         }
 
-        @UpdateForV9(owner = UpdateForV9.Owner.SECURITY) // no need for bwc any more, this can be inlined
         public static Request readFrom(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                return new Request(in);
-            } else {
-                return new Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
-            }
+            return new Request(in);
         }
 
         private Request(StreamInput in) throws IOException {

@@ -38,8 +38,6 @@ import java.util.logging.FileHandler;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
-import javax.imageio.stream.FileImageInputStream;
-
 import static java.nio.charset.Charset.defaultCharset;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.WRITE;
@@ -589,14 +587,6 @@ class FileCheckActions {
         var sourcePath = Paths.get(EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI());
         var file = sourcePath.getParent().resolve("to_create");
         Files.createFile(file);
-    }
-
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void javaDesktopFileAccess() throws Exception {
-        // Test file access from a java.desktop class. We explicitly exclude that module from the "system modules", so we expect
-        // any sensitive operation from java.desktop to fail.
-        var file = EntitledActions.createTempFileForRead();
-        new FileImageInputStream(file.toFile()).close();
     }
 
     private FileCheckActions() {}

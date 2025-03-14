@@ -67,8 +67,6 @@ public class PolicyManager {
 
     static final Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();
 
-    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
-
     /**
      * @param componentName the plugin name; or else one of the special component names
      *                      like {@link #SERVER_COMPONENT_NAME} or {@link #APM_AGENT_COMPONENT_NAME}.
@@ -143,13 +141,7 @@ public class PolicyManager {
             // entitlements is a "system" module, we can do anything from it
             Stream.of(PolicyManager.class.getModule()),
             // anything in the boot layer is also part of the system
-            ModuleLayer.boot()
-                .modules()
-                .stream()
-                .filter(
-                    m -> systemModulesDescriptors.contains(m.getDescriptor())
-                        && MODULES_EXCLUDED_FROM_SYSTEM_MODULES.contains(m.getName()) == false
-                )
+            ModuleLayer.boot().modules().stream().filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
         ).collect(Collectors.toUnmodifiableSet());
     }
 

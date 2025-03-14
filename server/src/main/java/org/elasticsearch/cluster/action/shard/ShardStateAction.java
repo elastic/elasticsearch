@@ -830,8 +830,13 @@ public class ShardStateAction {
             int sourceShardId = startedShardEntry.shardId.getId() % (routingTable.size() / 2);
             final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index(startedShardEntry.shardId.getIndex());
             assert indexMetadata != null;
-            long primaryTermDiff = startedShardEntry.primaryTerm - indexMetadata.primaryTerm(sourceShardId);
-            if (primaryTermDiff != 1 || routingTable.shard(sourceShardId).primaryShard().relocating()) {
+            long currentSourcePrimaryTerm = indexMetadata.primaryTerm(sourceShardId);
+            long primaryTermDiff = startedShardEntry.primaryTerm - currentSourcePrimaryTerm;
+            // The source primary term must not have changed, the target primary term must at least be 1 greater and the source cannot be
+            // relocating.
+            if (startedShardEntry.shardSplit.sourcePrimaryTerm() != currentSourcePrimaryTerm
+                || primaryTermDiff < 1
+                || routingTable.shard(sourceShardId).primaryShard().relocating()) {
                 return true;
             } else {
                 return false;

@@ -68,3 +68,7 @@ CLOSING_METRICS_BY
 CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
     ;
+
+CLOSING_METRICS_SELECTOR
+    : {this.isDevVersion()}? CAST_OP -> type(CAST_OP), popMode, pushMode(METRICS_MODE)
+    ;

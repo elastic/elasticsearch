@@ -87,21 +87,19 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         );
         final var managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.allocationStatsCache = new AllocationStatsCache(CACHE_MAX_AGE_SETTING.get(settings).millis(), threadPool);
-        this.allocationStatsSupplier = new SingleResultDeduplicator<>(
-            threadPool.getThreadContext(),
-            l -> managementExecutor.execute(ActionRunnable.supply(l, () -> {
-                // Check the cache again here to prevent duplicate work when a thread has a cache miss and is just about to fork just as
-                // other threads are coming off a deduplicator call that is about to finish.
-                final var cachedStats = allocationStatsCache.get();
-                if (cachedStats != null) {
-                    return cachedStats;
-                }
+        this.allocationStatsSupplier = new SingleResultDeduplicator<>(threadPool.getThreadContext(), l -> {
+            final var cachedStats = allocationStatsCache.get();
+            if (cachedStats != null) {
+                l.onResponse(cachedStats);
+                return;
+            }
 
+            managementExecutor.execute(ActionRunnable.supply(l, () -> {
                 final var stats = allocationStatsService.stats();
                 allocationStatsCache.put(stats);
                 return stats;
-            }))
-        );
+            }));
+        });
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
     }
 
@@ -119,16 +117,9 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         // NB we are still on a transport thread here - if adding more functionality here make sure to fork to a different pool
 
-        SubscribableListener<Map<String, NodeAllocationStats>> allocationStatsStep;
-
-        if (request.metrics().contains(Metric.ALLOCATIONS)) {
-            final var cachedStats = allocationStatsCache.get();
-            allocationStatsStep = cachedStats != null
-                ? SubscribableListener.newSucceeded(cachedStats)
-                : SubscribableListener.newForked(allocationStatsSupplier::execute);
-        } else {
-            allocationStatsStep = SubscribableListener.newSucceeded(Map.of());
-        }
+        final SubscribableListener<Map<String, NodeAllocationStats>> allocationStatsStep = request.metrics().contains(Metric.ALLOCATIONS)
+            ? SubscribableListener.newForked(allocationStatsSupplier::execute)
+            : SubscribableListener.newSucceeded(Map.of());
 
         allocationStatsStep.andThenApply(
             allocationStats -> new Response(allocationStats, request.metrics().contains(Metric.FS) ? diskThresholdSettings : null)

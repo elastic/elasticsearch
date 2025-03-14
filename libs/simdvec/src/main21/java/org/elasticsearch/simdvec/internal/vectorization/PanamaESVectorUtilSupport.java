@@ -194,17 +194,23 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         VectorShape.forBitSize(INT_SPECIES_256.vectorBitSize() / Integer.BYTES)
     );
 
+    private static int limit(int length, int sectionSize) {
+        return length - (length % sectionSize);
+    }
+
     static int ipByteBit512(byte[] q, byte[] d) {
         assert q.length == d.length * Byte.SIZE;
         int i = 0;
         int sum = 0;
 
-        if (q.length >= INT_SPECIES_512.length() * 4) {
+        int sectionLength = INT_SPECIES_512.length() * 4;
+        if (q.length >= sectionLength) {
             IntVector acc0 = IntVector.zero(INT_SPECIES_512);
             IntVector acc1 = IntVector.zero(INT_SPECIES_512);
             IntVector acc2 = IntVector.zero(INT_SPECIES_512);
             IntVector acc3 = IntVector.zero(INT_SPECIES_512);
-            for (; i < INT_SPECIES_512.loopBound(q.length); i += INT_SPECIES_512.length() * 4) {
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
                 var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i).castShape(INT_SPECIES_512, 0);
                 var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length()).castShape(INT_SPECIES_512, 0);
                 var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_512, q, i + INT_SPECIES_512.length() * 2)
@@ -227,12 +233,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        if (q.length - i >= INT_SPECIES_256.length() * 4) {
+        sectionLength = INT_SPECIES_256.length() * 4;
+        if (q.length - i >= sectionLength) {
             IntVector acc0 = IntVector.zero(INT_SPECIES_256);
             IntVector acc1 = IntVector.zero(INT_SPECIES_256);
             IntVector acc2 = IntVector.zero(INT_SPECIES_256);
             IntVector acc3 = IntVector.zero(INT_SPECIES_256);
-            for (; i < INT_SPECIES_256.loopBound(q.length); i += INT_SPECIES_256.length() * 4) {
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
                 var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
                 var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
                 var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 2)
@@ -257,7 +265,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
         if (i < q.length) {
             // do the tail
-            sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i);
+            // default implementation uses length of data vector, not query vector
+            sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i / 8);
         }
         return sum;
     }
@@ -267,12 +276,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         int i = 0;
         int sum = 0;
 
-        if (q.length >= INT_SPECIES_256.length() * 4) {
+        int sectionLength = INT_SPECIES_256.length() * 4;
+        if (q.length >= sectionLength) {
             IntVector acc0 = IntVector.zero(INT_SPECIES_256);
             IntVector acc1 = IntVector.zero(INT_SPECIES_256);
             IntVector acc2 = IntVector.zero(INT_SPECIES_256);
             IntVector acc3 = IntVector.zero(INT_SPECIES_256);
-            for (; i < INT_SPECIES_256.loopBound(q.length); i += INT_SPECIES_256.length() * 4) {
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
                 var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
                 var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
                 var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 2)
@@ -297,7 +308,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
         if (i < q.length) {
             // do the tail
-            sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i);
+            // default implementation uses length of data vector, not query vector
+            sum += DefaultESVectorUtilSupport.ipByteBitImpl(q, d, i / 8);
         }
         return sum;
     }
@@ -310,12 +322,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         int i = 0;
         float sum = 0;
 
-        if (q.length >= FLOAT_SPECIES_512.length() * 4) {
+        int sectionLength = FLOAT_SPECIES_512.length() * 4;
+        if (q.length >= sectionLength) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_512);
             FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_512);
             FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_512);
             FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_512);
-            for (; i < FLOAT_SPECIES_512.loopBound(q.length); i += FLOAT_SPECIES_512.length() * 4) {
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
                 var floats0 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i);
                 var floats1 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length());
                 var floats2 = FloatVector.fromArray(FLOAT_SPECIES_512, q, i + FLOAT_SPECIES_512.length() * 2);
@@ -336,12 +350,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        if (q.length - i >= FLOAT_SPECIES_256.length() * 4) {
+        sectionLength = FLOAT_SPECIES_256.length() * 4;
+        if (q.length - i >= sectionLength) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_256);
-            for (; i < FLOAT_SPECIES_256.loopBound(q.length); i += FLOAT_SPECIES_256.length() * 4) {
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
                 var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
                 var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length());
                 var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 2);
@@ -364,7 +380,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
         if (i < q.length) {
             // do the tail
-            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, d, i);
+            // default implementation uses length of data vector, not query vector
+            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, d, i / 8);
         }
 
         return sum;
@@ -375,12 +392,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         int i = 0;
         float sum = 0;
 
-        if (q.length >= FLOAT_SPECIES_256.length() * 4) {
+        int sectionLength = FLOAT_SPECIES_256.length() * 4;
+        if (q.length >= sectionLength) {
             FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_256);
             FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_256);
-            for (; i < FLOAT_SPECIES_256.loopBound(q.length); i += FLOAT_SPECIES_256.length() * 4) {
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
                 var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
                 var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length());
                 var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 2);
@@ -403,7 +422,8 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
         if (i < q.length) {
             // do the tail
-            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, d, i);
+            // default implementation uses length of data vector, not query vector
+            sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, d, i / 8);
         }
 
         return sum;

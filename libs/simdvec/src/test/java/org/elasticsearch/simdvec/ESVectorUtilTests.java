@@ -22,25 +22,41 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     static final ESVectorizationProvider defOrPanamaProvider = BaseVectorizationTests.maybePanamaProvider();
 
     public void testIpByteBit() {
-        byte[] q = new byte[16];
-        byte[] d = new byte[] { (byte) Integer.parseInt("01100010", 2), (byte) Integer.parseInt("10100111", 2) };
+        byte[] d = new byte[random().nextInt(128)];
+        byte[] q = new byte[d.length * 8];
+        random().nextBytes(d);
         random().nextBytes(q);
-        int expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
-        assertEquals(expected, ESVectorUtil.ipByteBit(q, d));
-        assertEquals(expected, defaultedProvider.getVectorUtilSupport().ipByteBit(q, d));
-        assertEquals(expected, defOrPanamaProvider.getVectorUtilSupport().ipByteBit(q, d));
+
+        int sum = 0;
+        for (int i = 0; i < q.length; i++) {
+            if (((d[i / 8] << (i % 8)) & 0x80) == 0x80) {
+                sum += q[i];
+            }
+        }
+
+        assertEquals(sum, ESVectorUtil.ipByteBit(q, d));
+        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipByteBit(q, d));
+        assertEquals(sum, defOrPanamaProvider.getVectorUtilSupport().ipByteBit(q, d));
     }
 
     public void testIpFloatBit() {
-        float[] q = new float[16];
-        byte[] d = new byte[] { (byte) Integer.parseInt("01100010", 2), (byte) Integer.parseInt("10100111", 2) };
+        byte[] d = new byte[random().nextInt(128)];
+        float[] q = new float[d.length * 8];
+        random().nextBytes(d);
+
+        float sum = 0;
         for (int i = 0; i < q.length; i++) {
             q[i] = random().nextFloat();
+            if (((d[i / 8] << (i % 8)) & 0x80) == 0x80) {
+                sum += q[i];
+            }
         }
-        float expected = q[1] + q[2] + q[6] + q[8] + q[10] + q[13] + q[14] + q[15];
-        assertEquals(expected, ESVectorUtil.ipFloatBit(q, d), 1e-6);
-        assertEquals(expected, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, d), 1e-6);
-        assertEquals(expected, defOrPanamaProvider.getVectorUtilSupport().ipFloatBit(q, d), 1e-6);
+
+        double delta = 1e-5 * q.length;
+
+        assertEquals(sum, ESVectorUtil.ipFloatBit(q, d), delta);
+        assertEquals(sum, defaultedProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
+        assertEquals(sum, defOrPanamaProvider.getVectorUtilSupport().ipFloatBit(q, d), delta);
     }
 
     public void testIpFloatByte() {

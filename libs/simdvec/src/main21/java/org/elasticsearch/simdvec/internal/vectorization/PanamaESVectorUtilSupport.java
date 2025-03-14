@@ -61,7 +61,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float ipFloatByte(float[] q, byte[] d) {
-        if (BYTE_FOR_FLOAT_SPECIES != null && q.length >= FLOAT_SPECIES.length()) {
+        if (BYTE_SPECIES_FOR_PREFFERED_FLOATS != null && q.length >= PREFERRED_FLOAT_SPECIES.length()) {
             return ipFloatByteImpl(q, d);
         }
         return DefaultESVectorUtilSupport.ipFloatByteImpl(q, d);
@@ -170,35 +170,34 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         return subRet0 + (subRet1 << 1) + (subRet2 << 2) + (subRet3 << 3);
     }
 
-    private static final VectorSpecies<Float> FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
-    private static final VectorSpecies<Byte> BYTE_FOR_FLOAT_SPECIES;
+    private static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_PREFFERED_FLOATS;
 
     static {
         VectorSpecies<Byte> byteForFloat;
         try {
             // calculate vector size to convert from single bytes to 4-byte floats
-            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(FLOAT_SPECIES.vectorBitSize() / 4));
+            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(PREFERRED_FLOAT_SPECIES.vectorBitSize() / Integer.BYTES));
         } catch (IllegalArgumentException e) {
             // can't get a byte vector size small enough, just use default impl
             byteForFloat = null;
         }
-        BYTE_FOR_FLOAT_SPECIES = byteForFloat;
+        BYTE_SPECIES_FOR_PREFFERED_FLOATS = byteForFloat;
     }
 
     public static float ipFloatByteImpl(float[] q, byte[] d) {
-        assert BYTE_FOR_FLOAT_SPECIES != null;
-        FloatVector vSum = FloatVector.zero(FLOAT_SPECIES);
+        assert BYTE_SPECIES_FOR_PREFFERED_FLOATS != null;
+        FloatVector acc = FloatVector.zero(PREFERRED_FLOAT_SPECIES);
         int i = 0;
 
-        int limit = FLOAT_SPECIES.loopBound(q.length);
-        for (; i < limit; i += FLOAT_SPECIES.length()) {
-            FloatVector qv = FloatVector.fromArray(FLOAT_SPECIES, q, i);
-            ByteVector bv = ByteVector.fromArray(BYTE_FOR_FLOAT_SPECIES, d, i);
-            // no separate parts needed for the cast, as we've used a byte vector size 1/4th the float vector size
-            vSum = qv.fma(bv.castShape(qv.species(), 0), vSum);
+        int limit = PREFERRED_FLOAT_SPECIES.loopBound(q.length);
+        for (; i < limit; i += PREFERRED_FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(PREFERRED_FLOAT_SPECIES, q, i);
+            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES_FOR_PREFFERED_FLOATS, d, i);
+            acc = qv.fma(bv.castShape(PREFERRED_FLOAT_SPECIES, 0), acc);
         }
 
-        float sum = vSum.reduceLanes(VectorOperators.ADD);
+        float sum = acc.reduceLanes(VectorOperators.ADD);
 
         // handle the tail
         for (; i < q.length; i++) {

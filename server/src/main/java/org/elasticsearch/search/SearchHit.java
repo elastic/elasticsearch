@@ -724,6 +724,14 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             r.decRef();
         }
         SearchHit.this.source = null;
+        clearIfMutable(documentFields);
+        clearIfMutable(metaFields);
+    }
+
+    private static void clearIfMutable(Map<String, DocumentField> fields) {
+        if (fields instanceof HashMap<?, ?> hm) {
+            hm.clear();
+        }
     }
 
     @Override

@@ -9,13 +9,16 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsTests;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -35,12 +38,14 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -172,5 +177,47 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         for (final var thread : threads) {
             thread.join();
         }
+    }
+
+    public void testGetStatsWithCachingEnabled() throws Exception {
+
+        final AtomicReference<Map<String, NodeAllocationStats>> allocationStats = new AtomicReference<>();
+        allocationStats.set(Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats()));
+        when(allocationStatsService.stats()).thenReturn(allocationStats.get());
+
+        final CheckedConsumer<ActionListener<Void>, Exception> threadTask = l -> {
+            final var request = new TransportGetAllocationStatsAction.Request(
+                TimeValue.ONE_MINUTE,
+                new TaskId(randomIdentifier(), randomNonNegativeLong()),
+                EnumSet.of(Metric.ALLOCATIONS)
+            );
+
+            final var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
+            action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);
+            final var response = future.get();
+            assertSame("Expected the cached allocation stats to be returned", response.getNodeAllocationStats(), allocationStats.get());
+
+            l.onResponse(null);
+        };
+
+        // Start with a high cache max age, all threads should get the same value.
+        action.setCacheMaxAge(TimeValue.timeValueMinutes(5));
+        ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
+        verify(allocationStatsService, times(1)).stats();
+
+        // Force the cached stats to expire.
+        action.setCacheMaxAge(TimeValue.timeValueMillis(1));
+        Thread.sleep(2L);
+
+        // Expect a call to the stats service.
+        allocationStats.set(Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats()));
+        when(allocationStatsService.stats()).thenReturn(allocationStats.get());
+        threadTask.accept(ActionListener.noop());
+        verify(allocationStatsService, times(2)).stats();
+
+        // Set a large max age for the cache again so all the threads in the next run can get the cached value.
+        action.setCacheMaxAge(TimeValue.timeValueMinutes(5));
+        ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
+        verify(allocationStatsService, times(2)).stats();
     }
 }

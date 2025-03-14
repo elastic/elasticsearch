@@ -101,7 +101,7 @@ public class TransportService extends AbstractLifecycleComponent
         "transport.enable_stack_protection",
         false,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();

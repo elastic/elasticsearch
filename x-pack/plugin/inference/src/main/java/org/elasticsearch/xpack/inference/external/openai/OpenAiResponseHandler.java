@@ -43,8 +43,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
 
     static final String OPENAI_SERVER_BUSY = "Received a server busy error status code";
 
-    private final boolean canHandleStreamingResponses;
-
     public OpenAiResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponses) {
         this(requestType, parseFunction, ErrorMessageResponseEntity::fromResponse, canHandleStreamingResponses);
     }
@@ -55,8 +53,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         Function<HttpResult, ErrorResponse> errorParseFunction,
         boolean canHandleStreamingResponses
     ) {
-        super(requestType, parseFunction, errorParseFunction);
-        this.canHandleStreamingResponses = canHandleStreamingResponses;
+        super(requestType, parseFunction, errorParseFunction, canHandleStreamingResponses);
     }
 
     /**
@@ -130,11 +127,6 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         );
 
         return RATE_LIMIT + ". " + usageMessage;
-    }
-
-    @Override
-    public boolean canHandleStreamingResponses() {
-        return canHandleStreamingResponses;
     }
 
     @Override

@@ -1,5 +1,0 @@
-pr: 123079
-summary: Register `IngestGeoIpMetadata` as a NamedXContent
-area: Ingest Node
-type: bug
-issues: []

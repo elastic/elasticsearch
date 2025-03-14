@@ -37,7 +37,7 @@ ext.docsFileTree = fileTree(projectDir) {
 }
 
 tasks.named("yamlRestTest") {
-  if (buildParams.isSnapshotBuild() == false) {
+  if (buildParams.snapshotBuild == false) {
     // LOOKUP is not available in snapshots
     systemProperty 'tests.rest.blacklist', [
       "reference/esql/processing-commands/lookup/esql-lookup-example"
@@ -82,7 +82,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    if (buildParams.isSnapshotBuild() == false) {
+    if (buildParams.snapshotBuild == false) {
       requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
     }
   }
@@ -119,6 +119,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
   // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
   systemProperty 'es.transport.cname_in_publish_address', 'true'
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")

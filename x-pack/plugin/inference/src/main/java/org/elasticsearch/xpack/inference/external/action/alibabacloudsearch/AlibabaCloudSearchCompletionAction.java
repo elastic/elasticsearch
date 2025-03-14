@@ -45,7 +45,7 @@ public class AlibabaCloudSearchCompletionAction implements ExecutableAction {
         this.model = Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         this.account = new AlibabaCloudSearchAccount(this.model.getSecretSettings().apiKey());
-        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(null, "AlibabaCloud Search completion");
+        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("AlibabaCloud Search completion");
         this.requestCreator = AlibabaCloudSearchCompletionRequestManager.of(account, model, serviceComponents.threadPool());
     }
 

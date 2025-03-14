@@ -78,6 +78,37 @@ public class ScriptStatsTests extends ESTestCase {
         assertThat(Strings.toString(builder), equalTo(expected));
     }
 
+    public void testXContentChunkedHistory() throws Exception {
+        ScriptStats stats = new ScriptStats(5, 6, 7, new TimeSeries(10, 20, 30, 40), new TimeSeries(100, 200, 300, 400));
+        final XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+
+        builder.startObject();
+        for (var it = stats.toXContentChunked(ToXContent.EMPTY_PARAMS); it.hasNext();) {
+            it.next().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        }
+        builder.endObject();
+        String expected = """
+            {
+              "script" : {
+                "compilations" : 5,
+                "cache_evictions" : 6,
+                "compilation_limit_triggered" : 7,
+                "compilations_history" : {
+                  "5m" : 10,
+                  "15m" : 20,
+                  "24h" : 30
+                },
+                "cache_evictions_history" : {
+                  "5m" : 100,
+                  "15m" : 200,
+                  "24h" : 300
+                },
+                "contexts" : [ ]
+              }
+            }""";
+        assertThat(Strings.toString(builder), equalTo(expected));
+    }
+
     public void testSerializeEmptyTimeSeries() throws IOException {
         ScriptContextStats stats = new ScriptContextStats("c", 3333, new TimeSeries(1111), new TimeSeries(2222));
 

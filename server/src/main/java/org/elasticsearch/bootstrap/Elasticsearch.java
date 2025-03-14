@@ -48,6 +48,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsLoader;
 
 import java.io.IOException;
@@ -68,9 +69,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils.POLICY_OVERRIDE_PREFIX;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
@@ -234,21 +237,26 @@ class Elasticsearch {
                 pluginsBundles.stream()
                     .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
-            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData);
+
+            var policyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
+            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData, policyOverrides, Build.current().version());
 
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
+            Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+                .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
             EntitlementBootstrap.bootstrap(
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
-                nodeEnv.settings()::get,
-                nodeEnv.settings()::getGlobValues,
+                nodeEnv.settings()::getValues,
                 nodeEnv.dataDirs(),
                 nodeEnv.repoDirs(),
                 nodeEnv.configDir(),
                 nodeEnv.libDir(),
+                nodeEnv.modulesDir(),
                 nodeEnv.pluginsDir(),
+                sourcePaths,
                 nodeEnv.logsDir(),
                 nodeEnv.tmpDir(),
                 args.pidFile(),
@@ -269,6 +277,35 @@ class Elasticsearch {
         }
 
         bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    private static Map<String, String> collectPluginPolicyOverrides(
+        Set<PluginBundle> modulesBundles,
+        Set<PluginBundle> pluginsBundles,
+        Logger logger
+    ) {
+        var policyOverrides = new HashMap<String, String>();
+        var systemProperties = BootstrapInfo.getSystemProperties();
+        systemProperties.keys().asIterator().forEachRemaining(key -> {
+            var value = systemProperties.get(key);
+            if (key instanceof String k && k.startsWith(POLICY_OVERRIDE_PREFIX) && value instanceof String v) {
+                policyOverrides.put(k.substring(POLICY_OVERRIDE_PREFIX.length()), v);
+            }
+        });
+        var pluginNames = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+            .map(bundle -> bundle.pluginDescriptor().getName())
+            .collect(Collectors.toUnmodifiableSet());
+
+        for (var overriddenPluginName : policyOverrides.keySet()) {
+            if (pluginNames.contains(overriddenPluginName) == false) {
+                logger.warn(
+                    "Found command-line override for unknown plugin [{}] (available plugins: [{}])",
+                    overriddenPluginName,
+                    String.join(", ", pluginNames)
+                );
+            }
+        }
+        return policyOverrides;
     }
 
     private static class EntitlementSelfTester {

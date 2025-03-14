@@ -105,7 +105,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<Boolean> QUERY_ALLOW_PARTIAL_RESULTS = Setting.boolSetting(
         "esql.query.allow_partial_results",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

@@ -363,6 +363,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
   issue: https://github.com/elastic/elasticsearch/issues/124848
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testUpdateIndexTemplateToMigrateFromDataStreamLifecycleToIlm
+  issue: https://github.com/elastic/elasticsearch/issues/124849
 
 # Examples:
 #

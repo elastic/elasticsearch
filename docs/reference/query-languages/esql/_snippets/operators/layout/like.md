@@ -15,3 +15,6 @@ The following wildcard characters are supported:
 
 :::{include} ../examples/like.md
 :::
+
+:::{include} ../detailedDescription/like.md
+:::

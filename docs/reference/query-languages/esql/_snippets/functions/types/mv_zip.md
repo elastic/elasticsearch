@@ -6,14 +6,14 @@
 | --- | --- | --- | --- |
 | keyword | keyword | keyword | keyword |
 | keyword | keyword | text | keyword |
-| keyword | keyword |  | keyword |
+| keyword | keyword | | keyword |
 | keyword | text | keyword | keyword |
 | keyword | text | text | keyword |
-| keyword | text |  | keyword |
+| keyword | text | | keyword |
 | text | keyword | keyword | keyword |
 | text | keyword | text | keyword |
-| text | keyword |  | keyword |
+| text | keyword | | keyword |
 | text | text | keyword | keyword |
 | text | text | text | keyword |
-| text | text |  | keyword |
+| text | text | | keyword |
 

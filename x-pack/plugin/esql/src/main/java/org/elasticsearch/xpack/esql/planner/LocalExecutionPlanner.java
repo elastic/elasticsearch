@@ -385,14 +385,8 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planExchangeSink(ExchangeSinkExec exchangeSink, LocalExecutionPlannerContext context) {
         Objects.requireNonNull(exchangeSinkSupplier, "ExchangeSinkHandler wasn't provided");
         var child = exchangeSink.child();
-
         PhysicalOperation source = plan(child, context);
-
-        Function<Page, Page> transformer = exchangeSink.isIntermediateAgg()
-            ? Function.identity()
-            : alignPageToAttributes(exchangeSink.output(), source.layout);
-
-        return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier, transformer), source.layout);
+        return source.withSink(new ExchangeSinkOperatorFactory(exchangeSinkSupplier), source.layout);
     }
 
     private PhysicalOperation planExchangeSource(ExchangeSourceExec exchangeSource, LocalExecutionPlannerContext context) {

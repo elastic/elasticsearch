@@ -11,15 +11,15 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.voyageai.VoyageAIAccount;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public abstract class VoyageAIRequest implements Request {
 
-    public static void decorateWithHeaders(HttpPost request, VoyageAIAccount account) {
+    public static void decorateWithHeaders(HttpPost request, VoyageAIModel model) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
-        request.setHeader(createAuthBearerHeader(account.apiKey()));
+        request.setHeader(createAuthBearerHeader(model.apiKey()));
         request.setHeader(VoyageAIUtils.createRequestSourceHeader());
     }
 

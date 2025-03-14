@@ -1,5 +1,5 @@
 pr: 124931
-summary: Fix system data stream snapshot bug
-area: "Snapshot/Restore, Infra/Core"
+summary: This PR fixes a bug whereby partial snapshots of system datastreams could be used to restore system features.
+area: "Snapshot/Restore"
 type: bug
 issues: []

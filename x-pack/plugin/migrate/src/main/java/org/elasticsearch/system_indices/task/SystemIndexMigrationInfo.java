@@ -22,7 +22,6 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 
-import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -45,10 +44,6 @@ final class SystemIndexMigrationInfo extends SystemResourceMigrationInfo {
     private final String migrationScript;
     private final SystemIndices.Feature owningFeature;
     private final boolean allowsTemplates;
-
-    private static final Comparator<SystemIndexMigrationInfo> SAME_CLASS_COMPARATOR = Comparator.comparing(
-        SystemIndexMigrationInfo::getFeatureName
-    ).thenComparing(SystemIndexMigrationInfo::getCurrentIndexName);
 
     private SystemIndexMigrationInfo(
         IndexMetadata currentIndex,
@@ -180,11 +175,6 @@ final class SystemIndexMigrationInfo extends SystemResourceMigrationInfo {
      */
     Client createClient(Client baseClient) {
         return new OriginSettingClient(baseClient, this.getOrigin());
-    }
-
-    @Override
-    public int compareTo(SystemIndexMigrationInfo o) {
-        return SAME_CLASS_COMPARATOR.compare(this, o);
     }
 
     @Override

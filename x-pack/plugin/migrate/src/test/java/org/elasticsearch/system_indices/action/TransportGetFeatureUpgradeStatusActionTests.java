@@ -24,8 +24,8 @@ import org.elasticsearch.system_indices.task.FeatureMigrationResults;
 import org.elasticsearch.system_indices.task.SingleFeatureMigrationResult;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 

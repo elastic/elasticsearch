@@ -67,6 +67,8 @@ public class PolicyManager {
 
     static final Class<?> DEFAULT_FILESYSTEM_CLASS = PathUtils.getDefaultFileSystem().getClass();
 
+    static final Set<String> MODULES_EXCLUDED_FROM_SYSTEM_MODULES = Set.of("java.desktop");
+
     /**
      * @param componentName the plugin name; or else one of the special component names
      *                      like {@link #SERVER_COMPONENT_NAME} or {@link #APM_AGENT_COMPONENT_NAME}.
@@ -141,7 +143,13 @@ public class PolicyManager {
             // entitlements is a "system" module, we can do anything from it
             Stream.of(PolicyManager.class.getModule()),
             // anything in the boot layer is also part of the system
-            ModuleLayer.boot().modules().stream().filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
+            ModuleLayer.boot()
+                .modules()
+                .stream()
+                .filter(
+                    m -> systemModulesDescriptors.contains(m.getDescriptor())
+                        && MODULES_EXCLUDED_FROM_SYSTEM_MODULES.contains(m.getName()) == false
+                )
         ).collect(Collectors.toUnmodifiableSet());
     }
 
@@ -247,15 +255,17 @@ public class PolicyManager {
             return;
         }
 
+        String componentName = getEntitlements(requestingClass).componentName();
         notEntitled(
             Strings.format(
-                "Not entitled: component [%s], module [%s], class [%s], operation [%s]",
-                getEntitlements(requestingClass).componentName(),
+                "component [%s], module [%s], class [%s], operation [%s]",
+                componentName,
                 requestingClass.getModule().getName(),
                 requestingClass,
                 operationDescription.get()
             ),
-            callerClass
+            callerClass,
+            componentName
         );
     }
 
@@ -366,13 +376,14 @@ public class PolicyManager {
         if (canRead == false) {
             notEntitled(
                 Strings.format(
-                    "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
+                    "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
                     realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
-                callerClass
+                callerClass,
+                entitlements.componentName()
             );
         }
     }
@@ -395,13 +406,14 @@ public class PolicyManager {
         if (entitlements.fileAccess().canWrite(path) == false) {
             notEntitled(
                 Strings.format(
-                    "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
+                    "component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
                     path
                 ),
-                callerClass
+                callerClass,
+                entitlements.componentName()
             );
         }
     }
@@ -483,13 +495,14 @@ public class PolicyManager {
         if (classEntitlements.hasEntitlement(entitlementClass) == false) {
             notEntitled(
                 Strings.format(
-                    "Not entitled: component [%s], module [%s], class [%s], entitlement [%s]",
+                    "component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
                     PolicyParser.getEntitlementTypeName(entitlementClass)
                 ),
-                callerClass
+                callerClass,
+                classEntitlements.componentName()
             );
         }
         logger.debug(
@@ -524,21 +537,25 @@ public class PolicyManager {
         }
         notEntitled(
             Strings.format(
-                "Not entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
+                "component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
                 requestingClass.getModule().getName(),
                 requestingClass,
                 property
             ),
-            callerClass
+            callerClass,
+            entitlements.componentName()
         );
     }
 
-    private void notEntitled(String message, Class<?> callerClass) {
+    private void notEntitled(String message, Class<?> callerClass, String componentName) {
         var exception = new NotEntitledException(message);
         // Don't emit a log for muted classes, e.g. classes containing self tests
         if (mutedClasses.contains(callerClass) == false) {
-            logger.warn(message, exception);
+            var moduleName = callerClass.getModule().getName();
+            var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
+            var notEntitledLogger = LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
+            notEntitledLogger.warn("Not entitled:", exception);
         }
         throw exception;
     }
@@ -658,19 +675,18 @@ public class PolicyManager {
             return callerClass;
         }
         Optional<Class<?>> result = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
-            .walk(frames -> findRequestingClass(frames.map(StackFrame::getDeclaringClass)));
+            .walk(frames -> findRequestingFrame(frames).map(StackFrame::getDeclaringClass));
         return result.orElse(null);
     }
 
     /**
-     * Given a stream of classes corresponding to the frames from a {@link StackWalker},
-     * returns the module whose entitlements should be checked.
+     * Given a stream of {@link StackFrame}s, identify the one whose entitlements should be checked.
      *
      * @throws NullPointerException if the requesting module is {@code null}
      */
-    Optional<Class<?>> findRequestingClass(Stream<Class<?>> classes) {
-        return classes.filter(c -> c.getModule() != entitlementsModule)  // Ignore the entitlements library
-            .skip(1)                                           // Skip the sensitive caller method
+    Optional<StackFrame> findRequestingFrame(Stream<StackFrame> frames) {
+        return frames.filter(f -> f.getDeclaringClass().getModule() != entitlementsModule) // ignore entitlements library
+            .skip(1) // Skip the sensitive caller method
             .findFirst();
     }
 

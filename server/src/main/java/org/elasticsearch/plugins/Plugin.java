@@ -183,9 +183,9 @@ public abstract class Plugin implements Closeable {
         ProjectResolver projectResolver();
 
         /**
-         * Providers for additional SlowLog fields
+         * Provider for additional SlowLog fields
          */
-        List<? extends SlowLogFieldProvider> slowLogFieldProviders();
+        SlowLogFieldProvider slowLogFieldProvider();
     }
 
     /**

@@ -170,7 +170,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
-                new EsqlSlowLog(services.clusterService().getClusterSettings(), services.slowLogFieldProviders())
+                new EsqlSlowLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider())
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

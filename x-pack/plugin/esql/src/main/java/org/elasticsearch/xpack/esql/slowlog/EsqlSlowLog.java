@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -44,7 +43,7 @@ public final class EsqlSlowLog {
 
     public static final String LOGGER_NAME = "esql.slowlog.query";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
-    private final List<SlowLogFields> additionalProviders;
+    private final SlowLogFields additionalFields;
 
     private volatile long queryWarnThreshold;
     private volatile long queryInfoThreshold;
@@ -53,14 +52,14 @@ public final class EsqlSlowLog {
 
     private volatile boolean includeUser;
 
-    public EsqlSlowLog(ClusterSettings settings, List<? extends SlowLogFieldProvider> slowLogFieldProviders) {
+    public EsqlSlowLog(ClusterSettings settings, SlowLogFieldProvider slowLogFieldProvider) {
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING, this::setQueryInfoThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING, this::setQueryDebugThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING, this::setQueryTraceThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING, this::setIncludeUser);
 
-        this.additionalProviders = slowLogFieldProviders.stream().map(SlowLogFieldProvider::create).toList();
+        this.additionalFields = slowLogFieldProvider.create();
     }
 
     public EsqlSlowLog(ClusterSettings settings) {
@@ -72,11 +71,11 @@ public final class EsqlSlowLog {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
         long tookInNanos = esqlResult.executionInfo().overallTook().nanos();
-        log(() -> Message.of(esqlResult, query, additionalProviders), tookInNanos);
+        log(() -> Message.of(esqlResult, query, includeUser ? additionalFields.queryFields() : Map.of()), tookInNanos);
     }
 
     public void onQueryFailure(String query, Exception ex, long tookInNanos) {
-        log(() -> Message.of(query, tookInNanos, ex, additionalProviders), tookInNanos);
+        log(() -> Message.of(query, tookInNanos, ex, includeUser ? additionalFields.queryFields() : Map.of()), tookInNanos);
     }
 
     private void log(Supplier<ESLogMessage> logProducer, long tookInNanos) {
@@ -118,26 +117,20 @@ public final class EsqlSlowLog {
             return new String(sourceEscaped, StandardCharsets.UTF_8);
         }
 
-        public static ESLogMessage of(Result esqlResult, String query, List<SlowLogFields> providers) {
+        public static ESLogMessage of(Result esqlResult, String query, Map<String, String> additionalFields) {
             Map<String, Object> jsonFields = new HashMap<>();
-            addFromProviders(providers, jsonFields);
+            jsonFields.putAll(additionalFields);
             addGenericFields(jsonFields, query, true);
             addResultFields(jsonFields, esqlResult);
             return new ESLogMessage().withFields(jsonFields);
         }
 
-        public static ESLogMessage of(String query, long took, Exception exception, List<SlowLogFields> providers) {
+        public static ESLogMessage of(String query, long took, Exception exception, Map<String, String> additionalFields) {
             Map<String, Object> jsonFields = new HashMap<>();
-            addFromProviders(providers, jsonFields);
+            jsonFields.putAll(additionalFields);
             addGenericFields(jsonFields, query, false);
             addErrorFields(jsonFields, took, exception);
             return new ESLogMessage().withFields(jsonFields);
-        }
-
-        private static void addFromProviders(List<SlowLogFields> providers, Map<String, Object> jsonFields) {
-            for (SlowLogFields provider : providers) {
-                jsonFields.putAll(provider.queryFields());
-            }
         }
 
         private static void addGenericFields(Map<String, Object> fieldMap, String query, boolean success) {

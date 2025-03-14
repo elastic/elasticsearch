@@ -57,5 +57,5 @@ public record PluginServiceInstances(
     DocumentParsingProvider documentParsingProvider,
     TaskManager taskManager,
     ProjectResolver projectResolver,
-    List<? extends SlowLogFieldProvider> slowLogFieldProviders
+    SlowLogFieldProvider slowLogFieldProvider
 ) implements Plugin.PluginServices {}

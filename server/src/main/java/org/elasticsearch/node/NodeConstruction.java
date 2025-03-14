@@ -846,6 +846,13 @@ class NodeConstruction {
                             .flatMap(f -> f.searchFields().entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     }
+
+                    @Override
+                    public Map<String, String> queryFields() {
+                        return fields.stream()
+                            .flatMap(f -> f.queryFields().entrySet().stream())
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    }
                 };
             }
 
@@ -866,6 +873,13 @@ class NodeConstruction {
                     public Map<String, String> searchFields() {
                         return fields.stream()
                             .flatMap(f -> f.searchFields().entrySet().stream())
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    }
+
+                    @Override
+                    public Map<String, String> queryFields() {
+                        return fields.stream()
+                            .flatMap(f -> f.queryFields().entrySet().stream())
                             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                     }
                 };
@@ -961,7 +975,7 @@ class NodeConstruction {
             documentParsingProvider,
             taskManager,
             projectResolver,
-            slowLogFieldProviders
+            slowLogFieldProvider
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {

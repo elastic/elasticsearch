@@ -16,11 +16,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
-import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESTestCase.WithoutSecurityManager
 public class PolicyParserUtilsTests extends ESTestCase {
@@ -41,8 +40,6 @@ public class PolicyParserUtilsTests extends ESTestCase {
             Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
-        var overrides = Map.of("test-plugin", base64EncodedPolicy);
-
         final Policy expectedPolicy = new Policy(
             "test-plugin",
             List.of(
@@ -52,14 +49,14 @@ public class PolicyParserUtilsTests extends ESTestCase {
         );
 
         var policy = PolicyParserUtils.parsePolicyOverrideIfExists(
-            overrides,
+            base64EncodedPolicy,
             "9.0.0",
             true,
             "test-plugin",
             Set.of("entitlement-module-name", "entitlement-module-name-2")
         );
 
-        assertThat(policy, isPresentWith(expectedPolicy));
+        assertThat(policy, equalTo(expectedPolicy));
     }
 
     public void testCreatePluginPolicyWithOverrideAnyVersion() {
@@ -75,7 +72,6 @@ public class PolicyParserUtilsTests extends ESTestCase {
             Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
-        var overrides = Map.of("test-plugin", base64EncodedPolicy);
 
         final Policy expectedPolicy = new Policy(
             "test-plugin",
@@ -86,14 +82,14 @@ public class PolicyParserUtilsTests extends ESTestCase {
         );
 
         var policy = PolicyParserUtils.parsePolicyOverrideIfExists(
-            overrides,
+            base64EncodedPolicy,
             "abcdef",
             true,
             "test-plugin",
             Set.of("entitlement-module-name", "entitlement-module-name-2")
         );
 
-        assertThat(policy, isPresentWith(expectedPolicy));
+        assertThat(policy, equalTo(expectedPolicy));
     }
 
     public void testNoOverriddenPolicyWithVersionMismatch() {
@@ -112,17 +108,16 @@ public class PolicyParserUtilsTests extends ESTestCase {
             Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
-        var overrides = Map.of("test-plugin", base64EncodedPolicy);
 
         var policy = PolicyParserUtils.parsePolicyOverrideIfExists(
-            overrides,
+            base64EncodedPolicy,
             "9.1.0",
             true,
             "test-plugin",
             Set.of("entitlement-module-name", "entitlement-module-name-2")
         );
 
-        assertThat(policy, isEmpty());
+        assertThat(policy, nullValue());
     }
 
     public void testNoOverriddenPolicyWithValidationError() {
@@ -141,11 +136,10 @@ public class PolicyParserUtilsTests extends ESTestCase {
             Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
-        var overrides = Map.of("test-plugin", base64EncodedPolicy);
 
-        var policy = PolicyParserUtils.parsePolicyOverrideIfExists(overrides, "9.0.0", true, "test-plugin", Set.of());
+        var policy = PolicyParserUtils.parsePolicyOverrideIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
 
-        assertThat(policy, isEmpty());
+        assertThat(policy, nullValue());
     }
 
     public void testNoOverriddenPolicyWithParsingError() {
@@ -160,10 +154,9 @@ public class PolicyParserUtilsTests extends ESTestCase {
             Base64.getEncoder().encode(policyForOverride.getBytes(StandardCharsets.UTF_8)),
             StandardCharsets.UTF_8
         );
-        var overrides = Map.of("test-plugin", base64EncodedPolicy);
 
-        var policy = PolicyParserUtils.parsePolicyOverrideIfExists(overrides, "9.0.0", true, "test-plugin", Set.of());
+        var policy = PolicyParserUtils.parsePolicyOverrideIfExists(base64EncodedPolicy, "9.0.0", true, "test-plugin", Set.of());
 
-        assertThat(policy, isEmpty());
+        assertThat(policy, nullValue());
     }
 }

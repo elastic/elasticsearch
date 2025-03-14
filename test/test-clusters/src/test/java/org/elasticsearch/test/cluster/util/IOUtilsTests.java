@@ -9,6 +9,7 @@
 
 package org.elasticsearch.test.cluster.util;
 
+import org.junit.Assume;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -56,6 +57,8 @@ public class IOUtilsTests {
 
     @Test
     public void testSyncWithLinksThrowExceptionWhenDestinationIsNotWritable() throws IOException {
+        Assume.assumeFalse("On Windows read-only directories are not supported", OS.current() == OS.WINDOWS);
+
         // given
         Path sourceDir = Files.createTempDirectory("sourceDir");
         Files.createFile(sourceDir.resolve("file1.txt"));

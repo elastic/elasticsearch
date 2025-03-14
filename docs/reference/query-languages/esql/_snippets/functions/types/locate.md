@@ -5,11 +5,11 @@
 | string | substring | start | result |
 | --- | --- | --- | --- |
 | keyword | keyword | integer | integer |
-| keyword | keyword |  | integer |
+| keyword | keyword | | integer |
 | keyword | text | integer | integer |
-| keyword | text |  | integer |
+| keyword | text | | integer |
 | text | keyword | integer | integer |
-| text | keyword |  | integer |
+| text | keyword | | integer |
 | text | text | integer | integer |
-| text | text |  | integer |
+| text | text | | integer |
 

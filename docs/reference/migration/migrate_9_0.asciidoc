@@ -1,0 +1,71 @@
+[[migrating-9.0]]
+== Migrating to 9.0
+++++
+<titleabbrev>9.0</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 9.0.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+coming::[9.0.0]
+
+
+[discrete]
+[[breaking-changes-9.0]]
+=== Breaking changes
+
+The following changes in {es} 9.0 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 9.0, review these changes and take the described steps
+to mitigate the impact.
+
+
+There are no notable breaking changes in {es} 9.0.
+But there are some less critical breaking changes.
+
+[discrete]
+[[breaking_90_cluster_and_node_setting_changes]]
+==== Cluster and node setting changes
+
+[[drop_tls_rsa_cipher_support_for_jdk_24]]
+.Drop `TLS_RSA` cipher support for JDK 24
+[%collapsible]
+====
+*Details* +
+This change removes `TLS_RSA` ciphers from the list of default supported ciphers, for Elasticsearch deployments running on JDK 24.
+
+*Impact* +
+The dropped ciphers are `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, and `TLS_RSA_WITH_AES_128_CBC_SHA`. TLS connections to Elasticsearch using these ciphers will no longer work. Please configure your clients to use one of supported cipher suites.
+====
+
+
+[discrete]
+[[deprecated-9.0]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 9.0
+and will be removed in a future version.
+While this won't have an immediate impact on your applications,
+we strongly encourage you to take the described steps to update your code
+after upgrading to 9.0.
+
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[deprecations_90_search]]
+==== Search deprecations
+
+[[deprecate_behavioral_analytics_crud_apis]]
+.Deprecate Behavioral Analytics CRUD apis
+[%collapsible]
+====
+*Details* +
+Behavioral Analytics has been deprecated as of 9.0.0 and will be removed in a future release. The APIs will still work for now, but will emit warning headers that the API has been deprecated.
+
+*Impact* +
+Behavioral Analytics has been deprecated as of 9.0.0 and will be removed in a future release.
+====
+

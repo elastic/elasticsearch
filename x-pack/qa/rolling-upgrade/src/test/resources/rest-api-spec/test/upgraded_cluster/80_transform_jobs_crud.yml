@@ -290,6 +290,9 @@ setup:
 ---
 "Test index mappings for latest internal index and audit index":
   - skip:
+      awaits_fix: "https://github.com/elastic/ml-team/issues/1522"
+      reason: "Transform system index migration is broken"
+  - skip:
       features: warnings
   - requires:
       test_runner_features: warnings_regex

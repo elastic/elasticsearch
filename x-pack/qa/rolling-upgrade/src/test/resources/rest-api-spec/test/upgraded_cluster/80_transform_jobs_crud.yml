@@ -97,9 +97,6 @@ setup:
 ---
 "Get start, stop mixed cluster batch transform":
   # Simple and complex Mixed cluster transforms
-  - skip:
-      awaits_fix: "https://github.com/elastic/ml-team/issues/1522"
-      reason: "Transform system index migration is broken"
   - do:
       transform.get_transform:
         transform_id: "mixed-simple-transform"
@@ -228,9 +225,6 @@ setup:
         transform_id: "old-simple-continuous-transform"
 ---
 "Test GET, mixed continuous transforms":
-  - skip:
-      awaits_fix: "https://github.com/elastic/ml-team/issues/1522"
-      reason: "Transform system index migration is broken"
   - do:
       transform.get_transform:
         transform_id: "mixed-simple-continuous-transform"
@@ -295,9 +289,6 @@ setup:
 
 ---
 "Test index mappings for latest internal index and audit index":
-  - skip:
-      awaits_fix: "https://github.com/elastic/ml-team/issues/1522"
-      reason: "Transform system index migration is broken"
   - skip:
       features: warnings
   - requires:

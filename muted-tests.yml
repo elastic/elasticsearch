@@ -357,6 +357,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvalsTests
   method: testGroupingAliasingMoved_To_LeftSideOfJoin_WithExpression
   issue: https://github.com/elastic/elasticsearch/issues/124838
+- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
+  method: testAutomaticForceMerge
+  issue: https://github.com/elastic/elasticsearch/issues/124846
 
 # Examples:
 #

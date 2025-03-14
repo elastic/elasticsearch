@@ -339,15 +339,6 @@ tests:
 - class: org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRateTests
   method: testEwmr_threadSafe
   issue: https://github.com/elastic/elasticsearch/issues/124692
-- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/124830
-- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/124831
-- class: org.elasticsearch.upgrades.LogsdbIndexingRollingUpgradeIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/124833
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testUpdateIndexTemplateToDataStreamLifecyclePreference
   issue: https://github.com/elastic/elasticsearch/issues/124837
@@ -357,6 +348,33 @@ tests:
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvalsTests
   method: testGroupingAliasingMoved_To_LeftSideOfJoin_WithExpression
   issue: https://github.com/elastic/elasticsearch/issues/124838
+- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
+  method: testAutomaticForceMerge
+  issue: https://github.com/elastic/elasticsearch/issues/124846
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
+  issue: https://github.com/elastic/elasticsearch/issues/124848
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testUpdateIndexTemplateToMigrateFromDataStreamLifecycleToIlm
+  issue: https://github.com/elastic/elasticsearch/issues/124849
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testUpdateIndexTemplateFromILMtoBothILMAndDataStreamLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124850
+- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
+  method: testExplainLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124882
+- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
+  method: testSystemExplainLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124885
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testIndexTemplateSwapsILMForDataStreamLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124886
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests
+  method: testExplicitNull {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/124891
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests
+  method: testExplicitNull {p0=true}
+  issue: https://github.com/elastic/elasticsearch/issues/124892
 
 # Examples:
 #

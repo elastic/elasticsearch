@@ -15,6 +15,7 @@ public class DefaultFieldDataGeneratorHandler implements DataSourceHandler {
     public DataSourceResponse.FieldDataGenerator handle(DataSourceRequest.FieldDataGenerator request) {
         var fieldType = FieldType.tryParse(request.fieldType());
         if (fieldType == null) {
+            // This is a custom field type
             return null;
         }
 

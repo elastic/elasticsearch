@@ -76,7 +76,6 @@ public class DataGenerationHelper {
                     )
                 )
             )
-            // "shape" and "geo_shape" are very similar so we'll use only one of them
             .withDataSourceHandlers(List.of(new GeoShapeDataSourceHandler(), new ShapeDataSourceHandler()))
             .withDataSourceHandlers(List.of(new DataSourceHandler() {
                 @Override
@@ -87,8 +86,10 @@ public class DataGenerationHelper {
 
                         @Override
                         public DataSourceResponse.FieldTypeGenerator.FieldTypeInfo get() {
+                            // Base set of field types
                             var options = Arrays.stream(FieldType.values()).map(FieldType::toString).collect(Collectors.toSet());
                             // Custom types coming from specific functionality modules
+
                             if (shapesGenerated < 5) {
                                 options.add("geo_shape");
                                 options.add("shape");
@@ -96,7 +97,7 @@ public class DataGenerationHelper {
 
                             var randomChoice = ESTestCase.randomFrom(options);
                             if (randomChoice.equals("geo_shape") || randomChoice.equals("shape")) {
-                                shapesGenerated++;
+                                shapesGenerated += 1;
                             }
 
                             return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(options));

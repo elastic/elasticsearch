@@ -194,9 +194,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         protected abstract Object nullValueAsSource(T nullValue);
 
         protected BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {
-            Function<List<T>, List<Object>> formatter = getFormatter(GeometryFormatterFactory.WKB);
-
-            return new FallbackSyntheticSourceBlockLoader(new GeometriesFallbackSyntheticSourceReader(geometryParser, formatter), name()) {
+            return new FallbackSyntheticSourceBlockLoader(new GeometriesFallbackSyntheticSourceReader(), name()) {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
                     return factory.bytesRefs(expectedCount);
@@ -205,12 +203,10 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         private class GeometriesFallbackSyntheticSourceReader implements FallbackSyntheticSourceBlockLoader.Reader<BytesRef> {
-            private final Parser<T> geometryParser;
             private final Function<List<T>, List<Object>> formatter;
 
-            private GeometriesFallbackSyntheticSourceReader(Parser<T> geometryParser, Function<List<T>, List<Object>> formatter) {
-                this.geometryParser = geometryParser;
-                this.formatter = formatter;
+            private GeometriesFallbackSyntheticSourceReader() {
+                this.formatter = getFormatter(GeometryFormatterFactory.WKB);
             }
 
             @Override

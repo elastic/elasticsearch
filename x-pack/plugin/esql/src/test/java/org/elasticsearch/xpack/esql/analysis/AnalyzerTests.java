@@ -112,6 +112,7 @@ public class AnalyzerTests extends ESTestCase {
         EMPTY,
         new IndexPattern(EMPTY, "idx"),
         false,
+        null,
         List.of(),
         IndexMode.STANDARD,
         null,

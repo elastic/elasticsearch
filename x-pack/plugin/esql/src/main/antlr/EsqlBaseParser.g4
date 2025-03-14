@@ -137,7 +137,7 @@ field
     ;
 
 fromCommand
-    // TODO: Shouldn't be an indexString, that's too general
+    // TODO: Shouldn't be an indexString, that's too general; needs to be consistent with qualifiedName/Pattern
     // TODO: Ambiguity in case that the qualifier is METADATA? Should we use the AS keyword?
     : FROM indexPattern (COMMA indexPattern)* qualifier=indexString? metadata?
     ;

@@ -268,6 +268,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Source source = source(ctx);
         IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
+        String qualifier = null;
+        if (ctx.qualifier != null) {
+            qualifier = visitIndexString(ctx.qualifier);
+        }
         if (ctx.metadata() != null) {
             for (var c : ctx.metadata().UNQUOTED_SOURCE()) {
                 String id = c.getText();
@@ -285,6 +289,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             source,
             table,
             false,
+            qualifier,
             List.of(metadataMap.values().toArray(Attribute[]::new)),
             IndexMode.STANDARD,
             null,
@@ -523,13 +528,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         IndexPattern table = new IndexPattern(source, visitIndexPattern(ctx.indexPattern()));
 
         if (ctx.aggregates == null && ctx.grouping == null) {
-            return new UnresolvedRelation(source, table, false, List.of(), IndexMode.STANDARD, null, "METRICS");
+            // TODO: METRICS may want a qualifier
+            return new UnresolvedRelation(source, table, false, null, List.of(), IndexMode.STANDARD, null, "METRICS");
         }
         final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
         var relation = new UnresolvedRelation(
             source,
             table,
             false,
+            // TODO: METRICS may want a qualifier
+            null,
             List.of(new MetadataAttribute(source, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false)),
             IndexMode.TIME_SERIES,
             null
@@ -590,6 +598,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             source(target),
             new IndexPattern(source(target.index), rightPattern),
             false,
+            // TODO: qualifier goes here.
+            null,
             emptyList(),
             IndexMode.LOOKUP,
             null

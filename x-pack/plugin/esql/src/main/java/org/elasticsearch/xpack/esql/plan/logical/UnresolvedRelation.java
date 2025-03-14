@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
@@ -20,12 +21,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.singletonList;
-
 public class UnresolvedRelation extends LeafPlan implements Unresolvable, TelemetryAware {
 
     private final IndexPattern indexPattern;
     private final boolean frozen;
+    private final String qualifier;
     private final List<Attribute> metadataFields;
     /*
      * Expected indexMode based on the declaration - used later for verification
@@ -44,6 +44,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         Source source,
         IndexPattern indexPattern,
         boolean frozen,
+        @Nullable String qualifier,
         List<Attribute> metadataFields,
         IndexMode indexMode,
         String unresolvedMessage,
@@ -52,6 +53,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         super(source);
         this.indexPattern = indexPattern;
         this.frozen = frozen;
+        this.qualifier = qualifier;
         this.metadataFields = metadataFields;
         this.indexMode = indexMode;
         this.unresolvedMsg = unresolvedMessage == null ? "Unknown index [" + indexPattern.indexPattern() + "]" : unresolvedMessage;
@@ -62,11 +64,12 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         Source source,
         IndexPattern table,
         boolean frozen,
+        @Nullable String qualifier,
         List<Attribute> metadataFields,
         IndexMode indexMode,
         String unresolvedMessage
     ) {
-        this(source, table, frozen, metadataFields, indexMode, unresolvedMessage, null);
+        this(source, table, frozen, qualifier, metadataFields, indexMode, unresolvedMessage, null);
     }
 
     @Override
@@ -81,7 +84,21 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(this, UnresolvedRelation::new, indexPattern, frozen, metadataFields, indexMode, unresolvedMsg, commandName);
+        return NodeInfo.create(
+            this,
+            UnresolvedRelation::new,
+            indexPattern,
+            frozen,
+            qualifier,
+            metadataFields,
+            indexMode,
+            unresolvedMsg,
+            commandName
+        );
+    }
+
+    public String qualifier() {
+        return qualifier;
     }
 
     public IndexPattern indexPattern() {
@@ -137,7 +154,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), indexPattern, metadataFields, indexMode, unresolvedMsg);
+        return Objects.hash(source(), indexPattern, qualifier, metadataFields, indexMode, unresolvedMsg);
     }
 
     @Override
@@ -153,6 +170,7 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         UnresolvedRelation other = (UnresolvedRelation) obj;
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(frozen, other.frozen)
+            && Objects.equals(qualifier, other.qualifier)
             && Objects.equals(metadataFields, other.metadataFields)
             && indexMode == other.indexMode
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
@@ -160,11 +178,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     @Override
     public List<Object> nodeProperties() {
-        return singletonList(indexPattern);
+        return List.of(qualifier, indexPattern);
     }
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + indexPattern.indexPattern();
+        return UNRESOLVED_PREFIX + indexPattern.indexPattern() + (qualifier == null ? "" : (" " + qualifier));
     }
 }

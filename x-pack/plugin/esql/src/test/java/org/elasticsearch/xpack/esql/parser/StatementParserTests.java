@@ -2299,12 +2299,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedRelation(String index) {
-        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, null, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
         List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, metadata, IndexMode.TIME_SERIES, null, "FROM TS");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, null, metadata, IndexMode.TIME_SERIES, null, "FROM TS");
     }
 
     public void testMetricWithGroupKeyAsAgg() {

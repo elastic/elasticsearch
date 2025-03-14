@@ -72,7 +72,7 @@ abstract class AbstractStatementParserTests extends ESTestCase {
     }
 
     static UnresolvedRelation relation(String name) {
-        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, name), false, List.of(), IndexMode.STANDARD, null, "FROM");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, name), false, null, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
     static Literal integer(int i) {

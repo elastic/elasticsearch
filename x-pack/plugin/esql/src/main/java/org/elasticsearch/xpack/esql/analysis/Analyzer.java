@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
@@ -255,7 +256,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             EsIndex esIndex = indexResolution.get();
 
-            var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+            var attributes = mappingAsAttributes(plan.source(), plan.qualifier(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
             return new EsRelation(
                 plan.source(),
@@ -275,14 +276,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      *     Public for testing.
      * </p>
      */
-    public static List<Attribute> mappingAsAttributes(Source source, Map<String, EsField> mapping) {
+    public static List<Attribute> mappingAsAttributes(Source source, @Nullable String qualifier, Map<String, EsField> mapping) {
         var list = new ArrayList<Attribute>();
-        mappingAsAttributes(list, source, null, mapping);
+        mappingAsAttributes(list, source, null, qualifier, mapping);
         list.sort(Comparator.comparing(Attribute::name));
         return list;
     }
 
-    private static void mappingAsAttributes(List<Attribute> list, Source source, String parentName, Map<String, EsField> mapping) {
+    private static void mappingAsAttributes(
+        List<Attribute> list,
+        Source source,
+        String parentName,
+        String qualifier,
+        Map<String, EsField> mapping
+    ) {
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             String name = entry.getKey();
             EsField t = entry.getValue();
@@ -299,15 +306,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // TODO: if we were to allow qualifiers in FROM, they'd need to arrive here:
                 FieldAttribute attribute = t instanceof UnsupportedEsField uef
-                    ? new UnsupportedAttribute(source, null, name, uef)
-                    : new FieldAttribute(source, null, parentName, name, t);
+                    ? new UnsupportedAttribute(source, qualifier, name, uef)
+                    : new FieldAttribute(source, parentName, qualifier, name, t);
                 // primitive branch
                 if (DataType.isPrimitive(type)) {
                     list.add(attribute);
                 }
                 // allow compound object even if they are unknown
                 if (fieldProperties.isEmpty() == false) {
-                    mappingAsAttributes(list, source, attribute.name(), fieldProperties);
+                    mappingAsAttributes(list, source, attribute.name(), qualifier, fieldProperties);
                 }
             }
         }
@@ -331,7 +338,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<NamedExpression> enrichFields = calculateEnrichFields(
                     plan.source(),
                     policyName,
-                    mappingAsAttributes(plan.source(), resolved.mapping()),
+                    // TODO: Qualifier for ENRICH would go here.
+                    mappingAsAttributes(plan.source(), null, resolved.mapping()),
                     plan.enrichFields(),
                     policy
                 );
@@ -1072,7 +1080,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         if (matches.isEmpty()) {
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
-                String nameCandidate = a.name();
+                String nameCandidate = a.qualifiedName();
                 if (DataType.isPrimitive(a.dataType())) {
                     names.add(nameCandidate);
                 }

@@ -1804,7 +1804,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     } finally {
                         engineOrNull = getAndSetCurrentEngine(null);
                         // downgrade to read lock for submitting the engine closing task
-                        // (not strictly required but prevent any other engine change until the task is submitted)
+                        // (not strictly required because engine changes are no longer allowed after the state was changed to CLOSED)
                         engineLock.readLock().lock();
                     }
                 } finally {
@@ -1815,12 +1815,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 try {
                     final Engine engine = engineOrNull;
                     // When closeExecutor is EsExecutors.DIRECT_EXECUTOR_SERVICE, the following runnable will run within the current thread
-                    // while the read lock is held, which is OK.
+                    // while the read lock is held, which is OK. When closeExecutor is a generic thread or the cluster state applier thread
+                    // it will then run without any engine lock held, which is OK because no engine changes are allowed  after the state is
+                    // changed to CLOSED.
                     closeExecutor.execute(ActionRunnable.run(closeListener, new CheckedRunnable<>() {
                         @Override
                         public void run() throws Exception {
                             try {
                                 if (engine != null && flushEngine) {
+                                    assert engineLock.isWriteLockedByCurrentThread() == false : "do not flush under engine write lock";
                                     engine.flushAndClose();
                                 }
                             } finally {

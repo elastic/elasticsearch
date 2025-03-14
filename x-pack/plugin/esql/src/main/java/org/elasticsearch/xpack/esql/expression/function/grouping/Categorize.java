@@ -52,9 +52,9 @@ public class Categorize extends GroupingFunction {
         detailedDescription = """
             `CATEGORIZE` has the following limitations:
 
-            * can't be used within other expressions
-            * can't be used with multiple groupings
-            * can't be used or referenced within aggregate functions""",
+            * can’t be used within other expressions
+            * can’t be used with multiple groupings
+            * can’t be used or referenced within aggregate functions""",
         examples = {
             @Example(
                 file = "docs",
@@ -96,7 +96,7 @@ public class Categorize extends GroupingFunction {
 
     @Override
     public Nullability nullable() {
-        // Null strings and strings that don't produce tokens after analysis lead to null values.
+        // Null strings and strings that don’t produce tokens after analysis lead to null values.
         // This includes empty strings, only whitespace, (hexa)decimal numbers and stopwords.
         return Nullability.TRUE;
     }

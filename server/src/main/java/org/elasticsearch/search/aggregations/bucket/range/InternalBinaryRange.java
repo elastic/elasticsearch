@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -258,13 +259,11 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalBinaryRange(
-            name,
-            format,
-            keyed,
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            metadata
-        );
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 
     @Override

@@ -112,9 +112,9 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolE
             final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
             assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1)
                 : "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: "
-                + taskExecutionNanos
-                + ", failedOrRejected: "
-                + failedOrRejected;
+                    + taskExecutionNanos
+                    + ", failedOrRejected: "
+                    + failedOrRejected;
             if (taskExecutionNanos != -1) {
                 // taskExecutionNanos may be -1 if the task threw an exception
                 trackExecutionTime(timedRunnable.unwrap(), taskExecutionNanos);

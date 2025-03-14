@@ -25,7 +25,7 @@ import java.util.function.Function;
 /**
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
-public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
+public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
@@ -33,6 +33,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
+    final TaskTrackingConfig trackingConfig;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -49,6 +50,7 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;
+        this.trackingConfig = trackingConfig;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
     }
@@ -110,20 +112,28 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
             final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
             assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1)
                 : "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: "
-                    + taskExecutionNanos
-                    + ", failedOrRejected: "
-                    + failedOrRejected;
+                + taskExecutionNanos
+                + ", failedOrRejected: "
+                + failedOrRejected;
             if (taskExecutionNanos != -1) {
                 // taskExecutionNanos may be -1 if the task threw an exception
-                executionEWMA.addValue(taskExecutionNanos);
-                totalExecutionTime.add(taskExecutionNanos);
+                trackExecutionTime(timedRunnable.unwrap(), taskExecutionNanos);
             }
         } finally {
-            // if trackOngoingTasks is false -> ongoingTasks must be empty
-            assert trackOngoingTasks || ongoingTasks.isEmpty();
-            if (trackOngoingTasks) {
-                ongoingTasks.remove(r);
-            }
+            removeTrackedTask(r);
+        }
+    }
+
+    protected void trackExecutionTime(Runnable r, long taskTime) {
+        executionEWMA.addValue(taskTime);
+        totalExecutionTime.add(taskTime);
+    }
+
+    protected void removeTrackedTask(Runnable r) {
+        // if trackOngoingTasks is false -> ongoingTasks must be empty
+        assert trackOngoingTasks || ongoingTasks.isEmpty();
+        if (trackOngoingTasks) {
+            ongoingTasks.remove(r);
         }
     }
 

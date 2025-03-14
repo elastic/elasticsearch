@@ -711,6 +711,12 @@ public class EsqlCapabilities {
         MIXED_NUMERIC_TYPES_IN_CASE_GREATEST_LEAST,
 
         /**
+         * Lucene query pushdown to StartsWith and EndsWith functions.
+         * This capability was created to avoid receiving wrong warnings from old nodes in mixed clusters
+         */
+        STARTS_WITH_ENDS_WITH_LUCENE_PUSHDOWN,
+
+        /**
          * Full text functions can be scored when being part of a disjunction
          */
         FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,

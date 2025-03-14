@@ -100,7 +100,7 @@ public class EsExecutors {
      * Creates a scaling {@link EsThreadPoolExecutor} using an unbounded work queue.
      * <p>
      * The {@link EsThreadPoolExecutor} scales the same way as a regular {@link ThreadPoolExecutor} until the core pool size
-     * (and at least 1) is reached: each time a task is submitted a new worker is added.
+     * (and at least 1) is reached: each time a task is submitted a new worker is added regardless if an idle worker is available.
      * <p>
      * Once having reached the core pool size, a {@link ThreadPoolExecutor} will only add a new worker if the work queue rejects
      * a task offer. Typically, using a regular unbounded queue, task offers won't ever be rejected, meaning the worker pool would never

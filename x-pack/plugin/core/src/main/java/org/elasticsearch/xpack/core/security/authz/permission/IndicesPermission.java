@@ -319,7 +319,7 @@ public final class IndicesPermission {
             combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex)
         );
         for (String forIndexPattern : checkForIndexPatterns) {
-            IndexNameExpressionResolver.assertExpressionHasDefaultOrDataSelector(forIndexPattern);
+            IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(forIndexPattern);
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
                 checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());

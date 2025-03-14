@@ -438,6 +438,7 @@ class IndicesAndAliasesResolver {
         ProjectMetadata projectMetadata
     ) {
         final String concreteIndexName = request.getConcreteIndex().getName();
+        assert IndexNameExpressionResolver.hasSelectorSuffix(concreteIndexName) == false : "selectors are not allowed in this context";
 
         // validate that the concrete index exists, otherwise there is no remapping that we could do
         final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(concreteIndexName);
@@ -464,6 +465,7 @@ class IndicesAndAliasesResolver {
             if (aliasMetadata != null) {
                 Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(aliasName -> {
                     // we know this is implicit data access (as opposed to another selector) so the default selector check is correct
+                    assert IndexNameExpressionResolver.hasSelectorSuffix(aliasName) == false : "selectors are not allowed in this context";
                     if (false == isAuthorized.test(aliasName, IndexComponentSelector.DATA)) {
                         return false;
                     }
@@ -511,7 +513,7 @@ class IndicesAndAliasesResolver {
         }
 
         for (String aliasExpression : aliases) {
-            IndexNameExpressionResolver.assertExpressionHasDefaultOrDataSelector(aliasExpression);
+            IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(aliasExpression);
             boolean include = true;
             if (aliasExpression.charAt(0) == '-') {
                 include = false;

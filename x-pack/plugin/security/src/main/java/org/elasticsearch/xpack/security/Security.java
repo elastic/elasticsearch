@@ -2211,7 +2211,7 @@ public class Security extends Plugin
                     return FieldPredicate.ACCEPT_ALL;
                 }
                 assert indicesAccessControl.isGranted();
-                IndexNameExpressionResolver.assertExpressionHasDefaultOrDataSelector(index);
+                IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(index);
                 IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(index);
                 if (indexPermissions == null) {
                     return FieldPredicate.ACCEPT_ALL;

@@ -210,8 +210,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     ) {
         long startTime = client.threadPool().relativeTimeInMillis();
         String sourceIndexName = request.getSourceIndex();
-        IndexNameExpressionResolver.assertExpressionHasDefaultOrDataSelector(sourceIndexName);
-        IndexNameExpressionResolver.assertExpressionHasDefaultOrDataSelector(request.getTargetIndex());
+        IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(sourceIndexName);
+        IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(request.getTargetIndex());
         final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl != null) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);

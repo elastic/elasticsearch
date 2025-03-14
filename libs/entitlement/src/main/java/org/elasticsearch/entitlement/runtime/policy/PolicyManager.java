@@ -555,11 +555,7 @@ public class PolicyManager {
             var moduleName = callerClass.getModule().getName();
             var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
             var notEntitledLogger = LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
-            String frameInfoSuffix = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
-                .walk(this::findRequestingFrame)
-                .map(frame -> "\n\tat " + frame)
-                .orElse("");
-            notEntitledLogger.warn("Not entitled: " + message + frameInfoSuffix);
+            notEntitledLogger.warn("Not entitled: " + message, exception);
         }
         throw exception;
     }

@@ -18,14 +18,17 @@ import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsTests;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -52,7 +55,10 @@ import static org.mockito.Mockito.when;
 
 public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
-    private ThreadPool threadPool;
+    private static final long CACHE_MAX_AGE_MILLIS = 30000;
+
+    private long startTimeMillis;
+    private ControlledRelativeTimeThreadPool threadPool;
     private ClusterService clusterService;
     private TransportService transportService;
     private AllocationStatsService allocationStatsService;
@@ -63,7 +69,8 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(TransportClusterAllocationExplainActionTests.class.getName());
+        startTimeMillis = CACHE_MAX_AGE_MILLIS;
+        threadPool = new ControlledRelativeTimeThreadPool(TransportClusterAllocationExplainActionTests.class.getName(), startTimeMillis);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         transportService = new CapturingTransport().createTransportService(
             clusterService.getSettings(),
@@ -75,6 +82,12 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         );
         allocationStatsService = mock(AllocationStatsService.class);
         action = new TransportGetAllocationStatsAction(
+            Settings.builder()
+                .put(
+                    TransportGetAllocationStatsAction.CACHE_MAX_AGE_SETTING.getKey(),
+                    TimeValue.timeValueMillis(CACHE_MAX_AGE_MILLIS).toString()
+                )
+                .build(),
             transportService,
             clusterService,
             threadPool,
@@ -187,7 +200,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
         final CheckedConsumer<ActionListener<Void>, Exception> threadTask = l -> {
             final var request = new TransportGetAllocationStatsAction.Request(
-                TimeValue.ONE_MINUTE,
+                TEST_REQUEST_TIMEOUT,
                 new TaskId(randomIdentifier(), randomNonNegativeLong()),
                 EnumSet.of(Metric.ALLOCATIONS)
             );
@@ -200,24 +213,45 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             l.onResponse(null);
         };
 
-        // Start with a high cache max age, all threads should get the same value.
-        action.setCacheMaxAge(TimeValue.timeValueMinutes(5));
+        // Initial cache miss, all threads should get the same value.
         ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
         verify(allocationStatsService, times(1)).stats();
 
         // Force the cached stats to expire.
-        action.setCacheMaxAge(TimeValue.timeValueMillis(1));
-        Thread.sleep(2L);
+        threadPool.setCurrentTimeInMillis(startTimeMillis + (CACHE_MAX_AGE_MILLIS * 2));
 
-        // Expect a call to the stats service.
+        // Expect a single call to the stats service on the cache miss.
         allocationStats.set(Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats()));
         when(allocationStatsService.stats()).thenReturn(allocationStats.get());
-        threadTask.accept(ActionListener.noop());
-        verify(allocationStatsService, times(2)).stats();
-
-        // Set a large max age for the cache again so all the threads in the next run can get the cached value.
-        action.setCacheMaxAge(TimeValue.timeValueMinutes(5));
         ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
         verify(allocationStatsService, times(2)).stats();
+
+        // All subsequent requests should get the cached value.
+        ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
+        verify(allocationStatsService, times(2)).stats();
+    }
+
+    private static class ControlledRelativeTimeThreadPool extends ThreadPool {
+
+        private long currentTimeInMillis;
+
+        ControlledRelativeTimeThreadPool(String name, long startTimeMillis) {
+            super(
+                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).build(),
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
+            );
+            this.currentTimeInMillis = startTimeMillis;
+            stopCachedTimeThread();
+        }
+
+        @Override
+        public long relativeTimeInMillis() {
+            return currentTimeInMillis;
+        }
+
+        void setCurrentTimeInMillis(long currentTimeInMillis) {
+            this.currentTimeInMillis = currentTimeInMillis;
+        }
     }
 }

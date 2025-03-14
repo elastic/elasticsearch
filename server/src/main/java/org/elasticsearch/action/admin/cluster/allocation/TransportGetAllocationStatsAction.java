@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -51,11 +52,10 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     public static final ActionType<TransportGetAllocationStatsAction.Response> TYPE = new ActionType<>("cluster:monitor/allocation/stats");
 
-    public static final long CACHE_DISABLED = 0L;
     public static final Setting<TimeValue> CACHE_MAX_AGE_SETTING = Setting.timeSetting(
-        "cluster.transport.get.allocation.stats.action.cache.max_age",
+        "cluster.routing.allocation.stats.cache.ttl",
         TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueMillis(CACHE_DISABLED),
+        TimeValue.ZERO,
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope
     );
@@ -66,6 +66,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Inject
     public TransportGetAllocationStatsAction(
+        Settings settings,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -85,12 +86,13 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         final var managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
-        this.allocationStatsCache = new AllocationStatsCache(clusterService.getClusterSettings().get(CACHE_MAX_AGE_SETTING).millis());
+        this.allocationStatsCache = new AllocationStatsCache(CACHE_MAX_AGE_SETTING.get(settings).millis(), threadPool);
         this.allocationStatsSupplier = new SingleResultDeduplicator<>(
             threadPool.getThreadContext(),
             l -> managementExecutor.execute(ActionRunnable.supply(l, () -> {
+                // Check the cache again here to prevent duplicate work when a thread has a cache miss and is just about to fork just as
+                // other threads are coming off a deduplicator call that is about to finish.
                 final var cachedStats = allocationStatsCache.get();
-
                 if (cachedStats != null) {
                     return cachedStats;
                 }
@@ -101,11 +103,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             }))
         );
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
-    }
-
-    // Package access, intended for unit testing only.
-    void setCacheMaxAge(TimeValue maxAge) {
-        this.allocationStatsCache.setMaxAgeMsecs(maxAge.millis());
     }
 
     @Override
@@ -122,9 +119,16 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         // NB we are still on a transport thread here - if adding more functionality here make sure to fork to a different pool
 
-        final SubscribableListener<Map<String, NodeAllocationStats>> allocationStatsStep = request.metrics().contains(Metric.ALLOCATIONS)
-            ? SubscribableListener.newForked(allocationStatsSupplier::execute)
-            : SubscribableListener.newSucceeded(Map.of());
+        SubscribableListener<Map<String, NodeAllocationStats>> allocationStatsStep;
+
+        if (request.metrics().contains(Metric.ALLOCATIONS)) {
+            final var cachedStats = allocationStatsCache.get();
+            allocationStatsStep = cachedStats != null
+                ? SubscribableListener.newSucceeded(cachedStats)
+                : SubscribableListener.newForked(allocationStatsSupplier::execute);
+        } else {
+            allocationStatsStep = SubscribableListener.newSucceeded(Map.of());
+        }
 
         allocationStatsStep.andThenApply(
             allocationStats -> new Response(allocationStats, request.metrics().contains(Metric.FS) ? diskThresholdSettings : null)
@@ -216,27 +220,25 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     private record CachedAllocationStats(Map<String, NodeAllocationStats> stats, long timestampMsecs) {}
 
     private static class AllocationStatsCache {
-        private volatile long maxAgeMsecs;
+        private final long maxAgeMillis;
+        private final ThreadPool threadPool;
         private final AtomicReference<CachedAllocationStats> cachedStats;
 
-        AllocationStatsCache(long maxAgeMsecs) {
-            this.maxAgeMsecs = maxAgeMsecs;
+        AllocationStatsCache(long maxAgeMillis, ThreadPool threadPool) {
+            this.maxAgeMillis = maxAgeMillis;
+            this.threadPool = threadPool;
             this.cachedStats = new AtomicReference<>();
-        }
-
-        void setMaxAgeMsecs(long maxAgeMsecs) {
-            this.maxAgeMsecs = maxAgeMsecs;
         }
 
         Map<String, NodeAllocationStats> get() {
 
-            if (maxAgeMsecs == CACHE_DISABLED) {
+            if (maxAgeMillis == 0L) {
                 return null;
             }
 
             final var stats = cachedStats.get();
 
-            if (stats == null || System.currentTimeMillis() - stats.timestampMsecs > maxAgeMsecs) {
+            if (stats == null || threadPool.relativeTimeInMillis() - stats.timestampMsecs > maxAgeMillis) {
                 return null;
             }
 
@@ -245,8 +247,8 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         void put(Map<String, NodeAllocationStats> stats) {
 
-            if (maxAgeMsecs > CACHE_DISABLED) {
-                cachedStats.set(new CachedAllocationStats(stats, System.currentTimeMillis()));
+            if (maxAgeMillis > 0L) {
+                cachedStats.set(new CachedAllocationStats(stats, threadPool.relativeTimeInMillis()));
             }
         }
     }

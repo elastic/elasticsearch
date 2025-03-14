@@ -78,7 +78,7 @@ public class EsqlCCSUtils {
             if (returnSuccessWithEmptyResult(executionInfo, e)) {
                 updateExecutionInfoToReturnEmptyResult(executionInfo, e);
                 listener.onResponse(
-                    new Result(Analyzer.NO_FIELDS, Collections.emptyList(), Collections.emptyList(), PlannerProfile.EMPTY, executionInfo)
+                    new Result(Analyzer.NO_FIELDS, Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), executionInfo)
                 );
             } else {
                 listener.onFailure(e);

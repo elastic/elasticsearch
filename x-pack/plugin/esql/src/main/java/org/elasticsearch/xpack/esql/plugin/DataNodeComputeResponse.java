@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,10 +23,10 @@ import java.util.Objects;
  * The compute result of {@link DataNodeRequest}
  */
 final class DataNodeComputeResponse extends TransportResponse {
-    private final ComputeListener.CollectedProfiles profiles;
+    private final CollectedProfiles profiles;
     private final Map<ShardId, Exception> shardLevelFailures;
 
-    DataNodeComputeResponse(ComputeListener.CollectedProfiles profiles, Map<ShardId, Exception> shardLevelFailures) {
+    DataNodeComputeResponse(CollectedProfiles profiles, Map<ShardId, Exception> shardLevelFailures) {
         this.profiles = profiles;
         this.shardLevelFailures = shardLevelFailures;
     }
@@ -35,16 +34,16 @@ final class DataNodeComputeResponse extends TransportResponse {
     DataNodeComputeResponse(StreamInput in) throws IOException {
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
-                this.profiles = new ComputeListener.CollectedProfiles(in);
+                this.profiles = new CollectedProfiles(in);
             } else {
-                this.profiles = new ComputeListener.CollectedProfiles(in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
+                this.profiles = new CollectedProfiles(in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
             }
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
         } else {
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
-                this.profiles = new ComputeListener.CollectedProfiles(in);
+                this.profiles = new CollectedProfiles(in);
             } else {
-                this.profiles = new ComputeListener.CollectedProfiles(
+                this.profiles = new CollectedProfiles(
                     Objects.requireNonNullElse(new ComputeResponse(in).getProfiles().getDriverProfiles(), List.of()),
                     List.of()
                 );
@@ -70,7 +69,7 @@ final class DataNodeComputeResponse extends TransportResponse {
         }
     }
 
-    ComputeListener.CollectedProfiles profiles() {
+    CollectedProfiles profiles() {
         return profiles;
     }
 

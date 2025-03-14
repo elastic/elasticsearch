@@ -26,12 +26,12 @@ public class PlannerProfile implements Writeable, ChunkedToXContentObject {
 
     private final boolean isLocalPlanning;
 
-    public PlannerProfile() {
+    public static PlannerProfile readFrom(StreamInput in) throws IOException {
         // NOCOMMIT
         throw new UnsupportedOperationException();
     }
 
-    public PlannerProfile(StreamInput in) throws IOException {
+    public PlannerProfile() {
         // NOCOMMIT
         throw new UnsupportedOperationException();
     }

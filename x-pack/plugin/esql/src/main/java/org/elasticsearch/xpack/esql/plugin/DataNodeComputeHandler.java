@@ -237,11 +237,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             final AtomicInteger pagesProduced = new AtomicInteger();
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
-            ActionListener<ComputeListener.CollectedProfiles> batchListener = new ActionListener<>() {
-                final ActionListener<ComputeListener.CollectedProfiles> ref = computeListener.acquireCompute();
+            ActionListener<CollectedProfiles> batchListener = new ActionListener<>() {
+                final ActionListener<CollectedProfiles> ref = computeListener.acquireCompute();
 
                 @Override
-                public void onResponse(ComputeListener.CollectedProfiles result) {
+                public void onResponse(CollectedProfiles result) {
                     try {
                         onBatchCompleted(endBatchIndex);
                     } finally {
@@ -255,7 +255,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         for (ShardId shardId : shardIds) {
                             addShardLevelFailure(shardId, e);
                         }
-                        onResponse(ComputeListener.CollectedProfiles.EMPTY);
+                        onResponse(CollectedProfiles.EMPTY);
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
@@ -269,7 +269,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
                 if (searchContexts.isEmpty()) {
-                    batchListener.onResponse(ComputeListener.CollectedProfiles.EMPTY);
+                    batchListener.onResponse(CollectedProfiles.EMPTY);
                     return;
                 }
                 var computeContext = new ComputeContext(

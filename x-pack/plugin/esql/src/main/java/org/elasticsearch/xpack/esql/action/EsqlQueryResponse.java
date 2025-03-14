@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerProfile;
+import org.elasticsearch.xpack.esql.plugin.CollectedProfiles;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -349,19 +350,24 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
     public static class Profile implements Writeable, ChunkedToXContentObject {
         private final List<DriverProfile> drivers;
-        private final PlannerProfile plannerProfile;
+        private final List<PlannerProfile> plannerProfile;
 
-        public Profile(List<DriverProfile> drivers, PlannerProfile plannerProfile) {
+        public Profile(List<DriverProfile> drivers, List<PlannerProfile> plannerProfile) {
             this.drivers = drivers;
             this.plannerProfile = plannerProfile;
+        }
+
+        public Profile(CollectedProfiles profiles) {
+            this.drivers = profiles.getDriverProfiles();
+            this.plannerProfile = profiles.getPlannerProfiles();
         }
 
         public Profile(StreamInput in) throws IOException {
             this.drivers = in.readCollectionAsImmutableList(DriverProfile::readFrom);
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
-                this.plannerProfile = new PlannerProfile(in);
+                this.plannerProfile = in.readCollectionAsImmutableList(PlannerProfile::readFrom);
             } else {
-                this.plannerProfile = PlannerProfile.EMPTY;
+                this.plannerProfile = List.of();
             }
 
         }

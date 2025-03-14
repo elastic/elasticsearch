@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -155,9 +154,9 @@ abstract class DataNodeRequestSender {
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
-        final ActionListener<ComputeListener.CollectedProfiles> listener = computeListener.acquireCompute();
+        final ActionListener<CollectedProfiles> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
-            void onAfter(ComputeListener.CollectedProfiles profiles) {
+            void onAfter(CollectedProfiles profiles) {
                 nodePermits.get(request.node).release();
                 trySendingRequestsForPendingShards(targetShards, computeListener);
                 listener.onResponse(profiles);
@@ -185,7 +184,7 @@ abstract class DataNodeRequestSender {
                     trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
                 }
-                onAfter(ComputeListener.CollectedProfiles.EMPTY);
+                onAfter(CollectedProfiles.EMPTY);
             }
         });
     }

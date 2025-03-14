@@ -730,7 +730,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             List.of(new OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10, 111, 222))),
                             DriverSleeps.empty()
                         )
-                    )
+                    ),
+                    // NOCOMMIT - test planner profiles here
+                    List.of()
                 ),
                 false,
                 false,

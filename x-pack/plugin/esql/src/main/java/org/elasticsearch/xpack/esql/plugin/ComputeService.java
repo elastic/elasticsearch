@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -284,7 +285,7 @@ public class ComputeService {
                                             EsqlExecutionInfo.Cluster.Status.PARTIAL
                                         ).setFailures(List.of(new ShardSearchFailure(e))).build()
                                     );
-                                    dataNodesListener.onResponse(ComputeListener.CollectedProfiles.EMPTY);
+                                    dataNodesListener.onResponse(CollectedProfiles.EMPTY);
                                 } else {
                                     dataNodesListener.onFailure(e);
                                 }
@@ -348,7 +349,7 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
-        ActionListener<ComputeListener.CollectedProfiles> listener
+        ActionListener<CollectedProfiles> listener
     ) {
         listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
@@ -368,6 +369,7 @@ public class ComputeService {
             );
         }
         final List<Driver> drivers;
+        final PlannerProfile localPlannerProfile = new PlannerProfile();
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -406,9 +408,9 @@ public class ComputeService {
         }
         ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
             if (context.configuration().profile()) {
-                return drivers.stream().map(Driver::profile).toList();
+                return new CollectedProfiles(drivers.stream().map(Driver::profile).toList(), List.of(localPlannerProfile));
             } else {
-                return List.of();
+                return CollectedProfiles.EMPTY;
             }
         });
         listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));

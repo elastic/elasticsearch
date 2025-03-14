@@ -21,7 +21,7 @@ import java.util.List;
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
  */
 final class ComputeResponse extends TransportResponse {
-    private final ComputeListener.CollectedProfiles profiles;
+    private final CollectedProfiles profiles;
 
     // for use with ClusterComputeRequests (cross-cluster searches)
     private final TimeValue took;  // overall took time for a specific cluster in a cross-cluster search
@@ -30,12 +30,12 @@ final class ComputeResponse extends TransportResponse {
     public final int skippedShards;
     public final int failedShards;
 
-    ComputeResponse(ComputeListener.CollectedProfiles profiles) {
+    ComputeResponse(CollectedProfiles profiles) {
         this(profiles, null, null, null, null, null);
     }
 
     ComputeResponse(
-        ComputeListener.CollectedProfiles profiles,
+        CollectedProfiles profiles,
         TimeValue took,
         Integer totalShards,
         Integer successfulShards,
@@ -55,9 +55,9 @@ final class ComputeResponse extends TransportResponse {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
                 if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
-                    profiles = new ComputeListener.CollectedProfiles(in);
+                    profiles = new CollectedProfiles(in);
                 } else {
-                    profiles = new ComputeListener.CollectedProfiles(in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
+                    profiles = new CollectedProfiles(in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
                 }
             } else {
                 profiles = null;
@@ -103,7 +103,7 @@ final class ComputeResponse extends TransportResponse {
         }
     }
 
-    public ComputeListener.CollectedProfiles getProfiles() {
+    public CollectedProfiles getProfiles() {
         return profiles;
     }
 

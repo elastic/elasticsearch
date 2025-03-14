@@ -42,7 +42,7 @@ public class PolicyParserUtils {
         }
     }
 
-    private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
+    public static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
 
     public static final String POLICY_OVERRIDE_PREFIX = "es.entitlements.policy.";
 
@@ -58,9 +58,8 @@ public class PolicyParserUtils {
             if (overriddenPolicy.isPresent()) {
                 pluginPolicies.put(pluginName, overriddenPolicy.get());
             } else {
-                Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
-                var policy = parsePolicyIfExists(pluginName, policyFile, entry.isExternalPlugin());
-                validatePolicyScopes(pluginName, policy, moduleNames, policyFile.toString());
+                var policy = parsePolicyIfExists(pluginName, pluginRoot, entry.isExternalPlugin());
+                validatePolicyScopes(pluginName, policy, moduleNames, pluginRoot.resolve(POLICY_FILE_NAME).toString());
                 pluginPolicies.put(pluginName, policy);
             }
         }
@@ -129,7 +128,8 @@ public class PolicyParserUtils {
         }
     }
 
-    private static Policy parsePolicyIfExists(String pluginName, Path policyFile, boolean isExternalPlugin) throws IOException {
+    public static Policy parsePolicyIfExists(String pluginName, Path pluginRoot, boolean isExternalPlugin) throws IOException {
+        var policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
         if (Files.exists(policyFile)) {
             return new PolicyParser(Files.newInputStream(policyFile, StandardOpenOption.READ), pluginName, isExternalPlugin).parsePolicy();
         }

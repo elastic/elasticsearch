@@ -9,12 +9,16 @@
 
 package org.elasticsearch.plugins.cli;
 
-import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.entitlement.runtime.policy.FileAccessTree;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 
 import java.io.IOException;
 import java.net.URL;
@@ -25,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -123,13 +128,29 @@ public class PluginSecurity {
     /**
      * Extract a unique set of permissions from the plugin's policy file. Each permission is formatted for output to users.
      */
-    public static Set<String> getPermissionDescriptions(PluginPolicyInfo pluginPolicyInfo, Path tmpDir) throws IOException {
-        Set<Permission> allPermissions = new HashSet<>(PolicyUtil.getPolicyPermissions(null, pluginPolicyInfo.policy(), tmpDir));
-        for (URL jar : pluginPolicyInfo.jars()) {
-            Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jar, pluginPolicyInfo.policy(), tmpDir);
-            allPermissions.addAll(jarPermissions);
+    public static Set<String> getPermissionDescriptions(Policy pluginPolicy) {
+
+        Map<Class<? extends Entitlement>, List<Entitlement>> allEntitlements = pluginPolicy.scopes().stream()
+            .flatMap(scope -> scope.entitlements().stream())
+            .collect(Collectors.groupingBy(Entitlement::getClass));
+
+        Set<String> descriptions = new HashSet<>();
+        for (var entitlements: allEntitlements.entrySet()) {
+            var entitlementClass = entitlements.getKey();
+            if (entitlementClass.equals(FilesEntitlement.class)) {
+                var filesData = entitlements.getValue().stream()
+                    .flatMap(entitlement -> {
+                        FilesEntitlement filesEntitlement = (FilesEntitlement)entitlement;
+                        return filesEntitlement.filesData().stream();
+                    })
+                    .filter(x -> x.platform().isCurrent())
+                    .distinct();
+
+                filesData.map(Object::toString).forEach(descriptions::add);
+            }
+            descriptions.add(PolicyParser.getEntitlementName(entitlementClass));
         }
 
-        return allPermissions.stream().map(PluginSecurity::formatPermission).collect(Collectors.toSet());
+        return descriptions;
     }
 }

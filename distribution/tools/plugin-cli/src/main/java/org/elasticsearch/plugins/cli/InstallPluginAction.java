@@ -24,8 +24,6 @@ import org.bouncycastle.openpgp.jcajce.JcaPGPObjectFactory;
 import org.bouncycastle.openpgp.operator.jcajce.JcaKeyFingerprintCalculator;
 import org.bouncycastle.openpgp.operator.jcajce.JcaPGPContentVerifierBuilderProvider;
 import org.elasticsearch.Build;
-import org.elasticsearch.bootstrap.PluginPolicyInfo;
-import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -36,9 +34,9 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugin.scanner.ClassReaders;
 import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
@@ -923,13 +921,11 @@ public class InstallPluginAction implements Closeable {
      */
     private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginDescriptor info = loadPluginInfo(tmpRoot);
-        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
-            PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpDir());
-            if (pluginPolicy != null) {
-                Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpDir());
-                PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
-            }
-        }
+
+        var pluginPolicy = PolicyParserUtils.parsePolicyIfExists(info.getName(), tmpRoot, true);
+
+        Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy);
+        PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
 
         // Validate that the downloaded plugin's ID matches what we expect from the descriptor. The
         // exception is if we install a plugin via `InstallPluginCommand` by specifying a URL or

@@ -11,10 +11,8 @@ package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
-import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -28,32 +26,26 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 /** Tests plugin manager security check */
 public class PluginSecurityTests extends ESTestCase {
 
-    @Before
-    public void assumeSecurityManagerSupported() {
-        assumeTrue("test requires security manager to be supported", RuntimeVersionFeature.isSecurityManagerAvailable());
-    }
 
-    PluginPolicyInfo makeDummyPlugin(String policy, String... files) throws IOException {
-        Path plugin = createTempDir();
-        Files.copy(this.getDataPath(policy), plugin.resolve(PluginDescriptor.ES_PLUGIN_POLICY));
-        for (String file : files) {
-            Files.createFile(plugin.resolve(file));
-        }
-        return PolicyUtil.getPluginPolicyInfo(plugin, createTempDir());
+    Path makeDummyPlugin(String policy) throws IOException {
+        Path pluginPath = createTempDir();
+        Files.copy(this.getDataPath(policy), pluginPath.resolve(PolicyParserUtils.POLICY_FILE_NAME));
+        return pluginPath;
     }
 
     /** Test that we can parse the set of permissions correctly for a simple policy */
     public void testParsePermissions() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
-        Path scratch = createTempDir();
-        PluginPolicyInfo info = makeDummyPlugin("simple-plugin-security.policy");
-        Set<String> actual = PluginSecurity.getPermissionDescriptions(info, scratch);
+        // TODO: rename these files, make them entitlement policies
+        var pluginPath = makeDummyPlugin("simple-plugin-security.policy");
+        var pluginPolicy = PolicyParserUtils.parsePolicyIfExists("test-plugin", pluginPath, true);
+
+        Set<String> actual = PluginSecurity.getPermissionDescriptions(pluginPolicy);
         assertThat(actual, contains(PluginSecurity.formatPermission(new PropertyPermission("someProperty", "read"))));
     }
 
     /** Test that we can parse the set of permissions correctly for a complex policy */
     public void testParseTwoPermissions() throws Exception {
-        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
+        // TODO: adjust other tests too
         Path scratch = createTempDir();
         PluginPolicyInfo info = makeDummyPlugin("complex-plugin-security.policy");
         Set<String> actual = PluginSecurity.getPermissionDescriptions(info, scratch);

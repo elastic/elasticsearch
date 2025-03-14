@@ -50,7 +50,7 @@ public class TestThreadInfoPatternConverter extends LogEventPatternConverter {
         }
     }
 
-    private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN = Pattern.compile("elasticsearch(\\[.+\\]\\[.+\\].+)");
+    private static final Pattern ELASTICSEARCH_THREAD_NAME_PATTERN = Pattern.compile("elasticsearch\\[(.+\\]\\[.+\\]\\[.+)\\].*");
     private static final Pattern TEST_THREAD_NAME_PATTERN = Pattern.compile("TEST-.+\\.(.+)-seed#\\[.+\\]");
     private static final Pattern TEST_SUITE_INIT_THREAD_NAME_PATTERN = Pattern.compile("SUITE-.+-worker");
     private static final Pattern NOT_YET_NAMED_NODE_THREAD_NAME_PATTERN = Pattern.compile("test_SUITE-CHILD_VM.+cluster\\[T#(.+)\\]");

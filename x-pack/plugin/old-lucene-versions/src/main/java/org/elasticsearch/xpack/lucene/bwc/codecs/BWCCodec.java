@@ -194,7 +194,7 @@ public abstract class BWCCodec extends Codec {
 
     public static SegmentInfo wrap(SegmentInfo segmentInfo) {
         Codec codec = getBackwardCompatibleCodec(segmentInfo.getCodec());
-        
+
         final SegmentInfo segmentInfo1 = new SegmentInfo(
             segmentInfo.dir,
             // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)

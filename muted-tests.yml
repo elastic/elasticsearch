@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
   method: testSystemExplainLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/124885
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testIndexTemplateSwapsILMForDataStreamLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124886
 
 # Examples:
 #

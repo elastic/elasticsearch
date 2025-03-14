@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
@@ -16,6 +19,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,13 +38,24 @@ final class ComputeListener implements Releasable {
     private final ResponseHeadersCollector responseHeaders;
     private final Runnable runOnFailure;
 
-    public static class CollectedProfiles {
+    public static class CollectedProfiles implements Writeable {
+        public static final CollectedProfiles EMPTY = new CollectedProfiles(List.of(), List.of());
+
         private List<DriverProfile> driverProfiles;
         private List<PlannerProfile> plannerProfiles;
 
         CollectedProfiles(List<DriverProfile> driverProfiles, List<PlannerProfile> plannerProfiles) {
             this.driverProfiles = driverProfiles;
             this.plannerProfiles = plannerProfiles;
+        }
+
+        CollectedProfiles(StreamInput in) throws IOException {
+
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+
         }
 
         public List<DriverProfile> getDriverProfiles() {
@@ -50,7 +65,6 @@ final class ComputeListener implements Releasable {
         public List<PlannerProfile> getPlannerProfiles() {
             return plannerProfiles;
         }
-
     }
 
     ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<CollectedProfiles> delegate) {

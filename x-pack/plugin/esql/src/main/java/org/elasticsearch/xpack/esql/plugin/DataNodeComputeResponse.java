@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,20 +24,31 @@ import java.util.Objects;
  * The compute result of {@link DataNodeRequest}
  */
 final class DataNodeComputeResponse extends TransportResponse {
-    private final List<DriverProfile> profiles;
+    private final ComputeListener.CollectedProfiles profiles;
     private final Map<ShardId, Exception> shardLevelFailures;
 
-    DataNodeComputeResponse(List<DriverProfile> profiles, Map<ShardId, Exception> shardLevelFailures) {
+    DataNodeComputeResponse(ComputeListener.CollectedProfiles profiles, Map<ShardId, Exception> shardLevelFailures) {
         this.profiles = profiles;
         this.shardLevelFailures = shardLevelFailures;
     }
 
     DataNodeComputeResponse(StreamInput in) throws IOException {
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
-            this.profiles = in.readCollectionAsImmutableList(DriverProfile::readFrom);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                this.profiles = new ComputeListener.CollectedProfiles(in);
+            } else {
+                this.profiles = new ComputeListener.CollectedProfiles(in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
+            }
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
         } else {
-            this.profiles = Objects.requireNonNullElse(new ComputeResponse(in).getProfiles(), List.of());
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                this.profiles = new ComputeListener.CollectedProfiles(in);
+            } else {
+                this.profiles = new ComputeListener.CollectedProfiles(
+                    Objects.requireNonNullElse(new ComputeResponse(in).getProfiles().getDriverProfiles(), List.of()),
+                    List.of()
+                );
+            }
             this.shardLevelFailures = Map.of();
         }
     }
@@ -43,7 +56,11 @@ final class DataNodeComputeResponse extends TransportResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(out.getTransportVersion())) {
-            out.writeCollection(profiles, (o, v) -> v.writeTo(o));
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                profiles.writeTo(out);
+            } else {
+                out.writeCollection(profiles.getDriverProfiles(), (o, v) -> v.writeTo(o));
+            }
             out.writeMap(shardLevelFailures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
         } else {
             if (shardLevelFailures.isEmpty() == false) {
@@ -53,7 +70,7 @@ final class DataNodeComputeResponse extends TransportResponse {
         }
     }
 
-    List<DriverProfile> profiles() {
+    ComputeListener.CollectedProfiles profiles() {
         return profiles;
     }
 

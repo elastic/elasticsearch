@@ -359,7 +359,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         public Profile(StreamInput in) throws IOException {
             this.drivers = in.readCollectionAsImmutableList(DriverProfile::readFrom);
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
-                this.plannerProfile = in.readNamedWriteable(PlannerProfile.class);
+                this.plannerProfile = new PlannerProfile(in);
             } else {
                 this.plannerProfile = PlannerProfile.EMPTY;
             }

@@ -155,9 +155,9 @@ abstract class DataNodeRequestSender {
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
-        final ActionListener<List<DriverProfile>> listener = computeListener.acquireCompute();
+        final ActionListener<ComputeListener.CollectedProfiles> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
-            void onAfter(List<DriverProfile> profiles) {
+            void onAfter(ComputeListener.CollectedProfiles profiles) {
                 nodePermits.get(request.node).release();
                 trySendingRequestsForPendingShards(targetShards, computeListener);
                 listener.onResponse(profiles);
@@ -185,7 +185,7 @@ abstract class DataNodeRequestSender {
                     trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
                 }
-                onAfter(List.of());
+                onAfter(ComputeListener.CollectedProfiles.EMPTY);
             }
         });
     }

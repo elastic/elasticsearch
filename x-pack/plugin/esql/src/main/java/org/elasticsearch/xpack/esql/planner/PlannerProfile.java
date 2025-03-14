@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Iterator;
 
-public class PlannerProfile implements NamedWriteable, ChunkedToXContentObject {
+public class PlannerProfile implements Writeable, ChunkedToXContentObject {
 
     public static final PlannerProfile EMPTY = new PlannerProfile();
 
@@ -44,9 +44,4 @@ public class PlannerProfile implements NamedWriteable, ChunkedToXContentObject {
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public String getWriteableName() {
-        // NOCOMMIT
-        throw new UnsupportedOperationException();
-    }
 }

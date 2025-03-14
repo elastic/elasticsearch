@@ -238,11 +238,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             final AtomicInteger pagesProduced = new AtomicInteger();
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
-            ActionListener<List<DriverProfile>> batchListener = new ActionListener<>() {
-                final ActionListener<List<DriverProfile>> ref = computeListener.acquireCompute();
+            ActionListener<ComputeListener.CollectedProfiles> batchListener = new ActionListener<>() {
+                final ActionListener<ComputeListener.CollectedProfiles> ref = computeListener.acquireCompute();
 
                 @Override
-                public void onResponse(List<DriverProfile> result) {
+                public void onResponse(ComputeListener.CollectedProfiles result) {
                     try {
                         onBatchCompleted(endBatchIndex);
                     } finally {
@@ -256,7 +256,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         for (ShardId shardId : shardIds) {
                             addShardLevelFailure(shardId, e);
                         }
-                        onResponse(List.of());
+                        onResponse(ComputeListener.CollectedProfiles.EMPTY);
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {

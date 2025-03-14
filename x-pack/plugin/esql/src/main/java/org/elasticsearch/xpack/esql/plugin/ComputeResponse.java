@@ -21,7 +21,7 @@ import java.util.List;
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
  */
 final class ComputeResponse extends TransportResponse {
-    private final List<DriverProfile> profiles;
+    private final ComputeListener.CollectedProfiles profiles;
 
     // for use with ClusterComputeRequests (cross-cluster searches)
     private final TimeValue took;  // overall took time for a specific cluster in a cross-cluster search
@@ -30,12 +30,12 @@ final class ComputeResponse extends TransportResponse {
     public final int skippedShards;
     public final int failedShards;
 
-    ComputeResponse(List<DriverProfile> profiles) {
+    ComputeResponse(ComputeListener.CollectedProfiles profiles) {
         this(profiles, null, null, null, null, null);
     }
 
     ComputeResponse(
-        List<DriverProfile> profiles,
+        ComputeListener.CollectedProfiles profiles,
         TimeValue took,
         Integer totalShards,
         Integer successfulShards,
@@ -54,7 +54,11 @@ final class ComputeResponse extends TransportResponse {
         super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
-                profiles = in.readCollectionAsImmutableList(DriverProfile::readFrom);
+                if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                    profiles = new ComputeListener.CollectedProfiles(in);
+                } else {
+                    profiles = new ComputeListener.CollectedProfiles(in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
+                }
             } else {
                 profiles = null;
             }
@@ -83,7 +87,11 @@ final class ComputeResponse extends TransportResponse {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeCollection(profiles);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                    profiles.writeTo(out);
+                } else {
+                    out.writeCollection(profiles.getDriverProfiles());
+                }
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
@@ -95,7 +103,7 @@ final class ComputeResponse extends TransportResponse {
         }
     }
 
-    public List<DriverProfile> getProfiles() {
+    public ComputeListener.CollectedProfiles getProfiles() {
         return profiles;
     }
 

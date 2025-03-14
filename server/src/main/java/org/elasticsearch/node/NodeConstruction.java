@@ -873,7 +873,6 @@ class NodeConstruction {
 
         };
 
-
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)

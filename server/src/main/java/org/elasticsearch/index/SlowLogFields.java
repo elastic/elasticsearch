@@ -28,12 +28,11 @@ public interface SlowLogFields {
      */
     Map<String, String> searchFields();
 
-
     /**
      * Slow log fields for query
      * @return map of field name to value
      */
-    default Map<String, String> queryFields(){
+    default Map<String, String> queryFields() {
         return Map.of();
     }
 }

@@ -19,6 +19,9 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -97,7 +100,27 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 )
             )
         );
-        return new EsqlSlowLog(clusterSettings);
+        return new EsqlSlowLog(clusterSettings, new SlowLogFieldProvider() {
+            @Override
+            public SlowLogFields create(IndexSettings indexSettings) {
+                return create();
+            }
+
+            @Override
+            public SlowLogFields create() {
+                return new SlowLogFields() {
+                    @Override
+                    public Map<String, String> indexFields() {
+                        return Map.of();
+                    }
+
+                    @Override
+                    public Map<String, String> searchFields() {
+                        return Map.of();
+                    }
+                };
+            }
+        });
     }
 
     public void testFailedMetric() {

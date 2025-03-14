@@ -16,6 +16,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -27,6 +30,7 @@ import org.junit.BeforeClass;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_PLANNING_TOOK;
@@ -82,7 +86,7 @@ public class EsqlSlowLogTests extends ESTestCase {
     }
 
     public void testPrioritiesOnSuccess() {
-        EsqlSlowLog slowLog = new EsqlSlowLog(settings);
+        EsqlSlowLog slowLog = new EsqlSlowLog(settings, mockFieldProvider());
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -126,8 +130,32 @@ public class EsqlSlowLogTests extends ESTestCase {
         }
     }
 
+    private SlowLogFieldProvider mockFieldProvider() {
+        return new SlowLogFieldProvider() {
+            @Override
+            public SlowLogFields create(IndexSettings indexSettings) {
+                return create();
+            }
+
+            @Override
+            public SlowLogFields create() {
+                return new SlowLogFields() {
+                    @Override
+                    public Map<String, String> indexFields() {
+                        return Map.of();
+                    }
+
+                    @Override
+                    public Map<String, String> searchFields() {
+                        return Map.of();
+                    }
+                };
+            }
+        };
+    }
+
     public void testPrioritiesOnFailure() {
-        EsqlSlowLog slowLog = new EsqlSlowLog(settings);
+        EsqlSlowLog slowLog = new EsqlSlowLog(settings, mockFieldProvider());
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {

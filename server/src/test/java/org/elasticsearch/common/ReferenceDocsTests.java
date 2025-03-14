@@ -191,4 +191,20 @@ public class ReferenceDocsTests extends ESTestCase {
             logger.info("--> {}", link);
         }
     }
+
+    // for manual verification that the rendered links appear to be reasonable
+    public void testToStringLooksOk() {
+        // test one without a fragment ID
+        assertEquals(
+            "https://www.elastic.co/docs/troubleshoot/elasticsearch/discovery-troubleshooting?version=" + ReferenceDocs.VERSION_COMPONENT,
+            ReferenceDocs.DISCOVERY_TROUBLESHOOTING.toString()
+        );
+        // test another that has a fragment ID
+        assertEquals(
+            "https://www.elastic.co/docs/deploy-manage/deploy/self-managed/important-settings-configuration?version="
+                + ReferenceDocs.VERSION_COMPONENT
+                + "#initial-master-nodes",
+            ReferenceDocs.INITIAL_MASTER_NODES.toString()
+        );
+    }
 }

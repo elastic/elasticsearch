@@ -951,7 +951,7 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
      * Ensures that if we can only capture a partial snapshot of a system data stream, then the feature state associated
      * with that data stream is not included in the snapshot, because it would not be safe to restore that feature state.
      */
-     @AwaitsFix(bugUrl = "ES-11251")
+    @AwaitsFix(bugUrl = "ES-11251")
     public void testPartialSnapshotsOfSystemDataStreamRemovesFeatureState() throws Exception {
         final String partialIndexName = SystemDataStreamManyShardsTestPlugin.SYSTEM_DATASTREAM_NAME;
         final String fullIndexName = AnotherSystemDataStreamTestPlugin.SYSTEM_DATASTREAM_NAME;

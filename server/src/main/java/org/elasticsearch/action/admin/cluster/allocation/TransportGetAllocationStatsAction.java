@@ -208,7 +208,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         }
     }
 
-    private record CachedAllocationStats(Map<String, NodeAllocationStats> stats, long timestampMsecs) {}
+    private record CachedAllocationStats(Map<String, NodeAllocationStats> stats, long timestampMillis) {}
 
     private static class AllocationStatsCache {
         private final long maxAgeMillis;
@@ -229,7 +229,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
             final var stats = cachedStats.get();
 
-            if (stats == null || threadPool.relativeTimeInMillis() - stats.timestampMsecs > maxAgeMillis) {
+            if (stats == null || threadPool.relativeTimeInMillis() - stats.timestampMillis > maxAgeMillis) {
                 return null;
             }
 

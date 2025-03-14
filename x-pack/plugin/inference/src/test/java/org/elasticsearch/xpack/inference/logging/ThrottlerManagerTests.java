@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.logging;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -27,13 +28,13 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class ThrottlerManagerTests extends ESTestCase {
-    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
-
     private ThreadPool threadPool;
+    private DeterministicTaskQueue taskQueue;
 
     @Before
     public void init() {
         threadPool = createThreadPool(inferenceUtilityPool());
+        taskQueue = new DeterministicTaskQueue();
     }
 
     @After
@@ -44,9 +45,10 @@ public class ThrottlerManagerTests extends ESTestCase {
     public void testWarn_LogsOnlyOnce() {
         var logger = mock(Logger.class);
 
-        try (var throttler = new ThrottlerManager(Settings.EMPTY, threadPool, mockClusterServiceEmpty())) {
-            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
+        try (var throttler = new ThrottlerManager(Settings.EMPTY, taskQueue.getThreadPool())) {
+            throttler.init(mockClusterServiceEmpty());
 
+            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
             throttler.warn(logger, "test", new IllegalArgumentException("failed"));
@@ -57,7 +59,8 @@ public class ThrottlerManagerTests extends ESTestCase {
     public void testWarn_AllowsDifferentMessagesToBeLogged() {
         var logger = mock(Logger.class);
 
-        try (var throttler = new ThrottlerManager(Settings.EMPTY, threadPool, mockClusterServiceEmpty())) {
+        try (var throttler = new ThrottlerManager(Settings.EMPTY, threadPool)) {
+            throttler.init(mockClusterServiceEmpty());
             throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
@@ -66,33 +69,47 @@ public class ThrottlerManagerTests extends ESTestCase {
         }
     }
 
-    public void testStartsNewThrottler_WhenResetIntervalIsChanged() {
+    public void testStartsNewThrottler_WhenLoggingIntervalIsChanged() {
         var mockThreadPool = mock(ThreadPool.class);
         when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
 
-        try (var manager = new ThrottlerManager(Settings.EMPTY, mockThreadPool, mockClusterServiceEmpty())) {
-            var resetInterval = TimeValue.timeValueSeconds(1);
+        try (var manager = new ThrottlerManager(Settings.EMPTY, mockThreadPool)) {
+            manager.init(mockClusterServiceEmpty());
+
+            var loggingInterval = TimeValue.timeValueSeconds(1);
             var currentThrottler = manager.getThrottler();
-            manager.setResetInterval(resetInterval);
+            manager.setLogInterval(loggingInterval);
             // once for when the throttler is created initially
-            verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueDays(1)), any());
-            verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), eq(resetInterval), any());
+            verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueHours(1)), any());
             assertNotSame(currentThrottler, manager.getThrottler());
         }
     }
 
-    public void testDoesNotStartNewThrottler_WhenWaitDurationIsChanged() {
-        var mockThreadPool = mock(ThreadPool.class);
-        when(mockThreadPool.scheduleWithFixedDelay(any(Runnable.class), any(), any())).thenReturn(mock(Scheduler.Cancellable.class));
+    public void testStartsNewThrottler_WhenLoggingIntervalIsChanged_ThreadEmitsPreviousObjectsMessages() {
+        var logger = mock(Logger.class);
 
-        try (var manager = new ThrottlerManager(Settings.EMPTY, mockThreadPool, mockClusterServiceEmpty())) {
+        try (var manager = new ThrottlerManager(Settings.EMPTY, taskQueue.getThreadPool())) {
+            manager.init(mockClusterServiceEmpty());
+
+            // first log message should be automatically emitted
+            manager.warn(logger, "test", new IllegalArgumentException("failed"));
+            verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
+
+            // This should not be emitted but should increment the counter to 1
+            manager.warn(logger, "test", new IllegalArgumentException("failed"));
+            verifyNoMoreInteractions(logger);
+
+            var loggingInterval = TimeValue.timeValueSeconds(1);
             var currentThrottler = manager.getThrottler();
+            manager.setLogInterval(loggingInterval);
+            assertNotSame(currentThrottler, manager.getThrottler());
 
-            var waitDuration = TimeValue.timeValueSeconds(1);
-            manager.setWaitDuration(waitDuration);
-            // should only call when initializing the throttler
-            verify(mockThreadPool, times(1)).scheduleWithFixedDelay(any(Runnable.class), eq(TimeValue.timeValueDays(1)), any());
-            assertSame(currentThrottler, manager.getThrottler());
+            // This should not be emitted but should increment the counter to 2
+            manager.warn(logger, "test", new IllegalArgumentException("failed"));
+            verifyNoMoreInteractions(logger);
+
+            taskQueue.runAllRunnableTasks();
+            verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
         }
     }
 

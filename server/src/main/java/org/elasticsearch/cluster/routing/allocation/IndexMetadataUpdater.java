@@ -139,7 +139,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                         ? split
                             ? updatedIndexMetadata.withSetPrimaryTerm(
                                 shardId.id(),
-                                updatedIndexMetadata.primaryTerm(sourcePrimaryTerm(shardId, indexRoutingTable)) + 1
+                                updatedIndexMetadata.primaryTerm(shardId.getId() % (indexRoutingTable.size() / 2)) + 1
                             )
                             : updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
                         : updatedIndexMetadata;
@@ -151,10 +151,6 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
             updatedMetadata.put(projectMetadata.withAllocationAndTermUpdatesOnly(updatedIndices));
         });
         return updatedMetadata.build();
-    }
-
-    private static int sourcePrimaryTerm(ShardId shardId, IndexRoutingTable shardRoutingTable) {
-        return shardId.getId() % (shardRoutingTable.size() / 2);
     }
 
     /**

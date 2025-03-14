@@ -344,13 +344,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             super.writeAdditionalFields(out);
-            // TODO: Add source and primary term and stuff
         }
 
         @Override
         public void addAdditionalFields(XContentBuilder builder, Params params) throws IOException {
             super.addAdditionalFields(builder, params);
-            // TODO: Add source and primary term and stuff
         }
 
         // TODO: Expect empty retention leases?

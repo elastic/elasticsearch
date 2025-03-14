@@ -100,9 +100,11 @@ public class PolicyManager {
         }
 
         public Logger logger() {
-            return LogManager.getLogger(loggerName);
+            return MODULE_LOGGERS.computeIfAbsent(loggerName, LogManager::getLogger);
         }
     }
+
+    private static final ConcurrentHashMap<String, Logger> MODULE_LOGGERS = new ConcurrentHashMap<>();
 
     private FileAccessTree getDefaultFileAccess(String componentName, Path componentPath) {
         return FileAccessTree.of(componentName, UNKNOWN_COMPONENT_NAME, FilesEntitlement.EMPTY, pathLookup, componentPath, List.of());

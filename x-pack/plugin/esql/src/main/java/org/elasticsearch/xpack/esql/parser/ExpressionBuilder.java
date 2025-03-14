@@ -259,6 +259,10 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx == null) {
             return null;
         }
+
+        // TODO: This does not take into account parameters for qualifiers at all; at least we need to validate against this, or enable it.
+        String qualifier = ctx.qualifier == null ? null : visitIdentifier(ctx.qualifier);
+
         List<Object> nameItems = visitList(this, ctx.name.identifierOrParameter(), Object.class);
         List<String> nameStrings = new ArrayList<>(nameItems.size());
         for (Object item : nameItems) {
@@ -268,8 +272,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 nameStrings.add(unresolvedAttributeNameInParam(ctx, e));
             }
         }
-        // TODO: here
-        return new UnresolvedAttribute(source(ctx), null, Strings.collectionToDelimitedString(nameStrings, "."));
+        return new UnresolvedAttribute(source(ctx), qualifier, Strings.collectionToDelimitedString(nameStrings, "."));
     }
 
     @Override

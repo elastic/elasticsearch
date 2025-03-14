@@ -2,20 +2,20 @@ basic
 required_capability: name_qualifiers
 
 FROM sample_data main
-| SORT event_duration
+| SORT main event_duration
 | KEEP main message
 | LIMIT 1
 ;
 
 main message:keyword
-foo
+Connection error
 ;
 
 keepPattern
 required_capability: name_qualifiers
 
 FROM sample_data main
-| SORT event_duration
+| SORT mian event_duration
 | KEEP m* me*age
 | LIMIT 1
 ;

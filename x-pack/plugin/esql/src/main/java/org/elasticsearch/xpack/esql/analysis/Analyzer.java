@@ -1085,7 +1085,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     names.add(nameCandidate);
                 }
             }
-            var name = ua.name();
+            var name = ua.qualifiedName();
             UnresolvedAttribute unresolved = ua.withUnresolvedMessage(messageProducer.apply(StringUtils.findSimilar(name, names)));
             matches = singletonList(unresolved);
         }

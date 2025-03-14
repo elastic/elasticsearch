@@ -1622,9 +1622,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Engine.IndexCommitRef indexCommit = null;
         store.incRef();
         try {
-            engineLock.readLock().lock();
-            try {
-                synchronized (closeMutex) {
+            synchronized (closeMutex) {
+                engineLock.readLock().lock();
+                try {
                     // if the engine is not running, we can access the store directly, but we need to make sure no one starts
                     // the engine on us. If the engine is running, we can get a snapshot via the deletion policy of the engine.
                     final Engine engine = getEngineOrNull();
@@ -1634,9 +1634,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (indexCommit == null) {
                         return store.getMetadata(null, true);
                     }
+                } finally {
+                    engineLock.readLock().unlock();
                 }
-            } finally {
-                engineLock.readLock().unlock();
             }
             return store.getMetadata(indexCommit.getIndexCommit());
         } finally {

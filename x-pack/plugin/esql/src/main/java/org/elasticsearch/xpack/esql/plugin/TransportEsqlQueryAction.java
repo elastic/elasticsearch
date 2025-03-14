@@ -324,6 +324,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 if (c.originalTypes() == null) {
                     originalTypes = null;
                 } else {
+                    // Sort the original types so they are easier to test against and prettier.
                     originalTypes = new ArrayList<>(c.originalTypes());
                     Collections.sort(originalTypes);
                 }

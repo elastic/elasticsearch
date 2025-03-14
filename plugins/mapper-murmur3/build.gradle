@@ -21,6 +21,10 @@ dependencies {
   clusterModules project(':modules:lang-painless')
 }
 
+testClusters.configureEach {
+  module ":modules:lang-painless"
+}
+
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'search'

@@ -142,7 +142,7 @@ public abstract class DocsV3Support {
             entry("esql-time-spans", "esql/esql-time-spans.md"),
             entry("esql-limitations", "esql/limitations.md"),
             entry("esql-function-named-params", "esql/esql-syntax.md"),
-            entry("query-dsl-query-string-query", "query-dsl-query-string-query.md")
+            entry("query-dsl-query-string-query", "query-dsl/query-dsl-query-string-query.md")
         );
         // Static links to the commands file
         knownCommands = Map.ofEntries(entry("where", "where"), entry("stats-by", "stats"));

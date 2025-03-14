@@ -149,6 +149,9 @@ public class Throttler implements Closeable {
             synchronized (skippedLogCalls) {
                 numSkippedLogCalls = skippedLogCalls.get();
                 if (hasRepeatedLogsToEmit(numSkippedLogCalls) == false) {
+                    // Since we tried to log but there were no repeated messages we'll reset this entry so a new message
+                    // would get logged like it is the first time
+                    skippedLogCalls.set(INITIAL_LOG_COUNTER_VALUE);
                     return;
                 }
             }

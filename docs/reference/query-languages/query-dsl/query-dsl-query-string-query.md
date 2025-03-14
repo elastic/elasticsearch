@@ -383,7 +383,7 @@ age:(+>=10 +<20)
 The parsing of ranges in query strings can be complex and error prone. It is much more reliable to use an explicit [`range` query](/reference/query-languages/query-dsl/query-dsl-range-query.md).
 
 
-#### Boosting [_boosting]
+#### Boosting [boosting]
 
 Use the *boost* operator `^` to make one term more relevant than another. For instance, if we want to find all documents about foxes, but we are especially interested in quick foxes:
 

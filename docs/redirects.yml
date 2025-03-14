@@ -5,7 +5,10 @@ redirects:
   'reference/query-languages/term-level-queries.md': 'reference/query-languages/query-dsl/term-level-queries.md'
   'reference/query-languages/query-dsl-term-query.md': 'reference/query-languages/query-dsl/query-dsl-term-query.md'
   'reference/query-languages/query-dsl-multi-match-query.md': 'reference/query-languages/query-dsl/query-dsl-multi-match-query.md'
-  'reference/query-languages/query-dsl-query-string-query.md': 'reference/query-languages/query-dsl/query-dsl-query-string-query.md'
+  'reference/query-languages/query-dsl-query-string-query.md':
+    to: 'reference/query-languages/query-dsl/query-dsl-query-string-query.md'
+    anchors:
+      '_boosting': 'boosting'
   'reference/query-languages/shape-queries.md': 'reference/query-languages/query-dsl/shape-queries.md'
   'reference/query-languages/geo-queries.md': 'reference/query-languages/query-dsl/geo-queries.md'
   'reference/query-languages/full-text-queries.md': 'reference/query-languages/query-dsl/full-text-queries.md'

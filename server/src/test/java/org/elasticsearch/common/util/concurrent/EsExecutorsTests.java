@@ -861,18 +861,10 @@ public class EsExecutorsTests extends ESTestCase {
             }
 
             for (int i = 0; i < 20; i++) {
-                logger.info("--> attempt [{}]", i);
+                logger.trace("--> attempt [{}]", i);
                 final var doneLatch = new CountDownLatch(1);
                 executor.execute(new Task(between(1, 500), doneLatch));
-                boolean success = false;
-                try {
-                    safeAwait(doneLatch, TimeValue.ONE_MINUTE);
-                    success = true;
-                } finally {
-                    if (success == false) {
-                        logger.info("fail");
-                    }
-                }
+                safeAwait(doneLatch, TimeValue.ONE_MINUTE);
             }
         } finally {
             ThreadPool.terminate(executor, 1, TimeUnit.SECONDS);

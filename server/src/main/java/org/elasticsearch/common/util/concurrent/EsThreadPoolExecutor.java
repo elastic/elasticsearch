@@ -31,7 +31,10 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     // noop probe to prevent starvation of work in the work queue due to ForceQueuePolicy
     // https://github.com/elastic/elasticsearch/issues/124667
-    static final Runnable WORKER_PROBE = () -> {};
+    static final Runnable WORKER_PROBE = new Runnable() {
+        @Override
+        public void run() {}
+    };
 
     private final ThreadContext contextHolder;
 

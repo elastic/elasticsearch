@@ -312,7 +312,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         }
 
         SearchListenerPlugin.allowQueryPhase();
-        logger.info("Query phase resumed");
+        logger.info("Query phase resumed: " + queryFuture.state());
         try {
             queryFuture.get();
             fail("query should have failed");

@@ -1035,7 +1035,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     timestampMillisFieldRange,
                     eventIngestedMillisFieldRange,
                     sourcePrimaryTerm,
-                    ActionListener.noop()
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {}
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            onRecoveryFailure(new RecoveryFailedException(state, "failed to start after split", e), true);
+                        }
+                    }
                 );
             } else {
                 shardStateAction.shardStarted(

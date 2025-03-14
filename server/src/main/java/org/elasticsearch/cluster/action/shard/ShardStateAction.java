@@ -719,7 +719,9 @@ public class ShardStateAction {
                             tasksToBeApplied.add(taskContext);
                         } else if (invalidShardSplit(startedShardEntry, projectId, initialState)) {
                             logger.debug("{} failing shard started task because split validation failed", startedShardEntry.shardId);
-                            // TODO: Determine correct behavior
+                            // TODO: Currently invalid shard split triggers if the primary term changes, the source primary term changes or
+                            // is >= the target primary term or if the source is relocating. In the second and third scenario this will be
+                            // swallow currently. In the split process we will need to handle this.
                             taskContext.success(task::onSuccess);
                         } else {
                             logger.debug(

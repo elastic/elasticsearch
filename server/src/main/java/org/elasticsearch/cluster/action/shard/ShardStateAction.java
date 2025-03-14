@@ -587,6 +587,7 @@ public class ShardStateAction {
         final String message,
         final ShardLongFieldRange timestampRange,
         final ShardLongFieldRange eventIngestedRange,
+        final long sourcePrimaryTerm,
         final ActionListener<Void> listener
     ) {
         ClusterState currentState = clusterService.state();
@@ -598,7 +599,7 @@ public class ShardStateAction {
                 message,
                 timestampRange,
                 eventIngestedRange,
-                new ShardSplit()
+                new ShardSplit(sourcePrimaryTerm)
             ),
             listener,
             (req, l) -> sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, req, l)
@@ -875,14 +876,16 @@ public class ShardStateAction {
         }
     }
 
-    record ShardSplit() implements Writeable {
+    record ShardSplit(long sourcePrimaryTerm) implements Writeable {
 
         ShardSplit(StreamInput in) throws IOException {
-            this();
+            this(in.readVLong());
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {}
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(sourcePrimaryTerm);
+        }
     }
 
     public static class StartedShardEntry extends TransportRequest {

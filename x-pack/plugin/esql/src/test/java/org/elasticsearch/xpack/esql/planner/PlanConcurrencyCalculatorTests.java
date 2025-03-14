@@ -30,28 +30,22 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
 
     public void testSimpleLimit() {
         assertConcurrency("""
-                FROM x
-                | LIMIT 123
-                """,
-            123
-        );
+            FROM x
+            | LIMIT 123
+            """, 123);
     }
 
     public void testImplicitLimit() {
         assertConcurrency("""
             FROM x
-            """,
-            1000
-        );
+            """, 1000);
     }
 
     public void testStats() {
         assertConcurrency("""
             FROM x
             | STATS COUNT(salary)
-            """,
-            null
-        );
+            """, null);
     }
 
     public void testStatsWithLimit() {
@@ -59,9 +53,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
             FROM x
             | LIMIT 123
             | STATS COUNT(salary)
-            """,
-            123
-        );
+            """, 123);
     }
 
     public void testStatsWithSortBeforeLimit() {
@@ -70,9 +62,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
             | SORT salary
             | LIMIT 123
             | STATS COUNT(salary)
-            """,
-            null
-        );
+            """, null);
     }
 
     public void testStatsWithSortAfterLimit() {
@@ -81,57 +71,34 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
             | SORT salary
             | LIMIT 123
             | STATS COUNT(salary)
-            """,
-            null
-        );
+            """, null);
     }
 
     public void testSort() {
         assertConcurrency("""
             FROM x
             | SORT salary
-            """,
-            null
-        );
+            """, null);
     }
 
-    private void assertConcurrency(
-        String query,
-        Integer expectedConcurrency
-    ) {
+    private void assertConcurrency(String query, Integer expectedConcurrency) {
         assertConcurrency(query, null, expectedConcurrency);
     }
 
-    private void assertConcurrency(
-        String query,
-        Integer concurrencyPragmaValue,
-        Integer expectedConcurrency
-    ) {
+    private void assertConcurrency(String query, Integer concurrencyPragmaValue, Integer expectedConcurrency) {
         Configuration configuration = concurrencyPragmaValue == null
             ? configuration(query)
             : configuration(
-                new QueryPragmas(
-                    Settings.builder()
-                        .put("max_concurrent_nodes_per_cluster", concurrencyPragmaValue)
-                        .build()
-                ),
+                new QueryPragmas(Settings.builder().put("max_concurrent_nodes_per_cluster", concurrencyPragmaValue).build()),
                 query
             );
-        Analyzer analyzer = analyzer(
-            loadMapping("mapping-basic.json", "test"), TEST_VERIFIER, configuration
-        );
+        Analyzer analyzer = analyzer(loadMapping("mapping-basic.json", "test"), TEST_VERIFIER, configuration);
         LogicalPlan logicalPlan = AnalyzerTestUtils.analyze(query, analyzer);
         PhysicalPlan physicalPlan = new Mapper().map(logicalPlan);
 
-        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(
-            physicalPlan,
-            configuration
-        ).v2();
+        PhysicalPlan dataNodePlan = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(physicalPlan, configuration).v2();
 
-        Integer actualConcurrency = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(
-            dataNodePlan,
-            configuration
-        );
+        Integer actualConcurrency = PlanConcurrencyCalculator.INSTANCE.calculateNodesConcurrency(dataNodePlan, configuration);
 
         assertThat(actualConcurrency, equalTo(expectedConcurrency));
     }

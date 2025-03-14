@@ -1,0 +1,135 @@
+###############################################
+# Tests for geo_grid functions: geohash, geotile, geohex
+###############################################
+
+geohashLiteral
+ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
+| EVAL geohash = ST_GEOHASH(location, 4)
+;
+
+location:geo_point | geohash:keyword
+POINT(12.6493508684508 55.6285017221528) | u3bu
+;
+
+geohashLiteralMv
+ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)"), precision = [1,2,3,4,5]
+| MV_EXPAND precision
+| EVAL geohash = ST_GEOHASH(location, precision)
+;
+
+location:geo_point                        | precision:integer | geohash:keyword
+POINT (12.6493508684508 55.6285017221528) | 1                 | u
+POINT (12.6493508684508 55.6285017221528) | 2                 | u3
+POINT (12.6493508684508 55.6285017221528) | 3                 | u3b
+POINT (12.6493508684508 55.6285017221528) | 4                 | u3bu
+POINT (12.6493508684508 55.6285017221528) | 5                 | u3bur
+;
+
+geohashField
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL geohash = ST_GEOHASH(location, 7)
+| KEEP geohash, abbrev, name, location
+;
+
+geohash:keyword | abbrev:keyword | name:text  | location:geo_point
+u3buryf         | CPH            | Copenhagen | POINT (12.6493508684508 55.6285017221528)
+;
+
+gridGeohashStatsBy
+// tag::st_geohash-grid[]
+FROM airports
+| EVAL geohash = ST_GEOHASH(location, 1)
+| STATS
+    count = COUNT(*),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohash
+| SORT count DESC, geohash ASC
+// end::st_geohash-grid[]
+;
+
+// tag::st_geohash-grid-result[]
+count:long | centroid:geo_point                             | geohash:keyword
+118        | POINT (-77.41857436454018 26.96522968734409)   | d
+96         | POINT (23.181679135886952 27.295384635654045)  | s
+94         | POINT (70.94076107503807 25.691916451026547)   | t
+90         | POINT (-104.3941700803116 30.811849871650338)  | 9
+89         | POINT (18.71573683606942 53.165169130707305)   | u
+85         | POINT (114.3722876966657 24.908398092505248)   | w
+51         | POINT (-61.44522591713159 -22.87209844956284)  | 6
+38         | POINT (-9.429514887252529 25.497624435045413)  | e
+34         | POINT (-111.8071846965262 52.464381378993174)  | c
+30         | POINT (28.7045472683385 -14.706001980230212)   | k
+28         | POINT (159.52750137208827 -25.555616633001982) | r
+22         | POINT (-4.410395708612421 54.90304926367985)   | g
+21         | POINT (-69.40534970590046 50.93379438189523)   | f
+17         | POINT (114.05526293222519 -10.898114638950895) | q
+16         | POINT (147.40052131412085 21.054660080408212)  | x
+13         | POINT (63.64716878519035 54.37333276101317)    | v
+12         | POINT (-39.53510569408536 -11.72166372067295)  | 7
+9          | POINT (-150.36503398790956 63.14222150482237)  | b
+7          | POINT (-167.3069146488394 -17.976190628084755) | 2
+6          | POINT (-157.0227657398209 17.60691551025957)   | 8
+5          | POINT (114.40185610949993 48.99013584572822)   | y
+4          | POINT (-69.98911972157657 -52.170535867335275) | 4
+4          | POINT (51.48641954641789 -14.176777086686343)  | m
+1          | POINT (-109.43006442859769 -27.15877384878695) | 3
+1          | POINT (170.20002692006528 -45.92343100346625)  | p
+// end::st_geohash-grid-result[]
+;
+
+gridGeohashStatsByWhereUK
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL geohash = ST_GEOHASH(location, 2)
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohash
+| SORT count DESC
+;
+
+count:long | centroid:geo_point                            | geohash:keyword
+14         | POINT (-2.5644131543646966 53.38093495994274) | gc
+3          | POINT (-2.7510103583335876 58.79020635969937) | gf
+;
+
+gridGeohashInStatsBy
+FROM airports
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY ST_GEOHASH(location, 1)
+| SORT count DESC
+| KEEP count, centroid
+| LIMIT 10
+;
+
+count:long | centroid:geo_point
+ 118        | POINT (-77.41857436454018 26.96522968734409)
+ 96         | POINT (23.181679135886952 27.295384635654045)
+ 94         | POINT (70.94076107503807 25.691916451026547)
+ 90         | POINT (-104.3941700803116 30.811849871650338)
+ 89         | POINT (18.71573683606942 53.165169130707305)
+ 85         | POINT (114.3722876966657 24.908398092505248)
+ 51         | POINT (-61.44522591713159 -22.87209844956284)
+ 38         | POINT (-9.429514887252529 25.497624435045413)
+ 34         | POINT (-111.8071846965262 52.464381378993174)
+ 30         | POINT (28.7045472683385 -14.706001980230212)
+;
+
+gridGeohashInStatsByWhereUK
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY ST_GEOHASH(location, 2)
+| KEEP count, centroid
+| SORT count DESC
+;
+
+count:long | centroid:geo_point
+14         | POINT (-2.5644131543646966 53.38093495994274)
+3          | POINT (-2.7510103583335876 58.79020635969937)
+;

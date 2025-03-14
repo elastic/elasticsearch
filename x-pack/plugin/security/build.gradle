@@ -86,7 +86,7 @@ dependencies {
      * Eclipse can't pick up the shadow dependency so we point it at the unmodified version of the library
      * so it can compile things.
      */
-    api "com.nimbusds:nimbus-jose-jwt:10.0.1"
+    api "com.nimbusds:nimbus-jose-jwt:10.0.2"
   }
   api "com.nimbusds:lang-tag:1.7"
   api "com.sun.mail:jakarta.mail:1.6.3"

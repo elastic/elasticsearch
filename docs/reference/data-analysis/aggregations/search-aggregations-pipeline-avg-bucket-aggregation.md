@@ -29,7 +29,7 @@ A sibling pipeline aggregation which calculates the mean value of a specified me
 :   (Optional, string) Policy to apply when gaps are found in the data. For valid values, see [Dealing with gaps in the data](/reference/data-analysis/aggregations/pipeline.md#gap-policy). Defaults to `skip`.
 
 `format`
-:   (Optional, string) [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.md) for the output value. If specified, the formatted value is returned in the aggregation’s `value_as_string` property.
+:   (Optional, string) [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.html) for the output value. If specified, the formatted value is returned in the aggregation’s `value_as_string` property.
 
 
 ## Response body [avg-bucket-agg-response]

@@ -16,21 +16,23 @@ import java.util.Map;
 import java.util.Objects;
 
 public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends BlockLoaderTestCase {
-    public NumberFieldBlockLoaderTestCase(FieldType fieldType) {
-        super(fieldType);
+    public NumberFieldBlockLoaderTestCase(FieldType fieldType, Params params) {
+        super(fieldType, params);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value) {
         var nullValue = fieldMapping.get("null_value") != null ? convert((Number) fieldMapping.get("null_value"), fieldMapping) : null;
 
         if (value instanceof List<?> == false) {
             return convert(value, nullValue, fieldMapping);
         }
 
-        if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
-            // Sorted and no duplicates
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE || params.syntheticSource();
+        if (hasDocValues && useDocValues) {
+            // Sorted
             var resultList = ((List<Object>) value).stream()
                 .map(v -> convert(v, nullValue, fieldMapping))
                 .filter(Objects::nonNull)

@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -93,11 +93,11 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
                 .setMapping("user", "type=keyword", "tags", "type=keyword")
                 .get();
             BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            int numDocs = between(5, 10);
+            int numDocs = between(10, 25); // every shard has at least 1 doc
             for (int d = 0; d < numDocs; d++) {
                 String user = randomFrom("u1", "u2", "u3");
                 String tag = randomFrom("java", "elasticsearch", "lucene");
-                bulk.add(new IndexRequest().source(Map.of("user", user, "tags", tag)));
+                bulk.add(client().prepareIndex().setSource(Map.of("user", user, "tags", tag)));
             }
             bulk.get();
         }
@@ -270,6 +270,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         var coordinatorNodeTransport = MockTransportService.getInstance(coordinatingNode);
         coordinatorNodeTransport.addSendBehavior((connection, requestId, action, request, options) -> {
             if (Objects.equals(action, ExchangeService.OPEN_EXCHANGE_ACTION_NAME)) {
+                logger.info("Opening exchange on node [{}]", connection.getNode().getId());
                 exchanges.incrementAndGet();
             }
             connection.sendRequest(requestId, action, request, options);
@@ -283,6 +284,16 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             var result = safeExecute(client(coordinatingNode), EsqlQueryAction.INSTANCE, query);
             assertThat(Iterables.size(result.rows()), equalTo(1L));
             assertThat(exchanges.get(), lessThanOrEqualTo(1));// 0 if result is populated from coordinating node
+        } catch (AssertionError e) {
+            client().admin().indices().stats(new IndicesStatsRequest()).actionGet().asMap().forEach((shard, stats) -> {
+                logger.info(
+                    "Shard {} node {} status {} docs {}",
+                    shard.shardId(),
+                    shard.currentNodeId(),
+                    shard.state(),
+                    stats.getStats().getDocs().getCount()
+                );
+            });
         } finally {
             coordinatorNodeTransport.clearAllRules();
         }

@@ -67,17 +67,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             if (in.getTransportVersion().before(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 mutableResourceDeprecations.put(IndexDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
             }
-            if (in.getTransportVersion()
-                .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
+            if (in.getTransportVersion().between(TransportVersions.V_8_17_0, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 mutableResourceDeprecations.put(DataStreamDeprecationChecker.NAME, in.readMapOfLists(DeprecationIssue::new));
             }
-            if (in.getTransportVersion().before(TransportVersions.V_7_11_0)) {
-                List<DeprecationIssue> mlIssues = in.readCollectionAsList(DeprecationIssue::new);
-                pluginSettingsIssues = new HashMap<>();
-                pluginSettingsIssues.put("ml_settings", mlIssues);
-            } else {
-                pluginSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
-            }
+            pluginSettingsIssues = in.readMapOfLists(DeprecationIssue::new);
             if (in.getTransportVersion().onOrAfter(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 resourceDeprecationIssues = in.readMap(in2 -> in2.readMapOfLists(DeprecationIssue::new));
             } else {
@@ -140,15 +133,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             if (out.getTransportVersion().before(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 out.writeMap(getIndexSettingsIssues(), StreamOutput::writeCollection);
             }
-            if (out.getTransportVersion()
-                .between(TransportVersions.DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
+            if (out.getTransportVersion().between(TransportVersions.V_8_17_0, TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 out.writeMap(getDataStreamDeprecationIssues(), StreamOutput::writeCollection);
             }
-            if (out.getTransportVersion().before(TransportVersions.V_7_11_0)) {
-                out.writeCollection(pluginSettingsIssues.getOrDefault("ml_settings", Collections.emptyList()));
-            } else {
-                out.writeMap(pluginSettingsIssues, StreamOutput::writeCollection);
-            }
+            out.writeMap(pluginSettingsIssues, StreamOutput::writeCollection);
             if (out.getTransportVersion().onOrAfter(TransportVersions.RESOURCE_DEPRECATION_CHECKS)) {
                 out.writeMap(resourceDeprecationIssues, (o, v) -> o.writeMap(v, StreamOutput::writeCollection));
             }

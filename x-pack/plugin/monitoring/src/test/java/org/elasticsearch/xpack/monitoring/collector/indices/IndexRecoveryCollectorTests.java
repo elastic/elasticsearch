@@ -168,10 +168,11 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release.",
+                + "removed in a future release. See the deprecation documentation for the next major version.",
             "[xpack.monitoring.collection.index.recovery.active_only] setting was deprecated in Elasticsearch and will be removed "
-                + "in a future release.",
-            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release."
+                + "in a future release. See the deprecation documentation for the next major version.",
+            "[xpack.monitoring.collection.indices] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -227,7 +228,7 @@ public class IndexRecoveryCollectorTests extends BaseCollectorTestCase {
 
         assertWarnings(
             "[xpack.monitoring.collection.index.recovery.timeout] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release."
+                + "removed in a future release. See the deprecation documentation for the next major version."
         );
     }
 

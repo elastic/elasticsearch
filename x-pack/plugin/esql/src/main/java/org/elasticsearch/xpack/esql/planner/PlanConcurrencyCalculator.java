@@ -34,8 +34,8 @@ public class PlanConcurrencyCalculator {
         // TODO: Request FoldContext or a context containing it
 
         // If available, pragma overrides any calculation
-        if (configuration.pragmas().maxConcurrentNodePerCluster() > 0) {
-            return configuration.pragmas().maxConcurrentNodePerCluster();
+        if (configuration.pragmas().maxConcurrentNodesPerCluster() > 0) {
+            return configuration.pragmas().maxConcurrentNodesPerCluster();
         }
 
         // TODO: Should this class take into account the node roles/tiers? What about the index modes like LOOKUP?

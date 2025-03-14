@@ -47,7 +47,7 @@ public class MetadataOnlyBKDReader extends PointValues {
     final int docCount;
     final int version;
 
-    public MetadataOnlyBKDReader(IndexInput metaIn, boolean isCodec86Version) throws IOException {
+    public MetadataOnlyBKDReader(IndexInput metaIn, boolean isVersionPost86) throws IOException {
         version = CodecUtil.checkHeader(metaIn, "BKD", VERSION_START, VERSION_CURRENT);
         final int numDims = metaIn.readVInt();
         final int numIndexDims;
@@ -86,8 +86,8 @@ public class MetadataOnlyBKDReader extends PointValues {
         pointCount = metaIn.readVLong();
         docCount = metaIn.readVInt();
 
-        if (isCodec86Version) {
-            // This code has been introduced to process IndexInput created with Lucene86Codec+
+        // This code has been introduced to process IndexInput created with Lucene86Codec+
+        if (isVersionPost86) {
             metaIn.readVInt();
             metaIn.readLong();
             // The following fields are not used in this class, but we need to read them to advance the pointer

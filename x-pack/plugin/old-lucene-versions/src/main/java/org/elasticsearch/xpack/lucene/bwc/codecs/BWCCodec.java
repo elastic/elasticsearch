@@ -29,6 +29,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.BWCLucene70Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene80.BWCLucene80Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene84.BWCLucene84Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.BWCLucene86Codec;
@@ -193,7 +194,7 @@ public abstract class BWCCodec extends Codec {
 
     public static SegmentInfo wrap(SegmentInfo segmentInfo) {
         Codec codec = getBackwardCompatibleCodec(segmentInfo.getCodec());
-
+        
         final SegmentInfo segmentInfo1 = new SegmentInfo(
             segmentInfo.dir,
             // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)
@@ -228,6 +229,7 @@ public abstract class BWCCodec extends Codec {
         if (codec == null) return null;
 
         return switch (codec.getClass().getSimpleName()) {
+            case "Lucene70Codec" -> new BWCLucene70Codec();
             case "Lucene80Codec" -> new BWCLucene80Codec();
             case "Lucene84Codec" -> new BWCLucene84Codec();
             case "Lucene86Codec" -> new BWCLucene86Codec();

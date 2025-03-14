@@ -114,6 +114,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.SlowLogFields;
@@ -825,27 +826,53 @@ class NodeConstruction {
         List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
-        SlowLogFieldProvider slowLogFieldProvider = indexSettings -> {
-            final List<SlowLogFields> fields = new ArrayList<>();
-            for (var provider : slowLogFieldProviders) {
-                fields.add(provider.create(indexSettings));
-            }
-            return new SlowLogFields() {
-                @Override
-                public Map<String, String> indexFields() {
-                    return fields.stream()
-                        .flatMap(f -> f.indexFields().entrySet().stream())
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
+            public SlowLogFields create() {
+                final List<SlowLogFields> fields = new ArrayList<>();
+                for (var provider : slowLogFieldProviders) {
+                    fields.add(provider.create());
                 }
+                return new SlowLogFields() {
+                    @Override
+                    public Map<String, String> indexFields() {
+                        return fields.stream()
+                            .flatMap(f -> f.indexFields().entrySet().stream())
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    }
 
-                @Override
-                public Map<String, String> searchFields() {
-                    return fields.stream()
-                        .flatMap(f -> f.searchFields().entrySet().stream())
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    @Override
+                    public Map<String, String> searchFields() {
+                        return fields.stream()
+                            .flatMap(f -> f.searchFields().entrySet().stream())
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    }
+                };
+            }
+
+            public SlowLogFields create(IndexSettings indexSettings) {
+                final List<SlowLogFields> fields = new ArrayList<>();
+                for (var provider : slowLogFieldProviders) {
+                    fields.add(provider.create(indexSettings));
                 }
-            };
+                return new SlowLogFields() {
+                    @Override
+                    public Map<String, String> indexFields() {
+                        return fields.stream()
+                            .flatMap(f -> f.indexFields().entrySet().stream())
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    }
+
+                    @Override
+                    public Map<String, String> searchFields() {
+                        return fields.stream()
+                            .flatMap(f -> f.searchFields().entrySet().stream())
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    }
+                };
+            }
+
         };
+
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
@@ -933,7 +960,8 @@ class NodeConstruction {
             dataStreamGlobalRetentionSettings,
             documentParsingProvider,
             taskManager,
-            projectResolver
+            projectResolver,
+            slowLogFieldProviders
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(plugin -> {

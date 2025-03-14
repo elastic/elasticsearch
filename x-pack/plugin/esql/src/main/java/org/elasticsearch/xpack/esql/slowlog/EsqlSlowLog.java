@@ -12,13 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.xcontent.json.JsonStringEncoder;
-import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.esql.session.Result;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -43,6 +44,7 @@ public final class EsqlSlowLog {
 
     public static final String LOGGER_NAME = "esql.slowlog.query";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
+    private final List<SlowLogFields> additionalProviders;
 
     private volatile long queryWarnThreshold;
     private volatile long queryInfoThreshold;
@@ -51,16 +53,14 @@ public final class EsqlSlowLog {
 
     private volatile boolean includeUser;
 
-    private final SecurityContext security;
-
-    public EsqlSlowLog(ClusterSettings settings, SecurityContext security) {
+    public EsqlSlowLog(ClusterSettings settings, List<? extends SlowLogFieldProvider> slowLogFieldProviders) {
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING, this::setQueryInfoThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING, this::setQueryDebugThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING, this::setQueryTraceThreshold);
         settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING, this::setIncludeUser);
 
-        this.security = security;
+        this.additionalProviders = slowLogFieldProviders.stream().map(SlowLogFieldProvider::create).toList();
     }
 
     public EsqlSlowLog(ClusterSettings settings) {
@@ -72,11 +72,11 @@ public final class EsqlSlowLog {
             return; // TODO review, it happens in some tests, not sure if it's a thing also in prod
         }
         long tookInNanos = esqlResult.executionInfo().overallTook().nanos();
-        log(() -> Message.of(esqlResult, query, user()), tookInNanos);
+        log(() -> Message.of(esqlResult, query, additionalProviders), tookInNanos);
     }
 
     public void onQueryFailure(String query, Exception ex, long tookInNanos) {
-        log(() -> Message.of(query, tookInNanos, ex, user()), tookInNanos);
+        log(() -> Message.of(query, tookInNanos, ex, additionalProviders), tookInNanos);
     }
 
     private void log(Supplier<ESLogMessage> logProducer, long tookInNanos) {
@@ -111,14 +111,6 @@ public final class EsqlSlowLog {
         this.includeUser = includeUser;
     }
 
-    private User user() {
-        User user = null;
-        if (includeUser && security != null) {
-            user = security.getUser();
-        }
-        return user;
-    }
-
     static final class Message {
 
         private static String escapeJson(String text) {
@@ -126,24 +118,29 @@ public final class EsqlSlowLog {
             return new String(sourceEscaped, StandardCharsets.UTF_8);
         }
 
-        public static ESLogMessage of(Result esqlResult, String query, User user) {
+        public static ESLogMessage of(Result esqlResult, String query, List<SlowLogFields> providers) {
             Map<String, Object> jsonFields = new HashMap<>();
-            addGenericFields(jsonFields, query, true, user);
+            addFromProviders(providers, jsonFields);
+            addGenericFields(jsonFields, query, true);
             addResultFields(jsonFields, esqlResult);
             return new ESLogMessage().withFields(jsonFields);
         }
 
-        public static ESLogMessage of(String query, long took, Exception exception, User user) {
+        public static ESLogMessage of(String query, long took, Exception exception, List<SlowLogFields> providers) {
             Map<String, Object> jsonFields = new HashMap<>();
-            addGenericFields(jsonFields, query, false, user);
+            addFromProviders(providers, jsonFields);
+            addGenericFields(jsonFields, query, false);
             addErrorFields(jsonFields, took, exception);
             return new ESLogMessage().withFields(jsonFields);
         }
 
-        private static void addGenericFields(Map<String, Object> fieldMap, String query, boolean success, User user) {
-            if (user != null) {
-                fieldMap.put("user.name", user.principal());
+        private static void addFromProviders(List<SlowLogFields> providers, Map<String, Object> jsonFields) {
+            for (SlowLogFields provider : providers) {
+                jsonFields.putAll(provider.queryFields());
             }
+        }
+
+        private static void addGenericFields(Map<String, Object> fieldMap, String query, boolean success) {
             String source = escapeJson(query);
             fieldMap.put(ELASTICSEARCH_SLOWLOG_SUCCESS, success);
             fieldMap.put(ELASTICSEARCH_SLOWLOG_SEARCH_TYPE, "ESQL");

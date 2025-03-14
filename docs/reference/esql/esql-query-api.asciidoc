@@ -63,6 +63,11 @@ You can also specify a format using the `Accept` HTTP header. If you specify
 both this parameter and the `Accept` HTTP header, this parameter takes
 precedence.
 
+`allow_partial_results`::
+(Optional, boolean) If `true`, partial results will be returned if there are shard failures, but
+the query can continue to execute on other clusters and shards. This defaults to the value of
+the setting `esql.query.allow_partial_results`.
+
 [discrete]
 [role="child_attributes"]
 [[esql-query-api-request-body]]
@@ -77,11 +82,6 @@ responses. See <<esql-rest-columnar>>.
 (Optional, boolean) If `true`, cross-cluster searches will include metadata about the query
 on each cluster. Defaults to `false`. The API only supports this parameter for CBOR, JSON, SMILE,
 and YAML responses. See <<ccq-cluster-details>>.
-
-`allow_partial_results`::
-(Optional, boolean) If `true`, partial results will be returned if there are shard failures, but
-the query can continue to execute on other clusters and shards. This defaults to the value of
-the setting `esql.query.allow_partial_results`.
 
 `locale`::
 (Optional, string) Returns results (especially dates) formatted per the conventions of the locale.

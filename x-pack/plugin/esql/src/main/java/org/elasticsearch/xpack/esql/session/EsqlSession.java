@@ -148,7 +148,7 @@ public class EsqlSession {
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
-        this.plannerProfile = new PlannerProfile();
+        this.plannerProfile = new PlannerProfile(false);
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.preMapper = new PreMapper(services);
     }

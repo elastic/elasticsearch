@@ -375,6 +375,9 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                out.writeCollection(plannerProfile);
+            }
         }
 
         @Override

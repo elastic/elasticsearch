@@ -369,7 +369,7 @@ public class ComputeService {
             );
         }
         final List<Driver> drivers;
-        final PlannerProfile localPlannerProfile = new PlannerProfile();
+        final PlannerProfile localPlannerProfile = new PlannerProfile(true);
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),

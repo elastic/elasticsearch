@@ -33,8 +33,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
-import java.util.List;
-
 public record PluginServiceInstances(
     Client client,
     ClusterService clusterService,

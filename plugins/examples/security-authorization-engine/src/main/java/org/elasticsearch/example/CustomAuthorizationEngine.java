@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.authc.Authentication;

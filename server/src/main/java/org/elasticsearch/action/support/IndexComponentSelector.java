@@ -72,6 +72,11 @@ public enum IndexComponentSelector implements Writeable {
         return KEY_REGISTRY.get(key);
     }
 
+    /**
+     * Like {@link #getByKey(String)} but throws an exception if the key is not recognised.
+     * @return the selector if recognized. `null` input will return `DATA`.
+     * @throws IllegalArgumentException if the key was not recognised.
+     */
     public static IndexComponentSelector getByKeyOrThrow(@Nullable String key) {
         if (key == null) {
             return DATA;

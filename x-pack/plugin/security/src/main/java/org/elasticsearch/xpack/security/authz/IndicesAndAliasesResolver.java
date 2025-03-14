@@ -322,9 +322,8 @@ class IndicesAndAliasesResolver {
                     );
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
-                    for (String authorizedIndex : authorizedIndices.all(
-                        IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector)
-                    )) {
+                    IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
+                    for (String authorizedIndex : authorizedIndices.all(selector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
                             allIndicesPatternSelector,

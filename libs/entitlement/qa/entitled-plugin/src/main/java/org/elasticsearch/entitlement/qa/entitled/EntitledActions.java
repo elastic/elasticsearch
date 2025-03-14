@@ -63,7 +63,28 @@ public final class EntitledActions {
     }
 
     public static Path createTempSymbolicLink() throws IOException {
-        return Files.createSymbolicLink(readDir().resolve("entitlements-link-" + random.nextLong()), readWriteDir());
+        return createTempSymbolicLink(readWriteDir());
+    }
+
+    public static Path createTempSymbolicLink(Path target) throws IOException {
+        return Files.createSymbolicLink(readDir().resolve("entitlements-link-" + random.nextLong()), target);
+    }
+
+    public static Path pathToRealPath(Path path) throws IOException {
+        return path.toRealPath();
+    }
+
+    public static Path createK8sLikeMount() throws IOException {
+        Path baseDir = readDir().resolve("k8s");
+        var versionedDir = Files.createDirectories(baseDir.resolve("..version"));
+        var actualFileMount = Files.createFile(versionedDir.resolve("mount-" + random.nextLong() + ".tmp"));
+
+        var dataDir = Files.createSymbolicLink(baseDir.resolve("..data"), versionedDir.getFileName());
+        // mount-0.tmp -> ..data/mount-0.tmp -> ..version/mount-0.tmp
+        return Files.createSymbolicLink(
+            baseDir.resolve(actualFileMount.getFileName()),
+            dataDir.getFileName().resolve(actualFileMount.getFileName())
+        );
     }
 
     public static URLConnection createHttpURLConnection() throws IOException {

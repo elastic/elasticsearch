@@ -726,9 +726,12 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         SearchHit.this.source = null;
         clearIfMutable(documentFields);
         clearIfMutable(metaFields);
+        this.highlightFields = null;
     }
 
     private static void clearIfMutable(Map<String, DocumentField> fields) {
+        // check that we're dealing with a HashMap, instances read from the wire that are empty be of an immutable type
+        assert fields instanceof HashMap<?, ?> || fields.isEmpty() : fields;
         if (fields instanceof HashMap<?, ?> hm) {
             hm.clear();
         }

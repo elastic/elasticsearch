@@ -407,6 +407,7 @@ public enum DataType {
         map.put("bool", BOOLEAN);
         map.put("int", INTEGER);
         map.put("string", KEYWORD);
+        map.put("date", DataType.DATETIME);
         NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
     }
 

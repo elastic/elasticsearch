@@ -38,9 +38,9 @@ import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestMana
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.external.openai.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiUnifiedChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -335,7 +335,7 @@ public class OpenAiService extends SenderService {
         OpenAiModel openAiModel = (OpenAiModel) model;
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             openAiModel.getConfigurations().getChunkingSettings()

@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -3111,5 +3113,43 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
+    }
+
+    public void testValidRrf() {
+        assumeTrue("RRF requires corresponding capability", EsqlCapabilities.Cap.RRF.isEnabled());
+
+        LogicalPlan plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | RRF
+            """);
+
+        var orderBy = as(plan, OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(3));
+
+        assertThat(orderBy.order().get(0).child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
+        assertThat(orderBy.order().get(1).child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
+        assertThat(orderBy.order().get(2).child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
+
+        var dedup = as(orderBy.child(), Dedup.class);
+        assertThat(dedup.groupings().size(), equalTo(2));
+        assertThat(dedup.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(dedup.groupings().get(0).name(), equalTo("_id"));
+        assertThat(dedup.groupings().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(dedup.groupings().get(1).name(), equalTo("_index"));
+        assertThat(dedup.aggregates().size(), equalTo(1));
+        assertThat(dedup.aggregates().get(0), instanceOf(Alias.class));
+
+        var rrfScoreEval = as(dedup.child(), RrfScoreEval.class);
+        assertThat(rrfScoreEval.scoreAttribute(), instanceOf(UnresolvedAttribute.class));
+        assertThat(rrfScoreEval.scoreAttribute().name(), equalTo("_score"));
+        assertThat(rrfScoreEval.forkAttribute(), instanceOf(UnresolvedAttribute.class));
+        assertThat(rrfScoreEval.forkAttribute().name(), equalTo("_fork"));
+
+        assertThat(rrfScoreEval.child(), instanceOf(Fork.class));
     }
 }

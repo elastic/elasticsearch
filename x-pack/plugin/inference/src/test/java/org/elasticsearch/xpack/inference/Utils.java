@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -120,7 +121,7 @@ public final class Utils {
 
     public static void storeModel(ModelRegistry modelRegistry, Model model) throws Exception {
         PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-        modelRegistry.storeModel(model, listener);
+        modelRegistry.storeModel(model, listener, AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
         assertTrue(listener.actionGet(TimeValue.THIRTY_SECONDS));
     }
 

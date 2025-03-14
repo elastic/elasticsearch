@@ -239,7 +239,7 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
 
     public static void assertStoreModel(ModelRegistry registry, Model model) {
         PlainActionFuture<Boolean> storeListener = new PlainActionFuture<>();
-        registry.storeModel(model, storeListener);
+        registry.storeModel(model, storeListener, TimeValue.THIRTY_SECONDS);
         assertTrue(storeListener.actionGet(TimeValue.THIRTY_SECONDS));
 
         var settings = registry.getMinimalServiceSettings(model.getInferenceEntityId());

@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -447,7 +448,7 @@ public class ModelRegistry implements ClusterStateListener {
             }
         });
 
-        storeModel(preconfigured, ActionListener.runAfter(responseListener, runAfter));
+        storeModel(preconfigured, ActionListener.runAfter(responseListener, runAfter), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
     }
 
     private ArrayList<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
@@ -638,8 +639,8 @@ public class ModelRegistry implements ClusterStateListener {
     /**
      * Note: storeModel does not overwrite existing models and thus does not need to check the lock
      */
-    public void storeModel(Model model, ActionListener<Boolean> listener) {
-        ActionListener<BulkResponse> bulkResponseActionListener = getStoreIndexListener(model, listener);
+    public void storeModel(Model model, ActionListener<Boolean> listener, TimeValue timeout) {
+        ActionListener<BulkResponse> bulkResponseActionListener = getStoreIndexListener(model, listener, timeout);
 
         IndexRequest configRequest = createIndexRequest(
             Model.documentId(model.getConfigurations().getInferenceEntityId()),
@@ -662,7 +663,7 @@ public class ModelRegistry implements ClusterStateListener {
             .execute(bulkResponseActionListener);
     }
 
-    private ActionListener<BulkResponse> getStoreIndexListener(Model model, ActionListener<Boolean> listener) {
+    private ActionListener<BulkResponse> getStoreIndexListener(Model model, ActionListener<Boolean> listener, TimeValue timeout) {
         return ActionListener.wrap(bulkItemResponses -> {
             var inferenceEntityId = model.getConfigurations().getInferenceEntityId();
 
@@ -694,7 +695,7 @@ public class ModelRegistry implements ClusterStateListener {
                         new MinimalServiceSettings(model),
                         getStoreMetadataListener(inferenceEntityId, listener)
                     ),
-                    null
+                    timeout
                 );
                 return;
             }
@@ -927,6 +928,7 @@ public class ModelRegistry implements ClusterStateListener {
             return;
         }
 
+        // GetInferenceModelAction is used because ModelRegistry does not know how to parse the service settings
         client.execute(
             GetInferenceModelAction.INSTANCE,
             new GetInferenceModelAction.Request("*", TaskType.ANY, false),

@@ -22,7 +22,6 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID_PATH;
-import static org.elasticsearch.xpack.inference.rest.Paths.RETURN_MINIMAL_CONFIG;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_ID_PATH;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENCE_ID;
 
@@ -61,8 +60,7 @@ public class RestGetInferenceModelAction extends BaseRestHandler {
             taskType = TaskType.ANY;
         }
 
-        boolean isReturnMinimalConfig = restRequest.paramAsBoolean(RETURN_MINIMAL_CONFIG, false);
-        var request = new GetInferenceModelAction.Request(inferenceEntityId, taskType, false, isReturnMinimalConfig);
+        var request = new GetInferenceModelAction.Request(inferenceEntityId, taskType);
         return channel -> client.execute(GetInferenceModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

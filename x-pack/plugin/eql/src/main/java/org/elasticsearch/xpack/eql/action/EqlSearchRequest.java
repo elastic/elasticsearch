@@ -125,9 +125,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         this.waitForCompletionTimeout = in.readOptionalTimeValue();
         this.keepAlive = in.readOptionalTimeValue();
         this.keepOnCompletion = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_8)) {
-            resultPosition = in.readString();
-        }
+        resultPosition = in.readString();
         if (in.readBoolean()) {
             fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
@@ -484,9 +482,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeOptionalTimeValue(waitForCompletionTimeout);
         out.writeOptionalTimeValue(keepAlive);
         out.writeBoolean(keepOnCompletion);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_8)) {
-            out.writeString(resultPosition);
-        }
+        out.writeString(resultPosition);
         out.writeBoolean(fetchFields != null);
         if (fetchFields != null) {
             out.writeCollection(fetchFields);

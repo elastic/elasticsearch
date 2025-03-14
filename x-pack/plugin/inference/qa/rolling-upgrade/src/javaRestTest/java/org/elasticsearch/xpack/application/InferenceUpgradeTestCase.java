@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.containsString;
 
 public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCase {
 
@@ -86,12 +88,13 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
         return entityAsMap(response);
     }
 
-    protected Map<String, Object> getMinimalConfig(String inferenceId) throws IOException {
-        var endpoint = Strings.format("_inference/%s?return_minimal_config", inferenceId);
+    @SuppressWarnings("unchecked")
+    protected Map<String, Map<String, Object>> getMinimalConfig() throws IOException {
+        var endpoint = "_cluster/state?filter_path=metadata.model_registry";
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);
         assertOK(response);
-        return entityAsMap(response);
+        return (Map<String, Map<String, Object>>) XContentMapValues.extractValue("metadata.model_registry.models", entityAsMap(response));
     }
 
     protected Map<String, Object> inference(String inferenceId, TaskType taskType, String input) throws IOException {
@@ -131,6 +134,18 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
         request.setJsonEntity(modelConfig);
         var response = client().performRequest(request);
         assertOKAndConsume(response);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void deleteAll() throws IOException {
+        var endpoints = (List<Map<String, Object>>) get(TaskType.ANY, "*").get("endpoints");
+        for (var endpoint : endpoints) {
+            try {
+                delete((String) endpoint.get("inference_id"));
+            } catch (Exception exc) {
+                assertThat(exc.getMessage(), containsString("reserved inference endpoint"));
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

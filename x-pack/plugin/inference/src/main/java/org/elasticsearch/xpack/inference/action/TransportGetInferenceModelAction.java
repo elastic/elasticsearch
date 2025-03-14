@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -72,36 +71,12 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
     ) {
         boolean inferenceEntityIdIsWildCard = Strings.isAllOrWildcard(request.getInferenceEntityId());
 
-        if (request.isReturnMinimalConfig()) {
-            if (inferenceEntityIdIsWildCard) {
-                getAllMinimalConfigs(request.getTaskType(), listener);
-            } else {
-                getSingleMinimalConfig(request.getInferenceEntityId(), listener);
-            }
-        } else if (request.getTaskType() == TaskType.ANY && inferenceEntityIdIsWildCard) {
+        if (request.getTaskType() == TaskType.ANY && inferenceEntityIdIsWildCard) {
             getAllModels(request.isPersistDefaultConfig(), listener);
         } else if (inferenceEntityIdIsWildCard) {
             getModelsByTaskType(request.getTaskType(), listener);
         } else {
             getSingleModel(request.getInferenceEntityId(), request.getTaskType(), listener);
-        }
-    }
-
-    private void getAllMinimalConfigs(TaskType taskType, ActionListener<GetInferenceModelAction.Response> listener) {
-        var result = modelRegistry.getAllMinimalServiceSettings(taskType);
-        listener.onResponse(new GetInferenceModelAction.Response(result));
-    }
-
-    private void getSingleMinimalConfig(String inferenceEntityId, ActionListener<GetInferenceModelAction.Response> listener) {
-        try {
-            var model = modelRegistry.getMinimalServiceSettings(inferenceEntityId);
-            if (model != null) {
-                listener.onResponse(new GetInferenceModelAction.Response(List.of(model.toModelConfigurations(inferenceEntityId))));
-            } else {
-                listener.onFailure(new ResourceNotFoundException("Inference not found but upgrade is in progress, try again later."));
-            }
-        } catch (ResourceNotFoundException exc) {
-            listener.onFailure(exc);
         }
     }
 

@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT.elserConfig;
 import static org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT.elserResponse;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -82,25 +81,12 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void deleteAll() throws IOException {
-        var endpoints = (List<Map<String, Object>>) get(TaskType.ANY, "*").get("endpoints");
-        for (var endpoint : endpoints) {
-            try {
-                delete((String) endpoint.get("inference_id"));
-            } catch (Exception exc) {
-                assertThat(exc.getMessage(), containsString("reserved inference endpoint"));
-            }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
     private void assertMinimalModelsAreUpgraded() throws IOException {
         var fullModels = (List<Map<String, Object>>) get(TaskType.ANY, "*").get("endpoints");
-        var minimalModels = (List<Map<String, Object>>) getMinimalConfig("*").get("endpoints");
-
+        var minimalModels = getMinimalConfig();
         assertMinimalModelsAreUpgraded(
             fullModels.stream().collect(Collectors.toMap(a -> (String) a.get("inference_id"), a -> a)),
-            minimalModels.stream().collect(Collectors.toMap(a -> (String) a.get("inference_id"), a -> a))
+            minimalModels
         );
     }
 
@@ -113,14 +99,11 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
         assertThat(fullModels.size(), equalTo(minimalModels.size()));
         for (var entry : fullModels.entrySet()) {
             var fullModel = entry.getValue();
-            var minimalModel = minimalModels.get(entry.getKey());
-            assertNotNull(minimalModel);
-
             var fullModelSettings = (Map<String, Object>) fullModel.get("service_settings");
-            var minimalModelSettings = (Map<String, Object>) minimalModel.get("service_settings");
+            var minimalModelSettings = minimalModels.get(entry.getKey());
+            assertNotNull(minimalModelSettings);
 
-            assertThat(minimalModel.get("service"), equalTo(fullModel.get("service")));
-            assertThat(minimalModel.get("inference_id"), equalTo(fullModel.get("inference_id")));
+            assertThat(minimalModelSettings.get("service"), equalTo(fullModel.get("service")));
             assertThat(minimalModelSettings.get("task_type"), equalTo(fullModel.get("task_type")));
             var taskType = TaskType.fromString((String) minimalModelSettings.get("task_type"));
             if (taskType == TaskType.TEXT_EMBEDDING) {

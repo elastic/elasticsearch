@@ -11,7 +11,7 @@ apply plugin: 'com.gradleup.shadow'
 // See the build.gradle file in the parent directory for an explanation of this unusual build
 
 dependencies {
-  implementation "com.nimbusds:nimbus-jose-jwt:10.0.1"
+  implementation "com.nimbusds:nimbus-jose-jwt:10.0.2"
 }
 
 tasks.named('shadowJar').configure {

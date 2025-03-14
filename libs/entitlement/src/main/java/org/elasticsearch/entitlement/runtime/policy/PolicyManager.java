@@ -80,7 +80,7 @@ public class PolicyManager {
         String componentName,
         Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType,
         FileAccessTree fileAccess,
-        Logger logger
+        String loggerName
     ) {
 
         ModuleEntitlements {
@@ -97,6 +97,10 @@ public class PolicyManager {
                 return Stream.empty();
             }
             return entitlements.stream().map(entitlementClass::cast);
+        }
+
+        public Logger logger() {
+            return LogManager.getLogger(loggerName);
         }
     }
 
@@ -573,9 +577,9 @@ public class PolicyManager {
         throw exception;
     }
 
-    private static Logger getLogger(String componentName, String moduleName) {
+    private static String getLogger(String componentName, String moduleName) {
         var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
-        return LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
+        return PolicyManager.class.getName() + loggerSuffix;
     }
 
     public void checkManageThreadsEntitlement(Class<?> callerClass) {

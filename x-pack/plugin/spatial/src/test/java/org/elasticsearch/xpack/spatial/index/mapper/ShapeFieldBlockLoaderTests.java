@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoJson;
-import org.elasticsearch.common.geo.GeometryNormalizer;
-import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
@@ -22,7 +20,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
-import org.elasticsearch.xpack.spatial.datageneration.GeoShapeDataSourceHandler;
+import org.elasticsearch.xpack.spatial.datageneration.ShapeDataSourceHandler;
 
 import java.nio.ByteOrder;
 import java.util.Collection;
@@ -31,9 +29,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
-    public GeoShapeFieldBlockLoaderTests(Params params) {
-        super("geo_shape", List.of(new GeoShapeDataSourceHandler()), params);
+public class ShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
+    public ShapeFieldBlockLoaderTests(Params params) {
+        super("shape", List.of(new ShapeDataSourceHandler()), params);
     }
 
     @Override
@@ -64,8 +62,7 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     private Geometry fromWKT(String s) {
         try {
-            var geometry = WellKnownText.fromWKT(GeographyValidator.instance(true), false, s);
-            return normalize(geometry);
+            return WellKnownText.fromWKT(StandardValidator.instance(true), false, s);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -82,19 +79,10 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
             );
             parser.nextToken();
 
-            var geometry = GeoJson.fromXContent(GeographyValidator.instance(true), false, true, parser);
-            return normalize(geometry);
+            return GeoJson.fromXContent(StandardValidator.instance(true), false, true, parser);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private Geometry normalize(Geometry geometry) {
-        if (GeometryNormalizer.needsNormalize(Orientation.RIGHT, geometry)) {
-            return GeometryNormalizer.apply(Orientation.RIGHT, geometry);
-        }
-
-        return geometry;
     }
 
     private BytesRef toWKB(Geometry geometry) {

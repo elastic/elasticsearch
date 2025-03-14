@@ -10,7 +10,6 @@
 package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.time.Instant;
 import java.util.Map;
@@ -45,6 +44,8 @@ public interface DataSourceResponse {
 
     record GeoShapeGenerator(Supplier<Geometry> generator) implements DataSourceResponse {}
 
+    record ShapeGenerator(Supplier<Geometry> generator) implements DataSourceResponse {}
+
     record NullWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     record ArrayWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
@@ -68,7 +69,7 @@ public interface DataSourceResponse {
     }
 
     record FieldTypeGenerator(Supplier<FieldTypeInfo> generator) implements DataSourceResponse {
-        public record FieldTypeInfo(FieldType fieldType) {}
+        public record FieldTypeInfo(String fieldType) {}
     }
 
     record ObjectArrayGenerator(Supplier<Optional<Integer>> lengthGenerator) implements DataSourceResponse {}

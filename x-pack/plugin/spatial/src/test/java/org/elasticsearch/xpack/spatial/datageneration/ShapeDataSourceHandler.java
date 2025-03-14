@@ -18,21 +18,20 @@ import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
 import java.util.HashMap;
 
-public class GeoShapeDataSourceHandler implements DataSourceHandler {
+public class ShapeDataSourceHandler implements DataSourceHandler {
     @Override
-    public DataSourceResponse.GeoShapeGenerator handle(DataSourceRequest.GeoShapeGenerator request) {
-        return new DataSourceResponse.GeoShapeGenerator(this::generateValidGeoShape);
+    public DataSourceResponse.ShapeGenerator handle(DataSourceRequest.ShapeGenerator request) {
+        return new DataSourceResponse.ShapeGenerator(this::generateValidShape);
     }
 
     @Override
     public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
-        if (request.fieldType().equals("geo_shape") == false) {
+        if (request.fieldType().equals("shape") == false) {
             return null;
         }
 
         return new DataSourceResponse.LeafMappingParametersGenerator(() -> {
             var map = new HashMap<String, Object>();
-            map.put("store", ESTestCase.randomBoolean());
             map.put("index", ESTestCase.randomBoolean());
             map.put("doc_values", ESTestCase.randomBoolean());
 
@@ -46,14 +45,14 @@ public class GeoShapeDataSourceHandler implements DataSourceHandler {
 
     @Override
     public DataSourceResponse.FieldDataGenerator handle(DataSourceRequest.FieldDataGenerator request) {
-        if (request.fieldType().equals("geo_shape") == false) {
+        if (request.fieldType().equals("shape") == false) {
             return null;
         }
 
-        return new DataSourceResponse.FieldDataGenerator(new GeoShapeFieldDataGenerator(request.dataSource()));
+        return new DataSourceResponse.FieldDataGenerator(new ShapeFieldDataGenerator(request.dataSource()));
     }
 
-    private Geometry generateValidGeoShape() {
+    private Geometry generateValidShape() {
         while (true) {
             var geometry = GeometryTestUtils.randomGeometryWithoutCircle(0, false);
             if (geometry.type() == ShapeType.ENVELOPE) {
@@ -61,7 +60,7 @@ public class GeoShapeDataSourceHandler implements DataSourceHandler {
                 continue;
             }
             try {
-                GeoTestUtils.binaryGeoShapeDocValuesField("f", geometry);
+                GeoTestUtils.binaryCartesianShapeDocValuesField("f", geometry);
                 return geometry;
             } catch (IllegalArgumentException ignored) {
                 // Some generated shapes are not suitable for the storage format, ignore them

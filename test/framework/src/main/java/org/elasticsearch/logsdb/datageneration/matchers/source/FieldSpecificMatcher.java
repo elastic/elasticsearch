@@ -473,13 +473,13 @@ interface FieldSpecificMatcher {
         }
     }
 
-    class GeoShapeMatcher implements FieldSpecificMatcher {
+    class ShapeMatcher implements FieldSpecificMatcher {
         private final XContentBuilder actualMappings;
         private final Settings.Builder actualSettings;
         private final XContentBuilder expectedMappings;
         private final Settings.Builder expectedSettings;
 
-        GeoShapeMatcher(
+        ShapeMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
@@ -498,7 +498,7 @@ interface FieldSpecificMatcher {
             Map<String, Object> actualMapping,
             Map<String, Object> expectedMapping
         ) {
-            // Since fallback synthetic source is used, should match exactly
+            // Since fallback synthetic source is used, should always match exactly.
             return actual.equals(expected)
                 ? MatchResult.match()
                 : MatchResult.noMatch(

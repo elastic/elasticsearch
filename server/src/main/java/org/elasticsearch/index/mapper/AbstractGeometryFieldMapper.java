@@ -217,7 +217,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             public void convertValue(Object value, List<BytesRef> accumulator) {
                 final List<T> values = new ArrayList<>();
 
-                geometryParser.fetchFromSource(value, values::add);
+                geometryParser.fetchFromSource(value, v -> {
+                    if (v != null) {
+                        values.add(v);
+                    } else if (nullValue != null) {
+                        values.add(nullValue);
+                    }
+                });
                 var formatted = formatter.apply(values);
 
                 for (var formattedValue : formatted) {
@@ -235,7 +241,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             public void parse(XContentParser parser, List<BytesRef> accumulator) throws IOException {
                 final List<T> values = new ArrayList<>();
 
-                geometryParser.parseFromSource(parser, values::add);
+                geometryParser.parseFromSource(parser, v -> {
+                    if (v != null) {
+                        values.add(v);
+                    } else if (nullValue != null) {
+                        values.add(nullValue);
+                    }
+                });
                 var formatted = formatter.apply(values);
 
                 for (var formattedValue : formatted) {

@@ -100,6 +100,12 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
+    record ShapeGenerator() implements DataSourceRequest<DataSourceResponse.ShapeGenerator> {
+        public DataSourceResponse.ShapeGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
     record NullWrapper() implements DataSourceRequest<DataSourceResponse.NullWrapper> {
         public DataSourceResponse.NullWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);

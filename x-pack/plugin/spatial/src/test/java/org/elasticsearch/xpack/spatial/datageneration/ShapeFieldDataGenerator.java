@@ -18,26 +18,26 @@ import org.elasticsearch.logsdb.datageneration.fields.leaf.Wrappers;
 import java.util.Map;
 import java.util.function.Supplier;
 
-public class GeoShapeFieldDataGenerator implements FieldDataGenerator {
-    private final Supplier<Object> formattedGeoShapes;
-    private final Supplier<Object> formattedGeoShapesWithMalformed;
+public class ShapeFieldDataGenerator implements FieldDataGenerator {
+    private final Supplier<Object> formattedShapes;
+    private final Supplier<Object> formattedShapesWithMalformed;
 
-    public GeoShapeFieldDataGenerator(DataSource dataSource) {
-        var geoShapes = dataSource.get(new DataSourceRequest.GeoShapeGenerator()).generator();
+    public ShapeFieldDataGenerator(DataSource dataSource) {
+        var shapes = dataSource.get(new DataSourceRequest.ShapeGenerator()).generator();
         var serializeToGeoJson = dataSource.get(new DataSourceRequest.TransformWrapper(0.5, g -> GeoJson.toMap((Geometry) g)));
 
-        var formattedGeoShapes = serializeToGeoJson.wrapper().andThen(values -> (Supplier<Object>) () -> {
+        var formattedShapes = serializeToGeoJson.wrapper().andThen(values -> (Supplier<Object>) () -> {
             var value = values.get();
             if (value instanceof Geometry g) {
                 // did not transform
                 return WellKnownText.toWKT(g);
             }
             return value;
-        }).apply(geoShapes::get);
-        this.formattedGeoShapes = Wrappers.defaults(formattedGeoShapes, dataSource);
+        }).apply(shapes::get);
+        this.formattedShapes = Wrappers.defaults(formattedShapes, dataSource);
 
         var longs = dataSource.get(new DataSourceRequest.LongGenerator()).generator();
-        this.formattedGeoShapesWithMalformed = Wrappers.defaultsWithMalformed(formattedGeoShapes, longs::get, dataSource);
+        this.formattedShapesWithMalformed = Wrappers.defaultsWithMalformed(formattedShapes, longs::get, dataSource);
     }
 
     @Override
@@ -48,9 +48,9 @@ public class GeoShapeFieldDataGenerator implements FieldDataGenerator {
         }
 
         if (fieldMapping != null && (Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
-            return formattedGeoShapesWithMalformed.get();
+            return formattedShapesWithMalformed.get();
         }
 
-        return formattedGeoShapes.get();
+        return formattedShapes.get();
     }
 }

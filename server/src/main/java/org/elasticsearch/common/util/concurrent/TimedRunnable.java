@@ -59,6 +59,18 @@ class TimedRunnable extends AbstractRunnable implements WrappedRunnable {
     }
 
     /**
+     * Returns the time in nanoseconds between the creation time and the start time
+     *
+     * @return The time in nanoseconds or -1 if the task never started
+     */
+    long getQueueTimeNanos() {
+        if (startTimeNanos == -1) {
+            return -1;
+        }
+        return startTimeNanos - creationTimeNanos;
+    }
+
+    /**
      * Return the time this task spent being run.
      * If the task is still running or has not yet been run, returns -1.
      */

@@ -9,9 +9,11 @@
 
 package org.elasticsearch.common.network;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class HandlingTimeTrackerTests extends ESTestCase {
 
@@ -81,4 +83,18 @@ public class HandlingTimeTrackerTests extends ESTestCase {
         }
     }
 
+    public void testPercentile() {
+        HandlingTimeTracker tt = new HandlingTimeTracker();
+        int valueCount = randomIntBetween(100, 10_000);
+        for (int i = 0; i < valueCount; i++) {
+            tt.addHandlingTime(i);
+        }
+        for (int i = 0; i <= 100; i++) {
+            final float percentile = i / 100.0f;
+            final long actualPercentile = (long) Math.ceil(valueCount * percentile);
+            final long histogramPercentile = tt.getPercentile(percentile);
+            final String message = Strings.format("%d percentile is %d (actual=%d)", i, histogramPercentile, actualPercentile);
+            assertThat(message, histogramPercentile, greaterThanOrEqualTo(actualPercentile));
+        }
+    }
 }

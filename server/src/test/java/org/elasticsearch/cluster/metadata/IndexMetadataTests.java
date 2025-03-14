@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardDocsCondition;
@@ -676,6 +678,34 @@ public class IndexMetadataTests extends ESTestCase {
         Map<String, InferenceFieldMetadata> dynamicFields = randomInferenceFields();
         IndexMetadata idxMeta2 = IndexMetadata.builder(idxMeta1).putInferenceFields(dynamicFields).build();
         assertThat(idxMeta2.getInferenceFields(), equalTo(dynamicFields));
+    }
+
+    public void testReshardingBWCSerialization() throws IOException {
+        final int numShards = randomIntBetween(1, 8);
+        final var settings = indexSettings(IndexVersion.current(), numShards, 0);
+        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(numShards, randomIntBetween(2, 5));
+        IndexMetadata idx = IndexMetadata.builder("test").settings(settings).reshardingMetadata(reshardingMetadata).build();
+
+        // the version prior to TransportVersions.INDEX_RESHARDING_METADATA
+        final var version = TransportVersions.ML_INFERENCE_DEEPSEEK;
+        // should round trip
+        final var deserialized = roundTripWithVersion(idx, version);
+
+        // but be missing resharding metadata
+        assertNull(deserialized.getReshardingMetadata());
+        // but otherwise be equal
+        assertEquals(idx, IndexMetadata.builder(deserialized).reshardingMetadata(reshardingMetadata).build());
+    }
+
+    private IndexMetadata roundTripWithVersion(IndexMetadata indexMetadata, TransportVersion version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            indexMetadata.writeTo(out);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+                in.setTransportVersion(version);
+                return IndexMetadata.readFrom(in);
+            }
+        }
     }
 
     private static Settings indexSettingsWithDataTier(String dataTier) {

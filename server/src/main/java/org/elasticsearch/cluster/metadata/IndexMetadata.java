@@ -1483,6 +1483,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (isSystem != that.isSystem) {
             return false;
         }
+        if (reshardingMetadata == null && that.reshardingMetadata != null) {
+            return false;
+        }
+        if (reshardingMetadata != null && reshardingMetadata.equals(that.reshardingMetadata) == false) {
+            return false;
+        }
         return true;
     }
 
@@ -1502,6 +1508,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         result = 31 * result + rolloverInfos.hashCode();
         result = 31 * result + inferenceFields.hashCode();
         result = 31 * result + Boolean.hashCode(isSystem);
+        if (reshardingMetadata != null) {
+            result = 31 * result + reshardingMetadata.hashCode();
+        }
         return result;
     }
 

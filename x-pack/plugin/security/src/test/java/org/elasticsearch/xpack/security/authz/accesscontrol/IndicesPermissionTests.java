@@ -974,10 +974,10 @@ public class IndicesPermissionTests extends ESTestCase {
         );
         assertThat(predicate.test(dataStream), is(false));
         // test authorization for a missing resource with the datastream's name
-        assertThat(predicate.test(dataStream.getName(), null, null), is(true));
+        assertThat(predicate.test(dataStream.getName(), null, IndexComponentSelector.DATA), is(true));
         assertThat(predicate.test(backingIndex), is(false));
         // test authorization for a missing resource with the backing index's name
-        assertThat(predicate.test(backingIndex.getName(), null, null), is(true));
+        assertThat(predicate.test(backingIndex.getName(), null, IndexComponentSelector.DATA), is(true));
         assertThat(predicate.test(concreteIndex), is(true));
         assertThat(predicate.test(alias), is(true));
     }

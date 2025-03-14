@@ -240,7 +240,7 @@ public final class IndicesPermission {
          * The resource must exist. Otherwise, use the {@link #test(String, IndexAbstraction, IndexComponentSelector)} method.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public boolean test(IndexAbstraction indexAbstraction, @Nullable IndexComponentSelector selector) {
+        public boolean test(IndexAbstraction indexAbstraction, IndexComponentSelector selector) {
             return test(indexAbstraction.getName(), indexAbstraction, selector);
         }
 
@@ -250,7 +250,7 @@ public final class IndicesPermission {
          * if it doesn't.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        public boolean test(String name, @Nullable IndexAbstraction indexAbstraction, @Nullable IndexComponentSelector selector) {
+        public boolean test(String name, @Nullable IndexAbstraction indexAbstraction, IndexComponentSelector selector) {
             return IndexComponentSelector.FAILURES.equals(selector)
                 ? isAuthorizedForFailuresAccess.test(name, indexAbstraction)
                 : isAuthorizedForDataAccess.test(name, indexAbstraction);

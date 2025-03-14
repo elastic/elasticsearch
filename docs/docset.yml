@@ -2,8 +2,8 @@ project: 'Elasticsearch'
 exclude:
   - README.md
   - internal/*
-  - reference/esql/functions/kibana/docs/*
-  - reference/esql/functions/README.md
+  - reference/query-languages/esql/kibana/docs/**
+  - reference/query-languages/esql/README.md
 cross_links:
   - beats
   - cloud
@@ -168,6 +168,7 @@ subs:
   ess:   "Elasticsearch Service"
   ece:   "Elastic Cloud Enterprise"
   eck:   "Elastic Cloud on Kubernetes"
+  ech:   "Elastic Cloud Hosted"
   serverless-full:   "Elastic Cloud Serverless"
   serverless-short:   "Serverless"
   es-serverless:   "Elasticsearch Serverless"

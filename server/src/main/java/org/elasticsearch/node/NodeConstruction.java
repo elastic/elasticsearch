@@ -571,6 +571,14 @@ class NodeConstruction {
         additionalSettings.add(
             Setting.intSetting("thread_pool.search_worker.size", 0, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
         );
+        // Search throttled thread pool has been removed in Elasticsearch 9.0.0. These settings are deprecated and take no effect.
+        // They are here only to enable BwC for deployments that still use them
+        additionalSettings.add(
+            Setting.intSetting("thread_pool.search_throttled.queue_size", 0, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
+        );
+        additionalSettings.add(
+            Setting.intSetting("thread_pool.search_throttled.size", 0, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
+        );
     }
 
     private SearchModule createSearchModule(Settings settings, ThreadPool threadPool, TelemetryProvider telemetryProvider) {
@@ -886,7 +894,6 @@ class NodeConstruction {
             }
 
         };
-
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)

@@ -33,8 +33,7 @@ public class SecuritySlowLogFieldProvider implements SlowLogFieldProvider {
             this.includeUserInIndexing = indexSettings.getValue(INDEX_INDEXING_SLOWLOG_INCLUDE_USER_SETTING);
         }
 
-        SecuritySlowLogFields() {
-        }
+        SecuritySlowLogFields() {}
 
         @Override
         public Map<String, String> indexFields() {

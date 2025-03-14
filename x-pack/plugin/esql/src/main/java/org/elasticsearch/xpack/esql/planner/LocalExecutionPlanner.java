@@ -35,6 +35,7 @@ import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.RrfScoreEvalOperator;
+import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
@@ -105,6 +106,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.score.ScoreMapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -729,10 +731,29 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planFilter(FilterExec filter, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(filter.child(), context);
         // TODO: should this be extracted into a separate eval block?
-        return source.with(
+        PhysicalOperation filterOperation = source.with(
             new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, shardContexts)),
             source.layout
         );
+        if (PlannerUtils.usesScoring(filter)) {
+            // Add scorer operator to add the filter expression scores to the overall scores
+            int scoreBlock = 0;
+            for (Attribute attribute : filter.output()) {
+                if (MetadataAttribute.SCORE.equals(attribute.name())) {
+                    break;
+                }
+                scoreBlock++;
+            }
+            if (scoreBlock == filter.output().size()) {
+                throw new IllegalStateException("Couldn't find _score attribute in a WHERE clause");
+            }
+
+            filterOperation = filterOperation.with(
+                new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), shardContexts), scoreBlock),
+                filterOperation.layout
+            );
+        }
+        return filterOperation;
     }
 
     private PhysicalOperation planLimit(LimitExec limit, LocalExecutionPlannerContext context) {

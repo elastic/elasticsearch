@@ -76,6 +76,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
     private static final String ASYNC_SEARCH_TIMEOUT = "30s";
 
+    private static final String ADMIN_USER_NAME = "admin_user";
+
     private static final String DATA_ACCESS = "data_access";
     private static final String STAR_READ_ONLY_ACCESS = "star_read_only";
     private static final String FAILURE_STORE_ACCESS = "failure_store_access";
@@ -83,7 +85,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private static final String WRITE_ACCESS = "write_access";
     private static final String MANAGE_ACCESS = "manage_access";
     private static final String MANAGE_FAILURE_STORE_ACCESS = "manage_failure_store_access";
-    private static final SecureString PASSWORD = new SecureString("elastic-password");
+    private static final SecureString PASSWORD = new SecureString("admin-password");
 
     @Before
     public void setup() throws IOException {
@@ -214,8 +216,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     public void testRoleWithSelectorInIndexPattern() throws Exception {
-        createTemplates();
-        populateDataStream();
+        setupDataStream();
 
         createUser("user", PASSWORD, "role");
         upsertRole("""
@@ -357,6 +358,588 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
 
+        List<String> docIds = setupDataStream();
+        assertThat(docIds.size(), equalTo(2));
+        assertThat(docIds, hasItem("1"));
+        String dataDocId = "1";
+        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
+
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
+
+        Request aliasRequest = new Request("POST", "/_aliases");
+        aliasRequest.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "test1",
+                    "alias": "test-alias"
+                  }
+                }
+              ]
+            }
+            """);
+        assertOK(adminClient().performRequest(aliasRequest));
+
+        List<String> users = List.of(DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, ADMIN_USER_NAME);
+
+        // search data
+        {
+            var request = new Search(randomFrom("test1::data", "test1"));
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test-alias");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test-alias", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test*");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("*1");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        for (var request : List.of(new Search("*"), new Search("_all"), new Search(""))) {
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search(".ds*");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search(dataIndexName);
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search(dataIndexName, "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test2");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, 404);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test2", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_STORE_ACCESS:
+                        expect(user, request);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+
+        // search failures
+        {
+            var request = new Search("test1::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1::failures", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test-alias::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test-alias::failures", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test*::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("*1::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("*::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search(".fs*");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS:
+                        expect(user, request);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search(failureIndexName);
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search(failureIndexName, "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS:
+                        expect(user, request);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test2::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    case ADMIN_USER_NAME, FAILURE_STORE_ACCESS, BOTH_ACCESS:
+                        expect(user, request, 404);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test2::failures", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case ADMIN_USER_NAME, DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_STORE_ACCESS:
+                        expect(user, request);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+
+        // mixed access
+        {
+            var request = new Search("test1,test1::failures");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1,test1::failures", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1," + failureIndexName);
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, FAILURE_STORE_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1," + failureIndexName, "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1::failures," + dataIndexName);
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1::failures," + dataIndexName, "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1,*::failures");
+            for (var user : users) {
+                switch (user) {
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1,*::failures", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1::failures,*");
+            for (var user : users) {
+                switch (user) {
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, 403);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("test1::failures,*", "?ignore_unavailable=true");
+            for (var user : users) {
+                switch (user) {
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+        {
+            var request = new Search("*::failures,*");
+            for (var user : users) {
+                switch (user) {
+                    case FAILURE_STORE_ACCESS:
+                        expect(user, request, failuresDocId);
+                        break;
+                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
+                        expect(user, request, dataDocId);
+                        break;
+                    case ADMIN_USER_NAME, BOTH_ACCESS:
+                        expect(user, request, dataDocId, failuresDocId);
+                        break;
+                    default:
+                        fail("must cover user: " + user);
+                }
+            }
+        }
+    }
+
+    public void testWriteOperations() throws IOException {
+        setupDataStream();
+        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
+        String dataIndexName = backingIndices.v1();
+        String failureIndexName = backingIndices.v2();
+
         createUser(MANAGE_ACCESS, PASSWORD, MANAGE_ACCESS);
         upsertRole(Strings.format("""
             {
@@ -387,585 +970,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
 
-        createTemplates();
-        List<String> docIds = populateDataStream();
-        assertThat(docIds.size(), equalTo(2));
-        assertThat(docIds, hasItem("1"));
-        String dataDocId = "1";
-        String failuresDocId = docIds.stream().filter(id -> false == id.equals(dataDocId)).findFirst().get();
-
-        Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
-        String dataIndexName = backingIndices.v1();
-        String failureIndexName = backingIndices.v2();
-
-        Request aliasRequest = new Request("POST", "/_aliases");
-        aliasRequest.setJsonEntity("""
-            {
-              "actions": [
-                {
-                  "add": {
-                    "index": "test1",
-                    "alias": "test-alias"
-                  }
-                }
-              ]
-            }
-            """);
-        assertOK(adminClient().performRequest(aliasRequest));
-
-        // todo also add superuser
-        List<String> users = List.of(DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS);
-
-        // search data
-        {
-            var request = new Search(randomFrom("test1::data", "test1"));
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1", "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test-alias");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test-alias", "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test*");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("*1");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        for (var request : List.of(new Search("*"), new Search("_all"), new Search(""))) {
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search(".ds*");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search(dataIndexName);
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search(dataIndexName, "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test2");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, 404);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test2", "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_STORE_ACCESS:
-                        expect(user, request);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-
-        // search failures
-        {
-            var request = new Search("test1::failures");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    case FAILURE_STORE_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1::failures", "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request);
-                        break;
-                    case FAILURE_STORE_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test-alias::failures");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    case FAILURE_STORE_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test-alias::failures", "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request);
-                        break;
-                    case FAILURE_STORE_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test*::failures");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request);
-                        break;
-                    case FAILURE_STORE_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("*1::failures");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request);
-                        break;
-                    case FAILURE_STORE_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("*::failures");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request);
-                        break;
-                    case FAILURE_STORE_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search(".fs*");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS:
-                        expect(user, request);
-                        break;
-                    case FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search(failureIndexName);
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    case FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search(failureIndexName, "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS:
-                        expect(user, request);
-                        break;
-                    case FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test2::failures");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    case FAILURE_STORE_ACCESS, BOTH_ACCESS:
-                        expect(user, request, 404);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test2::failures", "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS, BOTH_ACCESS, FAILURE_STORE_ACCESS:
-                        expect(user, request);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-
-        // mixed access
-        {
-            var request = new Search("test1,test1::failures");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    case BOTH_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1,test1::failures", "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    case BOTH_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1," + failureIndexName);
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, FAILURE_STORE_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    case BOTH_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1," + failureIndexName, "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    case BOTH_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1::failures," + dataIndexName);
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, FAILURE_STORE_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    case BOTH_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1::failures," + dataIndexName, "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    case BOTH_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1,*::failures");
-            for (var user : users) {
-                switch (user) {
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case BOTH_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1,*::failures", "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case BOTH_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1::failures,*");
-            for (var user : users) {
-                switch (user) {
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, 403);
-                        break;
-                    case BOTH_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("test1::failures,*", "?ignore_unavailable=true");
-            for (var user : users) {
-                switch (user) {
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case BOTH_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-        {
-            var request = new Search("*::failures,*");
-            for (var user : users) {
-                switch (user) {
-                    case FAILURE_STORE_ACCESS:
-                        expect(user, request, failuresDocId);
-                        break;
-                    case DATA_ACCESS, STAR_READ_ONLY_ACCESS:
-                        expect(user, request, dataDocId);
-                        break;
-                    case BOTH_ACCESS:
-                        expect(user, request, dataDocId, failuresDocId);
-                        break;
-                    default:
-                        fail("must cover user: " + user);
-                }
-            }
-        }
-
-        // write operations below
-
         // user with manage access to data stream does NOT get direct access to failure index
         expectThrows(() -> deleteIndex(MANAGE_ACCESS, failureIndexName), 403);
         expectThrows(() -> deleteIndex(MANAGE_ACCESS, dataIndexName), 400);
@@ -976,19 +980,19 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1"), 403);
         expectThrows(() -> deleteDataStream(MANAGE_FAILURE_STORE_ACCESS, "test1::failures"), 403);
+
         // manage user can delete data stream
         deleteDataStream(MANAGE_ACCESS, "test1");
 
-        expectThrows(() -> performRequest(BOTH_ACCESS, new Request("GET", "/test1/_search")), 404);
+        // deleting data stream deletes everything, including failure index
+        expectThrows(() -> adminClient().performRequest(new Request("GET", "/test1/_search")), 404);
         expectThrows(() -> adminClient().performRequest(new Request("GET", "/" + dataIndexName + "/_search")), 404);
-        expectThrows(() -> performRequest(BOTH_ACCESS, new Request("GET", "/test1::failures/_search")), 404);
+        expectThrows(() -> adminClient().performRequest(new Request("GET", "/test1::failures/_search")), 404);
         expectThrows(() -> adminClient().performRequest(new Request("GET", "/" + failureIndexName + "/_search")), 404);
     }
 
     public void testFailureStoreAccessWithApiKeys() throws Exception {
-        createTemplates();
-
-        List<String> docIds = populateDataStream();
+        List<String> docIds = setupDataStream();
         assertThat(docIds.size(), equalTo(2));
         assertThat(docIds, hasItem("1"));
         String dataDocId = "1";
@@ -1112,8 +1116,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     }
 
     public void testDlsFls() throws Exception {
-        createTemplates();
-        populateDataStream();
+        setupDataStream();
 
         Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
         String dataIndexName = backingIndices.v1();
@@ -1333,6 +1336,11 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         }
     }
 
+    private List<String> setupDataStream() throws IOException {
+        createTemplates();
+        return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
+    }
+
     private void createTemplates() throws IOException {
         var componentTemplateRequest = new Request("PUT", "/_component_template/component1");
         componentTemplateRequest.setJsonEntity("""
@@ -1374,10 +1382,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
         assertOK(adminClient().performRequest(indexTemplateRequest));
-    }
-
-    private List<String> populateDataStream() throws IOException {
-        return randomBoolean() ? populateDataStreamWithBulkRequest() : populateDataStreamWithDocRequests();
     }
 
     private List<String> populateDataStreamWithDocRequests() throws IOException {

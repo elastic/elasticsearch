@@ -118,7 +118,7 @@ public enum ReferenceDocs {
     static final int SYMBOL_COLUMN_WIDTH = 64; // increase as needed to accommodate yet longer symbols
 
     // exposed for tests
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     static Map<String, LinkComponents> readLinksBySymbol(InputStream inputStream) throws IOException {
         final var linksBySymbolEntries = new Map.Entry[values().length];
         createLinkComponentEntries(inputStream, linksBySymbolEntries);

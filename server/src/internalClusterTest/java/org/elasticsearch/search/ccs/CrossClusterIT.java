@@ -240,8 +240,11 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         PlainActionFuture<SearchResponse> queryFuture = new PlainActionFuture<>();
         SearchRequest searchRequest = new SearchRequest("demo", "cluster_a:prod");
         searchRequest.allowPartialSearchResults(false);
-        searchRequest.setCcsMinimizeRoundtrips(randomBoolean());
+        boolean minimizeRoundTrips = randomBoolean();
+        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundTrips);
         searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(1000));
+        logger.info("Beginning search with mrt=" + minimizeRoundTrips);
+
         client(LOCAL_CLUSTER).search(searchRequest, queryFuture);
         SearchListenerPlugin.waitSearchStarted();
         // Get the search task and cancelled
@@ -271,11 +274,15 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
         });
 
         for (TaskInfo taskInfo : remoteClusterSearchTasks.get()) {
+            logger.info("Checking for task's cancellation: " + taskInfo.taskId());
             assertFalse("taskInfo is cancelled: " + taskInfo, taskInfo.cancelled());
         }
 
         final CancelTasksRequest cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTask.taskId());
-        cancelRequest.setWaitForCompletion(randomBoolean());
+        boolean waitForCompletion = randomBoolean();
+        cancelRequest.setWaitForCompletion(waitForCompletion);
+        logger.info("Cancelling task with waitForCompletion=" + waitForCompletion);
+
         final ActionFuture<ListTasksResponse> cancelFuture = client().admin().cluster().cancelTasks(cancelRequest);
         assertBusy(() -> {
             final Iterable<TransportService> transportServices = cluster("cluster_a").getInstances(TransportService.class);
@@ -283,6 +290,7 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
                 Collection<CancellableTask> cancellableTasks = transportService.getTaskManager().getCancellableTasks().values();
                 for (CancellableTask cancellableTask : cancellableTasks) {
                     if (cancellableTask.getAction().contains(TransportSearchAction.TYPE.name())) {
+                        logger.info("Cancelled task: " + cancellableTask);
                         assertTrue(cancellableTask.getDescription(), cancellableTask.isCancelled());
                     }
                 }
@@ -296,12 +304,15 @@ public class CrossClusterIT extends AbstractMultiClustersTestCase {
             .getTasks()
             .stream()
             .filter(t -> t.action().startsWith("indices:data/read/search"))
-            .collect(Collectors.toList());
+            .toList();
+
+        logger.info("Remote search tasks after cancellation: " + remoteSearchTasksAfterCancellation.size());
         for (TaskInfo taskInfo : remoteSearchTasksAfterCancellation) {
             assertTrue(taskInfo.description(), taskInfo.cancelled());
         }
 
         SearchListenerPlugin.allowQueryPhase();
+        logger.info("Query phase resumed");
         try {
             queryFuture.get();
             fail("query should have failed");

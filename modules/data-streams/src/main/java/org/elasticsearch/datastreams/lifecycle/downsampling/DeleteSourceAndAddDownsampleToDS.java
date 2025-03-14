@@ -117,7 +117,7 @@ public class DeleteSourceAndAddDownsampleToDS implements ClusterStateTaskListene
                 : "the source index abstraction exists in the indices lookup, so the index metadata must "
                     + "exist in the same cluster state metadata";
             // the source index exists so let's start by deleting it
-            state = MetadataDeleteIndexService.deleteIndices(state, Set.of(sourceIndexMeta.getIndex()), settings);
+            state = MetadataDeleteIndexService.deleteIndices(state.projectState(projectId), Set.of(sourceIndexMeta.getIndex()), settings);
             DataStream dataStream = state.metadata().getProject(projectId).dataStreams().get(dataStreamName);
             if (sourceParentDataStream != null) {
                 assert sourceParentDataStream.getName().equals(dataStreamName)

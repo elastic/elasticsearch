@@ -31,9 +31,11 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -325,6 +327,17 @@ public class PolicyManager {
     }
 
     public void checkFileRead(Class<?> callerClass, Path path) {
+        try {
+            checkFileRead(callerClass, path, false);
+        } catch (NoSuchFileException e) {
+            assert false : "NoSuchFileException should only be thrown when following links";
+            var notEntitledException = new NotEntitledException(e.getMessage());
+            notEntitledException.addSuppressed(e);
+            throw notEntitledException;
+        }
+    }
+
+    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws NoSuchFileException {
         if (isPathOnDefaultFilesystem(path) == false) {
             return;
         }
@@ -334,14 +347,30 @@ public class PolicyManager {
         }
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
-        if (entitlements.fileAccess().canRead(path) == false) {
+
+        Path realPath = null;
+        boolean canRead = entitlements.fileAccess().canRead(path);
+        if (canRead && followLinks) {
+            try {
+                realPath = path.toRealPath();
+                if (realPath.equals(path) == false) {
+                    canRead = entitlements.fileAccess().canRead(realPath);
+                }
+            } catch (NoSuchFileException e) {
+                throw e; // rethrow
+            } catch (IOException e) {
+                canRead = false;
+            }
+        }
+
+        if (canRead == false) {
             notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
                     requestingClass.getModule().getName(),
                     requestingClass,
-                    path
+                    realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
                 callerClass
             );

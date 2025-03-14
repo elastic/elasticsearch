@@ -369,6 +369,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testIndexTemplateSwapsILMForDataStreamLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/124886
+- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests
+  method: testExplicitNull {p0=false}
+  issue: https://github.com/elastic/elasticsearch/issues/124891
 
 # Examples:
 #

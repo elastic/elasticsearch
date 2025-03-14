@@ -95,7 +95,7 @@ public abstract class BWCCodec extends Codec {
     }
 
     @Override
-    public SegmentInfoFormat segmentInfoFormat() {
+    public final SegmentInfoFormat segmentInfoFormat() {
         return segmentInfosFormat;
     }
 
@@ -217,6 +217,9 @@ public abstract class BWCCodec extends Codec {
     /**
      * Returns a backward-compatible codec for the given codec. If the codec is one of the known Lucene 8.x codecs,
      * it returns a corresponding read-only backward-compatible codec. Otherwise, it returns the original codec.
+     * Lucene 8.x codecs are still shipped with the current version of Lucene.
+     * Earlier codecs we are providing directly they will also be read-only backward-compatible, but they don't require the renaming.
+     *
      * This switch is only for indices created in ES 6.x, later written into in ES 7.x (Lucene 8.x). Indices created
      * in ES 7.x can be read directly by ES if marked read-only, without going through archive indices.
      */

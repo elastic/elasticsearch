@@ -30,13 +30,15 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.MetadataOnlyBKDReader;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.MetadataOnlyCodecVersion;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Reads the metadata of point values previously written with Lucene86PointsWriter */
+/**
+ *  This is a fork of {@link org.apache.lucene.backward_codecs.lucene86.Lucene86PointsReader}
+ *  Reads the metadata of point values previously written with Lucene86PointsWriter
+ */
 public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
     final SegmentReadState readState;
     final Map<Integer, PointValues> readers = new HashMap<>();
@@ -52,7 +54,6 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
 
         boolean success = false;
         try {
-            long indexLength = -1, dataLength = -1;
             try (
                 ChecksumIndexInput metaIn = EndiannessReverserUtil.openChecksumInput(readState.directory, metaFileName, readState.context)
             ) {
@@ -74,11 +75,11 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
                         } else if (fieldNumber < 0) {
                             throw new CorruptIndexException("Illegal field number: " + fieldNumber, metaIn);
                         }
-                        PointValues reader = new MetadataOnlyBKDReader(metaIn, MetadataOnlyCodecVersion.V_8_6);
+                        PointValues reader = new MetadataOnlyBKDReader(metaIn, true);
                         readers.put(fieldNumber, reader);
                     }
-                    indexLength = metaIn.readLong();
-                    dataLength = metaIn.readLong();
+                    metaIn.readLong();
+                    metaIn.readLong();
                 } catch (Throwable t) {
                     priorE = t;
                 } finally {

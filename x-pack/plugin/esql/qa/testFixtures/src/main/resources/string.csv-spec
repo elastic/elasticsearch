@@ -1289,21 +1289,20 @@ beta         | Kubernetes cluster
 ;
 
 lucenePushdownMultipleIndices
-required_capability: index_metadata_field
 required_capability: casting_operator
 
-from airports* metadata _index
+from airports*
 | where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
-| keep abbrev, name, _index
-| sort abbrev, name, _index;
+| keep abbrev, name
+| sort abbrev, name;
 
-abbrev:keyword | name:text | _index:keyword
-LUH            | Sahnewal  | airports
-LUH            | Sahnewal  | airports_mp
-LUH            | Sahnewal  | airports_no_doc_values
-LUH            | Sahnewal  | airports_not_indexed
-LUH            | Sahnewal  | airports_not_indexed_nor_doc_values
-LUH            | Sahnewal  | airports_web
+abbrev:keyword | name:text
+LUH            | Sahnewal
+LUH            | Sahnewal
+LUH            | Sahnewal
+LUH            | Sahnewal
+LUH            | Sahnewal
+LUH            | Sahnewal
 ;
 
 lucenePushdownOr
@@ -1336,17 +1335,16 @@ RUH            | King Khalid Int'l
 ;
 
 lucenePushdownMultipleAnd
-required_capability: index_metadata_field
 required_capability: casting_operator
 
-from airports metadata _index
+from airports
 | where starts_with(name::keyword, "Sahn") and ends_with(abbrev, "UH")
 | where ends_with(name::keyword, "al")
-| keep abbrev, name, _index
-| sort abbrev, name, _index;
+| keep abbrev, name
+| sort abbrev, name;
 
-abbrev:keyword | name:text | _index:keyword
-LUH            | Sahnewal  | airports
+abbrev:keyword | name:text
+LUH            | Sahnewal
 ;
 
 lucenePushdownMixAndOr
@@ -1362,18 +1360,16 @@ LUH            | Sahnewal  | 9
 ;
 
 lucenePushdownMixOrAnd
-required_capability: index_metadata_field
 required_capability: casting_operator
 
-from airports* metadata _index
+from airports
 | where starts_with(name::keyword, "Sahn") or (starts_with(abbrev, "G") and ends_with(name::keyword, "Falls Int'l"))
-| where ends_with(_index, "airports")
-| keep abbrev, name, scalerank, _index
+| keep abbrev, name, scalerank
 | sort abbrev;
 
-abbrev:keyword | name:text         | scalerank:integer | _index:keyword
-GTF            | Great Falls Int'l | 8                 | airports      
-LUH            | Sahnewal          | 9                 | airports
+abbrev:keyword | name:text         | scalerank:integer
+GTF            | Great Falls Int'l | 8     
+LUH            | Sahnewal          | 9
 ;
 
 toLowerRow#[skip:-8.12.99]

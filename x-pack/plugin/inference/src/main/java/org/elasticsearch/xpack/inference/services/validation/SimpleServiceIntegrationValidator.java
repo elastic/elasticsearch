@@ -35,7 +35,7 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
             TEST_INPUT,
             false,
             Map.of(),
-            InputType.INGEST,
+            InputType.INTERNAL_INGEST,
             timeout,
             ActionListener.wrap(r -> {
                 if (r != null) {

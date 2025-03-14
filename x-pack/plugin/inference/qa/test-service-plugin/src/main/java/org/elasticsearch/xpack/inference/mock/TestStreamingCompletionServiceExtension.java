@@ -131,6 +131,8 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                             )
                         );
                     } else {
+                        // Return text embedding results when creating a sparse_embedding inference endpoint to allow creation validation to
+                        // pass. This is required to test that streaming fails for a sparse_embedding endpoint.
                         listener.onResponse(makeTextEmbeddingResults(input));
                     }
                 }

@@ -69,7 +69,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 eq(TEST_INPUT),
                 eq(false),
                 eq(Map.of()),
-                eq(InputType.INGEST),
+                eq(InputType.INTERNAL_INGEST),
                 eq(TIMEOUT),
                 any()
             );
@@ -104,7 +104,18 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             responseListener.onResponse(result);
             return null;
         }).when(mockInferenceService)
-            .infer(eq(mockModel), eq(query), eq(TEST_INPUT), eq(false), eq(Map.of()), eq(InputType.INGEST), eq(TIMEOUT), any());
+            .infer(
+                eq(mockModel),
+                eq(query),
+                eq(null),
+                eq(null),
+                eq(TEST_INPUT),
+                eq(false),
+                eq(Map.of()),
+                eq(InputType.INTERNAL_INGEST),
+                eq(TIMEOUT),
+                any()
+            );
 
         underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
@@ -119,7 +130,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             eq(TEST_INPUT),
             eq(false),
             eq(Map.of()),
-            eq(InputType.INGEST),
+            eq(InputType.INTERNAL_INGEST),
             eq(TIMEOUT),
             any()
         );

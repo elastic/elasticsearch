@@ -298,7 +298,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         InferModelAction.Request request,
         ActionListener<InferModelAction.Response> listener
     ) {
-        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+        if (isDefaultId(model.getInferenceEntityId()) && ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
             this.start(model, request.getInferenceTimeout(), listener.delegateFailureAndWrap((l, started) -> {
                 client.execute(InferModelAction.INSTANCE, request, listener);
             }));

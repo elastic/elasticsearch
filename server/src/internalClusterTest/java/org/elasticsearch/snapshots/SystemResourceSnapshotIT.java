@@ -1199,7 +1199,7 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public String getFeatureName() {
-            return SystemDataStreamTestPlugin.class.getSimpleName();
+            return SystemDataStreamManyShardsTestPlugin.class.getSimpleName();
         }
 
         @Override

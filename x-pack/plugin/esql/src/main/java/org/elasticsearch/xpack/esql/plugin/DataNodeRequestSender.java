@@ -115,7 +115,8 @@ abstract class DataNodeRequestSender {
                     targetShards.totalShards(),
                     targetShards.totalShards() - shardFailures.size() - skippedShards.get(),
                     targetShards.skippedShards() + skippedShards.get(),
-                    shardFailures.size()
+                    shardFailures.size(),
+                    selectFailures()
                 );
             }))) {
                 for (TargetShard shard : targetShards.shards.values()) {
@@ -206,6 +207,18 @@ abstract class DataNodeRequestSender {
             }
             it.remove();
         }
+    }
+
+    private List<Exception> selectFailures() {
+        assert reportedFailure == false;
+        FailureCollector collector = new FailureCollector();
+        Set<Exception> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (ShardFailure e : shardFailures.values()) {
+            if (seen.add(e.failure)) {
+                collector.unwrapAndCollect(e.failure);
+            }
+        }
+        return collector.getFailures();
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {

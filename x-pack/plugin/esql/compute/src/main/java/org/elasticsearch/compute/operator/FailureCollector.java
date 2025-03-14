@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -135,5 +136,28 @@ public final class FailureCollector {
         }
         assert first != null;
         return first;
+    }
+
+    public List<Exception> getFailures() {
+        if (hasFailure == false) {
+            return List.of();
+        }
+        synchronized (this) {
+            List<Exception> failures = new ArrayList<>();
+            for (Category category : List.of(Category.CLIENT, Category.SERVER, Category.SHARD_UNAVAILABLE)) {
+                for (Exception e : categories.get(category)) {
+                    if (failures.size() <= maxExceptions) {
+                        failures.add(e);
+                    }
+                }
+            }
+            if (failures.isEmpty()) {
+                Exception any = categories.get(Category.CANCELLATION).poll();
+                if (any != null) {
+                    failures.add(any);
+                }
+            }
+            return failures;
+        }
     }
 }

@@ -980,6 +980,7 @@ beta         | Kubernetes cluster
 ;
 
 startsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
 
 from hosts
 | where starts_with(description, "epsilon")
@@ -1246,6 +1247,7 @@ beta         | Kubernetes cluster
 ;
 
 endsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
 
 from hosts
 | where ends_with(description, "host")
@@ -1973,7 +1975,7 @@ base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
 // tag::from_base64[]
-row a = "ZWxhc3RpYw==" 
+row a = "ZWxhc3RpYw=="
 | eval d = from_base64(a)
 // end::from_base64[]
 ;

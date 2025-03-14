@@ -44,7 +44,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.function.LongSupplier;
 
 /**
@@ -181,13 +180,5 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                 request.request().routing(),
                 request.request().preference()
             );
-    }
-
-    @Override
-    protected Executor getExecutor(ExplainRequest request, ShardId shardId) {
-        IndexService indexService = searchService.getIndicesService().indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().isSearchThrottled()
-            ? threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED)
-            : super.getExecutor(request, shardId);
     }
 }

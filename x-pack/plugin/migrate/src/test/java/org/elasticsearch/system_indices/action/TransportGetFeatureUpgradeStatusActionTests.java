@@ -25,6 +25,7 @@ import org.elasticsearch.system_indices.task.SingleFeatureMigrationResult;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -150,6 +151,9 @@ public class TransportGetFeatureUpgradeStatusActionTests extends ESTestCase {
             "origin",
             ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
         );
+
+        List<SystemIndexDescriptor> descriptors = new ArrayList<>();
+        descriptors.add(descriptor);
 
         // system indices feature object
         SystemIndices.Feature feature = new SystemIndices.Feature(

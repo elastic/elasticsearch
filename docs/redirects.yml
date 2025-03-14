@@ -15,7 +15,7 @@ redirects:
   'reference/query-languages/query-dsl-sparse-vector-query.md': 'reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md'
   'reference/query-languages/regexp-syntax.md': 'reference/query-languages/query-dsl/regexp-syntax.md'
   'reference/query-languages/query-dsl-script-query.md': 'reference/query-languages/query-dsl/query-dsl-script-query.md'
-  'reference/query-languages/eql-syntax.md': 'reference/query-languages/eql-syntax.md'
+  'reference/query-languages/eql-syntax.md': 'reference/query-languages/eql/eql-syntax.md'
   'reference/query-languages/query-dsl-terms-query.md': 'reference/query-languages/query-dsl/query-dsl-terms-query.md'
   'reference/query-languages/query-dsl-shape-query.md': 'reference/query-languages/query-dsl/query-dsl-shape-query.md'
   'reference/query-languages/query-dsl-geo-shape-query.md': 'reference/query-languages/query-dsl/query-dsl-geo-shape-query.md'

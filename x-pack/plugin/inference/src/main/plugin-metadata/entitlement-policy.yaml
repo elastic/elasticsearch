@@ -22,14 +22,3 @@ io.netty.common:
 io.netty.transport:
   - manage_threads
   - outbound_network
-# AWS Clients always try to access the credentials and config files, even if we configure otherwise
-# This should be "fixed" (as in, it will handle SecurityException correctly)
-# by https://github.com/aws/aws-sdk-java-v2/pull/5904. Once confirmed and libraries are updated, these could be removed.
-software.amazon.awssdk.profiles:
-  - files:
-    - relative_path: .aws/credentials
-      relative_to: home
-      mode: read
-    - relative_path: .aws/config
-      relative_to: home
-      mode: read

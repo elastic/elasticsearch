@@ -27,9 +27,10 @@ import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.http.sender.VoyageAIEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
@@ -50,6 +51,7 @@ import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatR
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.external.action.voyageai.VoyageAIActionCreator.EMBEDDINGS_HANDLER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.hamcrest.Matchers.equalTo;
@@ -339,45 +341,11 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
     }
 
-    public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
-        var sender = mock(Sender.class);
-
-        doAnswer(invocation -> {
-            ActionListener<HttpResult> listener = invocation.getArgument(3);
-            listener.onFailure(new IllegalStateException("failed"));
-
-            return Void.TYPE;
-        }).when(sender).send(any(), any(), any(), any());
-
-        var action = createAction(null, "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
-
-        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
-    }
-
     public void testExecute_ThrowsException() {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
 
         var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
-
-        PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-        var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
-
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request. Cause: failed"));
-    }
-
-    public void testExecute_ThrowsExceptionWithNullUrl() {
-        var sender = mock(Sender.class);
-        doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
-
-        var action = createAction(null, "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -396,9 +364,16 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         Sender sender
     ) {
         var model = VoyageAIEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
+        var manager = new GenericRequestManager<>(
+            threadPool,
+            model,
+            EMBEDDINGS_HANDLER,
+            (documentsOnlyInput) -> new VoyageAIEmbeddingsRequest(documentsOnlyInput.getInputs(), model),
+            DocumentsOnlyInput.class
+        );
+
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI embeddings");
-        var requestCreator = VoyageAIEmbeddingsRequestManager.of(model, threadPool);
-        return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
+        return new SenderExecutableAction(sender, manager, failedToSendRequestErrorMessage);
     }
 
 }

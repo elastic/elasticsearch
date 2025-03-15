@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
@@ -380,6 +381,11 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(ignoreMalformed);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return syntheticSourceSupport(ignoreMalformed);
     }
 
     @Override

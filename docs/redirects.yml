@@ -9,6 +9,8 @@ redirects:
     to: 'reference/query-languages/query-dsl/query-dsl-query-string-query.md'
     anchors:
       '_boosting': 'boosting'
+      'boosting': 'boosting'
+      'query-string-syntax': 'query-string-syntax'
   'reference/query-languages/shape-queries.md': 'reference/query-languages/query-dsl/shape-queries.md'
   'reference/query-languages/geo-queries.md': 'reference/query-languages/query-dsl/geo-queries.md'
   'reference/query-languages/full-text-queries.md': 'reference/query-languages/query-dsl/full-text-queries.md'

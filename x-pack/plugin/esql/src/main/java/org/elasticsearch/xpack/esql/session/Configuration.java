@@ -142,7 +142,8 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)
             || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19)) {
-            out.writeBoolean(allowPartialResults);
+            final boolean ready = out.getTransportVersion().onOrAfter(TransportVersions.ESQL_FAILURE_FROM_REMOTE);
+            out.writeBoolean(allowPartialResults && ready);
         }
     }
 

@@ -21,10 +21,16 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.DoubleStream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
@@ -1173,5 +1179,262 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
             assertThat(document2.getCtxMap().getMetadata(), not(sameInstance(document1.getCtxMap().getMetadata())));
         }
+    }
+
+    public void testDottedFieldPaths() {
+        String path = "a.b.c.d.e";
+        IngestDocument.DottedFieldPaths dottedFieldPaths = IngestDocument.DottedFieldPaths.of(path);
+
+        Set<String> expectedPaths = Set.of(
+            "a|b|c|d|e",
+            "a|b|c|d.e",
+            "a|b|c.d|e",
+            "a|b|c.d.e",
+            "a|b.c|d|e",
+            "a|b.c|d.e",
+            "a|b.c.d|e",
+            "a|b.c.d.e",
+            "a.b|c|d|e",
+            "a.b|c|d.e",
+            "a.b|c.d|e",
+            "a.b|c.d.e",
+            "a.b.c|d|e",
+            "a.b.c|d.e",
+            "a.b.c.d|e",
+            "a.b.c.d.e"
+        );
+
+        Set<String> actualPaths = new HashSet<>();
+        collectPaths(dottedFieldPaths.getPathSearchTree(), new ArrayList<>(), actualPaths);
+
+        // expected number of paths: 2^(number of dots)
+        assertEquals(1 << path.chars().filter(c -> c == '.').count(), actualPaths.size());
+        assertEquals(expectedPaths, actualPaths);
+    }
+
+    private void collectPaths(IngestDocument.PathNode pathSearchTree, List<String> path, Set<String> paths) {
+        for (IngestDocument.PathNode child : pathSearchTree.getChildren()) {
+            path.add(child.getPathElement());
+            if (child.isLeaf()) {
+                paths.add(String.join("|", path));
+            } else {
+                collectPaths(child, path, paths);
+            }
+            path.removeLast();
+        }
+    }
+
+    public void testGetAllFieldValues() {
+        Map<String, Object> document = createTestDocument();
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        List<String> values = ingestDocument.getAllFieldValues("foo.bar.baz", String.class);
+        assertThat(values, containsInAnyOrder("value1", "value2", "value3", "value4"));
+    }
+
+    public void testGetAllFieldValues_WithPrefix() {
+        Map<String, Object> document = createTestDocument();
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        List<String> values = ingestDocument.getAllFieldValues("_source.foo.bar.baz", String.class);
+        assertThat(values, containsInAnyOrder("value1", "value2", "value3", "value4"));
+    }
+
+    public void testGetAllFieldValues_WithDifferentTypes() {
+        Map<String, Object> document = createTestDocument();
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        Object forBarBaz = ingestDocument.getTopLevelFieldValue("foo.bar.baz");
+        assertEquals("value4", forBarBaz);
+        ingestDocument.setTopLevelFieldValue("foo.bar.baz", 4, false, false);
+        List<String> values = ingestDocument.getAllFieldValues("foo.bar.baz", String.class);
+        // expecting that only values of type String are collected
+        assertThat(values, containsInAnyOrder("value1", "value2", "value3"));
+    }
+
+    public void testGetAllFieldValues_WithNumbersInPath() {
+        Map<String, Object> document = createTestDocument();
+        Object fooO = document.get("foo");
+        assertThat(fooO, instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> foo = (Map<String, Object>) fooO;
+        foo.put("bar", List.of(Map.of(), Map.of("baz", "value5")));
+        foo.put("bar.1", Map.of("baz", "value6"));
+        foo.put("bar.1.baz", "value7");
+        document.put("foo.bar.1.baz", "value8");
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        ingestDocument.setTopLevelFieldValue("foo.bar.baz", 4, false, false);
+        List<String> values = ingestDocument.getAllFieldValues("foo.bar.1.baz", String.class);
+        // expecting that only values of type String are collected
+        assertThat(values, containsInAnyOrder("value5", "value6", "value7", "value8"));
+    }
+
+    public void testSetTopLevelField() {
+        Map<String, Object> document = createTestDocument();
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        Object fooBarBaz = ingestDocument.getTopLevelFieldValue("foo.bar.baz");
+        assertEquals("value4", fooBarBaz);
+        ingestDocument.setTopLevelFieldValue("foo.bar.baz", "value4", true, true);
+        fooBarBaz = ingestDocument.getTopLevelFieldValue("foo.bar.baz");
+        assertThat(fooBarBaz, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<String> fooBarBazList = (List<String>) fooBarBaz;
+        // our field set operation above allowed for duplicates
+        assertThat(fooBarBazList.size(), equalTo(2));
+        assertEquals("value4", fooBarBazList.get(0));
+        assertEquals("value4", fooBarBazList.get(1));
+        List<String> values = ingestDocument.getAllFieldValues("foo.bar.baz", String.class);
+        // expecting that only values of type String are collected, so the values in the list are not collected
+        assertThat(values, containsInAnyOrder("value1", "value2", "value3"));
+        // but the appended value is collected when providing an index
+        values = ingestDocument.getAllFieldValues("foo.bar.baz.1", String.class);
+        assertEquals("value4", values.getFirst());
+        assertTrue(ingestDocument.getAllFieldValues("foo.bar.baz.2", String.class).isEmpty());
+    }
+
+    public void testAppendTopLevelField() {
+        Map<String, Object> document = createTestDocument();
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        ingestDocument.appendTopLevelFieldValue("_source.foo.bar.baz", List.of("value5", "value6"));
+        @SuppressWarnings("unchecked")
+        List<List<?>> values = ingestDocument.getAllFieldValues("foo.bar.baz", (Class<List<?>>) (Class<?>) List.class);
+        // expecting that only the root "foo.bar.baz" field is collected because the query is constrained to List
+        assertThat(values.size(), equalTo(1));
+        assertThat(values.getFirst(), containsInAnyOrder("value4", "value5", "value6"));
+
+        // append to a non-existing field
+        ingestDocument.appendTopLevelFieldValue("foo.bar.qux", 4);
+        Object fooBarQux = ingestDocument.getTopLevelFieldValue("foo.bar.qux");
+        // appending to a non-existing field creates a list
+        assertThat(fooBarQux, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<Integer> fooBarQuxList = (List<Integer>) fooBarQux;
+        assertEquals(1, fooBarQuxList.size());
+        assertThat(fooBarQuxList.getFirst(), equalTo(4));
+    }
+
+    public void testRemoveTopLevelField() {
+        Map<String, Object> document = createTestDocument();
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        ingestDocument.removeTopLevelField("_source.foo.bar.baz");
+        List<String> values = ingestDocument.getAllFieldValues("foo.bar.baz", String.class);
+        assertThat(values, containsInAnyOrder("value1", "value2", "value3"));
+    }
+
+    public void testHasTopLevelField() {
+        Map<String, Object> document = createTestDocument();
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        assertTrue(ingestDocument.hasTopLevelField("foo"));
+        assertTrue(ingestDocument.hasTopLevelField("_source.foo.bar"));
+        assertFalse(ingestDocument.hasTopLevelField("_ingest.foo.bar"));
+        assertTrue(ingestDocument.hasTopLevelField("foo.bar.baz"));
+        assertFalse(ingestDocument.hasTopLevelField("foo.baz"));
+    }
+
+    public void testNormalizeField() {
+        Map<String, Object> document = createTestDocument();
+        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+        Object fooBarBaz = ingestDocument.getTopLevelFieldValue("foo.bar.baz");
+        assertEquals("value4", fooBarBaz);
+        ingestDocument.normalizeField("foo.bar.baz", String.class);
+        fooBarBaz = ingestDocument.getTopLevelFieldValue("foo.bar.baz");
+        assertThat(fooBarBaz, instanceOf(List.class));
+        @SuppressWarnings("unchecked")
+        List<String> fooBarBazList = (List<String>) fooBarBaz;
+        assertThat(fooBarBazList, containsInAnyOrder("value1", "value2", "value3", "value4"));
+        // verify that all other fields (of type String) were removed as part of the normalization
+        List<String> values = ingestDocument.getAllFieldValues("foo.bar.baz", String.class);
+        assertTrue(values.isEmpty());
+        List<Integer> numValues = ingestDocument.getAllFieldValues("foo.bar.qux", Integer.class);
+        assertThat(numValues, containsInAnyOrder(1, 3));
+        assertThat(ingestDocument.getFieldValue("foo.qux", Integer.class), equalTo(2));
+    }
+
+    public void testNormalizeFieldThreadSafety() throws InterruptedException {
+        int numThreads = 10;
+        List<Throwable> errors = Collections.synchronizedList(new ArrayList<>());
+        try (ExecutorService executor = Executors.newFixedThreadPool(numThreads)) {
+            CountDownLatch latch = new CountDownLatch(numThreads);
+            for (int i = 0; i < numThreads; i++) {
+                executor.submit(() -> {
+                    try {
+                        // Replicate the logic from testNormalizeField
+                        Map<String, Object> document = createTestDocument();
+                        IngestDocument ingestDocument = new IngestDocument("index", "id", 1, null, null, document);
+                        Object fooBarBaz = ingestDocument.getTopLevelFieldValue("foo.bar.baz");
+                        assertEquals("value4", fooBarBaz);
+                        ingestDocument.normalizeField("foo.bar.baz", String.class);
+                        // consecutive normalization of multiple fields would fail if the thread-local values array is not properly cleared
+                        // after each normalization, or if it is used directly instead of a shallow copy
+                        ingestDocument.normalizeField("foo.bar.qux", Integer.class);
+
+                        fooBarBaz = ingestDocument.getTopLevelFieldValue("foo.bar.baz");
+                        assertThat(fooBarBaz, instanceOf(List.class));
+                        @SuppressWarnings("unchecked")
+                        List<String> fooBarBazList = (List<String>) fooBarBaz;
+                        assertThat(fooBarBazList, containsInAnyOrder("value1", "value2", "value3", "value4"));
+                        assertTrue(ingestDocument.getAllFieldValues("foo.bar.baz", String.class).isEmpty());
+
+                        Object fooBarQux = ingestDocument.getTopLevelFieldValue("foo.bar.qux");
+                        assertThat(fooBarQux, instanceOf(List.class));
+                        @SuppressWarnings("unchecked")
+                        List<Integer> fooBarQuxList = (List<Integer>) fooBarQux;
+                        assertThat(fooBarQuxList, containsInAnyOrder(1, 3));
+                        assertTrue(ingestDocument.getAllFieldValues("foo.bar.qux", Integer.class).isEmpty());
+                        assertThat(ingestDocument.getFieldValue("foo.qux", Integer.class), equalTo(2));
+
+                    } catch (Throwable t) {
+                        errors.add(t);
+                    } finally {
+                        latch.countDown();
+                    }
+                });
+            }
+
+            assertTrue(latch.await(1, TimeUnit.MINUTES));
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(1, TimeUnit.MINUTES));
+        }
+
+        if (errors.isEmpty() == false) {
+            fail("Thread safety test failed with errors: " + errors.get(0).getMessage());
+        }
+    }
+
+    /**
+     * Constructs a test document with the following structure:
+     * <pre>
+     *      {
+     *          "foo": {
+     *              "bar": {
+     *                  "baz": "value1",
+     *                  "qux": 1
+     *              },
+     *              "bar.baz": "value2",
+     *              "qux": 2
+     *          },
+     *          "foo.bar": {
+     *              "baz": "value3",
+     *              "qux": 3
+     *          },
+     *          "foo.bar.baz": "value4"
+     *      }
+     *  </pre>
+     *  The document is constructed in such a way that the field {@code foo.bar.baz} has multiple values.
+     * @return the test document
+     */
+    private static Map<String, Object> createTestDocument() {
+        Map<String, Object> document = new HashMap<>();
+        Map<String, Object> foo = new HashMap<>();
+        Map<String, Object> bar = new HashMap<>();
+        bar.put("baz", "value1");
+        bar.put("qux", 1);
+        foo.put("bar", bar);
+        foo.put("bar.baz", "value2");
+        foo.put("qux", 2);
+        document.put("foo", foo);
+        Map<String, Object> fooBar = new HashMap<>();
+        fooBar.put("baz", "value3");
+        fooBar.put("qux", 3);
+        document.put("foo.bar", fooBar);
+        document.put("foo.bar.baz", "value4");
+        return document;
     }
 }

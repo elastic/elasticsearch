@@ -1,0 +1,5 @@
+pr: 120363
+summary: Add thread pool utilization metric
+area: "Infra/Metrics"
+type: enhancement
+issues: []

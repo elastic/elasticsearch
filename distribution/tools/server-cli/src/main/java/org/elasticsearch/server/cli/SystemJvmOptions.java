@@ -69,7 +69,8 @@ final class SystemJvmOptions {
                 // Enable vectorization for whatever version we are running. This ensures we use vectorization even when running EA builds.
                 "-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + Runtime.version().feature(),
                 // Pass through distribution type
-                "-Des.distribution.type=" + distroType
+                "-Des.distribution.type=" + distroType,
+                "--add-opens=java.base/java.util.concurrent=org.elasticsearch.server"
             ),
             maybeEnableNativeAccess(useEntitlements),
             maybeOverrideDockerCgroup(distroType),

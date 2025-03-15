@@ -3141,6 +3141,21 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    // [ and ( are used to trigger a double mode causing their symbol name (instead of text) to be used in error reporting
+    // this test checks that their are properly replaced in the error message
+    public void testPreserveParanthesis() {
+        // test for (
+        expectError("row a = 1 not in", "line 1:17: mismatched input '<EOF>' expecting '('");
+        expectError("row a = 1 | where a not in", "line 1:27: mismatched input '<EOF>' expecting '('");
+        expectError("row a = 1 | where a not in (1", "line 1:30: mismatched input '<EOF>' expecting {',', ')'}");
+        expectError("row a = 1 | where a not in [1", "line 1:28: missing '(' at '['");
+        expectError("row a = 1 | where a not in 123", "line 1:28: missing '(' at '123'");
+        // test for [
+        expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '['");
+        expectError("explain ]", "line 1:9: token recognition error at: ']'");
+        expectError("explain [row x = 1", "line 1:19: missing ']' at '<EOF>'");
+    }
+
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
     }

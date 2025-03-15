@@ -1,0 +1,5 @@
+pr: 124611
+summary: Reuse child `outputSet` inside the plan where possible
+area: ES|QL
+type: enhancement
+issues: []

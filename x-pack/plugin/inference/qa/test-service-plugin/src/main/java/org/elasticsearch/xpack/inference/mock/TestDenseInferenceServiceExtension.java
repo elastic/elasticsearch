@@ -334,7 +334,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public TestServiceSettings(StreamInput in) throws IOException {
             this(
                 in.readString(),
-                in.readOptionalInt(),
+                in.readInt(),
                 in.readOptionalEnum(SimilarityMeasure.class),
                 in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class)
             );

@@ -983,7 +983,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     }
 
     private static boolean canMergeModelSettings(MinimalServiceSettings previous, MinimalServiceSettings current, Conflicts conflicts) {
-        if (Objects.equals(previous, current)) {
+        if (previous != null && current != null && previous.canMergeWith(current)) {
             return true;
         }
         if (previous == null || current == null) {

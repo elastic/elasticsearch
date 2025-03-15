@@ -14,6 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -24,7 +25,8 @@ public class SemanticTextNonDynamicFieldMapperTests extends NonDynamicFieldMappe
 
     @Before
     public void setup() throws Exception {
-        Utils.storeSparseModel(client());
+        ModelRegistry modelRegistry = node().injector().getInstance(ModelRegistry.class);
+        Utils.storeSparseModel(modelRegistry);
     }
 
     @Override

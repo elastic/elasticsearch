@@ -724,7 +724,12 @@ public class EsqlCapabilities {
         /**
          * Support for the ::date casting operator
          */
-        CASTING_OPERATOR_FOR_DATE;
+        CASTING_OPERATOR_FOR_DATE,
+
+        /**
+         * Use double parameter markers to represent field or function names.
+         */
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot());
 
         private final boolean enabled;
 

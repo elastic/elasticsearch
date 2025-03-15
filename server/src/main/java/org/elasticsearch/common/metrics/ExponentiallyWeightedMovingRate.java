@@ -41,7 +41,8 @@ public class ExponentiallyWeightedMovingRate {
     private final double lambda;
     private final long startTime;
     private double rate;
-    long lastTime;
+    private long lastTime;
+    private boolean waitingForFirstIncrement;
 
     /**
      * Constructor.
@@ -57,14 +58,12 @@ public class ExponentiallyWeightedMovingRate {
         if (lambda < 0.0) {
             throw new IllegalArgumentException("lambda must be non-negative but was " + lambda);
         }
-        if (startTime <= 0.0) {
-            throw new IllegalArgumentException("startTime must be non-negative but was " + startTime);
-        }
         synchronized (this) {
             this.lambda = lambda;
             this.rate = Double.NaN; // should never be used
             this.startTime = startTime;
-            this.lastTime = 0; // after an increment, this must be positive, so a zero value indicates we're waiting for the first
+            this.lastTime = 0; // should never be used
+            this.waitingForFirstIncrement = true;
         }
     }
 
@@ -80,7 +79,7 @@ public class ExponentiallyWeightedMovingRate {
      */
     public double getRate(long time) {
         synchronized (this) {
-            if (lastTime == 0) { // indicates that no increment has happened yet
+            if (waitingForFirstIncrement) {
                 return 0.0;
             } else if (time <= lastTime) {
                 return rate;
@@ -104,6 +103,9 @@ public class ExponentiallyWeightedMovingRate {
      * instance. It is only non-static because it uses this instance's {@code lambda} and {@code startTime}.
      */
     public double calculateRateSince(long currentTime, double currentRate, long oldTime, double oldRate) {
+        if (oldTime < startTime) {
+            oldTime = startTime;
+        }
         if (currentTime <= oldTime) {
             return 0.0;
         }
@@ -127,12 +129,13 @@ public class ExponentiallyWeightedMovingRate {
      */
     public void addIncrement(double increment, long time) {
         synchronized (this) {
-            if (lastTime == 0) { // indicates that this is the first increment
+            if (waitingForFirstIncrement) {
                 if (time <= startTime) {
                     time = startTime + 1;
                 }
                 // This is the formula for R(t_1) given in subsection 2.6 of the document referenced above:
                 rate = increment / expHelper(time - startTime);
+                waitingForFirstIncrement = false;
             } else {
                 if (time < lastTime) {
                     time = lastTime;

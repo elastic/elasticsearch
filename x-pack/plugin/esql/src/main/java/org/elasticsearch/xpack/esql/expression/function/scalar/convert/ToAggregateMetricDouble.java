@@ -12,9 +12,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
@@ -130,40 +132,60 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
 
             return new EvalOperator.ExpressionEvaluator() {
+                private Block evalBlock(Block block) {
+                    int positionCount = block.getPositionCount();
+                    DoubleBlock doubleBlock = (DoubleBlock) block;
+                    try (
+                        AggregateMetricDoubleBlockBuilder result = context.blockFactory()
+                            .newAggregateMetricDoubleBlockBuilder(positionCount)
+                    ) {
+                        CompensatedSum sum = new CompensatedSum();
+                        for (int p = 0; p < positionCount; p++) {
+                            int valueCount = doubleBlock.getValueCount(p);
+                            int start = doubleBlock.getFirstValueIndex(p);
+                            int end = start + valueCount;
+                            if (valueCount == 0) {
+                                result.appendNull();
+                                continue;
+                            }
+                            double min = Double.POSITIVE_INFINITY;
+                            double max = Double.NEGATIVE_INFINITY;
+                            for (int i = start; i < end; i++) {
+                                double current = doubleBlock.getDouble(i);
+                                min = Math.min(min, current);
+                                max = Math.max(max, current);
+                                sum.add(current);
+                            }
+                            result.min().appendDouble(min);
+                            result.max().appendDouble(max);
+                            result.sum().appendDouble(sum.value());
+                            result.count().appendInt(valueCount);
+                            sum.reset(0, 0);
+                        }
+                        return result.build();
+                    }
+                }
+
+                private Block evalVector(Vector vector) {
+                    int positionCount = vector.getPositionCount();
+                    DoubleVector doubleVector = (DoubleVector) vector;
+                    try (
+                        AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleVectorBuilder builder = context.blockFactory()
+                            .newAggregateMetricDoubleVectorBuilder(positionCount)
+                    ) {
+                        for (int p = 0; p < positionCount; p++) {
+                            double value = doubleVector.getDouble(p);
+                            builder.appendValue(value);
+                        }
+                        return builder.build();
+                    }
+                }
+
                 @Override
                 public Block eval(Page page) {
                     try (Block block = eval.eval(page)) {
-                        int positionCount = block.getPositionCount();
-                        DoubleBlock doubleBlock = (DoubleBlock) block;
-                        try (
-                            AggregateMetricDoubleBlockBuilder result = context.blockFactory()
-                                .newAggregateMetricDoubleBlockBuilder(positionCount)
-                        ) {
-                            CompensatedSum sum = new CompensatedSum();
-                            for (int p = 0; p < positionCount; p++) {
-                                int valueCount = doubleBlock.getValueCount(p);
-                                int start = doubleBlock.getFirstValueIndex(p);
-                                int end = start + valueCount;
-                                if (valueCount == 0) {
-                                    result.appendNull();
-                                    continue;
-                                }
-                                double min = Double.POSITIVE_INFINITY;
-                                double max = Double.NEGATIVE_INFINITY;
-                                for (int i = start; i < end; i++) {
-                                    double current = doubleBlock.getDouble(i);
-                                    min = Math.min(min, current);
-                                    max = Math.max(max, current);
-                                    sum.add(current);
-                                }
-                                result.min().appendDouble(min);
-                                result.max().appendDouble(max);
-                                result.sum().appendDouble(sum.value());
-                                result.count().appendInt(valueCount);
-                                sum.reset(0, 0);
-                            }
-                            return result.build();
-                        }
+                        Vector vector = block.asVector();
+                        return vector == null ? evalBlock(block) : evalVector(vector);
                     }
                 }
 

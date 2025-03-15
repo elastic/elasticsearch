@@ -205,4 +205,69 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         }
 
     }
+
+    public static class AggregateMetricDoubleVectorBuilder extends AbstractBlockBuilder {
+        private final DoubleBlockBuilder valuesBuilder;
+
+        public AggregateMetricDoubleVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+            super(blockFactory);
+            valuesBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
+        }
+
+        @Override
+        protected int valuesLength() {
+            throw new UnsupportedOperationException("Not available on aggregate_metric_double");
+        }
+
+        @Override
+        protected void growValuesArray(int newSize) {
+            throw new UnsupportedOperationException("Not available on aggregate_metric_double");
+        }
+
+        @Override
+        protected int elementSize() {
+            throw new UnsupportedOperationException("Not available on aggregate_metric_double");
+        }
+
+        @Override
+        public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            // TODO
+            return null;
+        }
+
+        @Override
+        public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+            // TODO
+            return null;
+        }
+
+        public void appendValue(double value) {
+            valuesBuilder.appendDouble(value);
+        }
+
+        @Override
+        public Block build() {
+            Block[] blocks = new Block[4];
+            Block block = null;
+            ConstantIntVector countVector = null;
+            boolean success = false;
+            try {
+                finish();
+                block = valuesBuilder.build();
+                countVector = new ConstantIntVector(1, block.getPositionCount(), blockFactory);
+                blocks[Metric.MIN.getIndex()] = block;
+                blocks[Metric.MAX.getIndex()] = block;
+                blocks[Metric.SUM.getIndex()] = block;
+                blocks[Metric.COUNT.getIndex()] = countVector.asBlock();
+                CompositeBlock compositeBlock = new CompositeBlock(blocks);
+                success = true;
+                return compositeBlock;
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(block, countVector);
+                }
+            }
+        }
+
+    }
 }

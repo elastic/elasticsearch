@@ -886,7 +886,12 @@ public class EsqlCapabilities {
         /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
-        TO_LOWER_MV;
+        TO_LOWER_MV,
+
+        /**
+         * The {@code _query} API now reports the original types.
+         */
+        REPORT_ORIGINAL_TYPES;
 
         private final boolean enabled;
 

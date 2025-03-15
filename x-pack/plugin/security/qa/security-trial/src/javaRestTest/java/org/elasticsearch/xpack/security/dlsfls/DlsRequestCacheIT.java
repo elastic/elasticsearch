@@ -106,8 +106,7 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
                 .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(DLS_USER, DLS_USER_PASSWORD))
         );
         assertSearchResponse(client.performRequest(searchRequest), Set.of("1"));
-        // Cache should not be used since DLS query uses stored script
-        assertCacheState(0, 0);
+        assertCacheState(0, 1);
     }
 
     @SuppressWarnings("unchecked")

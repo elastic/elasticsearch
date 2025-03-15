@@ -339,7 +339,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
     /**
      *  Mimics migration of the {@link SearchableSnapshots#SNAPSHOT_BLOB_CACHE_INDEX} as done in
-     *  {@link org.elasticsearch.upgrades.SystemIndexMigrator}, where the index is re-indexed, and replaced by an alias.
+     *  org.elasticsearch.upgrades.SystemIndexMigrator, where the index is re-indexed, and replaced by an alias.
      */
     private void migrateTheSystemIndex() {
         final var migratedSnapshotBlobCache = SNAPSHOT_BLOB_CACHE_INDEX + SystemIndices.UPGRADED_INDEX_SUFFIX;

@@ -886,7 +886,12 @@ public class EsqlCapabilities {
         /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
-        TO_LOWER_MV;
+        TO_LOWER_MV,
+
+        /**
+         * Support for to_aggregate_metric_double function
+         */
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

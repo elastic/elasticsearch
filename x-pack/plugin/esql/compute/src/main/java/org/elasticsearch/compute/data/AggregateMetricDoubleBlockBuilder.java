@@ -7,8 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
+
+import java.io.IOException;
 
 public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder implements BlockLoader.AggregateMetricDoubleBuilder {
 
@@ -161,11 +169,107 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         }
     }
 
-    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) {
+    public record AggregateMetricDoubleLiteral(Double min, Double max, Double sum, Integer count) implements GenericNamedWriteable {
         public AggregateMetricDoubleLiteral {
             min = min.isNaN() ? null : min;
             max = max.isNaN() ? null : max;
             sum = sum.isNaN() ? null : sum;
         }
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            GenericNamedWriteable.class,
+            "AggregateMetricDoubleLiteral",
+            AggregateMetricDoubleLiteral::new
+        );
+
+        @Override
+        public String getWriteableName() {
+            return "AggregateMetricDoubleLiteral";
+        }
+
+        public AggregateMetricDoubleLiteral(StreamInput input) throws IOException {
+            this(input.readOptionalDouble(), input.readOptionalDouble(), input.readOptionalDouble(), input.readOptionalInt());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalDouble(min);
+            out.writeOptionalDouble(max);
+            out.writeOptionalDouble(sum);
+            out.writeOptionalInt(count);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL;
+        }
+
+    }
+
+    public static class AggregateMetricDoubleVectorBuilder extends AbstractBlockBuilder {
+        private final DoubleBlockBuilder valuesBuilder;
+
+        public AggregateMetricDoubleVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
+            super(blockFactory);
+            valuesBuilder = new DoubleBlockBuilder(estimatedSize, blockFactory);
+        }
+
+        @Override
+        protected int valuesLength() {
+            throw new UnsupportedOperationException("Not available on aggregate_metric_double");
+        }
+
+        @Override
+        protected void growValuesArray(int newSize) {
+            throw new UnsupportedOperationException("Not available on aggregate_metric_double");
+        }
+
+        @Override
+        protected int elementSize() {
+            throw new UnsupportedOperationException("Not available on aggregate_metric_double");
+        }
+
+        @Override
+        public Block.Builder copyFrom(Block block, int beginInclusive, int endExclusive) {
+            // TODO
+            return null;
+        }
+
+        @Override
+        public Block.Builder mvOrdering(Block.MvOrdering mvOrdering) {
+            // TODO
+            return null;
+        }
+
+        public void appendValue(double value) {
+            valuesBuilder.appendDouble(value);
+        }
+
+        @Override
+        public Block build() {
+            Block[] blocks = new Block[4];
+            Block block = null;
+            IntBlock countVector = null;
+            boolean success = false;
+            try {
+                finish();
+                block = valuesBuilder.build();
+                countVector = blockFactory.newConstantIntBlockWith(1, block.getPositionCount());
+                blocks[Metric.MIN.getIndex()] = block;
+                blocks[Metric.MAX.getIndex()] = block;
+                block.incRef();
+                blocks[Metric.SUM.getIndex()] = block;
+                block.incRef();
+                blocks[Metric.COUNT.getIndex()] = countVector;
+                CompositeBlock compositeBlock = new CompositeBlock(blocks);
+                success = true;
+                return compositeBlock;
+            } finally {
+                if (success == false) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
+        }
+
     }
 }

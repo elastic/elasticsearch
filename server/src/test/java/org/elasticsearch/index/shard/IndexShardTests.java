@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -5090,6 +5091,61 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(thirdForceMergeUUID, not(equalTo(secondForceMergeUUID)));
         assertThat(thirdForceMergeUUID, equalTo(secondForceMergeRequest.forceMergeUUID()));
         closeShards(shard);
+    }
+
+    public void testCloseShardWhileRetainingEngine() throws Exception {
+        final var primary = newStartedShard(true);
+        try {
+            final var release = new CountDownLatch(1);
+            final var hold = new PlainActionFuture<Engine>();
+            final var holdEngineThread = new Thread(() -> {
+                primary.withEngine(engine -> {
+                    assertThat(engine, notNullValue());
+                    EngineTestCase.ensureOpen(engine);
+                    hold.onResponse(engine);
+                    safeAwait(release);
+                    return null;
+                });
+            });
+            holdEngineThread.start();
+
+            final var closed = new CountDownLatch(1);
+            final var closeEngineThread = new Thread(() -> {
+                try {
+                    safeGet(hold);
+                    closeShardNoCheck(primary);
+                    assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
+                    closed.countDown();
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            closeEngineThread.start();
+
+            final var retainedInstance = asInstanceOf(InternalEngine.class, safeGet(hold));
+            assertSame(retainedInstance, primary.getEngineOrNull());
+            assertThat(primary.state(), equalTo(IndexShardState.STARTED));
+            primary.withEngineOrNull(engine -> {
+                assertSame(retainedInstance, engine);
+                EngineTestCase.ensureOpen(engine);
+                return null;
+            });
+
+            release.countDown();
+            safeAwait(closed);
+
+            assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
+            assertThat(primary.getEngineOrNull(), nullValue());
+            primary.withEngineOrNull(engine -> {
+                assertThat(engine, nullValue());
+                return null;
+            });
+
+            holdEngineThread.join();
+            closeEngineThread.join();
+        } finally {
+            IOUtils.close(primary.store());
+        }
     }
 
     public void testShardExposesWriteLoadStats() throws Exception {

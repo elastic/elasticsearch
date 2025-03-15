@@ -893,7 +893,6 @@ public class SystemResourceSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshottedIndices, allOf(hasItem(regularIndex), not(hasItem(SystemIndexTestPlugin.SYSTEM_INDEX_NAME))));
     }
 
-    // TODO, Do we need to test this for Datastreams?
     /**
      * Ensures that if we can only capture a partial snapshot of a system index, then the feature state associated with that index is
      * not included in the snapshot, because it would not be safe to restore that feature state.

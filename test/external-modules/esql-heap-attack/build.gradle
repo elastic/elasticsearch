@@ -20,5 +20,4 @@ esplugin {
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
-  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }

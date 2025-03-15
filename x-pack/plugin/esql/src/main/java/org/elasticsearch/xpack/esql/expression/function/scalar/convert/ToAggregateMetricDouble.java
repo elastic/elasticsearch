@@ -139,7 +139,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                         AggregateMetricDoubleBlockBuilder result = context.blockFactory()
                             .newAggregateMetricDoubleBlockBuilder(positionCount)
                     ) {
-                        CompensatedSum sum = new CompensatedSum();
+                        CompensatedSum compensatedSum = new CompensatedSum();
                         for (int p = 0; p < positionCount; p++) {
                             int valueCount = doubleBlock.getValueCount(p);
                             int start = doubleBlock.getFirstValueIndex(p);
@@ -148,19 +148,21 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                                 result.appendNull();
                                 continue;
                             }
-                            double min = Double.POSITIVE_INFINITY;
-                            double max = Double.NEGATIVE_INFINITY;
-                            for (int i = start; i < end; i++) {
-                                double current = doubleBlock.getDouble(i);
+                            // First iteration of the loop is manual to support having -0.0 as an input consistently
+                            double current = doubleBlock.getDouble(start);
+                            double min = current;
+                            double max = current;
+                            compensatedSum.reset(current, 0);
+                            for (int i = start + 1; i < end; i++) {
+                                current = doubleBlock.getDouble(i);
                                 min = Math.min(min, current);
                                 max = Math.max(max, current);
-                                sum.add(current);
+                                compensatedSum.add(current);
                             }
                             result.min().appendDouble(min);
                             result.max().appendDouble(max);
-                            result.sum().appendDouble(sum.value());
+                            result.sum().appendDouble(compensatedSum.value());
                             result.count().appendInt(valueCount);
-                            sum.reset(0, 0);
                         }
                         return result.build();
                     }

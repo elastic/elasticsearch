@@ -41,12 +41,13 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        final String read = "Attribute[channel=0]";
+        final String evaluatorStringLeft = "ToAggregateMetricDoubleEvaluator[field=Cast";
+        final String evaluatorStringRight = "ToDoubleEvaluator[v=Attribute[channel=0]]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryInt(
             suppliers,
-            "ToAggregateMetricDoubleFromIntEvaluator[field=" + read + "]",
+            evaluatorStringLeft + "Int" + evaluatorStringRight,
             DataType.AGGREGATE_METRIC_DOUBLE,
             i -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral((double) i, (double) i, (double) i, 1),
             Integer.MIN_VALUE,
@@ -55,7 +56,7 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
-            "ToAggregateMetricDoubleFromLongEvaluator[field=" + read + "]",
+            evaluatorStringLeft + "Long" + evaluatorStringRight,
             DataType.AGGREGATE_METRIC_DOUBLE,
             l -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral((double) l, (double) l, (double) l, 1),
             Long.MIN_VALUE,
@@ -64,7 +65,7 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
         );
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
-            "ToAggregateMetricDoubleFromUnsignedLongEvaluator[field=" + read + "]",
+            evaluatorStringLeft + "UnsignedLong" + evaluatorStringRight,
             DataType.AGGREGATE_METRIC_DOUBLE,
             ul -> {
                 var newVal = ul.doubleValue();
@@ -76,9 +77,14 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            "ToAggregateMetricDoubleFromDoubleEvaluator[field=" + read + "]",
+            "ToAggregateMetricDoubleEvaluator[field=Attribute[channel=0]]",
             DataType.AGGREGATE_METRIC_DOUBLE,
-            d -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(d, d, d, 1),
+            d -> {
+                if (d == -0.0) {
+                    return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(d, d, 0.0, 1);
+                }
+                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(d, d, d, 1);
+            },
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
             emptyList()

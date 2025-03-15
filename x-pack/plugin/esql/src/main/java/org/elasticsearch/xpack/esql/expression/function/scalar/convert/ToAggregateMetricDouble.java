@@ -12,19 +12,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,9 +42,9 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     private static final Map<DataType, AbstractConvertFunction.BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(AGGREGATE_METRIC_DOUBLE, (source, fieldEval) -> fieldEval),
         Map.entry(DOUBLE, DoubleFactory::new),
-        Map.entry(INTEGER, IntFactory::new),
-        Map.entry(LONG, LongFactory::new),
-        Map.entry(UNSIGNED_LONG, UnsignedLongFactory::new)
+        Map.entry(INTEGER, ((source, fieldEval) -> new DoubleFactory(source, Cast.cast(source, INTEGER, DOUBLE, fieldEval)))),
+        Map.entry(LONG, ((source, fieldEval) -> new DoubleFactory(source, Cast.cast(source, LONG, DOUBLE, fieldEval)))),
+        Map.entry(UNSIGNED_LONG, ((source, fieldEval) -> new DoubleFactory(source, Cast.cast(source, UNSIGNED_LONG, DOUBLE, fieldEval))))
     );
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -121,7 +120,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         @Override
         public String toString() {
-            return "ToAggregateMetricDoubleFromDoubleEvaluator[" + "field=" + fieldEvaluator + "]";
+            return "ToAggregateMetricDoubleEvaluator[" + "field=" + fieldEvaluator + "]";
         }
 
         @Override
@@ -131,33 +130,38 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
             return new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
-                    Block block = eval.eval(page);
-                    int positionCount = page.getPositionCount();
-                    try {
+                    try (Block block = eval.eval(page)) {
+                        int positionCount = block.getPositionCount();
                         DoubleBlock doubleBlock = (DoubleBlock) block;
                         try (
                             AggregateMetricDoubleBlockBuilder result = context.blockFactory()
                                 .newAggregateMetricDoubleBlockBuilder(positionCount)
                         ) {
+                            CompensatedSum sum = new CompensatedSum();
                             for (int p = 0; p < positionCount; p++) {
-                                try {
-                                    if (doubleBlock.isNull(p)) {
-                                        result.appendNull();
-                                        continue;
-                                    }
-                                    var val = doubleBlock.getDouble(p);
-                                    result.min().appendDouble(val);
-                                    result.max().appendDouble(val);
-                                    result.sum().appendDouble(val);
-                                    result.count().appendInt(1);
-                                } catch (Exception e) {
+                                int valueCount = doubleBlock.getValueCount(p);
+                                int start = doubleBlock.getFirstValueIndex(p);
+                                int end = start + valueCount;
+                                if (valueCount == 0) {
                                     result.appendNull();
+                                    continue;
                                 }
+                                double min = Double.POSITIVE_INFINITY;
+                                double max = Double.NEGATIVE_INFINITY;
+                                for (int i = start; i < end; i++) {
+                                    double current = doubleBlock.getDouble(i);
+                                    min = Math.min(min, current);
+                                    max = Math.max(max, current);
+                                    sum.add(current);
+                                }
+                                result.min().appendDouble(min);
+                                result.max().appendDouble(max);
+                                result.sum().appendDouble(sum.value());
+                                result.count().appendInt(valueCount);
+                                sum.reset(0, 0);
                             }
                             return result.build();
                         }
-                    } finally {
-                        block.close();
                     }
                 }
 
@@ -168,202 +172,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
                 @Override
                 public String toString() {
-                    return "ToAggregateMetricDoubleFromDoubleEvaluator[field=" + eval + "]";
-                }
-            };
-        }
-    }
-
-    public static class LongFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
-
-        public LongFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
-            this.fieldEvaluator = fieldEvaluator;
-            this.source = source;
-        }
-
-        @Override
-        public String toString() {
-            return "ToAggregateMetricDoubleFromLongEvaluator[" + "field=" + fieldEvaluator + "]";
-        }
-
-        @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
-
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    Block block = eval.eval(page);
-                    int positionCount = page.getPositionCount();
-                    try {
-                        LongBlock longBlock = (LongBlock) block;
-                        try (
-                            AggregateMetricDoubleBlockBuilder result = context.blockFactory()
-                                .newAggregateMetricDoubleBlockBuilder(positionCount)
-                        ) {
-                            for (int p = 0; p < positionCount; p++) {
-                                try {
-                                    if (longBlock.isNull(p)) {
-                                        result.appendNull();
-                                        continue;
-                                    }
-                                    var val = longBlock.getLong(p);
-                                    result.min().appendDouble(val);
-                                    result.max().appendDouble(val);
-                                    result.sum().appendDouble(val);
-                                    result.count().appendInt(1);
-                                } catch (Exception e) {
-                                    result.appendNull();
-                                }
-                            }
-                            return result.build();
-                        }
-                    } finally {
-                        block.close();
-                    }
-                }
-
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(eval);
-                }
-
-                @Override
-                public String toString() {
-                    return "ToAggregateMetricDoubleFromLongEvaluator[field=" + eval + "]";
-                }
-            };
-        }
-    }
-
-    public static class UnsignedLongFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
-
-        public UnsignedLongFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
-            this.fieldEvaluator = fieldEvaluator;
-            this.source = source;
-        }
-
-        @Override
-        public String toString() {
-            return "ToAggregateMetricDoubleFromUnsignedLongEvaluator[" + "field=" + fieldEvaluator + "]";
-        }
-
-        @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
-
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    Block block = eval.eval(page);
-                    int positionCount = page.getPositionCount();
-                    try {
-                        LongBlock longBlock = (LongBlock) block;
-                        try (
-                            AggregateMetricDoubleBlockBuilder result = context.blockFactory()
-                                .newAggregateMetricDoubleBlockBuilder(positionCount)
-                        ) {
-                            for (int p = 0; p < positionCount; p++) {
-                                try {
-                                    if (longBlock.isNull(p)) {
-                                        result.appendNull();
-                                        continue;
-                                    }
-                                    var val = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
-                                    result.min().appendDouble(val);
-                                    result.max().appendDouble(val);
-                                    result.sum().appendDouble(val);
-                                    result.count().appendInt(1);
-                                } catch (Exception e) {
-                                    result.appendNull();
-                                }
-                            }
-                            return result.build();
-                        }
-                    } finally {
-                        block.close();
-                    }
-                }
-
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(eval);
-                }
-
-                @Override
-                public String toString() {
-                    return "ToAggregateMetricDoubleFromUnsignedLongEvaluator[field=" + eval + "]";
-                }
-            };
-        }
-    }
-
-    public static class IntFactory implements EvalOperator.ExpressionEvaluator.Factory {
-        private final Source source;
-
-        private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
-
-        public IntFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
-            this.fieldEvaluator = fieldEvaluator;
-            this.source = source;
-        }
-
-        @Override
-        public String toString() {
-            return "ToAggregateMetricDoubleFromIntEvaluator[" + "field=" + fieldEvaluator + "]";
-        }
-
-        @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            final EvalOperator.ExpressionEvaluator eval = fieldEvaluator.get(context);
-
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    Block block = eval.eval(page);
-                    int positionCount = page.getPositionCount();
-                    try {
-                        IntBlock intBlock = (IntBlock) block;
-                        try (
-                            AggregateMetricDoubleBlockBuilder result = context.blockFactory()
-                                .newAggregateMetricDoubleBlockBuilder(positionCount)
-                        ) {
-                            for (int p = 0; p < positionCount; p++) {
-                                try {
-                                    if (intBlock.isNull(p)) {
-                                        result.appendNull();
-                                        continue;
-                                    }
-                                    var val = intBlock.getInt(p);
-                                    result.min().appendDouble(val);
-                                    result.max().appendDouble(val);
-                                    result.sum().appendDouble(val);
-                                    result.count().appendInt(1);
-                                } catch (Exception e) {
-                                    result.appendNull();
-                                }
-                            }
-                            return result.build();
-                        }
-                    } finally {
-                        block.close();
-                    }
-                }
-
-                @Override
-                public void close() {
-                    Releasables.closeExpectNoException(eval);
-                }
-
-                @Override
-                public String toString() {
-                    return "ToAggregateMetricDoubleFromIntEvaluator[field=" + eval + "]";
+                    return "ToAggregateMetricDoubleEvaluator[field=" + eval + "]";
                 }
             };
         }

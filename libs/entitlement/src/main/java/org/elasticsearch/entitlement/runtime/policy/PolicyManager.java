@@ -355,7 +355,6 @@ public class PolicyManager {
         if (isTriviallyAllowed(requestingClass)) {
             return;
         }
-
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
 
         Path realPath = null;
@@ -694,6 +693,9 @@ public class PolicyManager {
      * @return true if permission is granted regardless of the entitlement
      */
     private static boolean isTriviallyAllowed(Class<?> requestingClass) {
+        if (requestingClass.getModule().getName() == null) {
+            return true;
+        }
         if (logger.isTraceEnabled()) {
             logger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
         }

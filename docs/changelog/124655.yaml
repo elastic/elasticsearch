@@ -1,0 +1,6 @@
+pr: 124655
+summary: Remove Enterprise Search from service accounts
+area: Security
+type: deprecation
+issues:
+  - 124655

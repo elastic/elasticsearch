@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -83,7 +84,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 Map<String, Processor.Factory> processorFactories,
                 String tag,
                 String description,
-                Map<String, Object> config
+                Map<String, Object> config,
+                ProjectId projectId
             ) {
                 return new NotInferenceProcessor();
             }

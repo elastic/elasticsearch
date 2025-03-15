@@ -93,10 +93,6 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
             )
         );
         result.put(
-            ThreadPool.Names.SEARCH_THROTTLED,
-            new FixedExecutorBuilder(settings, ThreadPool.Names.SEARCH_THROTTLED, 1, 100, EsExecutors.TaskTrackingConfig.DEFAULT)
-        );
-        result.put(
             ThreadPool.Names.MANAGEMENT,
             new ScalingExecutorBuilder(
                 ThreadPool.Names.MANAGEMENT,

@@ -27,7 +27,7 @@ $$$stats-bucket-params$$$
 | --- | --- | --- | --- |
 | `buckets_path` | The path to the buckets we wish to calculate stats for (see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
 | `gap_policy` | The policy to apply when gaps are found in the data (see [Dealing with gaps in the data](/reference/data-analysis/aggregations/pipeline.md#gap-policy) for more details) | Optional | `skip` |
-| `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.md) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
+| `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.html) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
 
 The following snippet calculates the stats for monthly `sales`:
 

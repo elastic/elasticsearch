@@ -188,3 +188,25 @@ book_no:keyword
 7140
 2714
 ;
+
+qstrWithFieldAndOptions
+required_capability: qstr_function
+required_capability: query_string_function_options
+
+// tag::qstr-with-options[]
+FROM books 
+| WHERE QSTR("title: Hobbjt~", {"fuzziness": 2})
+| KEEP book_no, title 
+| SORT book_no 
+| LIMIT 5
+// end::qstr-with-options[]
+;
+ignoreOrder: true
+
+// tag::qstr-with-options-result[]
+book_no:keyword | title:text                        
+4289            | Poems from the Hobbit             
+6405            | The Hobbit or There and Back Again
+7480            | The Hobbit                                     
+// end::qstr-with-options-result[]
+;

@@ -15,6 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -383,7 +384,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                 key -> new HashMap<>()
             );
             for (AssignmentStats.NodeStats nodeStats : assignmentStats.getNodeStats()) {
-                String nodeId = nodeStats.getNode().getId();
+                DiscoveryNode node = nodeStats.getNode();
+                String nodeId = node == null ? null : node.getId();
                 Stats lastStats = deploymentStats.get(nodeId);
                 Stats nextStats = new Stats(
                     nodeStats.getInferenceCount().orElse(0L),

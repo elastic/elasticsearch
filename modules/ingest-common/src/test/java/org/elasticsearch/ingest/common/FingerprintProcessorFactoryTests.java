@@ -48,7 +48,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         config.put("ignore_missing", ignoreMissing);
 
         String processorTag = randomAlphaOfLength(10);
-        FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config);
+        FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(fingerprintProcessor.getTag(), equalTo(processorTag));
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
         assertThat(fingerprintProcessor.getTargetField(), equalTo(targetField));
@@ -68,7 +68,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         config.put("method", method);
 
         String processorTag = randomAlphaOfLength(10);
-        FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config);
+        FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(fingerprintProcessor.getTag(), equalTo(processorTag));
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
         assertThat(fingerprintProcessor.getThreadLocalHasher().get().getAlgorithm(), equalTo(method));
@@ -80,7 +80,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         );
         config.put("fields", fieldList);
         config.put("method", invalidMethod);
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config, null));
         assertThat(e.getMessage(), containsString("[" + invalidMethod + "] must be one of the supported hash methods ["));
     }
 
@@ -93,17 +93,17 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         config.put("fields", fieldList);
 
         String processorTag = randomAlphaOfLength(10);
-        FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config);
+        FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(fingerprintProcessor.getTag(), equalTo(processorTag));
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
 
         // fields is a list of length zero
         config.put("fields", List.of());
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config, null));
         assertThat(e.getMessage(), containsString("must specify at least one field"));
 
         // fields is missing
-        e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config));
+        e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config, null));
         assertThat(e.getMessage(), containsString("[fields] required property is missing"));
     }
 
@@ -115,7 +115,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         HashMap<String, Object> config = new HashMap<>();
         config.put("fields", fieldList);
 
-        FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config);
+        FingerprintProcessor fingerprintProcessor = factory.create(null, processorTag, null, config, null);
         assertThat(fingerprintProcessor.getTag(), equalTo(processorTag));
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
         assertThat(fingerprintProcessor.getTargetField(), equalTo(FingerprintProcessor.Factory.DEFAULT_TARGET));

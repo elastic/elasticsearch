@@ -171,7 +171,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             assertEquals("simulated exception in sendRequest", getSendRequestException(future, IOException.class).getMessage());
         }
         assertWarnings(
-            "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 
@@ -264,7 +265,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
         onConnectionClosedUsesHandlerExecutor(settings, executorName, expectedExecutor);
         if (withSetting) {
             assertWarnings(
-                "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release."
+                "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the breaking changes documentation for the next major version."
             );
         }
     }
@@ -276,7 +278,8 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             ThreadPool.Names.GENERIC
         );
         assertWarnings(
-            "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[transport.enable_stack_protection] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
     }
 

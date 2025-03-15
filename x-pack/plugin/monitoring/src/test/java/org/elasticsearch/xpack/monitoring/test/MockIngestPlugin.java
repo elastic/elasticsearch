@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.test;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -51,7 +52,8 @@ public class MockIngestPlugin extends Plugin implements IngestPlugin {
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             // read fields so the processor succeeds
             for (final String field : fields) {

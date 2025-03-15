@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,6 +24,8 @@ import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -42,6 +43,7 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Iterator;
@@ -389,7 +391,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+    public ReleasableIterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         assert hasReferences();
         return getToXContentIterator(true, params);
     }
@@ -398,17 +400,68 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         return getToXContentIterator(false, params);
     }
 
-    private Iterator<ToXContent> getToXContentIterator(boolean wrapInObject, ToXContent.Params params) {
-        return Iterators.concat(
-            wrapInObject ? ChunkedToXContentHelper.startObject() : Collections.emptyIterator(),
-            ChunkedToXContentHelper.chunk(SearchResponse.this::headerToXContent),
-            Iterators.single(clusters),
-            hits.toXContentChunked(params),
-            aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(aggregations),
-            suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(suggest),
-            profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(profileResults),
-            wrapInObject ? ChunkedToXContentHelper.endObject() : Collections.emptyIterator()
-        );
+    private ReleasableIterator<ToXContent> getToXContentIterator(boolean wrapInObject, ToXContent.Params params) {
+        final ArrayDeque<Iterator<? extends ToXContent>> iters = new ArrayDeque<>(7);
+        if (wrapInObject) {
+            iters.addLast(ChunkedToXContentHelper.startObject());
+        }
+        iters.addLast(ChunkedToXContentHelper.chunk(SearchResponse.this::headerToXContent));
+        iters.addLast(ChunkedToXContentHelper.chunk(clusters));
+        var hits = this.hits;
+        hits.incRef();
+        iters.addLast(hits.toXContentChunked(params));
+        final Releasable releaseHits = Releasables.releaseOnce(hits::decRef);
+        iters.addLast(ChunkedToXContentHelper.chunk((b, p) -> {
+            releaseHits.close();
+            return b;
+        }));
+        var aggregations = this.aggregations;
+        if (aggregations != null) {
+            iters.addLast(ChunkedToXContentHelper.chunk(aggregations));
+        }
+        var suggest = this.suggest;
+        if (suggest != null) {
+            iters.addLast(ChunkedToXContentHelper.chunk(suggest));
+        }
+        var profileResults = this.profileResults;
+        if (profileResults != null) {
+            iters.addLast(ChunkedToXContentHelper.chunk(profileResults));
+        }
+        if (wrapInObject) {
+            iters.addLast(ChunkedToXContentHelper.endObject());
+        }
+        return new ReleasableIterator<>() {
+
+            @Override
+            public void close() {
+                releaseHits.close();
+            }
+
+            Iterator<? extends ToXContent> current = iters.pollFirst();
+
+            @Override
+            public boolean hasNext() {
+                while (true) {
+                    if (current.hasNext()) {
+                        return true;
+                    }
+                    var c = current = iters.pollFirst();
+                    if (c == null) {
+                        current = Collections.emptyIterator();
+                        return false;
+                    }
+                }
+            }
+
+            @Override
+            public ToXContent next() {
+                while (current.hasNext() == false) {
+                    current = iters.pollFirst();
+                }
+                var res = current.next();
+                return res;
+            }
+        };
     }
 
     public XContentBuilder headerToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {

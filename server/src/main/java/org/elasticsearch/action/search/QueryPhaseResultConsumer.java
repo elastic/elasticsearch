@@ -302,8 +302,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         int resultSetSize,
         AggregationReduceContext reduceContext
     ) {
-        interface ReleasableIterator extends Iterator<InternalAggregations>, Releasable {}
-        try (var aggsIter = new ReleasableIterator() {
+        try (var aggsIter = new ReleasableIterator<InternalAggregations>() {
 
             private Releasable toRelease;
 

@@ -28,27 +28,41 @@ import java.util.Objects;
 public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuilder> {
 
     public static final String NAME = "rank_docs_query";
+    public static final float DEFAULT_MIN_SCORE = Float.MIN_VALUE;
 
     private final RankDoc[] rankDocs;
     private final QueryBuilder[] queryBuilders;
     private final boolean onlyRankDocs;
+    private final float minScore;
 
     public RankDocsQueryBuilder(RankDoc[] rankDocs, QueryBuilder[] queryBuilders, boolean onlyRankDocs) {
+        this(rankDocs, queryBuilders, onlyRankDocs, DEFAULT_MIN_SCORE);
+    }
+
+    public RankDocsQueryBuilder(RankDoc[] rankDocs, QueryBuilder[] queryBuilders, boolean onlyRankDocs, float minScore) {
         this.rankDocs = rankDocs;
         this.queryBuilders = queryBuilders;
         this.onlyRankDocs = onlyRankDocs;
+        this.minScore = minScore;
     }
 
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
+        RankDoc[] rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
+        QueryBuilder[] queryBuilders = null;
+        boolean onlyRankDocs = false;
+
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
-            this.onlyRankDocs = in.readBoolean();
-        } else {
-            this.queryBuilders = null;
-            this.onlyRankDocs = false;
+            queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
+            onlyRankDocs = in.readBoolean();
         }
+
+        float minScore = in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOCS_MIN_SCORE) ? in.readFloat() : DEFAULT_MIN_SCORE;
+
+        this.rankDocs = rankDocs;
+        this.queryBuilders = queryBuilders;
+        this.onlyRankDocs = onlyRankDocs;
+        this.minScore = minScore;
     }
 
     @Override
@@ -70,7 +84,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
                 changed |= newQueryBuilders[i] != queryBuilders[i];
             }
             if (changed) {
-                RankDocsQueryBuilder clone = new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs);
+                RankDocsQueryBuilder clone = new RankDocsQueryBuilder(rankDocs, newQueryBuilders, onlyRankDocs, minScore);
                 clone.queryName(queryName());
                 return clone;
             }
@@ -88,6 +102,9 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalArray(StreamOutput::writeNamedWriteable, queryBuilders);
             out.writeBoolean(onlyRankDocs);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_DOCS_MIN_SCORE)) {
+                out.writeFloat(minScore);
+            }
         }
     }
 
@@ -115,7 +132,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
             queries = new Query[0];
             queryNames = Strings.EMPTY_ARRAY;
         }
-        return new RankDocsQuery(reader, shardRankDocs, queries, queryNames, onlyRankDocs);
+        return new RankDocsQuery(reader, shardRankDocs, queries, queryNames, onlyRankDocs, minScore);
     }
 
     @Override
@@ -135,16 +152,17 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     protected boolean doEquals(RankDocsQueryBuilder other) {
         return Arrays.equals(rankDocs, other.rankDocs)
             && Arrays.equals(queryBuilders, other.queryBuilders)
-            && onlyRankDocs == other.onlyRankDocs;
+            && onlyRankDocs == other.onlyRankDocs
+            && minScore == other.minScore;
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(Arrays.hashCode(rankDocs), Arrays.hashCode(queryBuilders), onlyRankDocs);
+        return Objects.hash(Arrays.hashCode(rankDocs), Arrays.hashCode(queryBuilders), onlyRankDocs, minScore);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersions.RANK_DOCS_MIN_SCORE;
     }
 }

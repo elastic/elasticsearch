@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -27,6 +29,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -38,10 +41,14 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.rank.linear.normalizer.IdentityScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.normalizer.MinMaxScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.normalizer.ScoreNormalizer;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -387,7 +394,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                             ),
                             rankWindowSize,
                             new float[] { 2.0f, 1.0f },
-                            new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
+                            new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+                            0.0f
                         ),
                         null
                     ),
@@ -399,7 +407,8 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                 ),
                 rankWindowSize,
                 new float[] { 1.0f, 100.0f },
-                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+                0.0f
             )
         );
 
@@ -565,8 +574,9 @@ public class LinearRetrieverIT extends ESIntegTestCase {
                     new CompoundRetrieverBuilder.RetrieverSource(standard2, null)
                 ),
                 rankWindowSize,
-                new float[] { 1, 5f },
-                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE }
+                new float[] { 1.0f, 5f },
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+                0.0f
             )
         );
         source.explain(true);
@@ -834,5 +844,199 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), is(4L))
         );
         assertThat(numAsyncCalls.get(), equalTo(4));
+    }
+
+    public void testLinearWithMinScore() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
+        );
+
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+
+        source.retriever(
+            new LinearRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
+                ),
+                rankWindowSize,
+                new float[] { 1.0f, 1.0f, 1.0f },
+                new ScoreNormalizer[] {
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE },
+                15.0f
+            )
+        );
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getHits().length, equalTo(1));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+            assertThat((double) resp.getHits().getAt(0).getScore(), closeTo(1.0f, 0.000001f));
+        });
+
+        source.retriever(
+            new LinearRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
+                ),
+                rankWindowSize,
+                new float[] { 1.0f, 1.0f, 1.0f },
+                new ScoreNormalizer[] {
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE,
+                    IdentityScoreNormalizer.INSTANCE },
+                10.0f
+            )
+        );
+        req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(4L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getHits().length, equalTo(4));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+            assertThat(resp.getHits().getAt(0).getScore(), equalTo(30.0f));
+            assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_1"));
+            assertThat(resp.getHits().getAt(1).getScore(), equalTo(10.0f));
+            assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_4"));
+            assertThat(resp.getHits().getAt(2).getScore(), equalTo(8.0f));
+            assertThat(resp.getHits().getAt(3).getId(), equalTo("doc_6"));
+            assertThat((double) resp.getHits().getAt(3).getScore(), closeTo(12.05882353f, 0.000001f));
+        });
+    }
+
+    public void testLinearWithMinScoreAndNormalization() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_1")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(9L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_4")).boost(8L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(7L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_7")).boost(6L))
+        );
+        StandardRetrieverBuilder standard1 = new StandardRetrieverBuilder(
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_2")).boost(20L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_3")).boost(10L))
+                .should(QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds("doc_6")).boost(5L))
+        );
+        standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 2.0f }, null, 10, 100, null, null);
+
+        source.retriever(
+            new LinearRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(standard1, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(knnRetrieverBuilder, null)
+                ),
+                rankWindowSize,
+                new float[] { 1.0f, 1.0f, 1.0f },
+                new ScoreNormalizer[] { MinMaxScoreNormalizer.INSTANCE, MinMaxScoreNormalizer.INSTANCE, MinMaxScoreNormalizer.INSTANCE },
+                0.8f
+            )
+        );
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        ElasticsearchAssertions.assertResponse(req, resp -> {
+            assertNull(resp.pointInTimeId());
+            assertNotNull(resp.getHits().getTotalHits());
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(1L));
+            assertThat(resp.getHits().getTotalHits().relation(), equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(resp.getHits().getHits().length, equalTo(1));
+            assertThat(resp.getHits().getAt(0).getId(), equalTo("doc_2"));
+            assertThat((double) resp.getHits().getAt(0).getScore(), closeTo(1.0f, 0.000001f));
+        });
+    }
+
+    public void testLinearWithMinScoreValidation() {
+        final int rankWindowSize = 100;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new LinearRetrieverBuilder(
+                Arrays.asList(new CompoundRetrieverBuilder.RetrieverSource(standard0, null)),
+                rankWindowSize,
+                new float[] { 1.0f },
+                new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE },
+                -1.0f
+            )
+        );
+        assertThat(e.getMessage(), equalTo("[min_score] must be non-negative"));
+    }
+
+    public void testLinearRetrieverRankWindowSize() {
+        final int rankWindowSize = 3;
+
+        createTestDocuments(10);
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch(INDEX);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+        StandardRetrieverBuilder retriever1 = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+        StandardRetrieverBuilder retriever2 = new StandardRetrieverBuilder(QueryBuilders.matchAllQuery());
+
+        LinearRetrieverBuilder linearRetriever = new LinearRetrieverBuilder(
+            List.of(
+                new CompoundRetrieverBuilder.RetrieverSource(retriever1, null),
+                new CompoundRetrieverBuilder.RetrieverSource(retriever2, null)
+            ),
+            rankWindowSize,
+            new float[] { 1.0f, 1.0f },
+            new ScoreNormalizer[] { IdentityScoreNormalizer.INSTANCE, IdentityScoreNormalizer.INSTANCE },
+            0.0f
+        );
+
+        try {
+            RetrieverBuilder rewrittenRetriever = linearRetriever.rewrite(
+                new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> System.currentTimeMillis())
+            );
+            rewrittenRetriever.extractToSearchSourceBuilder(searchSourceBuilder, false);
+            searchRequestBuilder.setSource(searchSourceBuilder);
+
+            var response = searchRequestBuilder.execute().actionGet();
+
+            assertThat(
+                "Number of hits should be limited by rank window size",
+                response.getHits().getHits().length,
+                equalTo(rankWindowSize)
+            );
+        } catch (IOException e) {
+            fail("Failed to rewrite retriever: " + e.getMessage());
+        }
+    }
+
+    private void createTestDocuments(int count) {
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        for (int i = 0; i < count; i++) {
+            builders.add(client().prepareIndex(INDEX).setSource(DOC_FIELD, "doc" + i, TEXT_FIELD, "text" + i));
+        }
+        indexRandom(true, builders);
+        ensureSearchable(INDEX);
     }
 }

@@ -49,14 +49,16 @@ public class RankDocsQuery extends Query {
         private final String[] queryNames;
         private final int[] segmentStarts;
         private final Object contextIdentity;
+        private final float minScore;
 
-        TopQuery(RankDoc[] docs, Query[] sources, String[] queryNames, int[] segmentStarts, Object contextIdentity) {
+        TopQuery(RankDoc[] docs, Query[] sources, String[] queryNames, int[] segmentStarts, Object contextIdentity, float minScore) {
             assert sources.length == queryNames.length;
             this.docs = docs;
             this.sources = sources;
             this.queryNames = queryNames;
             this.segmentStarts = segmentStarts;
             this.contextIdentity = contextIdentity;
+            this.minScore = minScore;
             for (RankDoc doc : docs) {
                 if (false == doc.score >= 0) {
                     throw new IllegalArgumentException("RankDoc scores must be positive values. Missing a normalization step?");
@@ -76,7 +78,7 @@ public class RankDocsQuery extends Query {
                 changed |= newSources[i] != sources[i];
             }
             if (changed) {
-                return new TopQuery(docs, newSources, queryNames, segmentStarts, contextIdentity);
+                return new TopQuery(docs, newSources, queryNames, segmentStarts, contextIdentity, minScore);
             }
             return this;
         }
@@ -164,12 +166,8 @@ public class RankDocsQuery extends Query {
                         }
 
                         @Override
-                        public float score() {
-                            // We could still end up with a valid 0 score for a RankDoc
-                            // so here we want to differentiate between this and all the tailQuery matches
-                            // that would also produce a 0 score due to filtering, by setting the score to `Float.MIN_VALUE` instead for
-                            // RankDoc matches.
-                            return Math.max(docs[upTo].score, Float.MIN_VALUE);
+                        public float score() throws IOException {
+                            return Math.max(docs[upTo].score, minScore);
                         }
 
                         @Override
@@ -234,6 +232,7 @@ public class RankDocsQuery extends Query {
     // RankDocs provided. This query does not contribute to scoring, as it is set as filter when creating the weight
     private final Query tailQuery;
     private final boolean onlyRankDocs;
+    private final float minScore;
 
     /**
      * Creates a {@code RankDocsQuery} based on the provided docs.
@@ -242,14 +241,22 @@ public class RankDocsQuery extends Query {
      * @param sources      The original queries that were used to compute the top documents
      * @param queryNames   The names (if present) of the original retrievers
      * @param onlyRankDocs Whether the query should only match the provided rank docs
+     * @param minScore     The minimum score threshold for documents to be included in total hits
      */
-    public RankDocsQuery(IndexReader reader, RankDoc[] rankDocs, Query[] sources, String[] queryNames, boolean onlyRankDocs) {
+    public RankDocsQuery(
+        IndexReader reader,
+        RankDoc[] rankDocs,
+        Query[] sources,
+        String[] queryNames,
+        boolean onlyRankDocs,
+        float minScore
+    ) {
         assert sources.length == queryNames.length;
         // clone to avoid side-effect after sorting
         this.docs = rankDocs.clone();
         // sort rank docs by doc id
         Arrays.sort(docs, Comparator.comparingInt(a -> a.doc));
-        this.topQuery = new TopQuery(docs, sources, queryNames, findSegmentStarts(reader, docs), reader.getContext().id());
+        this.topQuery = new TopQuery(docs, sources, queryNames, findSegmentStarts(reader, docs), reader.getContext().id(), minScore);
         if (sources.length > 0 && false == onlyRankDocs) {
             var bq = new BooleanQuery.Builder();
             for (var source : sources) {
@@ -260,13 +267,15 @@ public class RankDocsQuery extends Query {
             this.tailQuery = null;
         }
         this.onlyRankDocs = onlyRankDocs;
+        this.minScore = minScore;
     }
 
-    private RankDocsQuery(RankDoc[] docs, Query topQuery, Query tailQuery, boolean onlyRankDocs) {
+    private RankDocsQuery(RankDoc[] docs, Query topQuery, Query tailQuery, boolean onlyRankDocs, float minScore) {
         this.docs = docs;
         this.topQuery = topQuery;
         this.tailQuery = tailQuery;
         this.onlyRankDocs = onlyRankDocs;
+        this.minScore = minScore;
     }
 
     private static int binarySearch(RankDoc[] docs, int fromIndex, int toIndex, int key) {
@@ -310,7 +319,7 @@ public class RankDocsQuery extends Query {
         if (tailRewrite != tailQuery) {
             hasChanged = true;
         }
-        return hasChanged ? new RankDocsQuery(docs, topRewrite, tailRewrite, onlyRankDocs) : this;
+        return hasChanged ? new RankDocsQuery(docs, topRewrite, tailRewrite, onlyRankDocs, minScore) : this;
     }
 
     @Override
@@ -346,7 +355,41 @@ public class RankDocsQuery extends Query {
 
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
-                return combinedWeight.scorerSupplier(context);
+                return new ScorerSupplier() {
+                    private final ScorerSupplier supplier = combinedWeight.scorerSupplier(context);
+
+                    @Override
+                    public Scorer get(long leadCost) throws IOException {
+                        Scorer scorer = supplier.get(leadCost);
+                        return new Scorer() {
+                            @Override
+                            public DocIdSetIterator iterator() {
+                                return scorer.iterator();
+                            }
+
+                            @Override
+                            public float getMaxScore(int docId) throws IOException {
+                                return scorer.getMaxScore(docId);
+                            }
+
+                            @Override
+                            public float score() throws IOException {
+                                float score = scorer.score();
+                                return score >= minScore ? score : 0f;
+                            }
+
+                            @Override
+                            public int docID() {
+                                return scorer.docID();
+                            }
+                        };
+                    }
+
+                    @Override
+                    public long cost() {
+                        return supplier.cost();
+                    }
+                };
             }
         };
     }

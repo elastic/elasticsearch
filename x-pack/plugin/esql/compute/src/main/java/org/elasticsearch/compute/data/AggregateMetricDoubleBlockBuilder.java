@@ -249,22 +249,24 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
         public Block build() {
             Block[] blocks = new Block[4];
             Block block = null;
-            ConstantIntVector countVector = null;
+            IntBlock countVector = null;
             boolean success = false;
             try {
                 finish();
                 block = valuesBuilder.build();
-                countVector = new ConstantIntVector(1, block.getPositionCount(), blockFactory);
+                countVector = blockFactory.newConstantIntBlockWith(1, block.getPositionCount());
                 blocks[Metric.MIN.getIndex()] = block;
                 blocks[Metric.MAX.getIndex()] = block;
+                block.incRef();
                 blocks[Metric.SUM.getIndex()] = block;
-                blocks[Metric.COUNT.getIndex()] = countVector.asBlock();
+                block.incRef();
+                blocks[Metric.COUNT.getIndex()] = countVector;
                 CompositeBlock compositeBlock = new CompositeBlock(blocks);
                 success = true;
                 return compositeBlock;
             } finally {
                 if (success == false) {
-                    Releasables.closeExpectNoException(block, countVector);
+                    Releasables.closeExpectNoException(blocks);
                 }
             }
         }

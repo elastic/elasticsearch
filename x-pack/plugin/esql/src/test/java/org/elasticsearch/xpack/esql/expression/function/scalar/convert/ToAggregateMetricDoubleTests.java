@@ -41,8 +41,8 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        final String evaluatorStringLeft = "ToAggregateMetricDoubleEvaluator[field=Cast";
-        final String evaluatorStringRight = "ToDoubleEvaluator[v=Attribute[channel=0]]]";
+        final String evaluatorStringLeft = "ToAggregateMetricDoubleFrom";
+        final String evaluatorStringRight = "Evaluator[field=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.forUnaryInt(
@@ -77,14 +77,9 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
-            "ToAggregateMetricDoubleEvaluator[field=Attribute[channel=0]]",
+            evaluatorStringLeft + "Double" + evaluatorStringRight,
             DataType.AGGREGATE_METRIC_DOUBLE,
-            d -> {
-                if (d == -0.0) {
-                    return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(d, d, 0.0, 1);
-                }
-                return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(d, d, d, 1);
-            },
+            d -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(d, d, d, 1),
             Double.NEGATIVE_INFINITY,
             Double.POSITIVE_INFINITY,
             emptyList()

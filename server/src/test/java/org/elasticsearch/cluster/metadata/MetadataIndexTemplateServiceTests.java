@@ -2596,6 +2596,59 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testComposableTemplateWithSubobjectsFalseObjectAndSubfield() throws Exception {
+        MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+
+        ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "properties": {
+                "foo": {
+                   "type": "object",
+                   "subobjects": false
+                 },
+                 "foo.bar": {
+                   "type": "keyword"
+                 }
+              }
+            }
+            """), null), null, null);
+
+        project = service.addComponentTemplate(project, true, "subobjects", subobjects);
+        ComposableIndexTemplate it = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of("test-*"))
+            .template(new Template(null, null, null))
+            .componentTemplates(List.of("subobjects", "field_mapping"))
+            .priority(0L)
+            .version(1L)
+            .build();
+        project = service.addIndexTemplateV2(project, true, "composable-template", it);
+
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "composable-template", "test-index");
+
+        assertNotNull(mappings);
+        assertThat(mappings.size(), equalTo(1));
+        List<Map<String, Object>> parsedMappings = mappings.stream().map(m -> {
+            try {
+                return MapperService.parseMapping(NamedXContentRegistry.EMPTY, m);
+            } catch (Exception e) {
+                logger.error(e);
+                fail("failed to parse mappings: " + m.string());
+                return null;
+            }
+        }).toList();
+
+        assertThat(
+            parsedMappings.get(0),
+            equalTo(
+                Map.of(
+                    "_doc",
+                    Map.of("properties", Map.of("foo.bar", Map.of("type", "keyword"), "foo", Map.of("type", "object", "subobjects", false)))
+                )
+            )
+        );
+    }
+
     public void testAddIndexTemplateWithDeprecatedComponentTemplate() throws Exception {
         ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();

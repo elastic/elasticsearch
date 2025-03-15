@@ -886,7 +886,12 @@ public class EsqlCapabilities {
         /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
-        TO_LOWER_MV;
+        TO_LOWER_MV,
+
+        /**
+         * Non full text functions do not contribute to score
+         */
+        NON_FULL_TEXT_FUNCTIONS_SCORING;
 
         private final boolean enabled;
 

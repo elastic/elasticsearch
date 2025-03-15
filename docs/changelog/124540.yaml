@@ -1,0 +1,5 @@
+pr: 124540
+summary: "ES|QL: Fix scoring for full text functions"
+area: ES|QL
+type: bug
+issues: []

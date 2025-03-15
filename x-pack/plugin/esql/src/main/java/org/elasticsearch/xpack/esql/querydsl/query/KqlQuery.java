@@ -43,7 +43,7 @@ public class KqlQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         final KqlQueryBuilder queryBuilder = new KqlQueryBuilder(query);
         options.forEach((k, v) -> {
             if (BUILDER_APPLIERS.containsKey(k)) {
@@ -81,5 +81,10 @@ public class KqlQuery extends Query {
     @Override
     protected String innerToString() {
         return query;
+    }
+
+    @Override
+    public boolean scorable() {
+        return true;
     }
 }

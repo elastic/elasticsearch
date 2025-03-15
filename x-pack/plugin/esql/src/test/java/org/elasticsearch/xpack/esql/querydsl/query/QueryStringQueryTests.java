@@ -39,7 +39,7 @@ public class QueryStringQueryTests extends ESTestCase {
     private static QueryStringQueryBuilder getBuilder(Map<String, Object> options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         final QueryStringQuery query = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), options);
-        return (QueryStringQueryBuilder) query.asBuilder();
+        return (QueryStringQueryBuilder) query.toQueryBuilder();
     }
 
     public void testToString() {

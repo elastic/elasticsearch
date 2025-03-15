@@ -76,7 +76,7 @@ public final class QueryBuilderResolver {
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformExpressionsDown(FullTextFunction.class, f -> {
                 QueryBuilder builder = f.queryBuilder(), initial = builder;
-                builder = builder == null ? f.asQuery(TranslatorHandler.TRANSLATOR_HANDLER).asBuilder() : builder;
+                builder = builder == null ? f.asQuery(TranslatorHandler.TRANSLATOR_HANDLER).toQueryBuilder() : builder;
                 try {
                     builder = builder.rewrite(ctx);
                 } catch (IOException e) {

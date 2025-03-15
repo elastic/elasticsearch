@@ -369,6 +369,9 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/124940
+- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
+  method: testErrorRecordingOnRetention
+  issue: https://github.com/elastic/elasticsearch/issues/124950
 
 # Examples:
 #

@@ -32,7 +32,7 @@ import java.util.concurrent.Executor;
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
  * and current merges.
  */
-public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler implements ElasticsearchMergeScheduler {
+public abstract class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler implements ElasticsearchMergeScheduler {
 
     protected final Logger logger;
     private final Settings indexSettings;
@@ -96,7 +96,7 @@ public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeSchedu
     @Override
     protected void doMerge(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
         long timeNS = System.nanoTime();
-        OnGoingMerge onGoingMerge = new OnGoingMerge(merge);
+        OnGoingMerge onGoingMerge = new OnGoingMerge(merge, estimateMergeMemory(merge));
         mergeTracking.mergeStarted(onGoingMerge);
         try {
             beforeMerge(onGoingMerge);
@@ -107,18 +107,22 @@ public class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeSchedu
 
             afterMerge(onGoingMerge);
         }
-
     }
 
     /**
      * A callback allowing for custom logic before an actual merge starts.
      */
-    protected void beforeMerge(OnGoingMerge merge) {}
+    protected abstract void beforeMerge(OnGoingMerge merge);
 
     /**
      * A callback allowing for custom logic before an actual merge starts.
      */
-    protected void afterMerge(OnGoingMerge merge) {}
+    protected abstract void afterMerge(OnGoingMerge merge);
+
+    /**
+     * Retrieves an estimation on how much memory is needed for the merge.
+     */
+    protected abstract long estimateMergeMemory(MergePolicy.OneMerge merge);
 
     @Override
     public MergeScheduler clone() {

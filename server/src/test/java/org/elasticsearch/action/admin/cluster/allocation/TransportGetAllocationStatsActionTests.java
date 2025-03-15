@@ -9,20 +9,26 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsTests;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
-import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -34,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
@@ -41,12 +48,16 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
-    private ThreadPool threadPool;
+    private static final long CACHE_MAX_AGE_MILLIS = 30000;
+
+    private long startTimeMillis;
+    private ControlledRelativeTimeThreadPool threadPool;
     private ClusterService clusterService;
     private TransportService transportService;
     private AllocationStatsService allocationStatsService;
@@ -57,7 +68,8 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool(TransportClusterAllocationExplainActionTests.class.getName());
+        startTimeMillis = CACHE_MAX_AGE_MILLIS;
+        threadPool = new ControlledRelativeTimeThreadPool(TransportClusterAllocationExplainActionTests.class.getName(), startTimeMillis);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         transportService = new CapturingTransport().createTransportService(
             clusterService.getSettings(),
@@ -69,6 +81,12 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         );
         allocationStatsService = mock(AllocationStatsService.class);
         action = new TransportGetAllocationStatsAction(
+            Settings.builder()
+                .put(
+                    TransportGetAllocationStatsAction.CACHE_MAX_AGE_SETTING.getKey(),
+                    TimeValue.timeValueMillis(CACHE_MAX_AGE_MILLIS).toString()
+                )
+                .build(),
             transportService,
             clusterService,
             threadPool,
@@ -160,6 +178,69 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
         for (final var thread : threads) {
             thread.join();
+        }
+    }
+
+    public void testGetStatsWithCachingEnabled() throws Exception {
+
+        final AtomicReference<Map<String, NodeAllocationStats>> allocationStats = new AtomicReference<>();
+        allocationStats.set(Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats()));
+        when(allocationStatsService.stats()).thenReturn(allocationStats.get());
+
+        final CheckedConsumer<ActionListener<Void>, Exception> threadTask = l -> {
+            final var request = new TransportGetAllocationStatsAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                new TaskId(randomIdentifier(), randomNonNegativeLong()),
+                EnumSet.of(Metric.ALLOCATIONS)
+            );
+
+            final var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
+            action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);
+            final var response = future.get();
+            assertSame("Expected the cached allocation stats to be returned", response.getNodeAllocationStats(), allocationStats.get());
+
+            l.onResponse(null);
+        };
+
+        // Initial cache miss, all threads should get the same value.
+        ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
+        verify(allocationStatsService, times(1)).stats();
+
+        // Force the cached stats to expire.
+        threadPool.setCurrentTimeInMillis(startTimeMillis + (CACHE_MAX_AGE_MILLIS * 2));
+
+        // Expect a single call to the stats service on the cache miss.
+        allocationStats.set(Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats()));
+        when(allocationStatsService.stats()).thenReturn(allocationStats.get());
+        ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
+        verify(allocationStatsService, times(2)).stats();
+
+        // All subsequent requests should get the cached value.
+        ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
+        verify(allocationStatsService, times(2)).stats();
+    }
+
+    private static class ControlledRelativeTimeThreadPool extends ThreadPool {
+
+        private long currentTimeInMillis;
+
+        ControlledRelativeTimeThreadPool(String name, long startTimeMillis) {
+            super(
+                Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), name).build(),
+                MeterRegistry.NOOP,
+                new DefaultBuiltInExecutorBuilders()
+            );
+            this.currentTimeInMillis = startTimeMillis;
+            stopCachedTimeThread();
+        }
+
+        @Override
+        public long relativeTimeInMillis() {
+            return currentTimeInMillis;
+        }
+
+        void setCurrentTimeInMillis(long currentTimeInMillis) {
+            this.currentTimeInMillis = currentTimeInMillis;
         }
     }
 }

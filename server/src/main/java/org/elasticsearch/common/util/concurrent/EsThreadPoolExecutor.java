@@ -29,6 +29,15 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     private static final Logger logger = LogManager.getLogger(EsThreadPoolExecutor.class);
 
+    // noop probe to prevent starvation of work in the work queue due to ForceQueuePolicy
+    // https://github.com/elastic/elasticsearch/issues/124667
+    // note, this is intentionally not a lambda to avoid this ever be turned into a compile time constant
+    // matching similar lambdas coming from other places
+    static final Runnable WORKER_PROBE = new Runnable() {
+        @Override
+        public void run() {}
+    };
+
     private final ThreadContext contextHolder;
 
     /**
@@ -67,8 +76,18 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     @Override
+    public void setCorePoolSize(int corePoolSize) {
+        throw new UnsupportedOperationException("reconfiguration at runtime is not supported");
+    }
+
+    @Override
+    public void setMaximumPoolSize(int maximumPoolSize) {
+        throw new UnsupportedOperationException("reconfiguration at runtime is not supported");
+    }
+
+    @Override
     public void execute(Runnable command) {
-        final Runnable wrappedRunnable = wrapRunnable(command);
+        final Runnable wrappedRunnable = command != WORKER_PROBE ? wrapRunnable(command) : WORKER_PROBE;
         try {
             super.execute(wrappedRunnable);
         } catch (Exception e) {

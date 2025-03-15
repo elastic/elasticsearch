@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -328,6 +329,7 @@ import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.FailureStoreRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.ResizeRequestInterceptor;
@@ -1139,6 +1141,9 @@ public class Security extends Plugin
                     new ValidateRequestInterceptor(threadPool, getLicenseState())
                 )
             );
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                requestInterceptors.add(new FailureStoreRequestInterceptor(threadPool, getLicenseState()));
+            }
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 

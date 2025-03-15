@@ -108,12 +108,15 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
+    private static final String TIMED_OUT = "timed_out";
     private static final String CAUSED_BY = "caused_by";
     private static final ParseField SUPPRESSED = new ParseField("suppressed");
     public static final String STACK_TRACE = "stack_trace";
     private static final String HEADER = "header";
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";
+
+    static final String TIMED_OUT_HEADER = "X-Timed-Out";
 
     private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
@@ -123,8 +126,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Construct a <code>ElasticsearchException</code> with the specified cause exception.
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(Throwable cause) {
         super(cause);
+        if (isTimeout()) {
+            headers.put(TIMED_OUT_HEADER, List.of("true"));
+        }
     }
 
     /**
@@ -136,8 +143,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param msg  the detail message
      * @param args the arguments for the message
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Object... args) {
         super(LoggerMessageFormat.format(msg, args));
+        if (isTimeout()) {
+            headers.put(TIMED_OUT_HEADER, List.of("true"));
+        }
     }
 
     /**
@@ -151,8 +162,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * @param cause the nested exception
      * @param args  the arguments for the message
      */
+    @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Throwable cause, Object... args) {
         super(LoggerMessageFormat.format(msg, args), cause);
+        if (isTimeout()) {
+            headers.put(TIMED_OUT_HEADER, List.of("true"));
+        }
     }
 
     @SuppressWarnings("this-escape")
@@ -251,6 +266,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         } else {
             return ExceptionsHelper.status(cause);
         }
+    }
+
+    /**
+     * Returns whether this exception represents a timeout.
+     */
+    public boolean isTimeout() {
+        return false;
     }
 
     /**
@@ -385,6 +407,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
         builder.field(TYPE, type);
         builder.field(REASON, message);
+
+        boolean timedOut = false;
+        if (throwable instanceof ElasticsearchException exception) {
+            // TODO: we could walk the exception chain to see if _any_ causes are timeouts?
+            timedOut = exception.isTimeout();
+        }
+        builder.field(TIMED_OUT, timedOut);
 
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());

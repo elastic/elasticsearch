@@ -53,6 +53,8 @@ import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
+import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
@@ -60,6 +62,7 @@ import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlListQueriesAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -170,7 +173,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
             new ActionHandler<>(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
             new ActionHandler<>(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
-            new ActionHandler<>(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class)
+            new ActionHandler<>(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
+            new ActionHandler<>(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
+            new ActionHandler<>(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class)
         );
     }
 
@@ -191,7 +196,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new RestEsqlAsyncQueryAction(),
             new RestEsqlGetAsyncResultAction(),
             new RestEsqlStopAsyncAction(),
-            new RestEsqlDeleteAsyncResultAction()
+            new RestEsqlDeleteAsyncResultAction(),
+            new RestEsqlListQueriesAction()
         );
     }
 

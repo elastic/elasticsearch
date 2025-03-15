@@ -101,6 +101,13 @@ public class EntitlementInitialization {
         manager = initChecker();
 
         var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
+        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
+
+        if (verifyBytecode) {
+            // If bytecode verification is enabled, ensure these classes get loaded - for these classes, the order of initialization
+            // matters and gets changed by the verification process
+            ensureClassesSensitiveToVerificationAreInitialized();
+        }
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
         Stream.of(
@@ -123,8 +130,24 @@ public class EntitlementInitialization {
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
         Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
-        inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
-        inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
+        var transformer = new Transformer(instrumenter, classesToTransform, verifyBytecode);
+        inst.addTransformer(transformer, true);
+
+        var classesToRetransform = findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform);
+        try {
+            inst.retransformClasses(classesToRetransform);
+        } catch (VerifyError e) {
+            // Turn on verification and try to retransform one class at the time to get detailed diagnostic
+            ensureClassesSensitiveToVerificationAreInitialized();
+            transformer.enableClassVerification();
+
+            for (var classToRetransform : classesToRetransform) {
+                inst.retransformClasses(classToRetransform);
+            }
+
+            // We should have failed already in the loop above, but just in case we did not, rethrow.
+            throw e;
+        }
     }
 
     private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
@@ -423,6 +446,17 @@ public class EntitlementInitialization {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    private static void ensureClassesSensitiveToVerificationAreInitialized() {
+        var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
+        for (String className : classesToInitialize) {
+            try {
+                Class.forName(className);
+            } catch (ClassNotFoundException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     /**

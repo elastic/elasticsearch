@@ -10,5 +10,5 @@
 package org.elasticsearch.entitlement.instrumentation;
 
 public interface Instrumenter {
-    byte[] instrumentClass(String className, byte[] classfileBuffer);
+    byte[] instrumentClass(String className, byte[] classfileBuffer, boolean verify);
 }

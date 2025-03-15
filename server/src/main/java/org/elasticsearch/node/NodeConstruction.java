@@ -50,6 +50,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
@@ -1498,12 +1499,26 @@ class NodeConstruction {
      * @return A single ReloadablePlugin that, upon reload, reloads the plugins it wraps
      */
     private static ReloadablePlugin wrapPlugins(List<ReloadablePlugin> reloadablePlugins) {
-        return settings -> {
-            for (ReloadablePlugin plugin : reloadablePlugins) {
-                try {
-                    plugin.reload(settings);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        return new ReloadablePlugin() {
+            @Override
+            public void reload(Settings settings) throws Exception {
+                for (ReloadablePlugin plugin : reloadablePlugins) {
+                    try {
+                        plugin.reload(settings);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            }
+
+            @Override
+            public void reload(ProjectId projectId, Settings settings) throws Exception {
+                for (ReloadablePlugin plugin : reloadablePlugins) {
+                    try {
+                        plugin.reload(projectId, settings);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                 }
             }
         };

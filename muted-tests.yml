@@ -366,6 +366,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests
   method: testExplicitNull {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/124892
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test20RunWithBootstrapChecks
+  issue: https://github.com/elastic/elasticsearch/issues/124940
 
 # Examples:
 #

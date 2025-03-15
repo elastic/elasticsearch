@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
+import org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -42,8 +43,9 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
+    private final EsqlSlowLog slowLog;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState) {
+    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState, EsqlSlowLog slowLog) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
@@ -51,6 +53,7 @@ public class PlanExecutor {
         this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics, licenseState);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
+        this.slowLog = slowLog;
     }
 
     public void esql(
@@ -83,18 +86,35 @@ public class PlanExecutor {
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
 
-        ActionListener<Result> executeListener = wrap(x -> {
-            planTelemetryManager.publish(planTelemetry, true);
-            listener.onResponse(x);
-        }, ex -> {
-            // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
-            metrics.failed(clientId);
-            planTelemetryManager.publish(planTelemetry, false);
-            listener.onFailure(ex);
-        });
+        var begin = System.nanoTime();
+        ActionListener<Result> executeListener = wrap(
+            x -> onQuerySuccess(request, listener, x, planTelemetry),
+            ex -> onQueryFailure(request, listener, ex, clientId, planTelemetry, begin)
+        );
         // Wrap it in a listener so that if we have any exceptions during execution, the listener picks it up
         // and all the metrics are properly updated
         ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
+    }
+
+    private void onQuerySuccess(EsqlQueryRequest request, ActionListener<Result> listener, Result x, PlanTelemetry planTelemetry) {
+        planTelemetryManager.publish(planTelemetry, true);
+        slowLog.onQueryPhase(x, request.query());
+        listener.onResponse(x);
+    }
+
+    private void onQueryFailure(
+        EsqlQueryRequest request,
+        ActionListener<Result> listener,
+        Exception ex,
+        QueryMetric clientId,
+        PlanTelemetry planTelemetry,
+        long begin
+    ) {
+        // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
+        metrics.failed(clientId);
+        planTelemetryManager.publish(planTelemetry, false);
+        slowLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
+        listener.onFailure(ex);
     }
 
     public IndexResolver indexResolver() {

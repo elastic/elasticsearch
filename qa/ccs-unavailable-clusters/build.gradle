@@ -13,5 +13,5 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach  {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

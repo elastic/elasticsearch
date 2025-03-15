@@ -32,7 +32,7 @@ dependencies {
 }
 
 tasks.named('yamlRestTest').configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 /**********************************

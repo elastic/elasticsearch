@@ -15,7 +15,7 @@ dependencies {
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 tasks.named("javaRestTest").configure {

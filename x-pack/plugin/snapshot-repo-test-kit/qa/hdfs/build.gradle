@@ -31,7 +31,7 @@ dependencies {
 
 // Disable integration test if Fips mode
 tasks.named("javaRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   description = "Runs rest tests against an elasticsearch cluster with HDFS."
   buildParams.withFipsEnabledOnly(it)
   // required for krb5kdc-fixture to work

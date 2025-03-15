@@ -372,6 +372,9 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testErrorRecordingOnRetention
   issue: https://github.com/elastic/elasticsearch/issues/124950
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyFromRow SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/124951
 
 # Examples:
 #

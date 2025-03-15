@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
+import java.util.Arrays;
 
 public class PostSecretRequest extends ActionRequest {
 
@@ -27,16 +27,16 @@ public class PostSecretRequest extends ActionRequest {
     public static final ConstructingObjectParser<PostSecretRequest, Void> PARSER = new ConstructingObjectParser<>(
         "post_secret_request",
         args -> {
-            return new PostSecretRequest((String) args[0]);
+            return new PostSecretRequest((String[]) args[0]);
         }
     );
 
     static {
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> p.text(),
+            p -> p.list().stream().map(s -> (String) s).toArray(String[]::new),
             VALUE_FIELD,
-            ObjectParser.ValueType.STRING
+            ObjectParser.ValueType.STRING_ARRAY
         );
     }
 
@@ -44,18 +44,18 @@ public class PostSecretRequest extends ActionRequest {
         return PARSER.parse(parser, null);
     }
 
-    private final String value;
+    private final String[] value;
 
-    public PostSecretRequest(String value) {
+    public PostSecretRequest(String[] value) {
         this.value = value;
     }
 
     public PostSecretRequest(StreamInput in) throws IOException {
         super(in);
-        this.value = in.readString();
+        this.value = in.readStringArray();
     }
 
-    public String value() {
+    public String[] value() {
         return value;
     }
 
@@ -69,7 +69,7 @@ public class PostSecretRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(value);
+        out.writeStringArray(value);
     }
 
     @Override
@@ -88,11 +88,11 @@ public class PostSecretRequest extends ActionRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PostSecretRequest that = (PostSecretRequest) o;
-        return Objects.equals(value, that.value);
+        return Arrays.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value);
+        return Arrays.hashCode(value);
     }
 }

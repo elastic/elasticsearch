@@ -19,6 +19,7 @@ STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 
 DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
+DEV_RERANK : {this.isDevVersion()}? 'rerank'              -> pushMode(EXPRESSION_MODE);
 
 
 mode EXPRESSION_MODE;
@@ -83,6 +84,9 @@ DECIMAL_LITERAL
     ;
 
 BY : 'by';
+ON: 'on';
+WITH: 'with';
+AS: 'as';
 
 AND : 'and';
 ASC : 'asc';

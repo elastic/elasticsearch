@@ -66,7 +66,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.clusterHasInferenceEndpoint;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoint;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEndpoints;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
@@ -130,7 +130,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     @Before
     public void setup() throws IOException {
         if (supportsInferenceTestService() && clusterHasInferenceEndpoint(client()) == false) {
-            createInferenceEndpoint(client());
+            createInferenceEndpoints(client());
         }
 
         boolean supportsLookup = supportsIndexModeLookup();

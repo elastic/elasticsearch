@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -79,6 +80,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
+    private final InferenceService inferenceService;
     private final TransportActionServices services;
     private volatile boolean defaultAllowPartialResults;
 
@@ -124,12 +126,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactoryProvider.blockFactory()
         );
+        this.inferenceService = new InferenceService(client);
         this.computeService = new ComputeService(
             searchService,
             transportService,
             exchangeService,
             enrichLookupService,
             lookupFromIndexService,
+            inferenceService,
             clusterService,
             threadPool,
             bigArrays,
@@ -157,7 +161,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             exchangeService,
             clusterService,
             indexNameExpressionResolver,
-            usageService
+            usageService,
+            inferenceService
         );
         defaultAllowPartialResults = EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.get(clusterService.getSettings());
         clusterService.getClusterSettings()

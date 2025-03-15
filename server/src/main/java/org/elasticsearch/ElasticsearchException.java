@@ -413,7 +413,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             // TODO: we could walk the exception chain to see if _any_ causes are timeouts?
             timedOut = exception.isTimeout();
         }
-        builder.field(TIMED_OUT, timedOut);
+        if (timedOut) {
+            builder.field(TIMED_OUT, timedOut);
+        }
 
         for (Map.Entry<String, List<String>> entry : metadata.entrySet()) {
             headerToXContent(builder, entry.getKey().substring("es.".length()), entry.getValue());

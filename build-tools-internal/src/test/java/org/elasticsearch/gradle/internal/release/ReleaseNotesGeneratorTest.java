@@ -25,15 +25,40 @@ import static org.junit.Assert.assertThat;
 
 public class ReleaseNotesGeneratorTest {
 
-    /**
-     * Check that the release notes can be correctly generated.
-     */
+    private static final List<String> CHANGE_TYPES = List.of(
+        "breaking",
+        "breaking-java",
+        "bug",
+        "fixes",
+        "deprecation",
+        "enhancement",
+        "feature",
+        "features-enhancements",
+        "new-aggregation",
+        "regression",
+        "upgrade"
+    );
+
     @Test
-    public void generateFile_rendersCorrectMarkup() throws Exception {
+    public void generateFile_index_rendersCorrectMarkup() throws Exception {
+        testTemplate("index.md");
+    }
+
+    @Test
+    public void generateFile_breakingChanges_rendersCorrectMarkup() throws Exception {
+        testTemplate("breaking-changes.md");
+    }
+
+    @Test
+    public void generateFile_deprecations_rendersCorrectMarkup() throws Exception {
+        testTemplate("deprecations.md");
+    }
+
+    public void testTemplate(String templateFilename) throws Exception {
         // given:
-        final String template = getResource("/templates/release-notes.asciidoc");
+        final String template = getResource("/templates/" + templateFilename);
         final String expectedOutput = getResource(
-            "/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest.generateFile.asciidoc"
+            "/org/elasticsearch/gradle/internal/release/ReleaseNotesGeneratorTest." + templateFilename
         );
 
         final Set<ChangelogEntry> entries = getEntries();
@@ -47,23 +72,9 @@ public class ReleaseNotesGeneratorTest {
 
     private Set<ChangelogEntry> getEntries() {
         final Set<ChangelogEntry> entries = new HashSet<>();
-        entries.addAll(buildEntries(1, 2));
-        entries.addAll(buildEntries(2, 2));
-        entries.addAll(buildEntries(3, 2));
-
-        // Security issues are presented first in the notes
-        final ChangelogEntry securityEntry = new ChangelogEntry();
-        securityEntry.setArea("Security");
-        securityEntry.setType("security");
-        securityEntry.setSummary("Test security issue");
-        entries.add(securityEntry);
-
-        // known issues are presented after security issues
-        final ChangelogEntry knownIssue = new ChangelogEntry();
-        knownIssue.setArea("Search");
-        knownIssue.setType("known-issue");
-        knownIssue.setSummary("Test known issue");
-        entries.add(knownIssue);
+        for (int i = 0; i < CHANGE_TYPES.size(); i++) {
+            entries.addAll(buildEntries(i, 2));
+        }
 
         return entries;
     }
@@ -71,11 +82,9 @@ public class ReleaseNotesGeneratorTest {
     private List<ChangelogEntry> buildEntries(int seed, int count) {
         // Sample of possible areas from `changelog-schema.json`
         final List<String> areas = List.of("Aggregation", "Cluster", "Indices", "Mappings", "Search", "Security");
-        // Possible change types, with `breaking`, `breaking-java`, `known-issue` and `security` removed.
-        final List<String> types = List.of("bug", "deprecation", "enhancement", "feature", "new-aggregation", "regression", "upgrade");
 
         final String area = areas.get(seed % areas.size());
-        final String type = types.get(seed % types.size());
+        final String type = CHANGE_TYPES.get(seed % CHANGE_TYPES.size());
 
         final List<ChangelogEntry> entries = new ArrayList<>(count);
 

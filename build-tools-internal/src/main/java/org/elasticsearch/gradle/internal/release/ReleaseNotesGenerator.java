@@ -39,13 +39,20 @@ public class ReleaseNotesGenerator {
         TYPE_LABELS.put("breaking", "Breaking changes");
         TYPE_LABELS.put("breaking-java", "Breaking Java changes");
         TYPE_LABELS.put("bug", "Bug fixes");
+        TYPE_LABELS.put("fixes", "Fixes");
         TYPE_LABELS.put("deprecation", "Deprecations");
         TYPE_LABELS.put("enhancement", "Enhancements");
         TYPE_LABELS.put("feature", "New features");
+        TYPE_LABELS.put("features-enhancements", "Features and enhancements");
         TYPE_LABELS.put("new-aggregation", "New aggregation");
         TYPE_LABELS.put("regression", "Regressions");
         TYPE_LABELS.put("upgrade", "Upgrades");
     }
+
+    /**
+     * These are the types of changes that are considered "Features and Enhancements" in the release notes.
+     */
+    private static final List<String> FEATURE_ENHANCEMENT_TYPES = List.of("feature", "new-aggregation", "enhancement", "upgrade");
 
     static void update(File templateFile, File outputFile, QualifiedVersion version, Set<ChangelogEntry> changelogs) throws IOException {
         final String templateString = Files.readString(templateFile.toPath());
@@ -63,8 +70,30 @@ public class ReleaseNotesGenerator {
         bindings.put("version", version);
         bindings.put("changelogsByTypeByArea", changelogsByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
+        bindings.put("unqualifiedVersion", version.withoutQualifier());
+        bindings.put("versionWithoutSeparator", version.withoutQualifier().toString().replaceAll("\\.", ""));
 
         return TemplateUtils.render(template, bindings);
+    }
+
+    /**
+     * The new markdown release notes are grouping several of the old change types together.
+     * This method maps the change type that developers use in the changelogs to the new type that the release notes cares about.
+     */
+    private static String getTypeFromEntry(ChangelogEntry entry) {
+        if (entry.getBreaking() != null) {
+            return "breaking";
+        }
+
+        if (FEATURE_ENHANCEMENT_TYPES.contains(entry.getType())) {
+            return "features-enhancements";
+        }
+
+        if (entry.getType().equals("bug")) {
+            return "fixes";
+        }
+
+        return entry.getType();
     }
 
     private static Map<String, Map<String, List<ChangelogEntry>>> buildChangelogBreakdown(Set<ChangelogEntry> changelogs) {
@@ -72,7 +101,7 @@ public class ReleaseNotesGenerator {
             .collect(
                 groupingBy(
                     // Entries with breaking info are always put in the breaking section
-                    entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
+                    entry -> getTypeFromEntry(entry),
                     TreeMap::new,
                     // Group changelogs for each type by their team area
                     groupingBy(

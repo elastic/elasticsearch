@@ -96,7 +96,7 @@ Setting this parameter to `true` produces multi-position tokens, which are not s
 
 If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/data-analysis/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
 
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -112,7 +112,7 @@ Setting this parameter to `true` produces multi-position tokens, which are not s
 
 If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/data-analysis/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
 
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -128,7 +128,7 @@ Setting this parameter to `true` produces multi-position tokens, which are not s
 
 If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/data-analysis/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
 
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -275,7 +275,7 @@ However, only the `word_delimiter_graph` filter assigns multi-position tokens a 
 
 The `word_delimiter` filter does not assign multi-position tokens a `positionLength` attribute. This means it produces invalid graphs for streams including these tokens.
 
-While indexing does not support token graphs containing multi-position tokens, queries, such as the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query, can use these graphs to generate multiple sub-queries from a single query string.
+While indexing does not support token graphs containing multi-position tokens, queries, such as the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query, can use these graphs to generate multiple sub-queries from a single query string.
 
 To see how token graphs produced by the `word_delimiter` and `word_delimiter_graph` filters differ, check out the following example.
 

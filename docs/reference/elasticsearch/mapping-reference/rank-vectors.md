@@ -119,7 +119,7 @@ Synthetic `_source` is Generally Available only for TSDB indices (indices that h
 
 ## Scoring with rank vectors [rank-vectors-scoring]
 
-Rank vectors can be accessed and used in [`script_score` queries](/reference/query-languages/query-dsl-script-score-query.md).
+Rank vectors can be accessed and used in [`script_score` queries](/reference/query-languages/query-dsl/query-dsl-script-score-query.md).
 
 For example, the following query scores documents based on the maxSim similarity between the query vector and the vectors stored in the `my_vector` field:
 

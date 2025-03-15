@@ -5,7 +5,7 @@ mapped_pages:
 
 # Score context [painless-score-context]
 
-Use a Painless script in a [function score](/reference/query-languages/query-dsl-function-score-query.md) to apply a new score to documents returned from a query.
+Use a Painless script in a [function score](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) to apply a new score to documents returned from a query.
 
 **Variables**
 

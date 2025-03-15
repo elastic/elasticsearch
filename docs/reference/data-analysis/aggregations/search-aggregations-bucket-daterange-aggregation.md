@@ -64,7 +64,7 @@ Response:
 ```
 
 ::::{warning}
-If a format or date value is incomplete, the date range aggregation replaces any missing components with default values. See [Missing date components](/reference/query-languages/query-dsl-range-query.md#missing-date-components).
+If a format or date value is incomplete, the date range aggregation replaces any missing components with default values. See [Missing date components](/reference/query-languages/query-dsl/query-dsl-range-query.md#missing-date-components).
 ::::
 
 

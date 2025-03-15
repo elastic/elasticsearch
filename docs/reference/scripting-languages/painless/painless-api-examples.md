@@ -156,7 +156,7 @@ Wildcards are not accepted in the index expression for this endpoint. The expres
     ::::
 
 
-    Use this parameter to specify a query for computing a score. Besides deciding whether or not the document matches, the [query clause](/reference/query-languages/query-filter-context.md#query-context) also calculates a relevance score in the `_score` metadata field.
+    Use this parameter to specify a query for computing a score. Besides deciding whether or not the document matches, the [query clause](/reference/query-languages/query-dsl/query-filter-context.md#query-context) also calculates a relevance score in the `_score` metadata field.
 
 
 

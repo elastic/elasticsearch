@@ -466,7 +466,7 @@ Whenever the byte size of data needs to be specified, e.g. when setting a buffer
 
 ## Distance Units [distance-units]
 
-Wherever distances need to be specified, such as the `distance` parameter in the [Geo-distance](/reference/query-languages/query-dsl-geo-distance-query.md)), the default unit is meters if none is specified. Distances can be specified in other units, such as `"1km"` or `"2mi"` (2 miles).
+Wherever distances need to be specified, such as the `distance` parameter in the [Geo-distance](/reference/query-languages/query-dsl/query-dsl-geo-distance-query.md)), the default unit is meters if none is specified. Distances can be specified in other units, such as `"1km"` or `"2mi"` (2 miles).
 
 The full list of units is listed below:
 

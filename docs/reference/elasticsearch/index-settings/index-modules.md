@@ -97,7 +97,7 @@ $$$ccr-index-soft-deletes-retention-period$$$
 :   The maximum period to retain a shard history retention lease before it is considered expired. Shard history retention leases ensure that soft deletes are retained during merges on the Lucene index. If a soft delete is merged away before it can be replicated to a follower the following process will fail due to incomplete history on the leader. Defaults to `12h`.
 
 $$$load-fixed-bitset-filters-eagerly$$$ `index.load_fixed_bitset_filters_eagerly`
-:   Indicates whether [cached filters](/reference/query-languages/query-filter-context.md) are pre-loaded for nested queries. Possible values are `true` (default) and `false`.
+:   Indicates whether [cached filters](/reference/query-languages/query-dsl/query-filter-context.md) are pre-loaded for nested queries. Possible values are `true` (default) and `false`.
 
 $$$index-shard-check-on-startup$$$ `index.shard.check_on_startup`
 :   :::::{admonition}
@@ -210,12 +210,12 @@ $$$index-query-default-field$$$
 `index.query.default_field`
 :   (string or array of strings) Wildcard (`*`) patterns matching one or more fields. The following query types search these matching fields by default:
 
-* [More like this](/reference/query-languages/query-dsl-mlt-query.md)
-* [Multi-match](/reference/query-languages/query-dsl-multi-match-query.md)
-* [Query string](/reference/query-languages/query-dsl-query-string-query.md)
-* [Simple query string](/reference/query-languages/query-dsl-simple-query-string-query.md)
+* [More like this](/reference/query-languages/query-dsl/query-dsl-mlt-query.md)
+* [Multi-match](/reference/query-languages/query-dsl/query-dsl-multi-match-query.md)
+* [Query string](/reference/query-languages/query-dsl/query-dsl-query-string-query.md)
+* [Simple query string](/reference/query-languages/query-dsl/query-dsl-simple-query-string-query.md)
 
-Defaults to `*`, which matches all fields eligible for [term-level queries](/reference/query-languages/term-level-queries.md), excluding metadata fields.
+Defaults to `*`, which matches all fields eligible for [term-level queries](/reference/query-languages/query-dsl/term-level-queries.md), excluding metadata fields.
 
 
 $$$index-routing-allocation-enable-setting$$$

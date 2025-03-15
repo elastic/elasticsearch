@@ -23,7 +23,7 @@ Statistics are returned in a format suitable for humans (e.g. `"exists_time": "1
 
 ## Date Math [date-math]
 
-Most parameters which accept a formatted date value — such as `gt` and `lt` in [`range` queries](/reference/query-languages/query-dsl-range-query.md), or `from` and `to` in [`daterange` aggregations](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md) — understand date maths.
+Most parameters which accept a formatted date value — such as `gt` and `lt` in [`range` queries](/reference/query-languages/query-dsl/query-dsl-range-query.md), or `from` and `to` in [`daterange` aggregations](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md) — understand date maths.
 
 The expression starts with an anchor date, which can either be `now`, or a date string ending with `||`. This anchor date can optionally be followed by one or more maths expressions:
 

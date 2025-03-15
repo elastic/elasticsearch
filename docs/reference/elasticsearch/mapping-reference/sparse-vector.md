@@ -7,7 +7,7 @@ mapped_pages:
 # Sparse vector field type [sparse-vector]
 
 
-A `sparse_vector` field can index features and weights so that they can later be used to query documents in queries with a [`sparse_vector`](/reference/query-languages/query-dsl-sparse-vector-query.md). This field can also be used with a legacy [`text_expansion`](/reference/query-languages/query-dsl-text-expansion-query.md) query.
+A `sparse_vector` field can index features and weights so that they can later be used to query documents in queries with a [`sparse_vector`](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md). This field can also be used with a legacy [`text_expansion`](/reference/query-languages/query-dsl/query-dsl-text-expansion-query.md) query.
 
 `sparse_vector` is the field type that should be used with [ELSER mappings](docs-content://solutions/search/semantic-search/semantic-search-elser-ingest-pipelines.md#elser-mappings).
 
@@ -102,7 +102,7 @@ GET my-index-000001/_search
 
 
 ::::{note}
-`sparse_vector` fields do not support [analyzers](docs-content://manage-data/data-store/text-analysis.md), querying, sorting or aggregating. They may only be used within specialized queries. The recommended query to use on these fields are [`sparse_vector`](/reference/query-languages/query-dsl-sparse-vector-query.md) queries. They may also be used within legacy [`text_expansion`](/reference/query-languages/query-dsl-text-expansion-query.md) queries.
+`sparse_vector` fields do not support [analyzers](docs-content://manage-data/data-store/text-analysis.md), querying, sorting or aggregating. They may only be used within specialized queries. The recommended query to use on these fields are [`sparse_vector`](/reference/query-languages/query-dsl/query-dsl-sparse-vector-query.md) queries. They may also be used within legacy [`text_expansion`](/reference/query-languages/query-dsl/query-dsl-text-expansion-query.md) queries.
 ::::
 
 

@@ -196,7 +196,7 @@ GET /_search
 
 In the above example, buckets will be created for all the tags that starts with `swi`, except those starting with `electro` (so the tag `swing` will be aggregated but not `electro_swing`). The `include` regular expression will determine what values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
 
-The syntax is the same as [regexp queries](/reference/query-languages/regexp-syntax.md).
+The syntax is the same as [regexp queries](/reference/query-languages/query-dsl/regexp-syntax.md).
 
 
 ### Filtering Values with exact values [_filtering_values_with_exact_values]

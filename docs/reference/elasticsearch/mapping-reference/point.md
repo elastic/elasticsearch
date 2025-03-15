@@ -9,7 +9,7 @@ mapped_pages:
 
 The `point` data type facilitates the indexing of and searching arbitrary `x, y` pairs that fall in a 2-dimensional planar coordinate system.
 
-You can query documents using this type using [shape Query](/reference/query-languages/query-dsl-shape-query.md).
+You can query documents using this type using [shape Query](/reference/query-languages/query-dsl/query-dsl-shape-query.md).
 
 As with [geo_shape](/reference/elasticsearch/mapping-reference/geo-shape.md) and [geo_point](/reference/elasticsearch/mapping-reference/geo-point.md), `point` can be specified in [GeoJSON](http://geojson.org) and [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) formats. However, there are a number of additional formats that are supported for convenience and historical reasons. In total there are five ways that a cartesian point may be specified, as demonstrated below:
 

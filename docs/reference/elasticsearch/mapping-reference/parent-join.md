@@ -243,9 +243,9 @@ Will return:
 
 ## Parent-join queries and aggregations [_parent_join_queries_and_aggregations]
 
-See the [`has_child`](/reference/query-languages/query-dsl-has-child-query.md) and [`has_parent`](/reference/query-languages/query-dsl-has-parent-query.md) queries, the [`children`](/reference/data-analysis/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation, and [inner hits](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md#parent-child-inner-hits) for more information.
+See the [`has_child`](/reference/query-languages/query-dsl/query-dsl-has-child-query.md) and [`has_parent`](/reference/query-languages/query-dsl/query-dsl-has-parent-query.md) queries, the [`children`](/reference/data-analysis/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation, and [inner hits](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md#parent-child-inner-hits) for more information.
 
-The value of the `join` field is accessible in aggregations and scripts, and may be queried with the [`parent_id` query](/reference/query-languages/query-dsl-parent-id-query.md):
+The value of the `join` field is accessible in aggregations and scripts, and may be queried with the [`parent_id` query](/reference/query-languages/query-dsl/query-dsl-parent-id-query.md):
 
 ```console
 GET my-index-000001/_search
@@ -278,7 +278,7 @@ GET my-index-000001/_search
 }
 ```
 
-1. Querying the `parent id` field (also see the [`has_parent` query](/reference/query-languages/query-dsl-has-parent-query.md) and the [`has_child` query](/reference/query-languages/query-dsl-has-child-query.md))
+1. Querying the `parent id` field (also see the [`has_parent` query](/reference/query-languages/query-dsl/query-dsl-has-parent-query.md) and the [`has_child` query](/reference/query-languages/query-dsl/query-dsl-has-child-query.md))
 2. Aggregating on the `parent id` field (also see the [`children`](/reference/data-analysis/aggregations/search-aggregations-bucket-children-aggregation.md) aggregation)
 3. Accessing the `parent id` field in scripts.
 

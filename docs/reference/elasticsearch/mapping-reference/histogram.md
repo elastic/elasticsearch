@@ -37,7 +37,7 @@ Because the data is not indexed, you only can use `histogram` fields for the fol
 * [boxplot](/reference/data-analysis/aggregations/search-aggregations-metrics-boxplot-aggregation.md) aggregation
 * [histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md#search-aggregations-bucket-histogram-aggregation-histogram-fields) aggregation
 * [range](/reference/data-analysis/aggregations/search-aggregations-bucket-range-aggregation.md#search-aggregations-bucket-range-aggregation-histogram-fields) aggregation
-* [exists](/reference/query-languages/query-dsl-exists-query.md) query
+* [exists](/reference/query-languages/query-dsl/query-dsl-exists-query.md) query
 
 
 ## Building a histogram [mapping-types-histogram-building-histogram]

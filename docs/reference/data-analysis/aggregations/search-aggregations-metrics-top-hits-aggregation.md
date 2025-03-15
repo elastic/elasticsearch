@@ -29,7 +29,7 @@ The top_hits aggregation returns regular search hits, because of this many per h
 
 * [Highlighting](/reference/elasticsearch/rest-apis/highlighting.md)
 * [Explain](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search)
-* [Named queries](/reference/query-languages/query-dsl-bool-query.md#named-queries)
+* [Named queries](/reference/query-languages/query-dsl/query-dsl-bool-query.md#named-queries)
 * [Search fields](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#search-fields-param)
 * [Source filtering](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#source-filtering)
 * [Stored fields](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md#stored-fields)
@@ -43,7 +43,7 @@ If you **only** need `docvalue_fields`, `size`, and `sort` then [Top metrics](/r
 ::::
 
 
-`top_hits` does not support the [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) parameter. Query rescoring applies only to search hits, not aggregation results. To change the scores used by aggregations, use a [`function_score`](/reference/query-languages/query-dsl-function-score-query.md) or [`script_score`](/reference/query-languages/query-dsl-script-score-query.md) query.
+`top_hits` does not support the [`rescore`](/reference/elasticsearch/rest-apis/filter-search-results.md#rescore) parameter. Query rescoring applies only to search hits, not aggregation results. To change the scores used by aggregations, use a [`function_score`](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) or [`script_score`](/reference/query-languages/query-dsl/query-dsl-script-score-query.md) query.
 
 
 ## Example [_example_6]

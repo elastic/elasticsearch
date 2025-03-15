@@ -5,7 +5,7 @@ mapped_pages:
 
 # position_increment_gap [position-increment-gap]
 
-[Analyzed](/reference/elasticsearch/mapping-reference/mapping-index.md) text fields take term [positions](/reference/elasticsearch/mapping-reference/index-options.md) into account, in order to be able to support [proximity or phrase queries](/reference/query-languages/query-dsl-match-query-phrase.md). When indexing text fields with multiple values a "fake" gap is added between the values to prevent most phrase queries from matching across the values. The size of this gap is configured using `position_increment_gap` and defaults to `100`.
+[Analyzed](/reference/elasticsearch/mapping-reference/mapping-index.md) text fields take term [positions](/reference/elasticsearch/mapping-reference/index-options.md) into account, in order to be able to support [proximity or phrase queries](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md). When indexing text fields with multiple values a "fake" gap is added between the values to prevent most phrase queries from matching across the values. The size of this gap is configured using `position_increment_gap` and defaults to `100`.
 
 For example:
 

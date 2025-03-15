@@ -51,7 +51,7 @@ Unlike most other data types, dense vectors are always single-valued. It is not 
 
 A *k-nearest neighbor* (kNN) search finds the *k* nearest vectors to a query vector, as measured by a similarity metric.
 
-Dense vector fields can be used to rank documents in [`script_score` queries](/reference/query-languages/query-dsl-script-score-query.md). This lets you perform a brute-force kNN search by scanning all documents and ranking them by similarity.
+Dense vector fields can be used to rank documents in [`script_score` queries](/reference/query-languages/query-dsl/query-dsl-script-score-query.md). This lets you perform a brute-force kNN search by scanning all documents and ranking them by similarity.
 
 In many cases, a brute-force kNN search is not efficient enough. For this reason, the `dense_vector` type supports indexing vectors into a specialized data structure to support fast kNN retrieval through the [`knn` option](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) in the search API
 
@@ -215,7 +215,7 @@ $$$dense-vector-element-type$$$
 :   (Optional, integer) Number of vector dimensions. Can’t exceed `4096`. If `dims` is not specified, it will be set to the length of the first vector added to the field.
 
 `index`
-:   (Optional, Boolean) If `true`, you can search this field using the [knn query](/reference/query-languages/query-dsl-knn-query.md) or [knn in _search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) . Defaults to `true`.
+:   (Optional, Boolean) If `true`, you can search this field using the [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) or [knn in _search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) . Defaults to `true`.
 
 $$$dense-vector-similarity$$$
 

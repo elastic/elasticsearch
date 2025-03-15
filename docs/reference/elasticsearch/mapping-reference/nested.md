@@ -74,7 +74,7 @@ GET my-index-000001/_search
 
 If you need to index arrays of objects and to maintain the independence of each object in the array, use the `nested` data type instead of the [`object`](/reference/elasticsearch/mapping-reference/object.md) data type.
 
-Internally, nested objects index each object in the array as a separate hidden document, meaning that each nested object can be queried independently of the others with the [`nested` query](/reference/query-languages/query-dsl-nested-query.md):
+Internally, nested objects index each object in the array as a separate hidden document, meaning that each nested object can be queried independently of the others with the [`nested` query](/reference/query-languages/query-dsl/query-dsl-nested-query.md):
 
 ```console
 PUT my-index-000001
@@ -156,7 +156,7 @@ GET my-index-000001/_search
 
 Nested documents can be:
 
-* queried with the [`nested`](/reference/query-languages/query-dsl-nested-query.md) query.
+* queried with the [`nested`](/reference/query-languages/query-dsl/query-dsl-nested-query.md) query.
 * analyzed with the [`nested`](/reference/data-analysis/aggregations/search-aggregations-bucket-nested-aggregation.md) and [`reverse_nested`](/reference/data-analysis/aggregations/search-aggregations-bucket-reverse-nested-aggregation.md) aggregations.
 * sorted with [nested sorting](/reference/elasticsearch/rest-apis/sort-search-results.md#nested-sorting).
 * retrieved and highlighted with [nested inner hits](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md#nested-inner-hits).

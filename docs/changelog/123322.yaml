@@ -1,0 +1,5 @@
+pr: 123322
+summary: Optimize query plan using query progress
+area: ES|QL
+type: enhancement
+issues: []

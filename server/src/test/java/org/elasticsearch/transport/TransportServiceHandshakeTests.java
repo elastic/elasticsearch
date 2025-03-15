@@ -315,8 +315,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                 containsString("found [" + transportServiceB.getLocalNode().descriptionWithoutAttributes() + "] instead"),
                 containsString("Ensure that each node has its own distinct publish address"),
                 containsString("routed to the correct node"),
-                containsString("https://www.elastic.co/guide/en/elasticsearch/reference/"),
-                containsString("modules-network.html")
+                containsString("https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/networking-settings")
             )
         );
         assertFalse(transportServiceA.nodeConnected(discoveryNode));

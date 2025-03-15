@@ -76,6 +76,7 @@ These documents define the access control policy for the data indexed into Elast
     }
 }
 ```
+% NOTCONSOLE
 
 In this example, the identity object specifies the identity of the user that this document pertains to. The `query` object then uses a template to list the parameters that form the access control policy for this identity. It also contains the query `source`, which will specify a query to fetch all content documents the identity has access to. The `_id` could be, for example, the email address or the username of a user. The exact content and structure of `identity` depends on the corresponding implementation.
 
@@ -97,6 +98,7 @@ Content documents contain the actual data from your 3rd party source. A specific
   ]
 }
 ```
+% NOTCONSOLE
 
 
 ### Access control sync vs content sync [es-dls-overview-sync-type-comparison]
@@ -145,6 +147,7 @@ One access control document:
     }
 }
 ```
+% NOTCONSOLE
 
 Let’s see which of the following example documents these permissions can access, and why.
 
@@ -158,6 +161,7 @@ Let’s see which of the following example documents these permissions can acces
   ]
 }
 ```
+% NOTCONSOLE
 
 The user `example username` will have access to this document as he’s part of the corresponding group and his username and email address are also explicitly part of `_allow_access_control`.
 
@@ -169,6 +173,7 @@ The user `example username` will have access to this document as he’s part of 
   ]
 }
 ```
+% NOTCONSOLE
 
 The user `example username` will also have access to this document as they are part of the `example group`.
 
@@ -180,6 +185,7 @@ The user `example username` will also have access to this document as they are p
   ]
 }
 ```
+% NOTCONSOLE
 
 The user `example username` won’t have access to this document because their email does not match `another.user@example.com`.
 
@@ -189,6 +195,7 @@ The user `example username` won’t have access to this document because their e
   "_allow_access_control": []
 }
 ```
+% NOTCONSOLE
 
 No one will have access to this document as the `_allow_access_control` field is empty.
 
@@ -224,6 +231,7 @@ GET .search-acl-filter-source1
     }
 }
 ```
+% NOTCONSOLE
 
 ```js
 GET .search-acl-filter-source2
@@ -245,6 +253,7 @@ GET .search-acl-filter-source2
     }
 }
 ```
+% NOTCONSOLE
 
 `.search-acl-filter-source1` and `.search-acl-filter-source2` define the access control identities for `source1` and `source2`.
 
@@ -294,6 +303,7 @@ POST /_security/api_key
   }
 }
 ```
+% TEST[skip:TODO]
 
 
 #### Workflow guidance [es-dls-overview-multiple-connectors-workflow-guidance]

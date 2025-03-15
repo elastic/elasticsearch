@@ -142,6 +142,7 @@ There is a limit of 100 rules per ruleset. This can be increased up to 1000 usin
   "result": "created"
 }
 ```
+% TEST[continued]
 
 You can use the [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-get-ruleset) call to retrieve the ruleset you just created, the [List query rulesets](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-list-rulesets) call to retrieve a summary of all query rulesets, and the [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-delete-ruleset) call to delete a query ruleset.
 
@@ -177,6 +178,7 @@ GET /my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 This rule query will match against `rule1` in the defined query ruleset, and will convert the organic query into a pinned query with `id1` and `id2` pinned as the top hits. Any other matches from the organic query will be returned below the pinned results.
 
@@ -228,6 +230,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 This will apply pinned and excluded query rules on top of the content that was reranked by RRF.
 

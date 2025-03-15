@@ -102,6 +102,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 1. `buckets_path` instructs this max_bucket aggregation that we want the maximum value of the `sales` aggregation in the `sales_per_month` date histogram.
 
@@ -146,6 +147,7 @@ POST /_search
   }
 }
 ```
+% TEST[setup:sales]
 
 1. `buckets_path` selects the hats and bags buckets (via `['hat']`/`['bag']``) to use in the script specifically, instead of fetching all the buckets from `sale_type` aggregation
 
@@ -214,6 +216,7 @@ POST /sales/_search
   }
 }
 ```
+% TEST[setup:sales]
 
 1. By using `_bucket_count` instead of a metric name, we can filter out `histo` buckets where they contain no buckets for the `categories` aggregation
 
@@ -226,6 +229,7 @@ An alternate syntax is supported to cope with aggregations or metrics which have
 ```js
 "buckets_path": "my_percentile[99.9]"
 ```
+% NOTCONSOLE
 
 
 ## Dealing with gaps in the data [gap-policy]

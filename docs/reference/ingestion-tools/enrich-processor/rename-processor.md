@@ -31,4 +31,5 @@ $$$rename-options$$$
   }
 }
 ```
+% NOTCONSOLE
 

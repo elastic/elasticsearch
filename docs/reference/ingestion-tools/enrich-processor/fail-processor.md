@@ -28,4 +28,5 @@ $$$fail-options$$$
   }
 }
 ```
+% NOTCONSOLE
 

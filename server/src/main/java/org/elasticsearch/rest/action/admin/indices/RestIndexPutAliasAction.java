@@ -95,6 +95,8 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                         if ("filter".equals(currentFieldName)) {
                             filter = parser.mapOrdered();
                         }
+                    } else {
+                        throw new IllegalArgumentException("Unknown token [" + token + "]");
                     }
                 }
             }

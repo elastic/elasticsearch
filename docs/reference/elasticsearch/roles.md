@@ -5,6 +5,12 @@ mapped_pages:
 
 # Roles [built-in-roles]
 
+:::{note}
+This section provides detailed **reference information** for Elasticsearch privileges.
+
+Refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) in the **Deploy and manage** section for overview, getting started and conceptual information.
+:::
+
 The {{stack-security-features}} apply a default role to all users, including [anonymous users](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/anonymous-access.md). The default role enables users to access the authenticate endpoint, change their own passwords, and get information about themselves.
 
 There is also a set of built-in roles you can explicitly assign to users. These roles have a fixed set of privileges and cannot be updated.

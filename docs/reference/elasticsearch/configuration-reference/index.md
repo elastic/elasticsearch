@@ -4,6 +4,12 @@ navigation_title: "Configuration"
 
 # Elasticsearch configuration reference
 
+:::{note}
+This section provides detailed **reference information** for Elasticsearch configuration.
+
+Refer to [Elasticsearch configuration](docs-content://deploy-manage/deploy/cloud-on-k8s/elasticsearch-configuration.md) in the **Deploy and manage** section for overview, getting started and conceptual information.
+:::
+
 Configuration settings enable you to customize the behavior of Elasticsearch features.
 This reference provides details about each setting, such as its purpose, default behavior, and availability in Elastic Cloud environments.
 

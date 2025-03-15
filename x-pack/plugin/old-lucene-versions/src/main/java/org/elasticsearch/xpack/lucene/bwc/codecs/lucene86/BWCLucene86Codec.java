@@ -5,13 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.lucene.bwc.codecs.lucene70;
+package org.elasticsearch.xpack.lucene.bwc.codecs.lucene86;
 
 import org.apache.lucene.backward_codecs.lucene50.Lucene50CompoundFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50LiveDocsFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.backward_codecs.lucene60.Lucene60FieldInfosFormat;
-import org.apache.lucene.backward_codecs.lucene70.Lucene70SegmentInfoFormat;
+import org.apache.lucene.backward_codecs.lucene80.Lucene80DocValuesFormat;
+import org.apache.lucene.backward_codecs.lucene86.Lucene86SegmentInfoFormat;
 import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
@@ -21,37 +22,34 @@ import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPointsFormat;
 
 /**
- * Implements the Lucene 7.0 index format. Loaded via SPI for indices created/written with Lucene 7.x (Elasticsearch 6.x) mounted
- * as archive indices first in Elasticsearch 8.x. Lucene 9.12 retained Lucene70Codec in its classpath which required overriding the
- * codec name and version in the segment infos. This codec is still needed after upgrading to Elasticsearch 9.x because its codec
- * name has been written to disk.
+ * This is a fork of {@link org.apache.lucene.backward_codecs.lucene86.Lucene86Codec}
+ * Implements the Lucene 8.6 index format. Loaded via SPI for indices created/written with Lucene 8.6.0-8.6.2
+ * (Elasticsearch [7.9.0-7.9.3]), mounted as archive indices in Elasticsearch 8.x / 9.x.
  */
-public class BWCLucene70Codec extends BWCCodec {
+public class BWCLucene86Codec extends BWCCodec {
 
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
-    private final StoredFieldsFormat storedFieldsFormat;
-    private final DocValuesFormat defaultDVFormat = new Lucene70DocValuesFormat();
+    private final PointsFormat pointsFormat = new Lucene86MetadataOnlyPointsFormat();
+    private final DocValuesFormat defaultDVFormat;
+
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return defaultDVFormat;
         }
     };
-    private final PointsFormat pointsFormat = new Lucene60MetadataOnlyPointsFormat();
+
+    private final StoredFieldsFormat storedFieldsFormat;
 
     // Needed for SPI loading
     @SuppressWarnings("unused")
-    public BWCLucene70Codec() {
-        this("BWCLucene70Codec");
-    }
-
-    protected BWCLucene70Codec(String name) {
-        super(name);
-        storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
+    public BWCLucene86Codec() {
+        super("BWCLucene86Codec");
+        this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
+        this.defaultDVFormat = new Lucene80DocValuesFormat();
     }
 
     @Override
@@ -61,7 +59,7 @@ public class BWCLucene70Codec extends BWCCodec {
 
     @Override
     protected SegmentInfoFormat originalSegmentInfoFormat() {
-        return new Lucene70SegmentInfoFormat();
+        return new Lucene86SegmentInfoFormat();
     }
 
     @Override
@@ -70,7 +68,7 @@ public class BWCLucene70Codec extends BWCCodec {
     }
 
     @Override
-    public LiveDocsFormat liveDocsFormat() {
+    public final LiveDocsFormat liveDocsFormat() {
         return liveDocsFormat;
     }
 
@@ -80,12 +78,12 @@ public class BWCLucene70Codec extends BWCCodec {
     }
 
     @Override
-    public final DocValuesFormat docValuesFormat() {
-        return docValuesFormat;
+    public PointsFormat pointsFormat() {
+        return pointsFormat;
     }
 
     @Override
-    public PointsFormat pointsFormat() {
-        return pointsFormat;
+    public final DocValuesFormat docValuesFormat() {
+        return docValuesFormat;
     }
 }

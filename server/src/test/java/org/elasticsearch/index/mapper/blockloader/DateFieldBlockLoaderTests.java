@@ -24,7 +24,7 @@ import java.util.Objects;
 
 public class DateFieldBlockLoaderTests extends BlockLoaderTestCase {
     public DateFieldBlockLoaderTests(Params params) {
-        super(FieldType.DATE, params);
+        super(FieldType.DATE.toString(), params);
     }
 
     @Override

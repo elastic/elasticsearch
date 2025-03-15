@@ -17,7 +17,7 @@ import java.util.Objects;
 
 public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends BlockLoaderTestCase {
     public NumberFieldBlockLoaderTestCase(FieldType fieldType, Params params) {
-        super(fieldType, params);
+        super(fieldType.toString(), params);
     }
 
     @Override

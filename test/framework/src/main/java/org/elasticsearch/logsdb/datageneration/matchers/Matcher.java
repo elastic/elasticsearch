@@ -30,7 +30,11 @@ public abstract class Matcher {
     }
 
     public interface MappingsStep<T> {
-        SettingsStep<T> mappings(XContentBuilder actualMappings, XContentBuilder expectedMappings);
+        SettingsStep<T> mappings(
+            Map<String, Map<String, Object>> mappingLookup,
+            XContentBuilder actualMappings,
+            XContentBuilder expectedMappings
+        );
     }
 
     public interface SettingsStep<T> {
@@ -104,6 +108,7 @@ public abstract class Matcher {
             SettingsStep<List<Map<String, Object>>>,
             CompareStep<List<Map<String, Object>>>,
             ExpectedStep<List<Map<String, Object>>> {
+        private Map<String, Map<String, Object>> mappingLookup;
         private XContentBuilder expectedMappings;
         private XContentBuilder actualMappings;
         private Settings.Builder expectedSettings;
@@ -121,9 +126,11 @@ public abstract class Matcher {
         private SourceMatcherBuilder() {}
 
         public SettingsStep<List<Map<String, Object>>> mappings(
+            final Map<String, Map<String, Object>> mappingLookup,
             final XContentBuilder actualMappings,
             final XContentBuilder expectedMappings
         ) {
+            this.mappingLookup = mappingLookup;
             this.actualMappings = actualMappings;
             this.expectedMappings = expectedMappings;
 
@@ -132,8 +139,16 @@ public abstract class Matcher {
 
         @Override
         public MatchResult isEqualTo(List<Map<String, Object>> actual) {
-            return new SourceMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings, actual, expected, ignoringSort)
-                .match();
+            return new SourceMatcher(
+                mappingLookup,
+                actualMappings,
+                actualSettings,
+                expectedMappings,
+                expectedSettings,
+                actual,
+                expected,
+                ignoringSort
+            ).match();
         }
 
         @Override

@@ -10,6 +10,10 @@
 package org.elasticsearch.logsdb.datageneration.datasource;
 
 public interface DataSourceHandler {
+    default DataSourceResponse.FieldDataGenerator handle(DataSourceRequest.FieldDataGenerator request) {
+        return null;
+    }
+
     default DataSourceResponse.LongGenerator handle(DataSourceRequest.LongGenerator request) {
         return null;
     }
@@ -51,6 +55,14 @@ public interface DataSourceHandler {
     }
 
     default DataSourceResponse.InstantGenerator handle(DataSourceRequest.InstantGenerator request) {
+        return null;
+    }
+
+    default DataSourceResponse.GeoShapeGenerator handle(DataSourceRequest.GeoShapeGenerator request) {
+        return null;
+    }
+
+    default DataSourceResponse.ShapeGenerator handle(DataSourceRequest.ShapeGenerator request) {
         return null;
     }
 

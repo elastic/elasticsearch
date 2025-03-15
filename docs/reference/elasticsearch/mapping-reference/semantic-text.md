@@ -6,12 +6,6 @@ mapped_pages:
 
 # Semantic text field type [semantic-text]
 
-
-::::{warning}
-This functionality is in beta and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Beta features are not subject to the support SLA of official GA features.
-::::
-
-
 The `semantic_text` field type automatically generates embeddings for text content using an inference endpoint. Long passages are [automatically chunked](#auto-text-chunking) to smaller sections to enable the processing of larger corpuses of text.
 
 The `semantic_text` field type specifies an inference endpoint identifier that will be used to generate embeddings. You can create the inference endpoint by using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put). This field type and the [`semantic` query](/reference/query-languages/query-dsl-semantic-query.md) type make it simpler to perform semantic search on your data. The `semantic_text` field type may also be queried with [match](/reference/query-languages/query-dsl-match-query.md), [sparse_vector](/reference/query-languages/query-dsl-sparse-vector-query.md) or [knn](/reference/query-languages/query-dsl-knn-query.md) queries.

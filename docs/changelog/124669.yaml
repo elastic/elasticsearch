@@ -1,0 +1,9 @@
+pr: 124669
+summary: Mark semantic text as GA in docs
+area: Relevance
+type: docs
+issues: []
+highlight:
+  title: Mark semantic text as GA in docs
+  body: Remove the beta warnings on the `semantic_text` docs
+  notable: true

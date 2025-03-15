@@ -9,14 +9,11 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -168,19 +165,8 @@ public class JvmInfo implements ReportingService.Info {
         );
     }
 
-    @SuppressForbidden(reason = "PathUtils#get")
     private static boolean usingBundledJdk() {
-        /*
-         * We are using the bundled JDK if java.home is the jdk sub-directory of our working directory. This is because we always set
-         * the working directory of Elasticsearch to home, and the bundled JDK is in the jdk sub-directory there.
-         */
-        final String javaHome = System.getProperty("java.home");
-        final String userDir = System.getProperty("user.dir");
-        if (Constants.MAC_OS_X) {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk.app/Contents/Home").toAbsolutePath());
-        } else {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
-        }
+        return System.getProperty("es.java.type", "").equals("bundled JDK");
     }
 
     public static JvmInfo jvmInfo() {

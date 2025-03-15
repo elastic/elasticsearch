@@ -29,6 +29,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.RemoteComputeException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -813,10 +814,13 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         Map<String, Object> testClusterInfo = setupFailClusters();
         String localIndex = (String) testClusterInfo.get("local.index");
         String remote1Index = (String) testClusterInfo.get("remote.index");
-        int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         String q = Strings.format("FROM %s,cluster-a:%s*", localIndex, remote1Index);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> runQuery(q, false));
-        assertThat(e.getMessage(), containsString("Accessing failing field"));
+
+        RemoteComputeException rce = expectThrows(RemoteComputeException.class, () -> runQuery(q, false));
+        Throwable t = rce.getCause();
+
+        assertThat(t, instanceOf(IllegalStateException.class));
+        assertThat(t.getMessage(), containsString("Accessing failing field"));
     }
 
     private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {

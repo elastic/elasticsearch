@@ -40,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.RemoteComputeException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -300,6 +301,7 @@ public class ComputeService {
                         cancelQueryOnFailure,
                         execInfo,
                         computeListener.acquireCompute()
+                            .delegateResponse((l, ex) -> l.onFailure(new RemoteComputeException(cluster.clusterAlias(), ex)))
                     );
                 }
             }

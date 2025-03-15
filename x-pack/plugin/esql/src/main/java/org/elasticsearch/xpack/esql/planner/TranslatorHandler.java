@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -29,9 +30,9 @@ public final class TranslatorHandler {
 
     private TranslatorHandler() {}
 
-    public Query asQuery(Expression e) {
+    public Query asQuery(Expression e, FoldContext foldContext) {
         if (e instanceof TranslationAware ta) {
-            Query query = ta.asQuery(this);
+            Query query = ta.asQuery(this, foldContext);
             return ta instanceof TranslationAware.SingleValueTranslationAware sv ? wrapFunctionQuery(sv.singleValueField(), query) : query;
         }
 

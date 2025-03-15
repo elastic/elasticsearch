@@ -105,7 +105,7 @@ public class Not extends UnaryScalarFunction implements Negatable<Expression>, T
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return handler.asQuery(field()).negate(source());
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
+        return handler.asQuery(field(), foldContext).negate(source());
     }
 }

@@ -183,13 +183,13 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
         if (left().foldable()) {
             checkSpatialRelatesFunction(left(), queryRelation());
-            return translate(handler, right(), left());
+            return translate(handler, foldContext, right(), left());
         } else {
             checkSpatialRelatesFunction(right(), queryRelation());
-            return translate(handler, left(), right());
+            return translate(handler, foldContext, left(), right());
         }
 
     }
@@ -205,12 +205,17 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         );
     }
 
-    private Query translate(TranslatorHandler handler, Expression spatialExpression, Expression constantExpression) {
+    private Query translate(
+        TranslatorHandler handler,
+        FoldContext foldContext,
+        Expression spatialExpression,
+        Expression constantExpression
+    ) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(spatialExpression);
         String name = handler.nameOf(attribute);
 
         try {
-            Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(FoldContext.small() /* TODO remove me */, constantExpression);
+            Geometry shape = SpatialRelatesUtils.makeGeometryFromLiteral(foldContext, constantExpression);
             return new SpatialRelatesQuery(source(), name, queryRelation(), shape, attribute.dataType());
         } catch (IllegalArgumentException e) {
             throw new QlIllegalArgumentException(e.getMessage(), e);

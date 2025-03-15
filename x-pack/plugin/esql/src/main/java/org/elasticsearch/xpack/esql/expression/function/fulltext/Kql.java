@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -89,8 +90,8 @@ public class Kql extends FullTextFunction {
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
-        return new KqlQuery(source(), Objects.toString(queryAsObject()));
+    protected Query translate(TranslatorHandler handler, FoldContext foldContext) {
+        return new KqlQuery(source(), Objects.toString(queryAsObject(foldContext)));
     }
 
     @Override

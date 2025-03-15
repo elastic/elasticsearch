@@ -102,9 +102,9 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
         checkInsensitiveComparison();
-        return translate();
+        return translate(foldContext);
     }
 
     private void checkInsensitiveComparison() {
@@ -118,9 +118,9 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
         );
     }
 
-    private Query translate() {
+    private Query translate(FoldContext foldContext) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
-        BytesRef value = BytesRefs.toBytesRef(valueOf(FoldContext.small() /* TODO remove me */, right()));
+        BytesRef value = BytesRefs.toBytesRef(valueOf(foldContext, right()));
         String name = LucenePushdownPredicates.pushableAttributeName(attribute);
         return new TermQuery(source(), name, value.utf8ToString(), true);
     }

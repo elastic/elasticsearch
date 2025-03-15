@@ -19,4 +19,5 @@ grant {
   permission java.net.SocketPermission "*", "connect";
 
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.util.PropertyPermission "http.proxyHost", "read";
 };

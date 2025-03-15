@@ -293,7 +293,8 @@ which clusters have slower response times than others.
 skipped due to the can-match phase results. Shards are skipped when they cannot have any matching data
 and therefore are not included in the full ES|QL query.
 <7> The `is_partial` field is set to `true` if the search has partial results for any reason,
-for example if it was interrupted before finishing using the <<esql-async-query-stop-api,async query stop API>>.
+for example if it was interrupted before finishing using the <<esql-async-query-stop-api,async query stop API>>,
+or one of the remotes or shards failed.
 
 
 The cross-cluster metadata can be used to determine whether any data came back from a cluster.

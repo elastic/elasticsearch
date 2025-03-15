@@ -71,7 +71,6 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexMode;
@@ -305,9 +304,15 @@ public class InternalEngine extends Engine {
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(true);
             for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
+                if (listener instanceof EngineAwareRefreshListener engineListener) {
+                    engineListener.onNewEngine(this);
+                }
                 this.externalReaderManager.addListener(listener);
             }
             for (ReferenceManager.RefreshListener listener : engineConfig.getInternalRefreshListener()) {
+                if (listener instanceof EngineAwareRefreshListener engineListener) {
+                    engineListener.onNewEngine(this);
+                }
                 this.internalReaderManager.addListener(listener);
             }
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
@@ -453,8 +458,7 @@ public class InternalEngine extends Engine {
      * this specialized implementation an external refresh will immediately be reflected on the internal reader
      * and old segments can be released in the same way previous version did this (as a side-effect of _refresh)
      */
-    @SuppressForbidden(reason = "reference counting is required here")
-    private static final class ExternalReaderManager extends ReferenceManager<ElasticsearchDirectoryReader> {
+    private static final class ExternalReaderManager extends AbstractReaderManager {
         private final BiConsumer<ElasticsearchDirectoryReader, ElasticsearchDirectoryReader> refreshListener;
         private final ElasticsearchReaderManager internalReaderManager;
         private boolean isWarmedUp; // guarded by refreshLock
@@ -494,21 +498,6 @@ public class InternalEngine extends Engine {
             } else {
                 return newReader; // steal the reference
             }
-        }
-
-        @Override
-        protected boolean tryIncRef(ElasticsearchDirectoryReader reference) {
-            return reference.tryIncRef();
-        }
-
-        @Override
-        protected int getRefCount(ElasticsearchDirectoryReader reference) {
-            return reference.getRefCount();
-        }
-
-        @Override
-        protected void decRef(ElasticsearchDirectoryReader reference) throws IOException {
-            reference.decRef();
         }
     }
 

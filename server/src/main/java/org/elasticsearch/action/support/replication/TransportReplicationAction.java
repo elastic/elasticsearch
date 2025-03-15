@@ -501,29 +501,31 @@ public abstract class TransportReplicationAction<
                     );
                 } else {
                     setPhase(replicationTask, "primary");
+                    // Resolve the engine upfront to avoid an unsafe access if the responseListener is called by a refresh listener
+                    final var engineOrNull = syncGlobalCheckpointAfterOperation ? primaryShardReference.indexShard.getEngineOrNull() : null;
 
                     final ActionListener<Response> responseListener = ActionListener.wrap(response -> {
                         adaptResponse(response, primaryShardReference.indexShard);
 
-                        if (syncGlobalCheckpointAfterOperation) {
+                        final var primary = primaryShardReference.indexShard;
+                        if (engineOrNull != null) {
                             try {
-                                primaryShardReference.indexShard.maybeSyncGlobalCheckpoint("post-operation");
+                                // TODO ensure engine is still open
+                                var seqNoStats = engineOrNull.getSeqNoStats(primary.getLastKnownGlobalCheckpoint());
+                                primary.maybeSyncGlobalCheckpoint("post-operation", seqNoStats);
                             } catch (final Exception e) {
                                 // only log non-closed exceptions
                                 if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) == null) {
                                     // intentionally swallow, a missed global checkpoint sync should not fail this operation
                                     logger.info(
-                                        () -> format(
-                                            "%s failed to execute post-operation global checkpoint sync",
-                                            primaryShardReference.indexShard.shardId()
-                                        ),
+                                        () -> format("%s failed to execute post-operation global checkpoint sync", primary.shardId()),
                                         e
                                     );
                                 }
                             }
                         }
 
-                        assert primaryShardReference.indexShard.isPrimaryMode();
+                        assert primary.isPrimaryMode();
                         primaryShardReference.close(); // release shard operation lock before responding to caller
                         setPhase(replicationTask, "finished");
                         onCompletionListener.onResponse(response);

@@ -29,7 +29,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -705,6 +707,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             createShardWhenLockAvailable(
                 shardRouting,
                 state,
+                project,
                 sourceNode,
                 primaryTerm,
                 0,
@@ -758,6 +761,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private void createShardWhenLockAvailable(
         ShardRouting shardRouting,
         ClusterState originalState,
+        ProjectMetadata project,
         DiscoveryNode sourceNode,
         long primaryTerm,
         int iteration,
@@ -766,11 +770,23 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ActionListener<Boolean> listener
     ) {
         try {
+            long sourcePrimaryTerm;
+            if (shardRouting.recoverySource().getType() == Type.SPLIT) {
+                IndexMetadata indexMetadata = project.index(shardRouting.index());
+                IndexRoutingTable routingTable = originalState.routingTable(project.id()).index(shardRouting.index());
+                // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadata indicate the
+                // split specifics
+                int preSplitSize = routingTable.size() / 2;
+                int sourceShardId = shardRouting.id() % preSplitSize;
+                sourcePrimaryTerm = indexMetadata.primaryTerm(sourceShardId);
+            } else {
+                sourcePrimaryTerm = -1;
+            }
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
                 shardRouting,
                 recoveryTargetService,
-                new RecoveryListener(shardRouting, primaryTerm),
+                new RecoveryListener(shardRouting, primaryTerm, sourcePrimaryTerm),
                 repositoriesService,
                 failedShardHandler,
                 this::updateGlobalCheckpointForShard,
@@ -865,6 +881,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         createShardWhenLockAvailable(
                             shardRouting,
                             originalState,
+                            project,
                             sourceNode,
                             primaryTerm,
                             iteration + 1,
@@ -996,10 +1013,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Primary term with which the shard was created
          */
         private final long primaryTerm;
+        private final long sourcePrimaryTerm;
 
-        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
+        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm, final long sourcePrimaryTerm) {
             this.shardRouting = shardRouting;
             this.primaryTerm = primaryTerm;
+            this.sourcePrimaryTerm = sourcePrimaryTerm;
         }
 
         @Override
@@ -1008,14 +1027,34 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             ShardLongFieldRange timestampMillisFieldRange,
             ShardLongFieldRange eventIngestedMillisFieldRange
         ) {
-            shardStateAction.shardStarted(
-                shardRouting,
-                primaryTerm,
-                "after " + state.getRecoverySource(),
-                timestampMillisFieldRange,
-                eventIngestedMillisFieldRange,
-                ActionListener.noop()
-            );
+            if (state.getRecoverySource() instanceof RecoverySource.SplitRecoverySource) {
+                shardStateAction.shardSplit(
+                    shardRouting,
+                    primaryTerm,
+                    "after " + state.getRecoverySource(),
+                    timestampMillisFieldRange,
+                    eventIngestedMillisFieldRange,
+                    sourcePrimaryTerm,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {}
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            onRecoveryFailure(new RecoveryFailedException(state, "failed to start after split", e), true);
+                        }
+                    }
+                );
+            } else {
+                shardStateAction.shardStarted(
+                    shardRouting,
+                    primaryTerm,
+                    "after " + state.getRecoverySource(),
+                    timestampMillisFieldRange,
+                    eventIngestedMillisFieldRange,
+                    ActionListener.noop()
+                );
+            }
         }
 
         @Override

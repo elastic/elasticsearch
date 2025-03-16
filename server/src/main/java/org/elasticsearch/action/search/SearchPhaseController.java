@@ -9,22 +9,17 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
@@ -42,9 +37,6 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.search.dfs.DfsKnnResults;
-import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
@@ -82,97 +74,6 @@ public final class SearchPhaseController {
         BiFunction<Supplier<Boolean>, AggregatorFactories.Builder, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
     ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
-    }
-
-    public static AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
-        Map<Term, TermStatistics> termStatistics = new HashMap<>();
-        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
-        long aggMaxDoc = 0;
-        for (DfsSearchResult lEntry : results) {
-            final Term[] terms = lEntry.terms();
-            final TermStatistics[] stats = lEntry.termStatistics();
-            assert terms.length == stats.length;
-            for (int i = 0; i < terms.length; i++) {
-                assert terms[i] != null;
-                if (stats[i] == null) {
-                    continue;
-                }
-                TermStatistics existing = termStatistics.get(terms[i]);
-                if (existing != null) {
-                    assert terms[i].bytes().equals(existing.term());
-                    termStatistics.put(
-                        terms[i],
-                        new TermStatistics(
-                            existing.term(),
-                            existing.docFreq() + stats[i].docFreq(),
-                            existing.totalTermFreq() + stats[i].totalTermFreq()
-                        )
-                    );
-                } else {
-                    termStatistics.put(terms[i], stats[i]);
-                }
-
-            }
-
-            assert lEntry.fieldStatistics().containsKey(null) == false;
-            for (var entry : lEntry.fieldStatistics().entrySet()) {
-                String key = entry.getKey();
-                CollectionStatistics value = entry.getValue();
-                if (value == null) {
-                    continue;
-                }
-                assert key != null;
-                CollectionStatistics existing = fieldStatistics.get(key);
-                if (existing != null) {
-                    CollectionStatistics merged = new CollectionStatistics(
-                        key,
-                        existing.maxDoc() + value.maxDoc(),
-                        existing.docCount() + value.docCount(),
-                        existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
-                        existing.sumDocFreq() + value.sumDocFreq()
-                    );
-                    fieldStatistics.put(key, merged);
-                } else {
-                    fieldStatistics.put(key, value);
-                }
-            }
-            aggMaxDoc += lEntry.maxDoc();
-        }
-        return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
-    }
-
-    public static List<DfsKnnResults> mergeKnnResults(SearchRequest request, List<DfsSearchResult> dfsSearchResults) {
-        if (request.hasKnnSearch() == false) {
-            return null;
-        }
-        SearchSourceBuilder source = request.source();
-        List<List<TopDocs>> topDocsLists = new ArrayList<>(source.knnSearch().size());
-        List<SetOnce<String>> nestedPath = new ArrayList<>(source.knnSearch().size());
-        for (int i = 0; i < source.knnSearch().size(); i++) {
-            topDocsLists.add(new ArrayList<>());
-            nestedPath.add(new SetOnce<>());
-        }
-
-        for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
-            if (dfsSearchResult.knnResults() != null) {
-                for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
-                    DfsKnnResults knnResults = dfsSearchResult.knnResults().get(i);
-                    ScoreDoc[] scoreDocs = knnResults.scoreDocs();
-                    TotalHits totalHits = new TotalHits(scoreDocs.length, Relation.EQUAL_TO);
-                    TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
-                    setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
-                    topDocsLists.get(i).add(shardTopDocs);
-                    nestedPath.get(i).trySet(knnResults.getNestedPath());
-                }
-            }
-        }
-
-        List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
-        for (int i = 0; i < source.knnSearch().size(); i++) {
-            TopDocs mergedTopDocs = TopDocs.merge(source.knnSearch().get(i).k(), topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs));
-        }
-        return mergedResults;
     }
 
     /**
@@ -499,39 +400,7 @@ public final class SearchPhaseController {
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
-     */
-    static ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
-        AggregationReduceContext.Builder aggReduceContextBuilder = new AggregationReduceContext.Builder() {
-            @Override
-            public AggregationReduceContext forPartialReduction() {
-                throw new UnsupportedOperationException("Scroll requests don't have aggs");
-            }
-
-            @Override
-            public AggregationReduceContext forFinalReduction() {
-                throw new UnsupportedOperationException("Scroll requests don't have aggs");
-            }
-        };
-        final TopDocsStats topDocsStats = new TopDocsStats(SearchContext.TRACK_TOTAL_HITS_ACCURATE);
-        final List<TopDocs> topDocs = new ArrayList<>();
-        for (SearchPhaseResult sortedResult : queryResults) {
-            QuerySearchResult queryResult = sortedResult.queryResult();
-            final TopDocsAndMaxScore td = queryResult.consumeTopDocs();
-            assert td != null;
-            topDocsStats.add(td, queryResult.searchTimedOut(), queryResult.terminatedEarly());
-            // make sure we set the shard index before we add it - the consumer didn't do that yet
-            if (td.topDocs.scoreDocs.length > 0) {
-                setShardIndex(td.topDocs, queryResult.getShardIndex());
-                topDocs.add(td.topDocs);
-            }
-        }
-        return reducedQueryPhase(queryResults, null, topDocs, topDocsStats, 0, true, aggReduceContextBuilder, null, true);
-    }
-
-    /**
-     * Reduces the given query results and consumes all aggregations and profile results.
-     * @param queryResults a list of non-null query shard results
-     * @param bufferedAggs a list of pre-collected aggregations.
+     * @param reducedAggs already reduced aggregations
      * @param bufferedTopDocs a list of pre-collected top docs.
      * @param numReducePhases the number of non-final reduce phases applied to the query results.
      * @see QuerySearchResult#getAggs()
@@ -539,14 +408,12 @@ public final class SearchPhaseController {
      */
     static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
-        @Nullable List<DelayableWriteable<InternalAggregations>> bufferedAggs,
+        @Nullable InternalAggregations reducedAggs,
         List<TopDocs> bufferedTopDocs,
         TopDocsStats topDocsStats,
         int numReducePhases,
         boolean isScrollRequest,
-        AggregationReduceContext.Builder aggReduceContextBuilder,
-        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
-        boolean performFinalReduce
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -650,12 +517,7 @@ public final class SearchPhaseController {
             topDocsStats.timedOut,
             topDocsStats.terminatedEarly,
             reducedSuggest,
-            bufferedAggs == null
-                ? null
-                : InternalAggregations.topLevelReduceDelayable(
-                    bufferedAggs,
-                    performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction()
-                ),
+            reducedAggs,
             profileShardResults.isEmpty() ? null : new SearchProfileResultsBuilder(profileShardResults),
             sortedTopDocs,
             sortValueFormats,

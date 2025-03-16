@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -72,18 +71,10 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         var allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), anyString(), any())).then(invocation -> invocation.getArgument(0));
         var actionFilters = mock(ActionFilters.class);
-        var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<PutShutdownNodeTask>>any())).thenReturn(
             taskQueue
         );
-        action = new TransportPutShutdownNodeAction(
-            transportService,
-            clusterService,
-            allocationService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        action = new TransportPutShutdownNodeAction(transportService, clusterService, allocationService, threadPool, actionFilters);
     }
 
     public void testNoop() throws Exception {

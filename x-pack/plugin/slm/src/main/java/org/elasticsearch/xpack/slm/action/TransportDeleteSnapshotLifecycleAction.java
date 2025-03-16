@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -45,8 +44,7 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             DeleteSnapshotLifecycleAction.NAME,
@@ -55,7 +53,6 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteSnapshotLifecycleAction.Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -85,7 +82,7 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+            SnapshotLifecycleMetadata snapMeta = currentState.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
             if (snapMeta == null) {
                 throw new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId());
             }

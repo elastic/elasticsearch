@@ -41,6 +41,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHAS
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateAllSearchableSnapshotActionsUseSameRepository;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateFrozenPhaseHasSearchableSnapshotAction;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateReplicateFor;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -799,6 +800,83 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 )
             );
         }
+    }
+
+    public void testValidateReplicateFor() {
+        IllegalArgumentException e;
+
+        // a searchable_snapshot action with replicate_for set to 10d
+        final var searchableSnapshotAction = new SearchableSnapshotAction(
+            "repo",
+            randomBoolean(),
+            randomBoolean() ? null : randomIntBetween(1, 100), // the ESTestCase utility can produce zeroes, which we can't have here
+            TimeValue.timeValueDays(10)
+        );
+
+        // first test case: there's a replicate_for, but it isn't on the first searchable_snapshot action
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateReplicateFor(
+                List.of(
+                    new Phase(
+                        HOT_PHASE,
+                        TimeValue.ZERO,
+                        Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION, SearchableSnapshotAction.NAME, searchableSnapshotAction)
+                    ),
+                    new Phase(COLD_PHASE, TimeValue.ZERO, Map.of(SearchableSnapshotAction.NAME, searchableSnapshotAction))
+                )
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            is(
+                "only the first searchable_snapshot action in a policy may specify 'replicate_for', "
+                    + "but it was specified in the [cold] phase"
+            )
+        );
+
+        // second test case: there's a replicate_for, but the next phase has a shorter min_age
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateReplicateFor(
+                List.of(
+                    new Phase(
+                        HOT_PHASE,
+                        TimeValue.ZERO,
+                        Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION, SearchableSnapshotAction.NAME, searchableSnapshotAction)
+                    ),
+                    new Phase(WARM_PHASE, TimeValue.timeValueDays(5), Map.of(TEST_MIGRATE_ACTION.getWriteableName(), MigrateAction.ENABLED))
+                )
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            is(
+                "The time a searchable snapshot is replicated in replicate_for [10d] may not exceed the time "
+                    + "until the next phase is configured to begin. Based on the min_age [5d] of the [warm] phase, "
+                    + "the maximum time the snapshot can be replicated is [5d]."
+            )
+        );
+
+        // third test case: there's a replicate_for, but the implied min_age difference isn't sufficient
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> validateReplicateFor(
+                List.of(
+                    new Phase(HOT_PHASE, TimeValue.ZERO, Map.of(RolloverAction.NAME, TEST_ROLLOVER_ACTION)),
+                    new Phase(COLD_PHASE, TimeValue.timeValueDays(5), Map.of(SearchableSnapshotAction.NAME, searchableSnapshotAction)),
+                    new Phase(DELETE_PHASE, TimeValue.timeValueDays(12), Map.of())
+                )
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            is(
+                "The time a searchable snapshot is replicated in replicate_for [10d] may not exceed the time "
+                    + "until the next phase is configured to begin. Based on the min_age [12d] of the [delete] phase, "
+                    + "the maximum time the snapshot can be replicated is [7d]."
+            )
+        );
     }
 
     /**

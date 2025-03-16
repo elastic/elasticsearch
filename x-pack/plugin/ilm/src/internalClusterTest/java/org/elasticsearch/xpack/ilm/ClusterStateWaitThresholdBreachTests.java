@@ -108,7 +108,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         String[] firstAttemptShrinkIndexName = new String[1];
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -118,7 +118,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         // let's check ILM for the managed index is waiting in the `shrunk-shards-allocated` step
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -128,7 +128,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // now to the tricky bit
         // we'll use the cluster service to issue a move-to-step task in order to manipulate the ILM execution state `step_time` value to
         // a very low value (in order to trip the LIFECYCLE_STEP_WAIT_TIME_THRESHOLD threshold and retry the shrink cycle)
-        IndexMetadata managedIndexMetadata = clusterService().state().metadata().index(managedIndex);
+        IndexMetadata managedIndexMetadata = clusterService().state().metadata().getProject().index(managedIndex);
         Step.StepKey currentStepKey = new Step.StepKey("warm", ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
 
         String masterNode = masterOnlyNodes.get(0);
@@ -160,7 +160,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         String[] secondCycleShrinkIndexName = new String[1];
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(managedIndex);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(managedIndex);
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
 
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses().get(managedIndex);
@@ -180,7 +180,9 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // situation and allow for shrink to complete by reducing the number of shards for the shrunk index to 0
         setReplicaCount(0, secondCycleShrinkIndexName[0]);
         assertBusy(() -> {
-            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest().indices(secondCycleShrinkIndexName[0]);
+            ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(
+                secondCycleShrinkIndexName[0]
+            );
             ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
             IndexLifecycleExplainResponse indexLifecycleExplainResponse = explainResponse.getIndexResponses()
                 .get(secondCycleShrinkIndexName[0]);

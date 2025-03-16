@@ -40,7 +40,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
             throw new IllegalArgumentException("hyphenation_patterns_path is a required setting.");
         }
 
-        Path hyphenationPatternsFile = env.configFile().resolve(hyphenationPatternsPath);
+        Path hyphenationPatternsFile = env.configDir().resolve(hyphenationPatternsPath);
 
         try {
             InputStream in = Files.newInputStream(hyphenationPatternsFile);

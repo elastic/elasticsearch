@@ -25,6 +25,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModel;
+import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
@@ -51,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -281,10 +284,9 @@ public class CohereService extends SenderService {
         CohereModel cohereModel = (CohereModel) model;
         var actionCreator = new CohereActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(model.getServiceSettings().elementType()),
             cohereModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -312,7 +314,7 @@ public class CohereService extends SenderService {
         if (model instanceof CohereEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity(serviceSettings.getEmbeddingType()) : similarityFromModel;
 
             var updatedServiceSettings = new CohereEmbeddingsServiceSettings(
                 new CohereServiceSettings(
@@ -340,7 +342,11 @@ public class CohereService extends SenderService {
      *
      * @return The default similarity.
      */
-    static SimilarityMeasure defaultSimilarity() {
+    static SimilarityMeasure defaultSimilarity(CohereEmbeddingType embeddingType) {
+        if (embeddingType == CohereEmbeddingType.BIT || embeddingType == CohereEmbeddingType.BINARY) {
+            return SimilarityMeasure.L2_NORM;
+        }
+
         return SimilarityMeasure.DOT_PRODUCT;
     }
 
@@ -363,8 +369,21 @@ public class CohereService extends SenderService {
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.put(
+                    MODEL_ID,
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
+                        .setLabel("Model ID")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

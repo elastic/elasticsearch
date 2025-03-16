@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -60,6 +60,8 @@ import static org.mockito.Mockito.when;
 
 public final class Utils {
 
+    public static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+
     private Utils() {
         throw new UnsupportedOperationException("Utils is a utility class and should not be instantiated");
     }
@@ -77,7 +79,8 @@ public final class Utils {
             ThrottlerManager.getSettingsDefinitions(),
             RetrySettings.getSettingsDefinitions(),
             Truncator.getSettingsDefinitions(),
-            RequestExecutorServiceSettings.getSettingsDefinitions()
+            RequestExecutorServiceSettings.getSettingsDefinitions(),
+            ElasticInferenceServiceSettings.getSettingsDefinitions()
         ).flatMap(Collection::stream).collect(Collectors.toSet());
 
         var cSettings = new ClusterSettings(settings, registeredSettings);
@@ -149,31 +152,22 @@ public final class Utils {
         latch.await();
     }
 
-    public static class TestInferencePlugin extends InferencePlugin {
-        public TestInferencePlugin(Settings settings) {
-            super(settings);
-        }
-
-        @Override
-        public List<InferenceServiceExtension.Factory> getInferenceServiceFactories() {
-            return List.of(
-                TestSparseInferenceServiceExtension.TestInferenceService::new,
-                TestDenseInferenceServiceExtension.TestInferenceService::new
-            );
-        }
-    }
-
-    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName, TaskType taskType) {
         var mockConfigs = mock(ModelConfigurations.class);
         when(mockConfigs.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockConfigs.getService()).thenReturn(serviceName);
-        when(mockConfigs.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        when(mockConfigs.getTaskType()).thenReturn(taskType);
 
         var mockModel = mock(Model.class);
+        when(mockModel.getInferenceEntityId()).thenReturn(inferenceEntityId);
         when(mockModel.getConfigurations()).thenReturn(mockConfigs);
-        when(mockModel.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        when(mockModel.getTaskType()).thenReturn(taskType);
 
         return mockModel;
+    }
+
+    public static Model getInvalidModel(String inferenceEntityId, String serviceName) {
+        return getInvalidModel(inferenceEntityId, serviceName, TaskType.TEXT_EMBEDDING);
     }
 
     public static SimilarityMeasure randomSimilarityMeasure() {

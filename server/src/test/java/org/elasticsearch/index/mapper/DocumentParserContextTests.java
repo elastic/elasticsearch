@@ -101,9 +101,6 @@ public class DocumentParserContextTests extends ESTestCase {
         var mapping = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("_doc")
-            .startObject("_source")
-            .field("mode", "synthetic")
-            .endObject()
             .startObject(DataStreamTimestampFieldMapper.NAME)
             .field("enabled", "true")
             .endObject()
@@ -120,6 +117,11 @@ public class DocumentParserContextTests extends ESTestCase {
             .endObject()
             .endObject();
         var documentMapper = new MapperServiceTestCase() {
+
+            @Override
+            protected Settings getIndexSettings() {
+                return Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+            }
         }.createDocumentMapper(mapping);
         var parserContext = new TestDocumentParserContext(documentMapper.mappers(), null);
         parserContext.path().add("foo");
@@ -127,7 +129,6 @@ public class DocumentParserContextTests extends ESTestCase {
         var resultFromParserContext = parserContext.createDynamicMapperBuilderContext();
 
         assertEquals("foo.hey", resultFromParserContext.buildFullName("hey"));
-        assertTrue(resultFromParserContext.isSourceSynthetic());
         assertTrue(resultFromParserContext.isDataStream());
         assertTrue(resultFromParserContext.parentObjectContainsDimensions());
         assertEquals(ObjectMapper.Defaults.DYNAMIC, resultFromParserContext.getDynamic());

@@ -123,8 +123,9 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
      * Fetch the mappings and settings for {@link TestSystemIndexDescriptor#INDEX_NAME} and verify that they match the expected values.
      */
     private void assertMappingsAndSettings(String expectedMappings) {
-        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(INDEX_NAME))
-            .actionGet();
+        final GetMappingsResponse getMappingsResponse = indicesAdmin().getMappings(
+            new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
+        ).actionGet();
 
         final Map<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
         assertThat(
@@ -136,8 +137,9 @@ public class SystemIndexMappingUpdateServiceIT extends ESIntegTestCase {
 
         assertThat(sourceAsMap, equalTo(XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedMappings, false)));
 
-        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(INDEX_NAME))
-            .actionGet();
+        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(
+            new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
+        ).actionGet();
 
         final Settings actual = getSettingsResponse.getIndexToSettings().get(PRIMARY_INDEX_NAME);
 

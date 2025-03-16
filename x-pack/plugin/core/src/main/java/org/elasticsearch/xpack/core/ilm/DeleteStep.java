@@ -36,12 +36,12 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Void> listener) {
         String policyName = indexMetadata.getLifecyclePolicyName();
         String indexName = indexMetadata.getIndex().getName();
-        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);
+        IndexAbstraction indexAbstraction = currentState.metadata().getProject().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "invalid cluster metadata. index [" + indexName + "] was not found";
         DataStream dataStream = indexAbstraction.getParentDataStream();
 
         if (dataStream != null) {
-            Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
+            Index failureStoreWriteIndex = dataStream.getWriteFailureIndex();
             boolean isFailureStoreWriteIndex = failureStoreWriteIndex != null && indexName.equals(failureStoreWriteIndex.getName());
 
             // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream

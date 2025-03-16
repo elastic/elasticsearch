@@ -278,6 +278,26 @@ public class TopNOperator implements Operator, Accountable {
 
     private Iterator<Page> output;
 
+    /**
+     * Count of pages that have been received by this operator.
+     */
+    private int pagesReceived;
+
+    /**
+     * Count of pages that have been emitted by this operator.
+     */
+    private int pagesEmitted;
+
+    /**
+     * Count of rows this operator has received.
+     */
+    private long rowsReceived;
+
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted;
+
     public TopNOperator(
         BlockFactory blockFactory,
         CircuitBreaker breaker,
@@ -368,7 +388,9 @@ public class TopNOperator implements Operator, Accountable {
                 spare = inputQueue.insertWithOverflow(spare);
             }
         } finally {
-            Releasables.close(() -> page.releaseBlocks());
+            page.releaseBlocks();
+            pagesReceived++;
+            rowsReceived += page.getPositionCount();
         }
     }
 
@@ -491,10 +513,13 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Page getOutput() {
-        if (output != null && output.hasNext()) {
-            return output.next();
+        if (output == null || output.hasNext() == false) {
+            return null;
         }
-        return null;
+        Page ret = output.next();
+        pagesEmitted++;
+        rowsEmitted += ret.getPositionCount();
+        return ret;
     }
 
     @Override
@@ -531,7 +556,7 @@ public class TopNOperator implements Operator, Accountable {
 
     @Override
     public Status status() {
-        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed());
+        return new TopNOperatorStatus(inputQueue.size(), ramBytesUsed(), pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
     }
 
     @Override

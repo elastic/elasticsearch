@@ -390,8 +390,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockThreads.getCount()).thenReturn(9);
 
         final JvmStats.Mem mockMem = mock(JvmStats.Mem.class);
-        when(mockMem.getHeapUsed()).thenReturn(new ByteSizeValue(512, ByteSizeUnit.MB));
-        when(mockMem.getHeapMax()).thenReturn(new ByteSizeValue(24, ByteSizeUnit.GB));
+        when(mockMem.getHeapUsed()).thenReturn(ByteSizeValue.of(512, ByteSizeUnit.MB));
+        when(mockMem.getHeapMax()).thenReturn(ByteSizeValue.of(24, ByteSizeUnit.GB));
 
         final JvmStats mockJvmStats = mock(JvmStats.class);
         when(mockNodeStats.getJvm()).thenReturn(mockJvmStats);
@@ -741,7 +741,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "coordinating_rejections": 0,
                         "primary_rejections": 0,
                         "replica_rejections": 0,
-                        "primary_document_rejections": 0
+                        "primary_document_rejections": 0,
+                        "large_operation_rejections":0
                       },
                       "limit_in_bytes": 0
                     }

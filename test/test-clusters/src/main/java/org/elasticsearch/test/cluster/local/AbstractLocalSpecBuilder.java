@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -33,8 +34,8 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private final Map<String, String> settings = new HashMap<>();
     private final List<EnvironmentProvider> environmentProviders = new ArrayList<>();
     private final Map<String, String> environment = new HashMap<>();
-    private final Set<String> modules = new HashSet<>();
-    private final Set<String> plugins = new HashSet<>();
+    private final Map<String, DefaultPluginInstallSpec> modules = new HashMap<>();
+    private final Map<String, DefaultPluginInstallSpec> plugins = new HashMap<>();
     private final Set<FeatureFlag> features = EnumSet.noneOf(FeatureFlag.class);
     private final List<SettingsProvider> keystoreProviders = new ArrayList<>();
     private final Map<String, String> keystoreSettings = new HashMap<>();
@@ -122,21 +123,37 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     @Override
     public T module(String moduleName) {
-        this.modules.add(moduleName);
+        this.modules.put(moduleName, new DefaultPluginInstallSpec());
         return cast(this);
     }
 
-    Set<String> getModules() {
+    @Override
+    public T module(String moduleName, Consumer<? super PluginInstallSpec> config) {
+        DefaultPluginInstallSpec spec = new DefaultPluginInstallSpec();
+        config.accept(spec);
+        this.modules.put(moduleName, spec);
+        return cast(this);
+    }
+
+    Map<String, DefaultPluginInstallSpec> getModules() {
         return inherit(() -> parent.getModules(), modules);
     }
 
     @Override
     public T plugin(String pluginName) {
-        this.plugins.add(pluginName);
+        this.plugins.put(pluginName, new DefaultPluginInstallSpec());
         return cast(this);
     }
 
-    Set<String> getPlugins() {
+    @Override
+    public T plugin(String pluginName, Consumer<? super PluginInstallSpec> config) {
+        DefaultPluginInstallSpec spec = new DefaultPluginInstallSpec();
+        config.accept(spec);
+        this.plugins.put(pluginName, spec);
+        return cast(this);
+    }
+
+    Map<String, DefaultPluginInstallSpec> getPlugins() {
         return inherit(() -> parent.getPlugins(), plugins);
     }
 

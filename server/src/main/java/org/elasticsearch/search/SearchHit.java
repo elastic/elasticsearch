@@ -104,13 +104,13 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private transient String index;
     private transient String clusterAlias;
 
-    private Map<String, Object> sourceAsMap;
+    // For asserting that the method #getSourceAsMap is called just once on the lifetime of this object
+    private boolean sourceAsMapCalled = false;
 
     private Map<String, SearchHits> innerHits;
 
     private final RefCounted refCounted;
 
-    // used only in tests
     public SearchHit(int docId) {
         this(docId, null);
     }
@@ -142,7 +142,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             null,
             null,
             null,
-            null,
             new HashMap<>(),
             new HashMap<>(),
             refCounted
@@ -166,7 +165,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         SearchShardTarget shard,
         String index,
         String clusterAlias,
-        Map<String, Object> sourceAsMap,
         Map<String, SearchHits> innerHits,
         Map<String, DocumentField> documentFields,
         Map<String, DocumentField> metaFields,
@@ -188,7 +186,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.shard = shard;
         this.index = index;
         this.clusterAlias = clusterAlias;
-        this.sourceAsMap = sourceAsMap;
         this.innerHits = innerHits;
         this.documentFields = documentFields;
         this.metaFields = metaFields;
@@ -279,7 +276,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shardTarget,
             index,
             clusterAlias,
-            null,
             innerHits,
             documentFields,
             metaFields,
@@ -296,6 +292,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     public static SearchHit unpooled(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
+        // always referenced search hits do NOT call #deallocate
         return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED);
     }
 
@@ -447,7 +444,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public SearchHit sourceRef(BytesReference source) {
         this.source = source;
-        this.sourceAsMap = null;
         return this;
     }
 
@@ -476,19 +472,18 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     /**
-     * The source of the document as a map (can be {@code null}).
+     * The source of the document as a map (can be {@code null}). This method is expected
+     * to be called at most once during the lifetime of the object as the generated map
+     * is expensive to generate and it does not get cache.
      */
     public Map<String, Object> getSourceAsMap() {
         assert hasReferences();
+        assert sourceAsMapCalled == false : "getSourceAsMap() called twice";
+        sourceAsMapCalled = true;
         if (source == null) {
             return null;
         }
-        if (sourceAsMap != null) {
-            return sourceAsMap;
-        }
-
-        sourceAsMap = Source.fromBytes(source).source();
-        return sourceAsMap;
+        return Source.fromBytes(source).source();
     }
 
     /**
@@ -758,7 +753,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             shard,
             index,
             clusterAlias,
-            sourceAsMap,
             innerHits == null
                 ? null
                 : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),

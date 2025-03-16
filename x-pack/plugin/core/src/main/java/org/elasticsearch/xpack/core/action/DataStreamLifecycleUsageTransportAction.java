@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -41,28 +40,20 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
-        super(
-            XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
         this.globalRetentionSettings = globalRetentionSettings;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        final Collection<DataStream> dataStreams = state.metadata().dataStreams().values();
+        final Collection<DataStream> dataStreams = state.metadata().getProject().dataStreams().values();
         DataStreamLifecycleFeatureSetUsage.LifecycleStats lifecycleStats = calculateStats(
             dataStreams,
             clusterService.getClusterSettings().get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),

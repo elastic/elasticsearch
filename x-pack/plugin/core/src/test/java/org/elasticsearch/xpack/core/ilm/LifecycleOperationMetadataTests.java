@@ -19,7 +19,7 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingTestCase<Metadata.Custom> {
+public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingTestCase<Metadata.ProjectCustom> {
 
     @Override
     protected LifecycleOperationMetadata createTestInstance() {
@@ -32,12 +32,12 @@ public class LifecycleOperationMetadataTests extends AbstractChunkedSerializingT
     }
 
     @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
         return LifecycleOperationMetadata::new;
     }
 
     @Override
-    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
+    protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
         LifecycleOperationMetadata metadata = (LifecycleOperationMetadata) instance;
         if (randomBoolean()) {
             return new LifecycleOperationMetadata(

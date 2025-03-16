@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -50,7 +49,6 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
 
     public static final ClusterInfo EMPTY = new ClusterInfo();
 
-    public static final TransportVersion DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
     public static final TransportVersion DATA_PATH_NEW_KEY_VERSION = TransportVersions.V_8_6_0;
 
     private final Map<String, DiskUsage> leastAvailableSpaceUsage;
@@ -95,15 +93,11 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.leastAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
         this.mostAvailableSpaceUsage = in.readImmutableMap(DiskUsage::new);
         this.shardSizes = in.readImmutableMap(StreamInput::readLong);
-        this.shardDataSetSizes = in.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)
-            ? in.readImmutableMap(ShardId::new, StreamInput::readLong)
-            : Map.of();
+        this.shardDataSetSizes = in.readImmutableMap(ShardId::new, StreamInput::readLong);
         this.dataPath = in.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)
             ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
             : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
-        this.reservedSpace = in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)
-            ? in.readImmutableMap(NodeAndPath::new, ReservedSpace::new)
-            : Map.of();
+        this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
     }
 
     @Override
@@ -111,17 +105,13 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         out.writeMap(this.leastAvailableSpaceUsage, StreamOutput::writeWriteable);
         out.writeMap(this.mostAvailableSpaceUsage, StreamOutput::writeWriteable);
         out.writeMap(this.shardSizes, (o, v) -> o.writeLong(v == null ? -1 : v));
-        if (out.getTransportVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
-            out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
-        }
+        out.writeMap(this.shardDataSetSizes, StreamOutput::writeWriteable, StreamOutput::writeLong);
         if (out.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)) {
             out.writeMap(this.dataPath, StreamOutput::writeWriteable, StreamOutput::writeString);
         } else {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
-        if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            out.writeMap(this.reservedSpace);
-        }
+        out.writeMap(this.reservedSpace);
     }
 
     /**

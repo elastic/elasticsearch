@@ -34,7 +34,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -680,16 +681,28 @@ public class MistralServiceTests extends ESTestCase {
 
             assertThat(results, hasSize(2));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
-                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertTrue(Arrays.equals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding()));
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertTrue(
+                    Arrays.equals(
+                        new float[] { 0.123f, -0.123f },
+                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                    )
+                );
             }
             {
-                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
-                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
+                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertTrue(Arrays.equals(new float[] { 0.223f, -0.223f }, floatResult.chunks().get(0).embedding()));
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertTrue(
+                    Arrays.equals(
+                        new float[] { 0.223f, -0.223f },
+                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                    )
+                );
             }
 
             assertThat(webServer.requests(), hasSize(1));
@@ -758,7 +771,8 @@ public class MistralServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": true,
                                "updatable": true,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "model": {
                                "description": "Refer to the Mistral models documentation for the list of available text embedding models.",
@@ -766,7 +780,8 @@ public class MistralServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",
@@ -774,7 +789,8 @@ public class MistralServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["text_embedding"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -782,7 +798,8 @@ public class MistralServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["text_embedding"]
                            }
                        }
                    }

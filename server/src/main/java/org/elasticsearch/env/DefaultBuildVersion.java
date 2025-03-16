@@ -74,6 +74,11 @@ final class DefaultBuildVersion extends BuildVersion {
     }
 
     @Override
+    public BuildVersion minimumCompatibilityVersion() {
+        return fromVersionId(version.minimumCompatibilityVersion().id);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(version.id());
     }

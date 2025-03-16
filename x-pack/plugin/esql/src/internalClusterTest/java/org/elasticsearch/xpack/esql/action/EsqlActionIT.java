@@ -587,6 +587,28 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testSortWithNull() {
+        try (EsqlQueryResponse results = run("row a = null | sort a")) {
+            logger.info(results);
+            assertEquals(1, getValuesList(results).size());
+            int countIndex = results.columns().indexOf(new ColumnInfoImpl("a", "null"));
+            assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.NULL));
+            assertNull(getValuesList(results).getFirst().get(countIndex));
+        }
+    }
+
+    public void testStatsByNull() {
+        try (EsqlQueryResponse results = run("row a = null | stats by a")) {
+            logger.info(results);
+            assertEquals(1, getValuesList(results).size());
+            int countIndex = results.columns().indexOf(new ColumnInfoImpl("a", "null"));
+            assertThat(results.columns().stream().map(ColumnInfo::name).toList(), contains("a"));
+            assertThat(results.columns().stream().map(ColumnInfoImpl::type).toList(), contains(DataType.NULL));
+            assertNull(getValuesList(results).getFirst().get(countIndex));
+        }
+    }
+
     public void testStringLength() {
         try (EsqlQueryResponse results = run("from test | eval l = length(color)")) {
             logger.info(results);
@@ -1396,7 +1418,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testQueryOnEmptyMappingIndex() {
         createIndex("empty-test", Settings.EMPTY);
         createIndex("empty-test2", Settings.EMPTY);
-        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases()
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        )
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("empty-test").alias("alias-test"))
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("empty-test2").alias("alias-test"));
         indicesAdmin().aliases(indicesAliasesRequestBuilder.request()).actionGet();
@@ -1420,7 +1445,10 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     public void testQueryOnEmptyDataIndex() {
         createIndex("empty_data-test", Settings.EMPTY);
         assertAcked(client().admin().indices().prepareCreate("empty_data-test2").setMapping("name", "type=text"));
-        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases()
+        IndicesAliasesRequestBuilder indicesAliasesRequestBuilder = indicesAdmin().prepareAliases(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        )
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("empty_data-test").alias("alias-empty_data-test"))
             .addAliasAction(IndicesAliasesRequest.AliasActions.add().index("empty_data-test2").alias("alias-empty_data-test"));
         indicesAdmin().aliases(indicesAliasesRequestBuilder.request()).actionGet();
@@ -1546,7 +1574,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     }
 
     private void createAlias(List<String> indices, String alias) throws InterruptedException, ExecutionException {
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         for (String indexName : indices) {
             aliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.add().index(indexName).alias(alias));
         }

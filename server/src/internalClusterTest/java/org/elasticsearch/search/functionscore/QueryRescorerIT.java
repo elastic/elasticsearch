@@ -24,7 +24,6 @@ import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -992,22 +991,6 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 assertThat(hit.getScore(), equalTo(sortedGroups[pos].secondPassScore));
             }
         });
-    }
-
-    public void testRescoreWithTimeout() throws Exception {
-        // no dummy docs since merges can change scores while we run queries.
-        int numDocs = indexRandomNumbers("whitespace", -1, false);
-
-        String intToEnglish = English.intToEnglish(between(0, numDocs - 1));
-        String query = intToEnglish.split(" ")[0];
-        assertResponse(
-            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
-                .setSize(10)
-                .addRescorer(new QueryRescorerBuilder(functionScoreQuery(new TestTimedScoreFunctionBuilder())).windowSize(100))
-                .setTimeout(TimeValue.timeValueMillis(10)),
-            r -> assertTrue(r.isTimedOut())
-        );
     }
 
     @Override

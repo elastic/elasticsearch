@@ -13,7 +13,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.CtxMap;
 
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -29,10 +28,13 @@ import java.util.Map;
  *
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
-class IngestCtxMap extends CtxMap<IngestDocMetadata> {
+final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
     /**
      * Create an IngestCtxMap with the given metadata, source and default validators
+     * <p>
+     * The passed-in source map is used directly (that is, it's neither shallowly nor deeply copied). mutation-like methods (e.g. setters,
+     * put, etc.) may rely on the map being mutable, and will fail if the passed-in map isn't mutable.
      */
     IngestCtxMap(
         String index,
@@ -43,7 +45,7 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
         ZonedDateTime timestamp,
         Map<String, Object> source
     ) {
-        super(new HashMap<>(source), new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
+        super(source, new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
     }
 
     /**

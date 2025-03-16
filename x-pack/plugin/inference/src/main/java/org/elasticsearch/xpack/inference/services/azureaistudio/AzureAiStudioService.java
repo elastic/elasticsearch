@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -120,10 +121,9 @@ public class AzureAiStudioService extends SenderService {
         if (model instanceof AzureAiStudioModel baseAzureAiStudioModel) {
             var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());
 
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 inputs.getInputs(),
                 EMBEDDING_MAX_BATCH_SIZE,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT,
                 baseAzureAiStudioModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
@@ -406,7 +406,9 @@ public class AzureAiStudioService extends SenderService {
 
                 configurationMap.put(
                     TARGET_FIELD,
-                    new SettingsConfiguration.Builder().setDescription("The target URL of your Azure AI Studio model deployment.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The target URL of your Azure AI Studio model deployment."
+                    )
                         .setLabel("Target")
                         .setRequired(true)
                         .setSensitive(false)
@@ -417,7 +419,7 @@ public class AzureAiStudioService extends SenderService {
 
                 configurationMap.put(
                     ENDPOINT_TYPE_FIELD,
-                    new SettingsConfiguration.Builder().setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "Specifies the type of endpoint that is used in your model deployment."
                     )
                         .setLabel("Endpoint Type")
@@ -430,7 +432,7 @@ public class AzureAiStudioService extends SenderService {
 
                 configurationMap.put(
                     PROVIDER_FIELD,
-                    new SettingsConfiguration.Builder().setDescription("The model provider for your deployment.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The model provider for your deployment.")
                         .setLabel("Provider")
                         .setRequired(true)
                         .setSensitive(false)
@@ -439,8 +441,22 @@ public class AzureAiStudioService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.put(
+                    DIMENSIONS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        "The number of dimensions the resulting embeddings should have. For more information refer to "
+                            + "https://learn.microsoft.com/en-us/azure/ai-studio/reference/reference-model-inference-embeddings."
+                    )
+                        .setLabel("Dimensions")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

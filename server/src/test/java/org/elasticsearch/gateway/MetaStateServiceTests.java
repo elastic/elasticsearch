@@ -67,6 +67,6 @@ public class MetaStateServiceTests extends ESTestCase {
 
         MetaStateWriterUtils.writeGlobalState(env, "test_write", metadataWithIndex);
         assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metadata.persistentSettings()));
-        assertThat(metaStateService.loadGlobalState().hasIndex("test1"), equalTo(false));
+        assertThat(metaStateService.loadGlobalState().getProject().hasIndex("test1"), equalTo(false));
     }
 }

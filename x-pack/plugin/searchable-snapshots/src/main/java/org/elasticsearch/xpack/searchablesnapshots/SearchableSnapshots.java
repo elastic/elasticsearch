@@ -204,10 +204,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static final String SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH = "index.store.snapshot.blob_cache.metadata_files.max_length";
     public static final Setting<ByteSizeValue> SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING = new Setting<>(
         SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH,
-        new ByteSizeValue(64L, ByteSizeUnit.KB).getStringRep(),
+        ByteSizeValue.of(64L, ByteSizeUnit.KB).getStringRep(),
         s -> Setting.parseByteSize(
             s,
-            new ByteSizeValue(1L, ByteSizeUnit.KB),
+            ByteSizeValue.of(1L, ByteSizeUnit.KB),
             ByteSizeValue.ofBytes(Long.MAX_VALUE),
             SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH
         ),
@@ -337,7 +337,14 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(client, SNAPSHOT_BLOB_CACHE_INDEX);
             this.blobStoreCacheService.set(blobStoreCacheService);
             clusterService.addListener(
-                new BlobStoreCacheMaintenanceService(settings, clusterService, threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX)
+                new BlobStoreCacheMaintenanceService(
+                    settings,
+                    clusterService,
+                    threadPool,
+                    client,
+                    services.systemIndices(),
+                    SNAPSHOT_BLOB_CACHE_INDEX
+                )
             );
             components.add(blobStoreCacheService);
         } else {

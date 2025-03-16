@@ -13,8 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -50,9 +48,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
     public static final IndexVersion SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION = IndexVersions.V_7_15_0;
-    public static final TransportVersion SNAPSHOT_RECOVERIES_SUPPORTED_TRANSPORT_VERSION = TransportVersions.V_7_15_0;
     public static final IndexVersion SEQ_NO_SNAPSHOT_RECOVERIES_SUPPORTED_VERSION = IndexVersions.V_7_16_0;
-    public static final TransportVersion SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION = TransportVersions.V_7_16_0;
 
     private static final Logger logger = LogManager.getLogger(RecoverySettings.class);
 
@@ -201,7 +197,7 @@ public class RecoverySettings {
         return s -> Setting.parseDouble(s, 0d, 1d, key, false);
     }
 
-    static final ByteSizeValue DEFAULT_MAX_BYTES_PER_SEC = new ByteSizeValue(40L, ByteSizeUnit.MB);
+    static final ByteSizeValue DEFAULT_MAX_BYTES_PER_SEC = ByteSizeValue.of(40L, ByteSizeUnit.MB);
 
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
         "indices.recovery.max_bytes_per_sec",
@@ -227,16 +223,16 @@ public class RecoverySettings {
              */
             final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(s);
             final ByteSizeValue maxBytesPerSec;
-            if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {
-                maxBytesPerSec = new ByteSizeValue(40, ByteSizeUnit.MB);
-            } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(8, ByteSizeUnit.GB)) <= 0) {
-                maxBytesPerSec = new ByteSizeValue(60, ByteSizeUnit.MB);
-            } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(16, ByteSizeUnit.GB)) <= 0) {
-                maxBytesPerSec = new ByteSizeValue(90, ByteSizeUnit.MB);
-            } else if (totalPhysicalMemory.compareTo(new ByteSizeValue(32, ByteSizeUnit.GB)) <= 0) {
-                maxBytesPerSec = new ByteSizeValue(125, ByteSizeUnit.MB);
+            if (totalPhysicalMemory.compareTo(ByteSizeValue.of(4, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = ByteSizeValue.of(40, ByteSizeUnit.MB);
+            } else if (totalPhysicalMemory.compareTo(ByteSizeValue.of(8, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = ByteSizeValue.of(60, ByteSizeUnit.MB);
+            } else if (totalPhysicalMemory.compareTo(ByteSizeValue.of(16, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = ByteSizeValue.of(90, ByteSizeUnit.MB);
+            } else if (totalPhysicalMemory.compareTo(ByteSizeValue.of(32, ByteSizeUnit.GB)) <= 0) {
+                maxBytesPerSec = ByteSizeValue.of(125, ByteSizeUnit.MB);
             } else {
-                maxBytesPerSec = new ByteSizeValue(250, ByteSizeUnit.MB);
+                maxBytesPerSec = ByteSizeValue.of(250, ByteSizeUnit.MB);
             }
             return maxBytesPerSec.getStringRep();
         },
@@ -397,7 +393,7 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
-    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
+    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = ByteSizeValue.of(512, ByteSizeUnit.KB);
 
     /**
      * The maximum allowable size, in bytes, for buffering source documents during recovery.

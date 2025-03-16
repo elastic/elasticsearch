@@ -101,11 +101,6 @@ public class MappingGenerator {
             }
 
             if (templateEntry instanceof Template.Leaf leaf) {
-                // For simplicity we only copy to keyword fields, synthetic source logic to handle copy_to is generic.
-                if (leaf.type() == FieldType.KEYWORD) {
-                    context.addCopyToCandidate(fieldName);
-                }
-
                 var mappingParametersGenerator = specification.dataSource()
                     .get(
                         new DataSourceRequest.LeafMappingParametersGenerator(
@@ -119,6 +114,11 @@ public class MappingGenerator {
 
                 mappingParameters.put("type", leaf.type().toString());
                 mappingParameters.putAll(mappingParametersGenerator.get());
+
+                // For simplicity we only copy to keyword fields, synthetic source logic to handle copy_to is generic.
+                if (leaf.type() == FieldType.KEYWORD) {
+                    context.addCopyToCandidate(fieldName);
+                }
 
             } else if (templateEntry instanceof Template.Object object) {
                 var mappingParametersGenerator = specification.dataSource()

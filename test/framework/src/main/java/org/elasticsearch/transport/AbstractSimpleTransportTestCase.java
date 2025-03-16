@@ -2752,8 +2752,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(29, transportStats.getRxSize().getBytes());
-                assertEquals(55, transportStats.getTxSize().getBytes());
+                assertEquals(35, transportStats.getRxSize().getBytes());
+                assertEquals(60, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2767,16 +2767,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been send
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(29, transportStats.getRxSize().getBytes());
-                assertEquals(114, transportStats.getTxSize().getBytes());
+                assertEquals(35, transportStats.getRxSize().getBytes());
+                assertEquals(119, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
             assertEquals(2, stats.getRxCount());
             assertEquals(2, stats.getTxCount());
-            assertEquals(54, stats.getRxSize().getBytes());
-            assertEquals(114, stats.getTxSize().getBytes());
+            assertEquals(60, stats.getRxSize().getBytes());
+            assertEquals(119, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }
@@ -2867,8 +2867,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(1, transportStats.getTxCount());
-                assertEquals(29, transportStats.getRxSize().getBytes());
-                assertEquals(55, transportStats.getTxSize().getBytes());
+                assertEquals(35, transportStats.getRxSize().getBytes());
+                assertEquals(60, transportStats.getTxSize().getBytes());
             });
             serviceC.sendRequest(
                 connection,
@@ -2882,8 +2882,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportStats transportStats = serviceC.transport.getStats(); // request has been sent
                 assertEquals(1, transportStats.getRxCount());
                 assertEquals(2, transportStats.getTxCount());
-                assertEquals(29, transportStats.getRxSize().getBytes());
-                assertEquals(114, transportStats.getTxSize().getBytes());
+                assertEquals(35, transportStats.getRxSize().getBytes());
+                assertEquals(119, transportStats.getTxSize().getBytes());
             });
             sendResponseLatch.countDown();
             responseLatch.await();
@@ -2898,8 +2898,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
             // 57 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
-            assertEquals(failedMessage, 57 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
-            assertEquals(114, stats.getTxSize().getBytes());
+            assertEquals(failedMessage, 63 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
+            assertEquals(119, stats.getTxSize().getBytes());
         } finally {
             serviceC.close();
         }

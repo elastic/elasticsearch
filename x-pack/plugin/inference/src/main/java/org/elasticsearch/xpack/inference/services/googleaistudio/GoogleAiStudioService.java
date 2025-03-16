@@ -282,10 +282,7 @@ public class GoogleAiStudioService extends SenderService {
     ) {
         if (model instanceof GoogleAiStudioCompletionModel completionModel) {
             var requestManager = new GoogleAiStudioCompletionRequestManager(completionModel, getServiceComponents().threadPool());
-            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-                completionModel.uri(inputs.stream()),
-                "Google AI Studio completion"
-            );
+            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio completion");
             var action = new SingleInputSenderExecutableAction(
                 getSender(),
                 requestManager,
@@ -299,7 +296,7 @@ public class GoogleAiStudioService extends SenderService {
                 getServiceComponents().truncator(),
                 getServiceComponents().threadPool()
             );
-            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(embeddingsModel.uri(), "Google AI Studio embeddings");
+            var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Google AI Studio embeddings");
             var action = new SenderExecutableAction(getSender(), requestManager, failedToSendRequestErrorMessage);
             action.execute(inputs, timeout, listener);
         } else {
@@ -328,10 +325,9 @@ public class GoogleAiStudioService extends SenderService {
     ) {
         GoogleAiStudioModel googleAiStudioModel = (GoogleAiStudioModel) model;
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.FLOAT,
             googleAiStudioModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -351,7 +347,7 @@ public class GoogleAiStudioService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDescription("ID of the LLM you're using.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("ID of the LLM you're using.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -360,8 +356,8 @@ public class GoogleAiStudioService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

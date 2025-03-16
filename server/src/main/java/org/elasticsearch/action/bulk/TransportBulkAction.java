@@ -31,20 +31,20 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.SystemIndices;
@@ -80,7 +80,6 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
     public static final String LAZY_ROLLOVER_ORIGIN = "lazy_rollover";
 
-    private final FeatureService featureService;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final OriginSettingClient rolloverClient;
@@ -93,12 +92,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
-        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings
     ) {
@@ -107,12 +106,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             transportService,
             clusterService,
             ingestService,
-            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
+            projectResolver,
             threadPool::relativeTimeInNanos,
             failureStoreMetrics,
             dataStreamFailureStoreSettings
@@ -124,12 +123,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
-        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings
@@ -141,12 +140,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             transportService,
             clusterService,
             ingestService,
-            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
+            projectResolver,
             relativeTimeProvider,
             failureStoreMetrics,
             dataStreamFailureStoreSettings
@@ -160,12 +159,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
-        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        ProjectResolver projectResolver,
         LongSupplier relativeTimeProvider,
         FailureStoreMetrics failureStoreMetrics,
         DataStreamFailureStoreSettings dataStreamFailureStoreSettings
@@ -180,11 +179,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             ingestService,
             indexingPressure,
             systemIndices,
+            projectResolver,
             relativeTimeProvider
         );
         this.dataStreamFailureStoreSettings = dataStreamFailureStoreSettings;
         Objects.requireNonNull(relativeTimeProvider);
-        this.featureService = featureService;
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
@@ -247,14 +246,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * different places.
      */
     private void trackIndexRequests(BulkRequest bulkRequest) {
-        final Metadata metadata = clusterService.state().metadata();
+        ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
         for (DocWriteRequest<?> request : bulkRequest.requests) {
             if (request instanceof IndexRequest == false) {
                 continue;
             }
             String resolvedIndexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(resolvedIndexName);
-            DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, metadata);
+            IndexAbstraction indexAbstraction = project.getIndicesLookup().get(resolvedIndexName);
+            DataStream dataStream = DataStream.resolveDataStream(indexAbstraction, project);
             // We only track index requests into data streams.
             if (dataStream != null) {
                 failureStoreMetrics.incrementTotal(dataStream.getName());
@@ -279,11 +278,28 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver
     ) {
-        ClusterState state = clusterService.state();
+        populateMissingTargets(
+            bulkRequest,
+            projectResolver.getProjectState(clusterService.state()),
+            indicesToAutoCreate,
+            dataStreamsToBeRolledOver,
+            failureStoresToBeRolledOver
+        );
+    }
+
+    private void populateMissingTargets(
+        BulkRequest bulkRequest,
+        ProjectState projectState,
+        Map<String, CreateIndexRequest> indicesToAutoCreate,
+        Set<String> dataStreamsToBeRolledOver,
+        Set<String> failureStoresToBeRolledOver
+    ) {
         // A map for memorizing which indices exist.
         Map<String, Boolean> indexExistence = new HashMap<>();
-        Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(index, state);
-        boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
+        Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(
+            index,
+            projectState.metadata()
+        );
         boolean lazyRolloverFailureStoreFeature = DataStream.isFailureStoreFeatureFlagEnabled();
         Set<String> indicesThatRequireAlias = new HashSet<>();
 
@@ -328,16 +344,12 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 }
             }
             // Determine which data streams and failure stores need to be rolled over.
-            if (lazyRolloverFeature) {
-                DataStream dataStream = state.metadata().dataStreams().get(request.index());
-                if (dataStream != null) {
-                    if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
-                        dataStreamsToBeRolledOver.add(request.index());
-                    } else if (lazyRolloverFailureStoreFeature
-                        && writeToFailureStore
-                        && dataStream.getFailureIndices().isRolloverOnWrite()) {
-                            failureStoresToBeRolledOver.add(request.index());
-                        }
+            DataStream dataStream = projectState.metadata().dataStreams().get(request.index());
+            if (dataStream != null) {
+                if (writeToFailureStore == false && dataStream.getDataComponent().isRolloverOnWrite()) {
+                    dataStreamsToBeRolledOver.add(request.index());
+                } else if (lazyRolloverFailureStoreFeature && writeToFailureStore && dataStream.getFailureComponent().isRolloverOnWrite()) {
+                    failureStoresToBeRolledOver.add(request.index());
                 }
             }
         }
@@ -587,6 +599,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             client,
             responses,
             indexNameExpressionResolver,
+            projectResolver,
             relativeTimeNanosProvider,
             startTimeNanos,
             listener,
@@ -596,39 +609,39 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
     }
 
     /**
-     * See {@link #resolveFailureStore(String, Metadata, long)}
+     * See {@link #resolveFailureStore(String, ProjectMetadata, long)}
      */
     // Visibility for testing
-    Boolean resolveFailureInternal(String indexName, Metadata metadata, long epochMillis) {
+    Boolean resolveFailureInternal(String indexName, ProjectMetadata projectMetadata, long epochMillis) {
         if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return null;
         }
-        var resolution = resolveFailureStoreFromMetadata(indexName, metadata, epochMillis);
+        var resolution = resolveFailureStoreFromMetadata(indexName, projectMetadata, epochMillis);
         if (resolution != null) {
             return resolution;
         }
-        return resolveFailureStoreFromTemplate(indexName, metadata, epochMillis);
+        return resolveFailureStoreFromTemplate(indexName, projectMetadata, epochMillis);
     }
 
     @Override
-    protected Boolean resolveFailureStore(String indexName, Metadata metadata, long time) {
+    protected Boolean resolveFailureStore(String indexName, ProjectMetadata metadata, long time) {
         return resolveFailureInternal(indexName, metadata, time);
     }
 
     /**
      * Determines if an index name is associated with an existing data stream that has a failure store enabled.
      * @param indexName The index name to check.
-     * @param metadata Cluster state metadata.
+     * @param projectMetadata ProjectMetadata from the cluster state.
      * @param epochMillis A timestamp to use when resolving date math in the index name.
      * @return true if the given index name corresponds to an existing data stream with a failure store enabled.
      */
-    private Boolean resolveFailureStoreFromMetadata(String indexName, Metadata metadata, long epochMillis) {
+    private Boolean resolveFailureStoreFromMetadata(String indexName, ProjectMetadata projectMetadata, long epochMillis) {
         if (indexName == null) {
             return null;
         }
 
         // Get index abstraction, resolving date math if it exists
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup()
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup()
             .get(IndexNameExpressionResolver.resolveDateMathExpression(indexName, epochMillis));
         if (indexAbstraction == null || indexAbstraction.isDataStreamRelated() == false) {
             return null;
@@ -636,7 +649,7 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
 
         // We only store failures if the failure is being written to a data stream,
         // not when directly writing to backing indices/failure stores
-        DataStream targetDataStream = DataStream.resolveDataStream(indexAbstraction, metadata);
+        DataStream targetDataStream = DataStream.resolveDataStream(indexAbstraction, projectMetadata);
 
         // We will store the failure if the write target belongs to a data stream with a failure store.
         return targetDataStream != null && targetDataStream.isFailureStoreEffectivelyEnabled(dataStreamFailureStoreSettings);
@@ -646,14 +659,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
      * Determines if an index name is associated with an index template that has a data stream failure store enabled. Since failure store is
      * a data stream feature, the method returns true/false only if it is a data stream template, otherwise null.
      * @param indexName The index name to check.
-     * @param metadata Cluster state metadata.
+     * @param projectMetadata ProjectMetadata from the cluster state.
      * @param epochMillis A timestamp to use when resolving date math in the index name.
      * @return true the associated index template has failure store enabled, false if the failure store is disabled, true or false according
      *     to the cluster setting if there is a data stream template with no failure store option specified, and null if no template is
      *     found or if the template is not a data stream template.
      */
     @Nullable
-    private Boolean resolveFailureStoreFromTemplate(String indexName, Metadata metadata, long epochMillis) {
+    private Boolean resolveFailureStoreFromTemplate(String indexName, ProjectMetadata projectMetadata, long epochMillis) {
         if (indexName == null) {
             return null;
         }
@@ -661,15 +674,15 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
         // Check to see if the index name matches any templates such that an index would have been attributed
         // We don't check v1 templates at all because failure stores can only exist on data streams via a v2 template
         // N.B. This currently does date math resolution itself and does *not* use epochMillis (it gets the system time again)
-        String template = MetadataIndexTemplateService.findV2Template(metadata, indexName, false);
+        String template = MetadataIndexTemplateService.findV2Template(projectMetadata, indexName, false);
         if (template != null) {
             // Check if this is a data stream template or if it is just a normal index.
-            ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
+            ComposableIndexTemplate composableIndexTemplate = projectMetadata.templatesV2().get(template);
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
                 DataStreamOptions dataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(
                     composableIndexTemplate,
-                    metadata.componentTemplates()
+                    projectMetadata.componentTemplates()
                 ).mapAndGet(DataStreamOptions.Template::toDataStreamOptions);
                 return DataStream.isFailureStoreEffectivelyEnabled(
                     dataStreamOptions,

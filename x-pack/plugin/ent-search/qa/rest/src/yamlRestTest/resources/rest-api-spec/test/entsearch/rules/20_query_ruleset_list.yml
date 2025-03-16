@@ -306,10 +306,6 @@ teardown:
 
 ---
 'List query rulesets - include rule types':
-  - requires:
-      cluster_features: [ "query_rule_list_types" ]
-      reason: 'List responses updated in 8.15.5 and 8.16.1'
-
   - do:
       query_rules.put_ruleset:
         ruleset_id: a-test-query-ruleset-with-lots-of-criteria
@@ -389,4 +385,4 @@ teardown:
         suffix: 1
         always: 1
   - match: { results.0.rule_type_counts: { pinned: 4, exclude: 1 } }
-  
+

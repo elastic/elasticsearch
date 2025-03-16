@@ -31,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.SearchFeatures;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -39,6 +40,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
@@ -101,18 +103,28 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     protected static LocalClusterConfigProvider clusterConfig = c -> {};
 
-    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(2)
-        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
-        .setting("xpack.security.enabled", "false")
-        // some tests rely on the translog not being flushed
-        .setting("indices.memory.shard_inactive_time", "60m")
-        .apply(() -> clusterConfig)
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
-        .build();
+    private static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(Version.fromString(OLD_CLUSTER_VERSION))
+            .nodes(2)
+            .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+            .setting("xpack.security.enabled", "false")
+            // some tests rely on the translog not being flushed
+            .setting("indices.memory.shard_inactive_time", "60m")
+            .apply(() -> clusterConfig)
+            .feature(FeatureFlag.TIME_SERIES_MODE)
+            .feature(FeatureFlag.FAILURE_STORE_ENABLED);
+
+        if (oldVersion.before(Version.fromString("9.1.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
@@ -627,13 +639,14 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 )
             );
 
-            // assertBusy to work around https://github.com/elastic/elasticsearch/issues/104371
-            assertBusy(
-                () -> assertThat(
-                    EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v&error_trace")).getEntity()),
-                    containsString("testrollover-000002")
-                )
-            );
+            assertBusy(() -> {
+                Request catIndices = new Request("GET", "/_cat/indices?v&error_trace");
+                // the cat APIs can sometimes 404, erroneously
+                // see https://github.com/elastic/elasticsearch/issues/104371
+                setIgnoredErrorResponseCodes(catIndices, RestStatus.NOT_FOUND);
+                Response response = assertOK(client().performRequest(catIndices));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("testrollover-000002"));
+            });
         }
 
         Request countRequest = new Request("POST", "/" + index + "-*/_search");

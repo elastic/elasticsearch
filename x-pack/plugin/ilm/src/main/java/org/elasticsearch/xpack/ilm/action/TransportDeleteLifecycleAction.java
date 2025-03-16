@@ -17,8 +17,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
@@ -41,13 +42,15 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.curren
 
 public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public TransportDeleteLifecycleAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteLifecycleAction.NAME,
@@ -56,30 +59,33 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        submitUnbatchedTask("delete-lifecycle-" + request.getPolicyName(), new DeleteLifecyclePolicyTask(request, listener));
+        final var projectId = projectResolver.getProjectId();
+        submitUnbatchedTask("delete-lifecycle-" + request.getPolicyName(), new DeleteLifecyclePolicyTask(projectId, request, listener));
     }
 
     public static class DeleteLifecyclePolicyTask extends AckedClusterStateUpdateTask {
+        private final ProjectId projectId;
         private final Request request;
 
-        public DeleteLifecyclePolicyTask(Request request, ActionListener<AcknowledgedResponse> listener) {
+        public DeleteLifecyclePolicyTask(ProjectId projectId, Request request, ActionListener<AcknowledgedResponse> listener) {
             super(request, listener);
+            this.projectId = projectId;
             this.request = request;
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) {
             String policyToDelete = request.getPolicyName();
-            List<String> indicesUsingPolicy = currentState.metadata()
-                .indices()
+            ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
+            List<String> indicesUsingPolicy = projectMetadata.indices()
                 .values()
                 .stream()
                 .filter(idxMeta -> policyToDelete.equals(idxMeta.getLifecyclePolicyName()))
@@ -90,16 +96,16 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                     "Cannot delete policy [" + request.getPolicyName() + "]. It is in use by one or more indices: " + indicesUsingPolicy
                 );
             }
-            ClusterState.Builder newState = ClusterState.builder(currentState);
-            IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+            IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
             if (currentMetadata == null || currentMetadata.getPolicyMetadatas().containsKey(request.getPolicyName()) == false) {
                 throw new ResourceNotFoundException("Lifecycle policy not found: {}", request.getPolicyName());
             }
             SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
             newPolicies.remove(request.getPolicyName());
-            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(currentState));
-            newState.metadata(Metadata.builder(currentState.getMetadata()).putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
-            return newState.build();
+            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentILMMode(projectMetadata));
+            ProjectMetadata.Builder newProjectMetadata = ProjectMetadata.builder(projectMetadata)
+                .putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
+            return ClusterState.builder(currentState).putProjectMetadata(newProjectMetadata).build();
         }
     }
 

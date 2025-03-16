@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,9 +37,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         scope = in.readOptionalString();
         refreshToken = in.readOptionalString();
         kerberosAuthenticationResponseToken = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            authentication = new Authentication(in);
-        }
+        authentication = new Authentication(in);
     }
 
     public CreateTokenResponse(
@@ -90,9 +87,7 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
         out.writeOptionalString(scope);
         out.writeOptionalString(refreshToken);
         out.writeOptionalString(kerberosAuthenticationResponseToken);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            authentication.writeTo(out);
-        }
+        authentication.writeTo(out);
     }
 
     @Override

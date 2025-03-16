@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -16,14 +17,13 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,6 +33,9 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
+
+import static java.lang.System.in;
 
 /**
  * {@link LookupFromIndexService} performs lookup against a Lookup index for
@@ -44,12 +47,21 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     public LookupFromIndexService(
         ClusterService clusterService,
-        SearchService searchService,
+        LookupShardContextFactory lookupShardContextFactory,
         TransportService transportService,
         BigArrays bigArrays,
         BlockFactory blockFactory
     ) {
-        super(LOOKUP_ACTION_NAME, clusterService, searchService, transportService, bigArrays, blockFactory, TransportRequest::readFrom);
+        super(
+            LOOKUP_ACTION_NAME,
+            clusterService,
+            lookupShardContextFactory,
+            transportService,
+            bigArrays,
+            blockFactory,
+            false,
+            TransportRequest::readFrom
+        );
     }
 
     @Override
@@ -67,24 +79,27 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
-        MappedFieldType fieldType = context.getFieldType(request.matchField);
-        validateTypes(request.inputDataType, fieldType);
-        return termQueryList(fieldType, context, inputBlock, inputDataType);
+    protected QueryList queryList(
+        TransportRequest request,
+        SearchExecutionContext context,
+        Block inputBlock,
+        DataType inputDataType,
+        Warnings warnings
+    ) {
+        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues(
+            warnings,
+            "LOOKUP JOIN encountered multi-value"
+        );
     }
 
     @Override
-    protected String getRequiredPrivilege() {
-        return null;
+    protected LookupResponse createLookupResponse(List<Page> pages, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(pages, blockFactory);
     }
 
-    private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
-        // TODO: consider supporting implicit type conversion as done in ENRICH for some types
-        if (fieldType.typeName().equals(inputDataType.typeName()) == false) {
-            throw new EsqlIllegalArgumentException(
-                "LOOKUP JOIN match and input types are incompatible: match[" + fieldType.typeName() + "], input[" + inputDataType + "]"
-            );
-        }
+    @Override
+    protected AbstractLookupService.LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+        return new LookupResponse(in, blockFactory);
     }
 
     public static class Request extends AbstractLookupService.Request {
@@ -134,8 +149,14 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             String matchField = in.readString();
             var source = Source.EMPTY;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source = Source.readFrom(planIn);
+            }
+            // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
+            // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+                String sourceText = in.readString();
+                source = new Source(source.source(), sourceText);
             }
             TransportRequest result = new TransportRequest(
                 sessionId,
@@ -161,14 +182,78 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
             out.writeString(matchField);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
                 source.writeTo(planOut);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+                out.writeString(source.text());
             }
         }
 
         @Override
         protected String extraDescription() {
             return " ,match_field=" + matchField;
+        }
+    }
+
+    protected static class LookupResponse extends AbstractLookupService.LookupResponse {
+        private List<Page> pages;
+
+        LookupResponse(List<Page> pages, BlockFactory blockFactory) {
+            super(blockFactory);
+            this.pages = pages;
+        }
+
+        LookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException {
+            super(blockFactory);
+            try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
+                this.pages = bsi.readCollectionAsList(Page::new);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            long bytes = pages.stream().mapToLong(Page::ramBytesUsedByBlocks).sum();
+            blockFactory.breaker().addEstimateBytesAndMaybeBreak(bytes, "serialize lookup join response");
+            reservedBytes += bytes;
+            out.writeCollection(pages);
+        }
+
+        @Override
+        protected List<Page> takePages() {
+            var p = pages;
+            pages = null;
+            return p;
+        }
+
+        List<Page> pages() {
+            return pages;
+        }
+
+        @Override
+        protected void innerRelease() {
+            if (pages != null) {
+                Releasables.closeExpectNoException(Releasables.wrap(Iterators.map(pages.iterator(), page -> page::releaseBlocks)));
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            LookupResponse that = (LookupResponse) o;
+            return Objects.equals(pages, that.pages);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(pages);
+        }
+
+        @Override
+        public String toString() {
+            return "LookupResponse{pages=" + pages + '}';
         }
     }
 }

@@ -133,10 +133,12 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendRequest() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
+        TransportVersion version = isHandshake
+            ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
+            : TransportVersionUtils.randomCompatibleVersion(random());
         boolean compress = randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
@@ -204,10 +206,12 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testSendResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
+        TransportVersion version = isHandshake
+            ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
+            : TransportVersionUtils.randomCompatibleVersion(random());
         boolean compress = randomBoolean();
 
         String value = "message";
@@ -269,8 +273,8 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testErrorResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
-        String action = "handshake";
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        String action = "not-a-handshake";
         long requestId = randomLongBetween(0, 300);
         threadContext.putHeader("header", "header_value");
         ElasticsearchException error = new ElasticsearchException("boom");
@@ -322,7 +326,7 @@ public class OutboundHandlerTests extends ESTestCase {
     }
 
     public void testSendErrorAfterFailToSendResponse() throws Exception {
-        TransportVersion version = TransportHandshaker.REQUEST_HANDSHAKE_VERSION;
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
         var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {

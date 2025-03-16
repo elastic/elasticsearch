@@ -298,12 +298,13 @@ public class InferenceProcessorTests extends ESTestCase {
 
         Map<String, Object> source = new HashMap<>() {
             {
+                put("_version", 345);
                 put("value1", 1);
                 put("value2", 4);
                 put("categorical", "foo");
             }
         };
-        IngestDocument document = TestIngestDocument.ofIngestWithNullableVersion(source, new HashMap<>());
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source, new HashMap<>());
 
         var request = processor.buildRequest(document);
         assertThat(request.getObjectsToInfer().get(0), equalTo(source));
@@ -311,7 +312,7 @@ public class InferenceProcessorTests extends ESTestCase {
         assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", 3);
-        document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
+        document = TestIngestDocument.withDefaultVersion(source, ingestMetadata);
 
         Map<String, Object> expected = new HashMap<>(source);
         expected.put("_ingest", ingestMetadata);
@@ -344,12 +345,14 @@ public class InferenceProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> source = Maps.newMapWithExpectedSize(3);
+        source.put("_version", 234);
         source.put("value1", 1);
         source.put("categorical", "foo");
         source.put("un_touched", "bar");
-        IngestDocument document = TestIngestDocument.withNullableVersion(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
 
         Map<String, Object> expectedMap = Maps.newMapWithExpectedSize(5);
+        expectedMap.put("_version", 234);
         expectedMap.put("new_value1", 1);
         expectedMap.put("value1", 1);
         expectedMap.put("categorical", "foo");
@@ -361,7 +364,7 @@ public class InferenceProcessorTests extends ESTestCase {
         assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
 
         Map<String, Object> ingestMetadata = Collections.singletonMap("_value", "baz");
-        document = TestIngestDocument.ofIngestWithNullableVersion(source, ingestMetadata);
+        document = TestIngestDocument.withDefaultVersion(source, ingestMetadata);
         expectedMap = new HashMap<>(expectedMap);
         expectedMap.put("metafield", "baz");
         expectedMap.put("_ingest", ingestMetadata);
@@ -392,12 +395,14 @@ public class InferenceProcessorTests extends ESTestCase {
         );
 
         Map<String, Object> source = Maps.newMapWithExpectedSize(3);
+        source.put("_version", 987);
         source.put("value1", Collections.singletonMap("foo", 1));
         source.put("categorical.bar", "foo");
         source.put("un_touched", "bar");
-        IngestDocument document = TestIngestDocument.withNullableVersion(source);
+        IngestDocument document = TestIngestDocument.withDefaultVersion(source);
 
         Map<String, Object> expectedMap = Maps.newMapWithExpectedSize(5);
+        expectedMap.put("_version", 987);
         expectedMap.put("new_value1", 1);
         expectedMap.put("value1", Collections.singletonMap("foo", 1));
         expectedMap.put("categorical.bar", "foo");

@@ -28,8 +28,8 @@ public class ValuesDoubleAggregatorFunctionTests extends AggregatorFunctionTestC
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesDoubleAggregatorFunctionSupplier();
     }
 
     @Override

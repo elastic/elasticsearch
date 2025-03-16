@@ -37,7 +37,7 @@ import java.util.Objects;
 import java.util.Set;
 
 public abstract class SenderService implements InferenceService {
-    protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION, TaskType.ANY);
+    protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
@@ -47,7 +47,7 @@ public abstract class SenderService implements InferenceService {
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
 
-    protected Sender getSender() {
+    public Sender getSender() {
         return sender;
     }
 
@@ -73,7 +73,7 @@ public abstract class SenderService implements InferenceService {
 
     private static InferenceInputs createInput(Model model, List<String> input, @Nullable String query, boolean stream) {
         return switch (model.getTaskType()) {
-            case COMPLETION -> new ChatCompletionInput(input, stream);
+            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
             case RERANK -> new QueryAndDocsInputs(query, input, stream);
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> new DocumentsOnlyInput(input, stream);
             default -> throw new ElasticsearchStatusException(

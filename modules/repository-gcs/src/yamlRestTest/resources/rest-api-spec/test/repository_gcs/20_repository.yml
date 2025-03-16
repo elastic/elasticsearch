@@ -234,11 +234,6 @@ setup:
 
 ---
 "Usage stats":
-  - requires:
-      cluster_features:
-        - repositories.supports_usage_stats
-      reason: requires this feature
-
   - do:
       cluster.stats: {}
 

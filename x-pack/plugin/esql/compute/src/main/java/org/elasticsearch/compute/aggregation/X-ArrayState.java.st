@@ -39,7 +39,7 @@ import org.elasticsearch.core.Releasables;
  * call {@link #enableGroupIdTracking} to transition the state into a mode
  * where it'll track which {@code groupIds} have been written.
  * <p>
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayState.java.st} instead.
  * </p>
  */
 final class $Type$ArrayState extends AbstractArrayState implements GroupingAggregatorState {

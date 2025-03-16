@@ -12,7 +12,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
@@ -21,7 +21,7 @@ import java.io.IOException;
 public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests {
     @Override
     protected Translog.Snapshot newRandomSnapshot(
-        MappingLookup mappingLookup,
+        MapperService mapperService,
         Engine.Searcher engineSearcher,
         int searchBatchSize,
         long fromSeqNo,
@@ -32,6 +32,7 @@ public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests 
         IndexVersion indexVersionCreated
     ) throws IOException {
         return new LuceneChangesSnapshot(
+            mapperService,
             engineSearcher,
             searchBatchSize,
             fromSeqNo,

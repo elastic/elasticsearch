@@ -49,14 +49,14 @@ public class DataGenerationHelper {
                         "host.name",
                         FieldType.KEYWORD,
                         Map.of("type", "keyword"),
-                        () -> ESTestCase.randomAlphaOfLength(5)
+                        (ignored) -> ESTestCase.randomAlphaOfLength(5)
                     ),
                     // Needed for terms query
                     new PredefinedField.WithGenerator(
                         "method",
                         FieldType.KEYWORD,
                         Map.of("type", "keyword"),
-                        () -> ESTestCase.randomFrom("put", "post", "get")
+                        (ignored) -> ESTestCase.randomFrom("put", "post", "get")
                     ),
 
                     // Needed for histogram aggregation
@@ -64,7 +64,7 @@ public class DataGenerationHelper {
                         "memory_usage_bytes",
                         FieldType.LONG,
                         Map.of("type", "long"),
-                        () -> ESTestCase.randomLongBetween(1000, 2000)
+                        (ignored) -> ESTestCase.randomLongBetween(1000, 2000)
                     )
                 )
             );

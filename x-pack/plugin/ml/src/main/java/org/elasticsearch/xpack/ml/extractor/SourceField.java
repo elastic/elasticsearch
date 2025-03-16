@@ -27,15 +27,16 @@ public class SourceField extends AbstractField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
-        Map<String, Object> source = hit.getSourceAsMap();
+    public Object[] value(SearchHit hit, SourceSupplier source) {
+        // This is the only one that might be problematic
+        Map<String, Object> sourceMap = source.get();
         int level = 0;
-        while (source != null && level < path.length - 1) {
-            source = getNextLevel(source, path[level]);
+        while (sourceMap != null && level < path.length - 1) {
+            sourceMap = getNextLevel(sourceMap, path[level]);
             level++;
         }
-        if (source != null) {
-            Object values = source.get(path[level]);
+        if (sourceMap != null) {
+            Object values = sourceMap.get(path[level]);
             if (values != null) {
                 if (values instanceof List<?>) {
                     @SuppressWarnings("unchecked")

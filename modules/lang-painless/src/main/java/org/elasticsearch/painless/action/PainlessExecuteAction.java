@@ -33,8 +33,10 @@ import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
@@ -504,6 +506,7 @@ public class PainlessExecuteAction {
             ThreadPool threadPool,
             TransportService transportService,
             ActionFilters actionFilters,
+            ProjectResolver projectResolver,
             IndexNameExpressionResolver indexNameExpressionResolver,
             ScriptService scriptService,
             ClusterService clusterService,
@@ -515,6 +518,7 @@ public class PainlessExecuteAction {
                 clusterService,
                 transportService,
                 actionFilters,
+                projectResolver,
                 indexNameExpressionResolver,
                 // Forking a thread here, because only light weight operations should happen on network thread and
                 // Creating a in-memory index is not light weight
@@ -566,7 +570,7 @@ public class PainlessExecuteAction {
         }
 
         @Override
-        protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+        protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
             if (request.concreteIndex() != null) {
                 return super.checkRequestBlock(state, request);
             }
@@ -579,7 +583,7 @@ public class PainlessExecuteAction {
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState state, InternalRequest request) {
             if (request.concreteIndex() == null) {
                 return null;
             }

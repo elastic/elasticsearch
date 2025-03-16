@@ -16,6 +16,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,10 +33,10 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoField;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.EsqlConverter.STRING_TO_CHRONO_FIELD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLong;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.chronoToLongNanos;
 
 public class DateExtract extends EsqlConfigurationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -59,7 +60,7 @@ public class DateExtract extends EsqlConfigurationFunction {
     )
     public DateExtract(
         Source source,
-        // Need to replace the commas in the description here with semi-colon as there's a bug in the CSV parser
+        // Need to replace the commas in the description here with semi-colon as there’s a bug in the CSV parser
         // used in the CSVTests and fixing it is not trivial
         @Param(name = "datePart", type = { "keyword", "text" }, description = """
             Part of the date to extract.\n
@@ -68,10 +69,14 @@ public class DateExtract extends EsqlConfigurationFunction {
             `era`, `hour_of_ampm`, `hour_of_day`, `instant_seconds`, `micro_of_day`, `micro_of_second`, `milli_of_day`,
             `milli_of_second`, `minute_of_day`, `minute_of_hour`, `month_of_year`, `nano_of_day`, `nano_of_second`,
             `offset_seconds`, `proleptic_month`, `second_of_day`, `second_of_minute`, `year`, or `year_of_era`.
-            Refer to https://docs.oracle.com/javase/8/docs/api/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]
+            Refer to {javadoc8}/java/time/temporal/ChronoField.html[java.time.temporal.ChronoField]
             for a description of these values.\n
             If `null`, the function returns `null`.""") Expression chronoFieldExp,
-        @Param(name = "date", type = "date", description = "Date expression. If `null`, the function returns `null`.") Expression field,
+        @Param(
+            name = "date",
+            type = { "date", "date_nanos" },
+            description = "Date expression. If `null`, the function returns `null`."
+        ) Expression field,
         Configuration configuration
     ) {
         super(source, List.of(chronoFieldExp, field), configuration);
@@ -108,27 +113,52 @@ public class DateExtract extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        var fieldEvaluator = toEvaluator.apply(children().get(1));
+        boolean isNanos = switch (field().dataType()) {
+            case DATETIME -> false;
+            case DATE_NANOS -> true;
+            default -> throw new UnsupportedOperationException(
+                "Unsupported field type ["
+                    + field().dataType().name()
+                    + "]. "
+                    + "If you're seeing this, there’s a bug in DateExtract.resolveType"
+            );
+        };
+
+        ExpressionEvaluator.Factory fieldEvaluator = toEvaluator.apply(children().get(1));
+
+        // Constant chrono field
         if (children().get(0).foldable()) {
-            ChronoField chrono = chronoField();
+            ChronoField chrono = chronoField(toEvaluator.foldCtx());
             if (chrono == null) {
-                BytesRef field = (BytesRef) children().get(0).fold();
+                BytesRef field = (BytesRef) children().get(0).fold(toEvaluator.foldCtx());
                 throw new InvalidArgumentException("invalid date field for [{}]: {}", sourceText(), field.utf8ToString());
             }
-            return new DateExtractConstantEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+
+            if (isNanos) {
+                return new DateExtractConstantNanosEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+            } else {
+                return new DateExtractConstantMillisEvaluator.Factory(source(), fieldEvaluator, chrono, configuration().zoneId());
+            }
         }
+
         var chronoEvaluator = toEvaluator.apply(children().get(0));
-        return new DateExtractEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+
+        if (isNanos) {
+            return new DateExtractNanosEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+        } else {
+            return new DateExtractMillisEvaluator.Factory(source(), fieldEvaluator, chronoEvaluator, configuration().zoneId());
+        }
+
     }
 
-    private ChronoField chronoField() {
-        // chronoField's never checked (the return is). The foldability test is done twice and type is checked in resolveType() already.
+    private ChronoField chronoField(FoldContext ctx) {
+        // chronoField’s never checked (the return is). The foldability test is done twice and type is checked in resolveType() already.
         // TODO: move the slimmed down code here to toEvaluator?
         if (chronoField == null) {
             Expression field = children().get(0);
             try {
                 if (field.foldable() && DataType.isString(field.dataType())) {
-                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold());
+                    chronoField = (ChronoField) STRING_TO_CHRONO_FIELD.convert(field.fold(ctx));
                 }
             } catch (Exception e) {
                 return null;
@@ -137,14 +167,24 @@ public class DateExtract extends EsqlConfigurationFunction {
         return chronoField;
     }
 
-    @Evaluator(warnExceptions = { IllegalArgumentException.class })
-    static long process(long value, BytesRef chronoField, @Fixed ZoneId zone) {
+    @Evaluator(extraName = "Millis", warnExceptions = { IllegalArgumentException.class })
+    static long processMillis(long value, BytesRef chronoField, @Fixed ZoneId zone) {
         return chronoToLong(value, chronoField, zone);
     }
 
-    @Evaluator(extraName = "Constant")
-    static long process(long value, @Fixed ChronoField chronoField, @Fixed ZoneId zone) {
+    @Evaluator(extraName = "ConstantMillis")
+    static long processMillis(long value, @Fixed ChronoField chronoField, @Fixed ZoneId zone) {
         return chronoToLong(value, chronoField, zone);
+    }
+
+    @Evaluator(extraName = "Nanos", warnExceptions = { IllegalArgumentException.class })
+    static long processNanos(long value, BytesRef chronoField, @Fixed ZoneId zone) {
+        return chronoToLongNanos(value, chronoField, zone);
+    }
+
+    @Evaluator(extraName = "ConstantNanos")
+    static long processNanos(long value, @Fixed ChronoField chronoField, @Fixed ZoneId zone) {
+        return chronoToLongNanos(value, chronoField, zone);
     }
 
     @Override
@@ -167,8 +207,15 @@ public class DateExtract extends EsqlConfigurationFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
+        String operationName = sourceText();
         return isStringAndExact(children().get(0), sourceText(), TypeResolutions.ParamOrdinal.FIRST).and(
-            isDate(children().get(1), sourceText(), TypeResolutions.ParamOrdinal.SECOND)
+            TypeResolutions.isType(
+                children().get(1),
+                DataType::isDate,
+                operationName,
+                TypeResolutions.ParamOrdinal.SECOND,
+                "datetime or date_nanos"
+            )
         );
     }
 

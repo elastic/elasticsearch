@@ -1824,7 +1824,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound.class,
             org.elasticsearch.indices.recovery.PeerRecoveryNotFound::new,
             158,
-            TransportVersions.V_7_9_0
+            UNKNOWN_VERSION_ADDED
         ),
         NODE_HEALTH_CHECK_FAILURE_EXCEPTION(
             org.elasticsearch.cluster.coordination.NodeHealthCheckFailureException.class,
@@ -1836,13 +1836,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             org.elasticsearch.transport.NoSeedNodeLeftException.class,
             org.elasticsearch.transport.NoSeedNodeLeftException::new,
             160,
-            TransportVersions.V_7_10_0
+            UNKNOWN_VERSION_ADDED
         ),
         AUTHENTICATION_PROCESSING_ERROR(
             org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
             org.elasticsearch.ElasticsearchAuthenticationProcessingError::new,
             162,
-            TransportVersions.V_7_16_0
+            UNKNOWN_VERSION_ADDED
         ),
         REPOSITORY_CONFLICT_EXCEPTION(
             org.elasticsearch.repositories.RepositoryConflictException.class,

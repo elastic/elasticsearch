@@ -239,6 +239,96 @@ public class UpdateVersionsTaskTests {
         assertThat(field.isPresent(), is(false));
     }
 
+    @Test
+    public void addTransportVersion() throws Exception {
+        var transportVersions = """
+            public class TransportVersions {
+                public static final TransportVersion V_1_0_0 = def(1_000_0_00);
+                public static final TransportVersion V_1_1_0 = def(1_001_0_00);
+                public static final TransportVersion V_1_2_0 = def(1_002_0_00);
+                public static final TransportVersion V_1_2_1 = def(1_002_0_01);
+                public static final TransportVersion V_1_2_2 = def(1_002_0_02);
+                public static final TransportVersion SOME_OTHER_VERSION = def(1_003_0_00);
+                public static final TransportVersion YET_ANOTHER_VERSION = def(1_004_0_00);
+                public static final TransportVersion MINIMUM_COMPATIBLE = V_1_0_0;
+            }
+            """;
+
+        var expectedTransportVersions = """
+            public class TransportVersions {
+
+                public static final TransportVersion V_1_0_0 = def(1_000_0_00);
+
+                public static final TransportVersion V_1_1_0 = def(1_001_0_00);
+
+                public static final TransportVersion V_1_2_0 = def(1_002_0_00);
+
+                public static final TransportVersion V_1_2_1 = def(1_002_0_01);
+
+                public static final TransportVersion V_1_2_2 = def(1_002_0_02);
+
+                public static final TransportVersion SOME_OTHER_VERSION = def(1_003_0_00);
+
+                public static final TransportVersion YET_ANOTHER_VERSION = def(1_004_0_00);
+
+                public static final TransportVersion NEXT_TRANSPORT_VERSION = def(1_005_0_00);
+
+                public static final TransportVersion MINIMUM_COMPATIBLE = V_1_0_0;
+            }
+            """;
+
+        var unit = StaticJavaParser.parse(transportVersions);
+        var result = UpdateVersionsTask.addTransportVersionConstant(unit, "NEXT_TRANSPORT_VERSION", 1_005_0_00);
+
+        assertThat(result.isPresent(), is(true));
+        assertThat(result.get(), hasToString(expectedTransportVersions));
+    }
+
+    @Test
+    public void addTransportVersionPatch() throws Exception {
+        var transportVersions = """
+            public class TransportVersions {
+                public static final TransportVersion V_1_0_0 = def(1_000_0_00);
+                public static final TransportVersion V_1_1_0 = def(1_001_0_00);
+                public static final TransportVersion V_1_2_0 = def(1_002_0_00);
+                public static final TransportVersion V_1_2_1 = def(1_002_0_01);
+                public static final TransportVersion V_1_2_2 = def(1_002_0_02);
+                public static final TransportVersion SOME_OTHER_VERSION = def(1_003_0_00);
+                public static final TransportVersion YET_ANOTHER_VERSION = def(1_004_0_00);
+                public static final TransportVersion MINIMUM_COMPATIBLE = V_1_0_0;
+            }
+            """;
+
+        var expectedTransportVersions = """
+            public class TransportVersions {
+
+                public static final TransportVersion V_1_0_0 = def(1_000_0_00);
+
+                public static final TransportVersion V_1_1_0 = def(1_001_0_00);
+
+                public static final TransportVersion V_1_2_0 = def(1_002_0_00);
+
+                public static final TransportVersion V_1_2_1 = def(1_002_0_01);
+
+                public static final TransportVersion V_1_2_2 = def(1_002_0_02);
+
+                public static final TransportVersion SOME_OTHER_VERSION = def(1_003_0_00);
+
+                public static final TransportVersion PATCH_TRANSPORT_VERSION = def(1_003_0_01);
+
+                public static final TransportVersion YET_ANOTHER_VERSION = def(1_004_0_00);
+
+                public static final TransportVersion MINIMUM_COMPATIBLE = V_1_0_0;
+            }
+            """;
+
+        var unit = StaticJavaParser.parse(transportVersions);
+        var result = UpdateVersionsTask.addTransportVersionConstant(unit, "PATCH_TRANSPORT_VERSION", 1_003_0_01);
+
+        assertThat(result.isPresent(), is(true));
+        assertThat(result.get(), hasToString(expectedTransportVersions));
+    }
+
     private static Optional<FieldDeclaration> findFirstField(Node node, String name) {
         return node.findFirst(FieldDeclaration.class, f -> f.getVariable(0).getName().getIdentifier().equals(name));
     }

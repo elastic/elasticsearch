@@ -19,6 +19,7 @@ import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -39,7 +41,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -55,9 +57,9 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         CountDistinct::new
     );
 
-    private static final Map<DataType, BiFunction<List<Integer>, Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+    private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         // Booleans ignore the precision because there are only two possible values anyway
-        Map.entry(DataType.BOOLEAN, (inputChannels, precision) -> new CountDistinctBooleanAggregatorFunctionSupplier(inputChannels)),
+        Map.entry(DataType.BOOLEAN, (precision) -> new CountDistinctBooleanAggregatorFunctionSupplier()),
         Map.entry(DataType.LONG, CountDistinctLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, CountDistinctLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, CountDistinctLongAggregatorFunctionSupplier::new),
@@ -77,30 +79,29 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         returnType = "long",
         description = "Returns the approximate number of distinct values.",
         appendix = """
-            [discrete]
-            [[esql-agg-count-distinct-approximate]]
-            ==== Counts are approximate
+            ### Counts are approximate [esql-agg-count-distinct-approximate]
 
             Computing exact counts requires loading values into a set and returning its
-            size. This doesn't scale when working on high-cardinality sets and/or large
+            size. This doesn’t scale when working on high-cardinality sets and/or large
             values as the required memory usage and the need to communicate those
             per-shard sets between nodes would utilize too many resources of the cluster.
 
             This `COUNT_DISTINCT` function is based on the
-            https://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf[HyperLogLog++]
+            [HyperLogLog++](https://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf)
             algorithm, which counts based on the hashes of the values with some interesting
             properties:
 
-            include::../../../aggregations/metrics/cardinality-aggregation.asciidoc[tag=explanation]
+            :::{include} /reference/data-analysis/aggregations/_snippets/search-aggregations-metrics-cardinality-aggregation-explanation.md
+            :::
 
             The `COUNT_DISTINCT` function takes an optional second parameter to configure
-            the precision threshold. The precision_threshold options allows to trade memory
+            the precision threshold. The `precision_threshold` options allows to trade memory
             for accuracy, and defines a unique count below which counts are expected to be
             close to accurate. Above this value, counts might become a bit more fuzzy. The
-            maximum supported value is 40000, thresholds above this number will have the
-            same effect as a threshold of 40000. The default value is `3000`.
+            maximum supported value is `40000`, thresholds above this number will have the
+            same effect as a threshold of `40000`. The default value is `3000`.
             """,
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats_count_distinct", tag = "count-distinct"),
             @Example(
@@ -208,14 +209,16 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
-        int precision = this.precision == null ? DEFAULT_PRECISION : ((Number) this.precision.fold()).intValue();
+        int precision = this.precision == null
+            ? DEFAULT_PRECISION
+            : ((Number) this.precision.fold(FoldContext.small() /* TODO remove me */)).intValue();
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        return SUPPLIERS.get(type).apply(inputChannels, precision);
+        return SUPPLIERS.get(type).apply(precision);
     }
 
     @Override

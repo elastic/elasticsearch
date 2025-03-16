@@ -101,7 +101,7 @@ public class CloneIndexIT extends ESIntegTestCase {
             flushAndRefresh();
             assertHitCount(prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")), 2 * docs);
             assertHitCount(prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
-            GetSettingsResponse target = indicesAdmin().prepareGetSettings("target").get();
+            GetSettingsResponse target = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "target").get();
             assertThat(
                 target.getIndexToSettings().get("target").getAsVersionId("index.version.created", IndexVersion::fromId),
                 equalTo(version)

@@ -60,20 +60,20 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Step.StepKey stepKey = randomStepKey();
         Step.StepKey nextStepKey = randomStepKey();
         ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue maxSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+        ByteSizeValue maxSize = randomBoolean() ? null : ByteSizeValue.of(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
         ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxPrimaryShardSize = randomBoolean()
             ? null
-            : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+            : ByteSizeValue.of(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean()) ? randomPositiveTimeValue() : null;
         Long maxPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
         ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
-        ByteSizeValue minSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
+        ByteSizeValue minSize = randomBoolean() ? null : ByteSizeValue.of(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
         ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue minPrimaryShardSize = randomBoolean()
             ? null
-            : new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
+            : ByteSizeValue.of(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
         Long minDocs = randomBoolean() ? null : randomNonNegativeLong();
         TimeValue minAge = (minDocs == null || randomBoolean()) ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
@@ -115,22 +115,22 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
             case 2 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);
             });
             case 3 -> maxPrimaryShardSize = randomValueOtherThan(maxPrimaryShardSize, () -> {
                 ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
             });
             case 4 -> maxAge = randomValueOtherThan(maxAge, () -> randomPositiveTimeValue());
             case 5 -> maxDocs = randomValueOtherThan(maxDocs, ESTestCase::randomNonNegativeLong);
             case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, ESTestCase::randomNonNegativeLong);
             case 7 -> minSize = randomValueOtherThan(minSize, () -> {
                 ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
             });
             case 8 -> minPrimaryShardSize = randomValueOtherThan(minPrimaryShardSize, () -> {
                 ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
-                return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
+                return ByteSizeValue.of(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
             });
             case 9 -> minAge = randomValueOtherThan(minAge, () -> randomPositiveTimeValue());
             case 10 -> minDocs = randomValueOtherThan(minDocs, ESTestCase::randomNonNegativeLong);

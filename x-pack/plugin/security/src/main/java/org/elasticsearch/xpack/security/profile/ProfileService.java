@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -722,32 +723,33 @@ public class ProfileService {
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .request()
         );
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                SECURITY_PROFILE_ORIGIN,
-                TransportBulkAction.TYPE,
-                bulkRequest,
-                TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
-                    assert docId.equals(indexResponse.getId());
-                    final VersionedDocument versionedDocument = new VersionedDocument(
-                        profileDocument,
-                        indexResponse.getPrimaryTerm(),
-                        indexResponse.getSeqNo()
-                    );
-                    listener.onResponse(versionedDocument.toProfile(Set.of()));
-                }, e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                        // Document already exists with the specified ID, get the document with the ID
-                        // and check whether it is the right profile for the subject
-                        getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }))
-            )
-        );
+        profileIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportBulkAction.TYPE,
+                    bulkRequest,
+                    TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                        assert docId.equals(indexResponse.getId());
+                        final VersionedDocument versionedDocument = new VersionedDocument(
+                            profileDocument,
+                            indexResponse.getPrimaryTerm(),
+                            indexResponse.getSeqNo()
+                        );
+                        listener.onResponse(versionedDocument.toProfile(Set.of()));
+                    }, e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            // Document already exists with the specified ID, get the document with the ID
+                            // and check whether it is the right profile for the subject
+                            getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }))
+                )
+            );
     }
 
     // Package private for test
@@ -987,20 +989,21 @@ public class ProfileService {
 
     // Package private for testing
     void doUpdate(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener) {
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                SECURITY_PROFILE_ORIGIN,
-                TransportUpdateAction.TYPE,
-                updateRequest,
-                ActionListener.wrap(updateResponse -> {
-                    assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
-                        || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
-                    listener.onResponse(updateResponse);
-                }, listener::onFailure)
-            )
-        );
+        profileIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportUpdateAction.TYPE,
+                    updateRequest,
+                    ActionListener.wrap(updateResponse -> {
+                        assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                            || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
+                        listener.onResponse(updateResponse);
+                    }, listener::onFailure)
+                )
+            );
     }
 
     private static String uidToDocId(String uid) {
@@ -1048,20 +1051,17 @@ public class ProfileService {
      * Freeze the profile index check its availability and return it if everything is ok.
      * Otherwise it calls the listener with null and returns an empty Optional.
      */
-    private <T> Optional<SecurityIndexManager> tryFreezeAndCheckIndex(
-        ActionListener<T> listener,
-        SecurityIndexManager.Availability availability
-    ) {
-        final SecurityIndexManager frozenProfileIndex = profileIndex.defensiveCopy();
-        if (false == frozenProfileIndex.indexExists()) {
+    private <T> Optional<IndexState> tryFreezeAndCheckIndex(ActionListener<T> listener, SecurityIndexManager.Availability availability) {
+        final IndexState projectSecurityIndex = profileIndex.forCurrentProject();
+        if (false == projectSecurityIndex.indexExists()) {
             logger.debug("profile index does not exist");
             listener.onResponse(null);
             return Optional.empty();
-        } else if (false == frozenProfileIndex.isAvailable(availability)) {
-            listener.onFailure(frozenProfileIndex.getUnavailableReason(availability));
+        } else if (false == projectSecurityIndex.isAvailable(availability)) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(availability));
             return Optional.empty();
         }
-        return Optional.of(frozenProfileIndex);
+        return Optional.of(projectSecurityIndex);
     }
 
     private static ProfileDocument updateWithSubject(ProfileDocument doc, Subject subject) {

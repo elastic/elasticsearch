@@ -171,7 +171,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             metadata.transientSettings().size(),
             equalTo(0)
         );
-        GetIndexResponse indices = indicesAdmin().prepareGetIndex()
+        GetIndexResponse indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .addIndices("*")
             .get();
@@ -234,7 +234,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected List<String> filteredWarnings() {
         return Stream.concat(
             super.filteredWarnings().stream(),
-            Stream.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release.")
+            Stream.of(
+                "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
+            )
         ).collect(Collectors.toList());
     }
 
@@ -401,7 +404,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     }
 
     public Index resolveIndex(String index) {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex().setIndices(index).get();
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(index).get();
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetadata.SETTING_INDEX_UUID);
         return new Index(index, uuid);

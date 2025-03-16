@@ -267,8 +267,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         return execute(GetMappingsAction.INSTANCE, request);
     }
 
-    public GetMappingsRequestBuilder prepareGetMappings(String... indices) {
-        return new GetMappingsRequestBuilder(this, indices);
+    public GetMappingsRequestBuilder prepareGetMappings(TimeValue masterTimeout, String... indices) {
+        return new GetMappingsRequestBuilder(this, masterTimeout, indices);
     }
 
     public void getFieldMappings(GetFieldMappingsRequest request, ActionListener<GetFieldMappingsResponse> listener) {
@@ -325,8 +325,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(TransportIndicesAliasesAction.TYPE, request, listener);
     }
 
-    public IndicesAliasesRequestBuilder prepareAliases() {
-        return new IndicesAliasesRequestBuilder(this);
+    public IndicesAliasesRequestBuilder prepareAliases(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        return new IndicesAliasesRequestBuilder(this, masterNodeTimeout, ackTimeout);
     }
 
     public ActionFuture<GetAliasesResponse> getAliases(GetAliasesRequest request) {
@@ -349,8 +349,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         execute(GetIndexAction.INSTANCE, request, listener);
     }
 
-    public GetIndexRequestBuilder prepareGetIndex() {
-        return new GetIndexRequestBuilder(this);
+    public GetIndexRequestBuilder prepareGetIndex(TimeValue masterTimeout) {
+        return new GetIndexRequestBuilder(this, masterTimeout);
     }
 
     public ActionFuture<BroadcastResponse> clearCache(final ClearIndicesCacheRequest request) {
@@ -445,8 +445,8 @@ public class IndicesAdminClient implements ElasticsearchClient {
         return execute(GetSettingsAction.INSTANCE, request);
     }
 
-    public GetSettingsRequestBuilder prepareGetSettings(String... indices) {
-        return new GetSettingsRequestBuilder(this, indices);
+    public GetSettingsRequestBuilder prepareGetSettings(TimeValue masterTimeout, String... indices) {
+        return new GetSettingsRequestBuilder(this, masterTimeout, indices);
     }
 
     public ResizeRequestBuilder prepareResizeIndex(String sourceIndex, String targetIndex) {

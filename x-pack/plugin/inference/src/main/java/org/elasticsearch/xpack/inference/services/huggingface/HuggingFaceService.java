@@ -127,10 +127,9 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         var huggingFaceModel = (HuggingFaceModel) model;
         var actionCreator = new HuggingFaceActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.FLOAT,
             huggingFaceModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -181,7 +180,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder().setDefaultValue("https://api.openai.com/v1/embeddings")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue("https://api.openai.com/v1/embeddings")
                         .setDescription("The URL endpoint to use for the requests.")
                         .setLabel("URL")
                         .setRequired(true)
@@ -191,8 +190,8 @@ public class HuggingFaceService extends HuggingFaceBaseService {
                         .build()
                 );
 
-                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

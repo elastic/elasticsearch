@@ -81,7 +81,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         );
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting(READONLY_SETTING_KEY, false, Property.NodeScope);
         // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
-        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
+        private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = ByteSizeValue.of(256, ByteSizeUnit.MB);
         public static final Setting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING = Setting.byteSizeSetting(
             "max_single_part_upload_size",
             DEFAULT_MAX_SINGLE_UPLOAD_SIZE,

@@ -39,7 +39,7 @@ public class ReverseTests extends AbstractScalarFunctionTestCase {
             }
         }
 
-        return parameterSuppliersFromTypedData(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
     }
 
     @Override

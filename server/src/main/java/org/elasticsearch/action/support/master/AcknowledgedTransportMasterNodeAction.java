@@ -10,7 +10,6 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,20 +31,9 @@ public abstract class AcknowledgedTransportMasterNodeAction<Request extends Mast
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Executor executor
     ) {
-        super(
-            actionName,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            request,
-            indexNameExpressionResolver,
-            AcknowledgedResponse::readFrom,
-            executor
-        );
+        super(actionName, transportService, clusterService, threadPool, actionFilters, request, AcknowledgedResponse::readFrom, executor);
     }
 
     protected AcknowledgedTransportMasterNodeAction(
@@ -56,7 +44,6 @@ public abstract class AcknowledgedTransportMasterNodeAction<Request extends Mast
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Executor executor
     ) {
         super(
@@ -67,7 +54,6 @@ public abstract class AcknowledgedTransportMasterNodeAction<Request extends Mast
             threadPool,
             actionFilters,
             request,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             executor
         );

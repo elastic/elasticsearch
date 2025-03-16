@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -56,6 +57,9 @@ public interface SecurityExtension {
 
         /** Provides support for mapping users' roles from groups and metadata */
         UserRoleMapper roleMapper();
+
+        /** Provides the ability to access project-scoped data from the global scope **/
+        ProjectResolver projectResolver();
     }
 
     /**

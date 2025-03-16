@@ -28,14 +28,25 @@ public class DateFormatErrorTests extends ErrorsForCasesWithoutExamplesTestCase 
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new DateFormat(source, args.get(0), args.get(1), EsqlTestUtils.TEST_CFG);
+        return new DateFormat(source, args.get(0), args.size() == 2 ? args.get(1) : null, EsqlTestUtils.TEST_CFG);
     }
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
+        // Single argument version
+        String source = sourceForSignature(signature);
+        String name = signature.get(0).typeName();
+        if (signature.size() == 1) {
+            return equalTo("first argument of [" + source + "] must be [datetime or date_nanos], found value [] type [" + name + "]");
+        }
+        // Two argument version
+        // Handle the weird case where we're calling the two argument version with the date first instead of the format.
+        if (signature.get(0).isDate()) {
+            return equalTo("first argument of [" + source + "] must be [string], found value [] type [" + name + "]");
+        }
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
             case 0 -> "string";
-            case 1 -> "datetime";
+            case 1 -> "datetime or date_nanos";
             default -> "";
         }));
     }

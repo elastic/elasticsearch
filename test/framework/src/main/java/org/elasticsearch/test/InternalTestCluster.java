@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
@@ -146,6 +147,8 @@ import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOS
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.assertFalse;
+import static org.elasticsearch.test.ESTestCase.assertTrue;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.runInParallel;
 import static org.elasticsearch.test.ESTestCase.safeAwait;
@@ -160,9 +163,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -574,12 +575,12 @@ public final class InternalTestCluster extends TestCluster {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
-                    new ByteSizeValue(RandomNumbers.randomIntBetween(random, 1, 10), ByteSizeUnit.MB)
+                    ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 1, 10), ByteSizeUnit.MB)
                 );
             } else {
                 builder.put(
                     RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(),
-                    new ByteSizeValue(RandomNumbers.randomIntBetween(random, 10, 200), ByteSizeUnit.MB)
+                    ByteSizeValue.of(RandomNumbers.randomIntBetween(random, 10, 200), ByteSizeUnit.MB)
                 );
             }
         }
@@ -1240,16 +1241,29 @@ public final class InternalTestCluster extends TestCluster {
         }
         logger.trace("validating cluster formed, expecting {}", expectedNodes);
 
-        assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth(TEST_REQUEST_TIMEOUT)
-                .setWaitForEvents(Priority.LANGUID)
-                .setWaitForNodes(Integer.toString(expectedNodes.size()))
-                .get(TimeValue.timeValueSeconds(40))
-                .isTimedOut()
-        );
         try {
+            assertBusy(() -> {
+                try {
+                    final boolean timeout = client().admin()
+                        .cluster()
+                        .prepareHealth(TEST_REQUEST_TIMEOUT)
+                        .setWaitForEvents(Priority.LANGUID)
+                        .setWaitForNodes(Integer.toString(expectedNodes.size()))
+                        .get(TimeValue.timeValueSeconds(40))
+                        .isTimedOut();
+                    if (timeout) {
+                        throw new IllegalStateException("timed out waiting for cluster to form");
+                    }
+                } catch (UnavailableShardsException e) {
+                    if (e.getMessage() != null && e.getMessage().contains(".security")) {
+                        // security index may not be ready yet, throwing assertion error to retry
+                        throw new AssertionError(e);
+                    } else {
+                        throw e;
+                    }
+                }
+            }, 30, TimeUnit.SECONDS);
+
             final Object[] previousStates = new Object[1];
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
@@ -1794,7 +1808,7 @@ public final class InternalTestCluster extends TestCluster {
                     .distinct()
                     .collect(Collectors.toList());
                 Set<Path> configPaths = Stream.concat(currentNodes.stream(), newNodes.stream())
-                    .map(nac -> nac.node.getEnvironment().configFile())
+                    .map(nac -> nac.node.getEnvironment().configDir())
                     .collect(Collectors.toSet());
                 logger.debug("configuring discovery with {} at {}", discoveryFileContents, configPaths);
                 for (final Path configPath : configPaths) {
@@ -1808,7 +1822,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public Collection<Path> configPaths() {
-        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configFile()).toList();
+        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configDir()).toList();
     }
 
     private void stopNodesAndClient(NodeAndClient nodeAndClient) throws IOException {
@@ -2347,7 +2361,7 @@ public final class InternalTestCluster extends TestCluster {
                     greaterThan(shard)
                 );
                 ClusterState clusterState = clusterService.state();
-                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getIndexSafe(index));
+                IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getProject().getIndexSafe(index));
                 while (true) {
                     String routing = RandomStrings.randomAsciiLettersOfLength(random, 10);
                     if (shard == indexRouting.indexShard("id", routing, null, null)) {

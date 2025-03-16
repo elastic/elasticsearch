@@ -19,7 +19,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -51,7 +50,6 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
         super(
@@ -61,7 +59,6 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             FinalizeJobExecutionAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;

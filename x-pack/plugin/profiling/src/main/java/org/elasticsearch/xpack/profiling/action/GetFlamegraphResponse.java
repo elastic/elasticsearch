@@ -13,7 +13,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -25,9 +25,7 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
     private final int size;
     private final double samplingRate;
     private final long selfCPU;
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     private final long totalCPU;
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove this field - it is unused in Kibana
     private final long totalSamples;
     private final List<Map<String, Integer>> edges;
     private final List<String> fileIds;
@@ -173,20 +171,20 @@ public class GetFlamegraphResponse extends ActionResponse implements ChunkedToXC
         return totalSamples;
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // change casing from Camel Case to Snake Case (requires updates in Kibana as well)
+    @UpdateForV10(owner = UpdateForV10.Owner.PROFILING) // change casing from Camel Case to Snake Case (requires updates in Kibana as well)
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        /*
+         * The flamegraph response can be quite big. Some of these arrays need to be individual chunks, some can be a single chunk.
+         * They also need to be in-line so that neither the constants nor the fields get captured in a closure.
+         */
         return Iterators.concat(
             ChunkedToXContentHelper.startObject(),
             ChunkedToXContentHelper.array(
                 "Edges",
                 Iterators.flatMap(
                     edges.iterator(),
-                    perNodeEdges -> Iterators.concat(
-                        ChunkedToXContentHelper.startArray(),
-                        Iterators.map(perNodeEdges.entrySet().iterator(), edge -> (b, p) -> b.value(edge.getValue())),
-                        ChunkedToXContentHelper.endArray()
-                    )
+                    perNodeEdges -> ChunkedToXContentHelper.array(perNodeEdges.values().iterator(), edge -> (b, p) -> b.value(edge))
                 )
             ),
             ChunkedToXContentHelper.array("FileID", Iterators.map(fileIds.iterator(), e -> (b, p) -> b.value(e))),

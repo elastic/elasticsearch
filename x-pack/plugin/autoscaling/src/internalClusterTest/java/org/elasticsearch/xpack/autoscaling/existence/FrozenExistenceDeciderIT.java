@@ -123,7 +123,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
         assertBusy(() -> {
             ExplainLifecycleResponse response = client().execute(
                 ExplainLifecycleAction.INSTANCE,
-                new ExplainLifecycleRequest().indices(INDEX_NAME)
+                new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)
             ).actionGet();
             IndexLifecycleExplainResponse indexResponse = response.getIndexResponses().get(INDEX_NAME);
             assertNotNull(indexResponse);
@@ -150,7 +150,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
     }
 
     private String[] indices() {
-        return indicesAdmin().prepareGetIndex().addIndices("index").get().indices();
+        return indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices("index").get().indices();
     }
 
     private void assertMinimumCapacity(AutoscalingCapacity.AutoscalingResources resources) {

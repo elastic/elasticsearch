@@ -24,7 +24,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
     @Override
     public LoadedSecrets load(Environment environment, Terminal terminal) throws Exception {
         // See if we have a keystore already present
-        KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configFile());
+        KeyStoreWrapper secureSettings = KeyStoreWrapper.load(environment.configDir());
         // If there's no keystore or the keystore has no password, set an empty password
         var password = (secureSettings == null || secureSettings.hasPassword() == false)
             ? new SecureString(new char[0])
@@ -35,7 +35,7 @@ public class KeyStoreLoader implements SecureSettingsLoader {
 
     @Override
     public SecureSettings bootstrap(Environment environment, SecureString password) throws Exception {
-        return KeyStoreWrapper.bootstrap(environment.configFile(), () -> password);
+        return KeyStoreWrapper.bootstrap(environment.configDir(), () -> password);
     }
 
     @Override

@@ -23,12 +23,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemoteClusterSecurityTestCase {
     private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
@@ -106,32 +109,34 @@ public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemo
         Map<?, ?> localClusterDetails = (Map<?, ?>) clusterDetails.get("(local)");
         Map<?, ?> remoteClusterDetails = (Map<?, ?>) clusterDetails.get("my_remote_cluster");
 
+        Function<String, String> info = (msg) -> "test: esqlEnrichWithRandomSkipUnavailable: " + msg;
+
         assertOK(response);
-        assertThat((int) map.get("took"), greaterThan(0));
-        assertThat(values.size(), is(6));
+        assertThat(info.apply("overall took"), (int) map.get("took"), greaterThan(0));
+        assertThat(info.apply("overall num values"), values.size(), is(6));
         for (int i = 0; i < 6; i++) {
             ArrayList<?> value = (ArrayList<?>) values.get(i);
             // Size is 3: ID, Email, Designation.
-            assertThat(value.size(), is(3));
+            assertThat(info.apply("should be id, email, designation, so size 3"), value.size(), is(3));
             // Email
-            assertThat((String) value.get(0), endsWith("@corp.co"));
+            assertThat(info.apply("email was: " + value.get(0)), (String) value.get(0), endsWith("@corp.co"));
             // ID
-            assertThat(value.get(1), is(i + 1));
+            assertThat(info.apply("id"), value.get(1), is(i + 1));
         }
 
-        assertThat((int) clusters.get("total"), is(2));
-        assertThat((int) clusters.get("successful"), is(2));
-        assertThat((int) clusters.get("running"), is(0));
-        assertThat((int) clusters.get("skipped"), is(0));
-        assertThat((int) clusters.get("partial"), is(0));
-        assertThat((int) clusters.get("failed"), is(0));
+        assertThat(info.apply("total clusters"), (int) clusters.get("total"), is(2));
+        assertThat(info.apply("successful clusters"), (int) clusters.get("successful"), is(2));
+        assertThat(info.apply("running clusters"), (int) clusters.get("running"), is(0));
+        assertThat(info.apply("skipped clusters"), (int) clusters.get("skipped"), is(0));
+        assertThat(info.apply("partial clusters"), (int) clusters.get("partial"), is(0));
+        assertThat(info.apply("failed clusters"), (int) clusters.get("failed"), is(0));
 
         assertThat(clusterDetails.size(), is(2));
-        assertThat((int) localClusterDetails.get("took"), greaterThan(0));
-        assertThat(localClusterDetails.get("status"), is("successful"));
+        assertThat(info.apply("local cluster took"), (int) localClusterDetails.get("took"), greaterThan(0));
+        assertThat(info.apply("local cluster status"), localClusterDetails.get("status"), is("successful"));
 
-        assertThat((int) remoteClusterDetails.get("took"), greaterThan(0));
-        assertThat(remoteClusterDetails.get("status"), is("successful"));
+        assertThat(info.apply("remote cluster took"), (int) remoteClusterDetails.get("took"), greaterThan(0));
+        assertThat(info.apply("remote cluster status"), remoteClusterDetails.get("status"), is("successful"));
     }
 
     @SuppressWarnings("unchecked")
@@ -151,42 +156,48 @@ public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemo
             Map<?, ?> localClusterDetails = (Map<?, ?>) clusterDetails.get("(local)");
             Map<?, ?> remoteClusterDetails = (Map<?, ?>) clusterDetails.get("my_remote_cluster");
 
+            Function<String, String> info = (msg) -> "test: esqlEnrichWithSkipUnavailableTrue: " + msg;
+
             assertOK(response);
-            assertThat((int) map.get("took"), greaterThan(0));
-            assertThat(values.size(), is(3));
+            assertThat(info.apply("overall took"), (int) map.get("took"), greaterThan(0));
+            assertThat(info.apply("overall values.size"), values.size(), is(3));
 
             // We only have 3 values since the remote cluster is turned off.
             for (int i = 0; i < 3; i++) {
                 ArrayList<?> value = (ArrayList<?>) values.get(i);
                 // Size is 3: ID, Email, Designation.
-                assertThat(value.size(), is(3));
+                assertThat(info.apply("should be id, email, designation but had size: "), value.size(), is(3));
                 // Email
-                assertThat((String) value.get(0), endsWith("@corp.co"));
+                assertThat(info.apply("email was: " + value.get(0)), (String) value.get(0), endsWith("@corp.co"));
                 // ID
-                assertThat(value.get(1), is(i + 1));
+                assertThat(info.apply("id"), value.get(1), is(i + 1));
             }
 
-            assertThat((int) clusters.get("total"), is(2));
-            assertThat((int) clusters.get("successful"), is(1));
-            assertThat((int) clusters.get("running"), is(0));
-            assertThat((int) clusters.get("skipped"), is(1));
-            assertThat((int) clusters.get("partial"), is(0));
-            assertThat((int) clusters.get("failed"), is(0));
+            assertThat(info.apply("total clusters"), (int) clusters.get("total"), is(2));
+            assertThat(info.apply("successful clusters"), (int) clusters.get("successful"), is(1));
+            assertThat(info.apply("running clusters"), (int) clusters.get("running"), is(0));
+            assertThat(info.apply("skipped clusters"), (int) clusters.get("skipped"), is(1));
+            assertThat(info.apply("partial clusters"), (int) clusters.get("partial"), is(0));
+            assertThat(info.apply("failed clusters"), (int) clusters.get("failed"), is(0));
 
-            assertThat(clusterDetails.size(), is(2));
-            assertThat((int) localClusterDetails.get("took"), greaterThan(0));
-            assertThat(localClusterDetails.get("status"), is("successful"));
+            assertThat(info.apply("cluster details size"), clusterDetails.size(), is(2));
+            assertThat(info.apply("local cluster took"), (int) localClusterDetails.get("took"), greaterThan(0));
+            assertThat(info.apply("local cluster status"), localClusterDetails.get("status"), is("successful"));
 
-            assertThat((int) remoteClusterDetails.get("took"), greaterThan(0));
-            assertThat(remoteClusterDetails.get("status"), is("skipped"));
+            assertThat(info.apply("remote cluster took"), (int) remoteClusterDetails.get("took"), greaterThan(0));
+            assertThat(info.apply("remote cluster status"), remoteClusterDetails.get("status"), is("skipped"));
 
             ArrayList<?> remoteClusterFailures = (ArrayList<?>) remoteClusterDetails.get("failures");
-            assertThat(remoteClusterFailures.size(), equalTo(1));
+            assertThat(info.apply("remote cluster failure count"), remoteClusterFailures.size(), equalTo(1));
             Map<String, ?> failuresMap = (Map<String, ?>) remoteClusterFailures.get(0);
 
             Map<String, ?> reason = (Map<String, ?>) failuresMap.get("reason");
-            assertThat(reason.get("type").toString(), equalTo("connect_transport_exception"));
-            assertThat(reason.get("reason").toString(), containsString("Unable to connect to [my_remote_cluster]"));
+            assertThat(
+                info.apply("unexpected failure reason: " + reason),
+                reason.get("type").toString(),
+                oneOf("node_disconnected_exception", "connect_transport_exception", "node_not_connected_exception")
+            );
+
         } finally {
             fulfillingCluster.start();
             closeFulfillingClusterClient();
@@ -202,7 +213,16 @@ public class CrossClusterEsqlRCS1EnrichUnavailableRemotesIT extends AbstractRemo
 
             String query = "FROM to-be-enr*,my_remote_cluster:to-be-enr* | ENRICH " + randomFrom(modes) + ":employees-policy | LIMIT 10";
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(query)));
-            assertThat(ex.getMessage(), containsString("connect_transport_exception"));
+
+            assertThat(
+                "esqlEnrichWithSkipUnavailableFalse failure",
+                ex.getMessage(),
+                anyOf(
+                    containsString("connect_transport_exception"),
+                    containsString("node_disconnected_exception"),
+                    containsString("node_not_connected_exception")
+                )
+            );
         } finally {
             fulfillingCluster.start();
             closeFulfillingClusterClient();

@@ -11,6 +11,8 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.ReferenceDocs;
@@ -80,6 +82,13 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
     public void cleanup() {
         updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.datafeed"));
         cleanUp();
+        // Race conditions between closing and killing tasks in these tests,
+        // sometimes result in lingering persistent close tasks, which cause
+        // subsequent tests to fail. Therefore, they're explicitly cancelled.
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+        cancelTasksRequest.setActions("*close*");
+        cancelTasksRequest.setWaitForCompletion(true);
+        client().execute(TransportCancelTasksAction.TYPE, cancelTasksRequest).actionGet();
     }
 
     public void testLookbackOnly() throws Exception {

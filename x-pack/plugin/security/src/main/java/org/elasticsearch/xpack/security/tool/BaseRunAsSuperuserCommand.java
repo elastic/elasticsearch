@@ -93,7 +93,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
                 settingsBuilder.setSecureSettings(keyStoreWrapper);
             }
             settings = settingsBuilder.build();
-            newEnv = new Environment(settings, env.configFile());
+            newEnv = new Environment(settings, env.configDir());
         } else {
             newEnv = env;
             settings = env.settings();

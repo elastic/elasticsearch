@@ -13,21 +13,25 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDouble}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDoubleFromIntEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDoubleFromIntEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator i;
+
+  public ToDoubleFromIntEvaluator(Source source, EvalOperator.ExpressionEvaluator i,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.i = i;
   }
 
   @Override
-  public String name() {
-    return "ToDoubleFromInt";
+  public EvalOperator.ExpressionEvaluator next() {
+    return i;
   }
 
   @Override
@@ -45,7 +49,7 @@ public final class ToDoubleFromIntEvaluator extends AbstractConvertFunction.Abst
     }
   }
 
-  private static double evalValue(IntVector container, int index) {
+  private double evalValue(IntVector container, int index) {
     int value = container.getInt(index);
     return ToDouble.fromInt(value);
   }
@@ -80,29 +84,39 @@ public final class ToDoubleFromIntEvaluator extends AbstractConvertFunction.Abst
     }
   }
 
-  private static double evalValue(IntBlock container, int index) {
+  private double evalValue(IntBlock container, int index) {
     int value = container.getInt(index);
     return ToDouble.fromInt(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToDoubleFromIntEvaluator[" + "i=" + i + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(i);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory i;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory i) {
       this.source = source;
+      this.i = i;
     }
 
     @Override
     public ToDoubleFromIntEvaluator get(DriverContext context) {
-      return new ToDoubleFromIntEvaluator(field.get(context), source, context);
+      return new ToDoubleFromIntEvaluator(source, i.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToDoubleFromIntEvaluator[field=" + field + "]";
+      return "ToDoubleFromIntEvaluator[" + "i=" + i + "]";
     }
   }
 }

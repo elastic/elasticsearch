@@ -13,18 +13,19 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KqlQuery;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Full text function that performs a {@link KqlQuery} .
@@ -88,8 +89,8 @@ public class Kql extends FullTextFunction {
     }
 
     @Override
-    protected ExpressionTranslator<Kql> translator() {
-        return new EsqlExpressionTranslators.KqlFunctionTranslator();
+    protected Query translate(TranslatorHandler handler) {
+        return new KqlQuery(source(), Objects.toString(queryAsObject()));
     }
 
     @Override

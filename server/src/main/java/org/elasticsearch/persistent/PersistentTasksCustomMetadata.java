@@ -8,25 +8,22 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -34,7 +31,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -43,21 +39,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.persistent.PersistentTasks.Parsers.PERSISTENT_TASK_PARSER;
 
 /**
- * A cluster state record that contains a list of all running persistent tasks
+ * A cluster state record that contains a list of all running persistent tasks from a project
  */
-public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+@FixForMultiProject(description = "Consider renaming it to ProjectPersistentTasksCustomMetadata")
+public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom>
+    implements
+        Metadata.ProjectCustom,
+        PersistentTasks {
 
     public static final String TYPE = "persistent_tasks";
-    private static final String API_CONTEXT = Metadata.XContentContext.API.toString();
-    static final Assignment LOST_NODE_ASSIGNMENT = new Assignment(null, "awaiting reassignment after node loss");
 
     // TODO: Implement custom Diff for tasks
     private final Map<String, PersistentTask<?>> tasks;
@@ -70,108 +65,29 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     private static final ObjectParser<Builder, Void> PERSISTENT_TASKS_PARSER = new ObjectParser<>(TYPE, Builder::new);
 
-    private static final ObjectParser<TaskBuilder<PersistentTaskParams>, Void> PERSISTENT_TASK_PARSER = new ObjectParser<>(
-        "tasks",
-        TaskBuilder::new
-    );
-
-    public static final ConstructingObjectParser<Assignment, Void> ASSIGNMENT_PARSER = new ConstructingObjectParser<>(
-        "assignment",
-        objects -> new Assignment((String) objects[0], (String) objects[1])
-    );
-
-    private static final NamedObjectParser<TaskDescriptionBuilder<PersistentTaskParams>, Void> TASK_DESCRIPTION_PARSER;
-
     static {
         // Tasks parser initialization
         PERSISTENT_TASKS_PARSER.declareLong(Builder::setLastAllocationId, new ParseField("last_allocation_id"));
         PERSISTENT_TASKS_PARSER.declareObjectArray(Builder::setTasks, PERSISTENT_TASK_PARSER, new ParseField("tasks"));
-
-        // Task description parser initialization
-        ObjectParser<TaskDescriptionBuilder<PersistentTaskParams>, String> parser = new ObjectParser<>("named");
-        parser.declareObject(
-            TaskDescriptionBuilder::setParams,
-            (p, c) -> p.namedObject(PersistentTaskParams.class, c, null),
-            new ParseField("params")
-        );
-        parser.declareObject(
-            TaskDescriptionBuilder::setState,
-            (p, c) -> p.namedObject(PersistentTaskState.class, c, null),
-            new ParseField("state", "status")
-        );
-        TASK_DESCRIPTION_PARSER = (XContentParser p, Void c, String name) -> parser.parse(p, new TaskDescriptionBuilder<>(name), name);
-
-        // Assignment parser
-        ASSIGNMENT_PARSER.declareStringOrNull(constructorArg(), new ParseField("executor_node"));
-        ASSIGNMENT_PARSER.declareStringOrNull(constructorArg(), new ParseField("explanation"));
-
-        // Task parser initialization
-        PERSISTENT_TASK_PARSER.declareString(TaskBuilder::setId, new ParseField("id"));
-        PERSISTENT_TASK_PARSER.declareString(TaskBuilder::setTaskName, new ParseField("name"));
-        PERSISTENT_TASK_PARSER.declareLong(TaskBuilder::setAllocationId, new ParseField("allocation_id"));
-
-        PERSISTENT_TASK_PARSER.declareNamedObjects(
-            (TaskBuilder<PersistentTaskParams> taskBuilder, List<TaskDescriptionBuilder<PersistentTaskParams>> objects) -> {
-                if (objects.size() != 1) {
-                    throw new IllegalArgumentException("only one task description per task is allowed");
-                }
-                TaskDescriptionBuilder<PersistentTaskParams> builder = objects.get(0);
-                taskBuilder.setTaskName(builder.taskName);
-                taskBuilder.setParams(builder.params);
-                taskBuilder.setState(builder.state);
-            },
-            TASK_DESCRIPTION_PARSER,
-            new ParseField("task")
-        );
-        PERSISTENT_TASK_PARSER.declareObject(TaskBuilder::setAssignment, ASSIGNMENT_PARSER, new ParseField("assignment"));
-        PERSISTENT_TASK_PARSER.declareLong(
-            TaskBuilder::setAllocationIdOnLastStatusUpdate,
-            new ParseField("allocation_id_on_last_status_update")
-        );
     }
 
+    @Deprecated(forRemoval = true)
     public static PersistentTasksCustomMetadata getPersistentTasksCustomMetadata(ClusterState clusterState) {
-        return clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        return get(clusterState.metadata().getProject());
     }
 
-    /**
-     * Private builder used in XContent parser to build task-specific portion (params and state)
-     */
-    private static class TaskDescriptionBuilder<Params extends PersistentTaskParams> {
-
-        private final String taskName;
-        private Params params;
-        private PersistentTaskState state;
-
-        private TaskDescriptionBuilder(String taskName) {
-            this.taskName = taskName;
-        }
-
-        private TaskDescriptionBuilder<Params> setParams(Params params) {
-            this.params = params;
-            return this;
-        }
-
-        private TaskDescriptionBuilder<Params> setState(PersistentTaskState state) {
-            this.state = state;
-            return this;
-        }
+    public static PersistentTasksCustomMetadata get(ProjectMetadata projectMetadata) {
+        return projectMetadata.custom(TYPE);
     }
 
-    public Collection<PersistentTask<?>> tasks() {
-        return this.tasks.values();
+    @Override
+    public long getLastAllocationId() {
+        return lastAllocationId;
     }
 
+    @Override
     public Map<String, PersistentTask<?>> taskMap() {
         return this.tasks;
-    }
-
-    public PersistentTask<?> getTask(String id) {
-        return this.tasks.get(id);
-    }
-
-    public Collection<PersistentTask<?>> findTasks(String taskName, Predicate<PersistentTask<?>> predicate) {
-        return this.tasks().stream().filter(p -> taskName.equals(p.getTaskName())).filter(predicate).toList();
     }
 
     @Override
@@ -192,13 +108,6 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return Strings.toString(this);
     }
 
-    public long getNumberOfTasksOnNode(String nodeId, String taskName) {
-        return tasks.values()
-            .stream()
-            .filter(task -> taskName.equals(task.taskName) && nodeId.equals(task.assignment.executorNode))
-            .count();
-    }
-
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         return TransportVersions.MINIMUM_COMPATIBLE;
@@ -213,9 +122,14 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return PERSISTENT_TASKS_PARSER.apply(parser, null).build();
     }
 
-    @SuppressWarnings("unchecked")
+    @Deprecated(forRemoval = true)
     public static <Params extends PersistentTaskParams> PersistentTask<Params> getTaskWithId(ClusterState clusterState, String taskId) {
-        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        return getTaskWithId(clusterState.metadata().getProject(), taskId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <Params extends PersistentTaskParams> PersistentTask<Params> getTaskWithId(ProjectMetadata project, String taskId) {
+        PersistentTasksCustomMetadata tasks = get(project);
         if (tasks != null) {
             return (PersistentTask<Params>) tasks.getTask(taskId);
         }
@@ -226,19 +140,28 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
      * Unassign any persistent tasks executing on nodes that are no longer in
      * the cluster. If the task's assigment has a non-null executor node and that
      * node is no longer in the cluster then the assignment is set to
-     * {@link #LOST_NODE_ASSIGNMENT}
+     * {@link PersistentTasks#LOST_NODE_ASSIGNMENT}
      *
      * @param clusterState The clusterstate
      * @return If no changes the argument {@code clusterState} is returned else
      *          a copy with the modified tasks
      */
     public static ClusterState disassociateDeadNodes(ClusterState clusterState) {
-        PersistentTasksCustomMetadata tasks = getPersistentTasksCustomMetadata(clusterState);
+        var updatedClusterState = clusterState;
+        updatedClusterState = disassociateDeadNodesForClusterOrSingleProject(updatedClusterState, null);
+        for (var projectId : clusterState.metadata().projects().keySet()) {
+            updatedClusterState = disassociateDeadNodesForClusterOrSingleProject(updatedClusterState, projectId);
+        }
+        return updatedClusterState;
+    }
+
+    private static ClusterState disassociateDeadNodesForClusterOrSingleProject(ClusterState clusterState, @Nullable ProjectId projectId) {
+        final var tasks = PersistentTasks.getTasks(clusterState, projectId);
         if (tasks == null) {
             return clusterState;
         }
 
-        PersistentTasksCustomMetadata.Builder taskBuilder = PersistentTasksCustomMetadata.builder(tasks);
+        var taskBuilder = tasks.toBuilder().setLastAllocationId(clusterState);
         for (PersistentTask<?> task : tasks.tasks()) {
             if (task.getAssignment().getExecutorNode() != null
                 && clusterState.nodes().nodeExists(task.getAssignment().getExecutorNode()) == false) {
@@ -250,11 +173,10 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             return clusterState;
         }
 
-        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
-        metadataBuilder.putCustom(TYPE, taskBuilder.build());
-        return ClusterState.builder(clusterState).metadata(metadataBuilder).build();
+        return taskBuilder.buildAndUpdate(clusterState, projectId);
     }
 
+    @FixForMultiProject(description = "Consider moving it to PersistentTasks")
     public static class Assignment {
         @Nullable
         private final String executorNode;
@@ -298,11 +220,10 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         }
     }
 
-    public static final Assignment INITIAL_ASSIGNMENT = new Assignment(null, "waiting for initial assignment");
-
     /**
      * A record that represents a single running persistent task
      */
+    @FixForMultiProject(description = "Consider moving it to PersistentTasks")
     public static class PersistentTask<P extends PersistentTaskParams> implements Writeable, ToXContentObject {
 
         private final String id;
@@ -325,7 +246,7 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
             this(task.id, task.allocationId, task.taskName, task.params, state, task.assignment, task.allocationId);
         }
 
-        private PersistentTask(
+        PersistentTask(
             final String id,
             final long allocationId,
             final String name,
@@ -478,55 +399,6 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         }
     }
 
-    private static class TaskBuilder<Params extends PersistentTaskParams> {
-        private String id;
-        private long allocationId;
-        private String taskName;
-        private Params params;
-        private PersistentTaskState state;
-        private Assignment assignment = INITIAL_ASSIGNMENT;
-        private Long allocationIdOnLastStatusUpdate;
-
-        public TaskBuilder<Params> setId(String id) {
-            this.id = id;
-            return this;
-        }
-
-        public TaskBuilder<Params> setAllocationId(long allocationId) {
-            this.allocationId = allocationId;
-            return this;
-        }
-
-        public TaskBuilder<Params> setTaskName(String taskName) {
-            this.taskName = taskName;
-            return this;
-        }
-
-        public TaskBuilder<Params> setParams(Params params) {
-            this.params = params;
-            return this;
-        }
-
-        public TaskBuilder<Params> setState(PersistentTaskState state) {
-            this.state = state;
-            return this;
-        }
-
-        public TaskBuilder<Params> setAssignment(Assignment assignment) {
-            this.assignment = assignment;
-            return this;
-        }
-
-        public TaskBuilder<Params> setAllocationIdOnLastStatusUpdate(Long allocationIdOnLastStatusUpdate) {
-            this.allocationIdOnLastStatusUpdate = allocationIdOnLastStatusUpdate;
-            return this;
-        }
-
-        public PersistentTask<Params> build() {
-            return new PersistentTask<>(id, allocationId, taskName, params, state, assignment, allocationIdOnLastStatusUpdate);
-        }
-    }
-
     @Override
     public String getWriteableName() {
         return TYPE;
@@ -539,24 +411,21 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(lastAllocationId);
-        Map<String, PersistentTask<?>> filteredTasks = tasks.values()
-            .stream()
-            .filter(t -> VersionedNamedWriteable.shouldSerialize(out, t.getParams()))
-            .collect(Collectors.toMap(PersistentTask::getId, Function.identity()));
-        out.writeMap(filteredTasks, StreamOutput::writeWriteable);
+        doWriteTo(out);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, in);
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, in);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(
-            Iterators.single((builder, params) -> builder.field("last_allocation_id", lastAllocationId)),
-            ChunkedToXContentHelper.array("tasks", tasks.values().iterator())
-        );
+        return doToXContentChunked();
+    }
+
+    @Override
+    public Builder toBuilder() {
+        return builder(this);
     }
 
     public static Builder builder() {
@@ -567,132 +436,100 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         return new Builder(tasks);
     }
 
-    public static class Builder {
-        private final Map<String, PersistentTask<?>> tasks = new HashMap<>();
-        private long lastAllocationId;
-        private boolean changed;
+    public static class Builder extends PersistentTasks.Builder<Builder> {
 
-        private Builder() {}
-
-        private Builder(PersistentTasksCustomMetadata tasksInProgress) {
-            if (tasksInProgress != null) {
-                tasks.putAll(tasksInProgress.tasks);
-                lastAllocationId = tasksInProgress.lastAllocationId;
-            } else {
-                lastAllocationId = 0;
-            }
+        protected Builder() {
+            super();
         }
 
-        public long getLastAllocationId() {
-            return lastAllocationId;
+        protected Builder(PersistentTasks tasksInProgress) {
+            super(tasksInProgress);
         }
 
-        private Builder setLastAllocationId(long currentId) {
-            this.lastAllocationId = currentId;
-            return this;
-        }
-
-        private <Params extends PersistentTaskParams> Builder setTasks(List<TaskBuilder<Params>> tasks) {
-            for (TaskBuilder<Params> builder : tasks) {
-                PersistentTask<?> task = builder.build();
-                this.tasks.put(task.getId(), task);
-            }
-            return this;
-        }
-
-        private long getNextAllocationId() {
-            lastAllocationId++;
-            return lastAllocationId;
-        }
-
-        /**
-         * Adds a new task to the builder
-         * <p>
-         * After the task is added its id can be found by calling {{@link #getLastAllocationId()}} method.
-         */
-        public <Params extends PersistentTaskParams> Builder addTask(String taskId, String taskName, Params params, Assignment assignment) {
-            changed = true;
-            PersistentTask<?> previousTask = tasks.put(
-                taskId,
-                new PersistentTask<>(taskId, taskName, params, getNextAllocationId(), assignment)
-            );
-            if (previousTask != null) {
-                throw new ResourceAlreadyExistsException("Trying to override task with id {" + taskId + "}");
-            }
-            return this;
-        }
-
-        /**
-         * Reassigns the task to another node
-         */
-        public Builder reassignTask(String taskId, Assignment assignment) {
-            PersistentTask<?> taskInProgress = tasks.get(taskId);
-            if (taskInProgress != null) {
-                changed = true;
-                tasks.put(taskId, new PersistentTask<>(taskInProgress, getNextAllocationId(), assignment));
-            } else {
-                throw new ResourceNotFoundException("cannot reassign task with id {" + taskId + "}, the task no longer exists");
-            }
-            return this;
-        }
-
-        /**
-         * Updates the task state
-         */
-        public Builder updateTaskState(final String taskId, final PersistentTaskState taskState) {
-            PersistentTask<?> taskInProgress = tasks.get(taskId);
-            if (taskInProgress != null) {
-                changed = true;
-                tasks.put(taskId, new PersistentTask<>(taskInProgress, taskState));
-            } else {
-                throw new ResourceNotFoundException("cannot update task with id {" + taskId + "}, the task no longer exists");
-            }
-            return this;
-        }
-
-        /**
-         * Removes the task
-         */
-        public Builder removeTask(String taskId) {
-            if (tasks.remove(taskId) != null) {
-                changed = true;
-            } else {
-                throw new ResourceNotFoundException("cannot remove task with id {" + taskId + "}, the task no longer exists");
-            }
-            return this;
-        }
-
-        /**
-         * Checks if the task is currently present in the list
-         */
-        public boolean hasTask(String taskId) {
-            return tasks.containsKey(taskId);
-        }
-
-        /**
-         * Checks if the task is currently present in the list and has the right allocation id
-         */
-        public boolean hasTask(String taskId, long allocationId) {
-            PersistentTask<?> taskInProgress = tasks.get(taskId);
-            if (taskInProgress != null) {
-                return taskInProgress.getAllocationId() == allocationId;
-            }
-            return false;
-        }
-
-        Set<String> getCurrentTaskIds() {
-            return tasks.keySet();
-        }
-
-        /**
-         * Returns true if any the task list was changed since the builder was created
-         */
-        public boolean isChanged() {
-            return changed;
-        }
-
+        @Override
         public PersistentTasksCustomMetadata build() {
-            return new PersistentTasksCustomMetadata(lastAllocationId, Collections.unmodifiableMap(tasks));
+            return new PersistentTasksCustomMetadata(getLastAllocationId(), Collections.unmodifiableMap(getCurrentTasks()));
         }
+
+        @Override
+        protected ClusterState doBuildAndUpdate(ClusterState currentState, ProjectId projectId) {
+            return ClusterState.builder(currentState)
+                .putProjectMetadata(
+                    ProjectMetadata.builder(currentState.metadata().getProject(projectId))
+                        .putCustom(PersistentTasksCustomMetadata.TYPE, build())
+                )
+                .build();
+        }
+    }
+
+    /**
+     * A helper method for handling wire BWC. An old node sends metadata without the notion of separate
+     * cluster and project persistent tasks. The new node needs to separate them and store them
+     * in different locations. This method does the split for the old metadata (read as project scoped) from the old node.
+     */
+    public Tuple<ClusterPersistentTasksCustomMetadata, PersistentTasksCustomMetadata> split() {
+        final var clusterTasks = new HashMap<String, PersistentTask<?>>();
+        final var projectTasks = new HashMap<String, PersistentTask<?>>();
+        for (var entry : tasks.entrySet()) {
+            final var task = entry.getValue();
+            if (PersistentTasksExecutorRegistry.isClusterScopedTask(task.getTaskName())) {
+                clusterTasks.put(entry.getKey(), task);
+            } else {
+                projectTasks.put(entry.getKey(), task);
+            }
+        }
+        return new Tuple<>(
+            new ClusterPersistentTasksCustomMetadata(lastAllocationId, Map.copyOf(clusterTasks)),
+            new PersistentTasksCustomMetadata(lastAllocationId, Map.copyOf(projectTasks))
+        );
+    }
+
+    /**
+     * A helper method for handling wire BWC. A new node with separate cluster and project scoped
+     * persistent tasks needs to send the metadata an old node. It must combine these persistent tasks
+     * and send over as one (use the project-scoped class). This method does the combination.
+     */
+    @Nullable
+    public static PersistentTasksCustomMetadata combine(
+        @Nullable ClusterPersistentTasksCustomMetadata clusterTasksMetadata,
+        @Nullable PersistentTasksCustomMetadata projectTasksMetadata
+    ) {
+        if (clusterTasksMetadata == null && projectTasksMetadata == null) {
+            return null;
+        } else if (clusterTasksMetadata == null) {
+            return projectTasksMetadata;
+        } else if (projectTasksMetadata == null) {
+            return new PersistentTasksCustomMetadata(clusterTasksMetadata.getLastAllocationId(), clusterTasksMetadata.taskMap());
+        } else {
+            final long allocationId = Math.max(clusterTasksMetadata.getLastAllocationId(), projectTasksMetadata.getLastAllocationId());
+            final var allTasks = new HashMap<>(clusterTasksMetadata.taskMap());
+            allTasks.putAll(projectTasksMetadata.taskMap());
+            final var combinedTasksMetadata = new PersistentTasksCustomMetadata(allocationId, Map.copyOf(allTasks));
+            assert assertAllocationIdsConsistencyForOnePersistentTasks(combinedTasksMetadata);
+            return combinedTasksMetadata;
+        }
+    }
+
+    static boolean assertAllocationIdsConsistencyForOnePersistentTasks(PersistentTasks persistentTasks) {
+        if (persistentTasks == null) {
+            return true;
+        }
+        final List<Long> allocationIds = getNonZeroAllocationIds(persistentTasks);
+        assert allocationIds.size() == Set.copyOf(allocationIds).size()
+            : persistentTasks.getClass().getSimpleName() + ": duplicated allocationIds [" + persistentTasks + "]";
+        assert persistentTasks.getLastAllocationId() >= allocationIds.stream().max(Long::compare).orElse(0L)
+            : persistentTasks.getClass().getSimpleName()
+                + ": lastAllocationId is less than one of the allocationId for individual tasks ["
+                + persistentTasks
+                + "]";
+        return true;
+    }
+
+    static List<Long> getNonZeroAllocationIds(PersistentTasks persistentTasks) {
+        return persistentTasks.tasks()
+            .stream()
+            .map(PersistentTask::getAllocationId)
+            .filter(id -> id != 0L) // filter out 0 since it is used for unassigned tasks (on node restart or restored from snapshot)
+            .toList();
     }
 }

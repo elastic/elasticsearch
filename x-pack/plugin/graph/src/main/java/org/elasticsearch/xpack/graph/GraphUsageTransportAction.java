@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.graph;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.injection.guice.Inject;
@@ -35,24 +34,16 @@ public class GraphUsageTransportAction extends XPackUsageFeatureTransportAction 
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
         XPackLicenseState licenseState
     ) {
-        super(
-            XPackUsageFeatureAction.GRAPH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.GRAPH.name(), transportService, clusterService, threadPool, actionFilters);
         this.settings = settings;
         this.licenseState = licenseState;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,

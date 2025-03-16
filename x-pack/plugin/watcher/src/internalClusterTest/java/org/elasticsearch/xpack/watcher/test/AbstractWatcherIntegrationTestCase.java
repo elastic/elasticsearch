@@ -266,7 +266,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     public void replaceWatcherIndexWithRandomlyNamedIndex(String originalIndexOrAlias, String to) {
-        GetIndexResponse index = indicesAdmin().prepareGetIndex().setIndices(originalIndexOrAlias).get();
+        GetIndexResponse index = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices(originalIndexOrAlias).get();
         MappingMetadata mapping = index.getMappings().get(index.getIndices()[0]);
 
         Settings settings = index.getSettings().get(index.getIndices()[0]);
@@ -293,7 +293,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             });
         }
         indicesAdmin().prepareDelete(originalIndex.get()).get();
-        indicesAdmin().prepareAliases().addAlias(to, originalIndexOrAlias).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(to, originalIndexOrAlias).get();
     }
 
     protected TimeWarp timeWarp() {

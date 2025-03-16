@@ -13,24 +13,26 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.SingleResultDeduplicator;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -47,9 +49,8 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     public static final ActionType<TransportGetAllocationStatsAction.Response> TYPE = new ActionType<>("cluster:monitor/allocation/stats");
 
-    private final AllocationStatsService allocationStatsService;
+    private final SingleResultDeduplicator<Map<String, NodeAllocationStats>> allocationStatsSupplier;
     private final DiskThresholdSettings diskThresholdSettings;
-    private final FeatureService featureService;
 
     @Inject
     public TransportGetAllocationStatsAction(
@@ -57,9 +58,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        AllocationStatsService allocationStatsService,
-        FeatureService featureService
+        AllocationStatsService allocationStatsService
     ) {
         super(
             TYPE.name(),
@@ -68,13 +67,17 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             threadPool,
             actionFilters,
             TransportGetAllocationStatsAction.Request::new,
-            indexNameExpressionResolver,
             TransportGetAllocationStatsAction.Response::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            // DIRECT is ok here because we fork the allocation stats computation onto a MANAGEMENT thread if needed, or else we return
+            // very cheaply.
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.allocationStatsService = allocationStatsService;
+        final var managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+        this.allocationStatsSupplier = new SingleResultDeduplicator<>(
+            threadPool.getThreadContext(),
+            l -> managementExecutor.execute(ActionRunnable.supply(l, allocationStatsService::stats))
+        );
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
-        this.featureService = featureService;
     }
 
     @Override
@@ -89,15 +92,15 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        listener.onResponse(
-            new Response(
-                request.metrics().contains(Metric.ALLOCATIONS) ? allocationStatsService.stats() : Map.of(),
-                request.metrics().contains(Metric.FS)
-                    && featureService.clusterHasFeature(clusterService.state(), AllocationStatsFeatures.INCLUDE_DISK_THRESHOLD_SETTINGS)
-                        ? diskThresholdSettings
-                        : null
-            )
-        );
+        // NB we are still on a transport thread here - if adding more functionality here make sure to fork to a different pool
+
+        final SubscribableListener<Map<String, NodeAllocationStats>> allocationStatsStep = request.metrics().contains(Metric.ALLOCATIONS)
+            ? SubscribableListener.newForked(allocationStatsSupplier::execute)
+            : SubscribableListener.newSucceeded(Map.of());
+
+        allocationStatsStep.andThenApply(
+            allocationStats -> new Response(allocationStats, request.metrics().contains(Metric.FS) ? diskThresholdSettings : null)
+        ).addListener(listener);
     }
 
     @Override

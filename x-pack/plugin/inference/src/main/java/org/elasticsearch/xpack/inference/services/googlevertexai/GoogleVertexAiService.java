@@ -228,10 +228,9 @@ public class GoogleVertexAiService extends SenderService {
         GoogleVertexAiModel googleVertexAiModel = (GoogleVertexAiModel) model;
         var actionCreator = new GoogleVertexAiActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.FLOAT,
             googleVertexAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -327,9 +326,11 @@ public class GoogleVertexAiService extends SenderService {
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
+                // TODO whether the model ID is required or not depends on the task type
+                // For rerank it is optional, for text_embedding it is required
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDescription("ID of the LLM you're using.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("ID of the LLM you're using.")
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -340,7 +341,7 @@ public class GoogleVertexAiService extends SenderService {
 
                 configurationMap.put(
                     LOCATION,
-                    new SettingsConfiguration.Builder().setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "Please provide the GCP region where the Vertex AI API(s) is enabled. "
                             + "For more information, refer to the {geminiVertexAIDocs}."
                     )
@@ -354,7 +355,7 @@ public class GoogleVertexAiService extends SenderService {
 
                 configurationMap.put(
                     PROJECT_ID,
-                    new SettingsConfiguration.Builder().setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The GCP Project ID which has Vertex AI API(s) enabled. For more information "
                             + "on the URL, refer to the {geminiVertexAIDocs}."
                     )
@@ -367,7 +368,7 @@ public class GoogleVertexAiService extends SenderService {
                 );
 
                 configurationMap.putAll(GoogleVertexAiSecretSettings.Configuration.get());
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

@@ -43,13 +43,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -155,8 +154,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
         var apiVersion = "apiVersion";
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[2];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -169,7 +167,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send IBM Watsonx embeddings request to [%s]", getUrl(webServer))));
+        assertThat(thrownException.getMessage(), is("Failed to send IBM Watsonx embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -189,7 +187,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send IBM Watsonx embeddings request to [%s]", getUrl(webServer))));
+        assertThat(thrownException.getMessage(), is("Failed to send IBM Watsonx embeddings request. Cause: failed"));
     }
 
     private ExecutableAction createAction(
@@ -203,7 +201,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
     ) {
         var model = createModel(modelName, projectId, uri, apiVersion, apiKey, url);
         var requestManager = new IbmWatsonxEmbeddingsRequestManagerWithoutAuth(model, TruncatorTests.createTruncator(), threadPool);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "IBM Watsonx embeddings");
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("IBM Watsonx embeddings");
         return new SenderExecutableAction(sender, requestManager, failedToSendRequestErrorMessage);
     }
 

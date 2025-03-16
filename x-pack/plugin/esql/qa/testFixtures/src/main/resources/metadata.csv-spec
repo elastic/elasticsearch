@@ -39,8 +39,28 @@ max:integer |_index:keyword
 // end::metaIndexInAggs-result[]
 ;
 
+metaIndexSorted
+required_capability: index_metadata_field
+from employees metadata _index | sort _index, emp_no desc | keep emp_no, _index | limit 2;
+
+
+emp_no:integer |_index:keyword
+10100          |employees
+10099          |employees
+;
+
+metaIndexWithInPredicate
+required_capability: index_metadata_field
+from employees metadata _index | where _index in ("employees", "foobar") | sort emp_no desc | keep emp_no, _index | limit 2;
+
+
+emp_no:integer |_index:keyword
+10100          |employees
+10099          |employees
+;
+
 metaIndexAliasedInAggs
-required_capability: metadata_fields
+required_capability: index_metadata_field
 from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i;
 
 
@@ -62,6 +82,26 @@ from employees metadata _version | eval _v = _version | stats min = min(emp_no) 
 
 min:integer |_v:long
 10001       |1
+;
+
+metaVersionSorted
+required_capability: metadata_fields
+from employees metadata _version | sort _version, emp_no desc | keep emp_no, _version | limit 2;
+
+
+emp_no:integer |_version:long
+10100          |1
+10099          |1
+;
+
+metaVersionWithInPredicate
+required_capability: metadata_fields
+from employees metadata _version | where _version in (1, 2, 3) | sort emp_no desc | keep emp_no, _version | limit 2;
+
+
+emp_no:integer |_version:long
+10100          |1
+10099          |1
 ;
 
 inAggsAndAsGroups

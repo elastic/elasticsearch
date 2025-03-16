@@ -22,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
@@ -32,12 +31,14 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
-import org.elasticsearch.compute.operator.DriverStatus;
+import org.elasticsearch.compute.operator.OperatorStatus;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -50,7 +51,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.versionfield.Version;
@@ -65,7 +65,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContent.wrapAsToXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -99,9 +98,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(
-            Stream.concat(Stream.of(AbstractPageMappingOperator.Status.ENTRY), BlockWritables.getNamedWriteables().stream()).toList()
-        );
+        return new NamedWriteableRegistry(List.of(AbstractPageMappingOperator.Status.ENTRY));
     }
 
     @Override
@@ -175,7 +172,8 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
             t -> false == DataType.isPrimitiveAndSupported(t)
                 || t == DataType.DATE_PERIOD
                 || t == DataType.TIME_DURATION
-                || t == DataType.PARTIAL_AGG,
+                || t == DataType.PARTIAL_AGG
+                || t == DataType.AGGREGATE_METRIC_DOUBLE,
             () -> randomFrom(DataType.types())
         ).widenSmallNumeric();
         return new ColumnInfoImpl(randomAlphaOfLength(10), type.esType());
@@ -214,6 +212,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 case CARTESIAN_SHAPE -> ((BytesRefBlock.Builder) builder).appendBytesRef(
                     CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()))
                 );
+                case AGGREGATE_METRIC_DOUBLE -> {
+                    BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
+                    aggBuilder.min().appendDouble(randomDouble());
+                    aggBuilder.max().appendDouble(randomDouble());
+                    aggBuilder.sum().appendDouble(randomDouble());
+                    aggBuilder.count().appendInt(randomInt());
+                }
                 case NULL -> builder.appendNull();
                 case SOURCE -> {
                     try {
@@ -518,30 +523,66 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
         }
     }
 
+    public static int clusterDetailsSize(int numClusters) {
+        /* Example:
+        "_clusters" : {
+            "total" : 2,
+            "successful" : 2,
+            "running" : 0,
+            "skipped" : 0,
+            "partial" : 0,
+            "failed" : 0,
+            "details" : {
+                "(local)" : {
+                    "status" : "successful",
+                    "indices" : "logs-1",
+                    "took" : 4444,
+                    "_shards" : {
+                      "total" : 10,
+                      "successful" : 10,
+                      "skipped" : 3,
+                      "failed" : 0
+                    }
+                },
+                "remote1" : {
+                    "status" : "successful",
+                    "indices" : "remote1:logs-1",
+                    "took" : 4999,
+                    "_shards" : {
+                      "total" : 12,
+                      "successful" : 12,
+                      "skipped" : 5,
+                      "failed" : 0
+                    }
+                }
+            }
+         }
+         */
+        return numClusters * 4 + 1;
+    }
+
     public void testChunkResponseSizeColumnar() {
-        int sizeClusterDetails = 14;
         try (EsqlQueryResponse resp = randomResponse(true, null)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 5 + sizeClusterDetails + bodySize);
+            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
 
         try (EsqlQueryResponse resp = randomResponseAsync(true, null, true)) {
             int columnCount = resp.pages().get(0).getBlockCount();
             int bodySize = resp.pages().stream().mapToInt(p -> p.getPositionCount() * p.getBlockCount()).sum() + columnCount * 2;
-            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize); // is_running
+            assertChunkCount(resp, r -> 6 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize); // is_running
         }
     }
 
     public void testChunkResponseSizeRows() {
-        int sizeClusterDetails = 14;
         try (EsqlQueryResponse resp = randomResponse(false, null)) {
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
-            assertChunkCount(resp, r -> 5 + sizeClusterDetails + bodySize);
+            assertChunkCount(resp, r -> 5 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
         try (EsqlQueryResponse resp = randomResponseAsync(false, null, true)) {
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
-            assertChunkCount(resp, r -> 6 + sizeClusterDetails + bodySize);
+            assertChunkCount(resp, r -> 6 + clusterDetailsSize(resp.getExecutionInfo().clusterInfo.size()) + bodySize);
         }
     }
 
@@ -678,12 +719,15 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 new EsqlQueryResponse.Profile(
                     List.of(
                         new DriverProfile(
+                            "test",
+                            "elasticsearch",
+                            "node-1",
                             1723489812649L,
                             1723489819929L,
                             20021,
                             20000,
                             12,
-                            List.of(new DriverStatus.OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10))),
+                            List.of(new OperatorStatus("asdf", new AbstractPageMappingOperator.Status(10021, 10, 111, 222))),
                             DriverSleeps.empty()
                         )
                     )
@@ -712,6 +756,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "profile" : {
                     "drivers" : [
                       {
+                        "description" : "test",
+                        "cluster_name" : "elasticsearch",
+                        "node_name" : "node-1",
                         "start_millis" : 1723489812649,
                         "stop_millis" : 1723489819929,
                         "took_nanos" : 20021,
@@ -722,7 +769,9 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                             "operator" : "asdf",
                             "status" : {
                               "process_nanos" : 10021,
-                              "pages_processed" : 10
+                              "pages_processed" : 10,
+                              "rows_received" : 111,
+                              "rows_emitted" : 222
                             }
                           }
                         ],
@@ -900,6 +949,13 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                         // This just converts WKT to WKB, so does not need CRS knowledge, we could merge GEO and CARTESIAN here
                         BytesRef wkb = stringToSpatial(value.toString());
                         ((BytesRefBlock.Builder) builder).appendBytesRef(wkb);
+                    }
+                    case AGGREGATE_METRIC_DOUBLE -> {
+                        BlockLoader.AggregateMetricDoubleBuilder aggBuilder = (BlockLoader.AggregateMetricDoubleBuilder) builder;
+                        aggBuilder.min().appendDouble(((Number) value).doubleValue());
+                        aggBuilder.max().appendDouble(((Number) value).doubleValue());
+                        aggBuilder.sum().appendDouble(((Number) value).doubleValue());
+                        aggBuilder.count().appendInt(((Number) value).intValue());
                     }
                 }
             }

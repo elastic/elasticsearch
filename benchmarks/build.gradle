@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.test.TestUtil
+import org.elasticsearch.gradle.OS
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
@@ -24,7 +25,6 @@ base {
   archivesName = 'elasticsearch-benchmarks'
 }
 
-tasks.named("test").configure { enabled = false }
 tasks.named("javadoc").configure { enabled = false }
 
 configurations {
@@ -51,8 +51,10 @@ dependencies {
   api "org.openjdk.jmh:jmh-core:$versions.jmh"
   annotationProcessor "org.openjdk.jmh:jmh-generator-annprocess:$versions.jmh"
   // Dependencies of JMH
-  runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.4'
+  runtimeOnly 'net.sf.jopt-simple:jopt-simple:5.0.2'
   runtimeOnly 'org.apache.commons:commons-math3:3.6.1'
+
+  testImplementation(project(':test:framework'))
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
@@ -77,7 +79,7 @@ tasks.register("copyPainless", Copy) {
 }
 
 tasks.named("run").configure {
-  executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
   args << "-Dplugins.dir=${buildDir}/plugins" << "-Dtests.index=${buildDir}/index"
   dependsOn "copyExpression", "copyPainless", configurations.nativeLib
   systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())

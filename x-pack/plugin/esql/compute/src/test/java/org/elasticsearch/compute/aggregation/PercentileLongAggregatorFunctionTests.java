@@ -11,8 +11,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.junit.Before;
 
@@ -31,8 +31,8 @@ public class PercentileLongAggregatorFunctionTests extends AggregatorFunctionTes
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new PercentileLongAggregatorFunctionSupplier(inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new PercentileLongAggregatorFunctionSupplier(percentile);
     }
 
     @Override

@@ -165,10 +165,10 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
                     1024,
                     1,
                     1,
-                    new ByteSizeValue(32, ByteSizeUnit.MB),
-                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(32, ByteSizeUnit.MB),
+                    ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES),
                     10240,
-                    new ByteSizeValue(512, ByteSizeUnit.MB),
+                    ByteSizeValue.of(512, ByteSizeUnit.MB),
                     TimeValue.timeValueMillis(10),
                     TimeValue.timeValueMillis(10),
                     Map.of()

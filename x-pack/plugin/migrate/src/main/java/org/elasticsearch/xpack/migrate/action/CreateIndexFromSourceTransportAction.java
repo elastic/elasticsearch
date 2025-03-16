@@ -16,14 +16,15 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -35,6 +36,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public class CreateIndexFromSourceTransportAction extends HandledTransportAction<
     CreateIndexFromSourceAction.Request,
@@ -44,6 +46,13 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     private final ClusterService clusterService;
     private final Client client;
     private final IndexScopedSettings indexScopedSettings;
+    private static final Set<String> INDEX_BLOCK_SETTINGS = Set.of(
+        IndexMetadata.SETTING_READ_ONLY,
+        IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE,
+        IndexMetadata.SETTING_BLOCKS_WRITE,
+        IndexMetadata.SETTING_BLOCKS_METADATA,
+        IndexMetadata.SETTING_BLOCKS_READ
+    );
 
     @Inject
     public CreateIndexFromSourceTransportAction(
@@ -69,7 +78,7 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     @Override
     protected void doExecute(Task task, CreateIndexFromSourceAction.Request request, ActionListener<AcknowledgedResponse> listener) {
 
-        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(request.sourceIndex());
+        IndexMetadata sourceIndex = clusterService.state().getMetadata().getProject().index(request.sourceIndex());
 
         if (sourceIndex == null) {
             listener.onFailure(new IndexNotFoundException(request.sourceIndex()));
@@ -78,12 +87,18 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
 
         logger.debug("Creating destination index [{}] for source index [{}]", request.destIndex(), request.sourceIndex());
 
-        Settings settings = Settings.builder()
-            // add source settings
-            .put(filterSettings(sourceIndex))
-            // add override settings from request
-            .put(request.settingsOverride())
-            .build();
+        Settings.Builder settings = Settings.builder()
+            // first settings from source index
+            .put(filterSettings(sourceIndex));
+
+        if (request.settingsOverride().isEmpty() == false) {
+            applyOverrides(settings, request.settingsOverride());
+        }
+
+        if (request.removeIndexBlocks()) {
+            // lastly, override with settings to remove index blocks if requested
+            INDEX_BLOCK_SETTINGS.forEach(settings::remove);
+        }
 
         Map<String, Object> mergeMappings;
         try {
@@ -94,12 +109,23 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         }
 
         var createIndexRequest = new CreateIndexRequest(request.destIndex()).settings(settings);
+        createIndexRequest.cause("create-index-from-source");
         if (mergeMappings.isEmpty() == false) {
             createIndexRequest.mapping(mergeMappings);
         }
         createIndexRequest.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
 
         client.admin().indices().create(createIndexRequest, listener.map(response -> response));
+    }
+
+    private void applyOverrides(Settings.Builder settings, Settings overrides) {
+        overrides.keySet().forEach(key -> {
+            if (overrides.get(key) != null) {
+                settings.put(key, overrides.get(key));
+            } else {
+                settings.remove(key);
+            }
+        });
     }
 
     private static Map<String, Object> toMap(@Nullable MappingMetadata sourceMapping) {
@@ -110,10 +136,14 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
             .orElse(Map.of());
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> mergeMappings(@Nullable MappingMetadata sourceMapping, Map<String, Object> mappingAddition)
         throws IOException {
         Map<String, Object> combinedMappingMap = new HashMap<>(toMap(sourceMapping));
         XContentHelper.update(combinedMappingMap, mappingAddition, true);
+        if (sourceMapping != null && combinedMappingMap.size() == 1 && combinedMappingMap.containsKey(sourceMapping.type())) {
+            combinedMappingMap = (Map<String, Object>) combinedMappingMap.get(sourceMapping.type());
+        }
         return combinedMappingMap;
     }
 
@@ -122,7 +152,39 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     // https://github.com/elastic/kibana/blob/8a8363f02cc990732eb9cbb60cd388643a336bed/x-pack
     // /plugins/upgrade_assistant/server/lib/reindexing/index_settings.ts#L155
     private Settings filterSettings(IndexMetadata sourceIndex) {
-        return MetadataCreateIndexService.copySettingsFromSource(false, sourceIndex.getSettings(), indexScopedSettings, Settings.builder())
-            .build();
+        Settings sourceSettings = sourceIndex.getSettings();
+        final Settings.Builder builder = Settings.builder();
+        for (final String key : sourceSettings.keySet()) {
+            final Setting<?> setting = indexScopedSettings.get(key);
+            if (setting == null) {
+                assert indexScopedSettings.isPrivateSetting(key) : key;
+                continue;
+            }
+            if (setting.isPrivateIndex()) {
+                continue;
+            }
+            if (setting.getProperties().contains(Setting.Property.NotCopyableOnResize)) {
+                continue;
+            }
+            if (setting.getProperties().contains(Setting.Property.IndexSettingDeprecatedInV7AndRemovedInV8)) {
+                continue;
+            }
+            if (SPECIFIC_SETTINGS_TO_REMOVE.contains(key)) {
+                continue;
+            }
+            builder.copy(key, sourceSettings);
+        }
+        return builder.build();
     }
+
+    private static final Set<String> SPECIFIC_SETTINGS_TO_REMOVE = Set.of(
+        /**
+         * These 3 settings were removed from indices created by UA in https://github.com/elastic/kibana/pull/93293
+         * That change only removed `index.translog.retention.size` and `index.translog.retention.age` if
+         * soft deletes were enabled. Since soft deletes are always enabled in v8, we can remove all three settings.
+         */
+        IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(),
+        IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(),
+        IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey()
+    );
 }

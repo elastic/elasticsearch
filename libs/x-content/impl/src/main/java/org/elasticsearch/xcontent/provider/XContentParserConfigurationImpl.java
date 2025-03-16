@@ -31,7 +31,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         RestApiVersion.current(),
         null,
         null,
-        false
+        false,
+        true
     );
 
     final NamedXContentRegistry registry;
@@ -40,6 +41,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     final FilterPath[] includes;
     final FilterPath[] excludes;
     final boolean filtersMatchFieldNamesWithDots;
+    final boolean includeSourceOnError;
 
     private XContentParserConfigurationImpl(
         NamedXContentRegistry registry,
@@ -47,7 +49,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         RestApiVersion restApiVersion,
         FilterPath[] includes,
         FilterPath[] excludes,
-        boolean filtersMatchFieldNamesWithDots
+        boolean filtersMatchFieldNamesWithDots,
+        boolean includeSourceOnError
     ) {
         this.registry = registry;
         this.deprecationHandler = deprecationHandler;
@@ -55,6 +58,28 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         this.includes = includes;
         this.excludes = excludes;
         this.filtersMatchFieldNamesWithDots = filtersMatchFieldNamesWithDots;
+        this.includeSourceOnError = includeSourceOnError;
+    }
+
+    @Override
+    public boolean includeSourceOnError() {
+        return includeSourceOnError;
+    }
+
+    @Override
+    public XContentParserConfiguration withIncludeSourceOnError(boolean includeSourceOnError) {
+        if (includeSourceOnError == this.includeSourceOnError) {
+            return this;
+        }
+        return new XContentParserConfigurationImpl(
+            registry,
+            deprecationHandler,
+            restApiVersion,
+            includes,
+            excludes,
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
+        );
     }
 
     @Override
@@ -65,7 +90,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
         );
     }
 
@@ -80,7 +106,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
         );
     }
 
@@ -95,7 +122,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
         );
     }
 
@@ -143,7 +171,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includePaths,
             excludePaths,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
         );
     }
 

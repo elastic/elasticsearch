@@ -9,28 +9,29 @@ package org.elasticsearch.xpack.migrate.action;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
 
-public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.ReindexDataStreamResponse> {
-    public static final FeatureFlag REINDEX_DATA_STREAM_FEATURE_FLAG = new FeatureFlag("reindex_data_stream");
+public class ReindexDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static final String TASK_ID_PREFIX = "reindex-data-stream-";
 
     public static final ReindexDataStreamAction INSTANCE = new ReindexDataStreamAction();
@@ -45,47 +46,6 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
 
     public enum Mode {
         UPGRADE
-    }
-
-    public static class ReindexDataStreamResponse extends ActionResponse implements ToXContentObject {
-        private final String taskId;
-
-        public ReindexDataStreamResponse(String taskId) {
-            super();
-            this.taskId = taskId;
-        }
-
-        public ReindexDataStreamResponse(StreamInput in) throws IOException {
-            this.taskId = in.readString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(taskId);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("acknowledged", true);
-            builder.endObject();
-            return builder;
-        }
-
-        public String getTaskId() {
-            return taskId;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(taskId);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return other instanceof ReindexDataStreamResponse && taskId.equals(((ReindexDataStreamResponse) other).taskId);
-        }
-
     }
 
     public static class ReindexDataStreamRequest extends ActionRequest implements IndicesRequest, ToXContent {
@@ -187,6 +147,16 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
             builder.field(INDEX_FIELD.getPreferredName(), sourceDataStream);
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+        }
+
+        @Override
+        public String getDescription() {
+            return "reindexing data stream " + sourceDataStream;
         }
     }
 }

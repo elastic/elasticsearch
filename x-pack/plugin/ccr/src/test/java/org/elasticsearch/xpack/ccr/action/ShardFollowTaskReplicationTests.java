@@ -340,7 +340,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         fromSeqNo,
                         numOps,
                         leadingPrimary.getHistoryUUID(),
-                        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES)
+                        ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES)
                     );
 
                     IndexShard followingPrimary = followerGroup.getPrimary();
@@ -405,7 +405,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         Future<Void> recoveryFuture = null;
         Settings settings = Settings.builder()
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(between(1, 1000), ByteSizeUnit.KB))
             .build();
         IndexMetadata indexMetadata = buildIndexMetadata(between(0, 1), settings, indexMapping);
         try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
@@ -505,7 +505,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
     private ReplicationGroup createFollowGroup(ReplicationGroup leaderGroup, int replicas) throws IOException {
         final Settings settings = Settings.builder()
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
+            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(between(1, 1000), ByteSizeUnit.KB))
             .build();
         IndexMetadata indexMetadata = buildIndexMetadata(replicas, settings, indexMapping);
         return new ReplicationGroup(indexMetadata) {
@@ -573,10 +573,10 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             between(1, 64),
             between(1, 8),
             between(1, 4),
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-            new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+            ByteSizeValue.of(Long.MAX_VALUE, ByteSizeUnit.BYTES),
             10240,
-            new ByteSizeValue(512, ByteSizeUnit.MB),
+            ByteSizeValue.of(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()

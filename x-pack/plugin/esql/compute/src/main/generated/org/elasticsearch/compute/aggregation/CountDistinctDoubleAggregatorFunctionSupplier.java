@@ -12,26 +12,34 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link CountDistinctDoubleAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class CountDistinctDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final int precision;
 
-  public CountDistinctDoubleAggregatorFunctionSupplier(List<Integer> channels, int precision) {
-    this.channels = channels;
+  public CountDistinctDoubleAggregatorFunctionSupplier(int precision) {
     this.precision = precision;
   }
 
   @Override
-  public CountDistinctDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return CountDistinctDoubleAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return CountDistinctDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public CountDistinctDoubleAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return CountDistinctDoubleAggregatorFunction.create(driverContext, channels, precision);
   }
 
   @Override
   public CountDistinctDoubleGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+      DriverContext driverContext, List<Integer> channels) {
     return CountDistinctDoubleGroupingAggregatorFunction.create(channels, driverContext, precision);
   }
 

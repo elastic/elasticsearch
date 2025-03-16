@@ -18,6 +18,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -47,7 +49,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAnalysisPlanVerificationAware {
+public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAnalysisPlanVerificationAware, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Enrich",
@@ -149,7 +151,7 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
         out.writeNamedWriteable(policyName());
         out.writeNamedWriteable(matchField());
         if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-            out.writeString(BytesRefs.toString(policyName().fold())); // old policy name
+            out.writeString(BytesRefs.toString(policyName().fold(FoldContext.small() /* TODO remove me */))); // old policy name
         }
         policy().writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
@@ -199,10 +201,6 @@ public class Enrich extends UnaryPlan implements GeneratingPlan<Enrich>, PostAna
     @Override
     protected AttributeSet computeReferences() {
         return matchField.references();
-    }
-
-    public String commandName() {
-        return "ENRICH";
     }
 
     @Override

@@ -122,7 +122,7 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             return;
         }
 
-        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata currentIngestMetadata = state.metadata().getProject().custom(IngestMetadata.TYPE);
         Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
 
         if (request.isForce() == false) {

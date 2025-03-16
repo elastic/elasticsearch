@@ -394,6 +394,6 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_12_0;
+        return TransportVersions.ZERO;
     }
 }

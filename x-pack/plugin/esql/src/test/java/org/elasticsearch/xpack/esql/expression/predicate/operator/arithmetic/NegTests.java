@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -55,8 +56,8 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             Integer.MIN_VALUE,
             Integer.MIN_VALUE,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: integer overflow"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: integer overflow"
             )
         );
         TestCaseSupplier.forUnaryLong(
@@ -77,8 +78,8 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             Long.MIN_VALUE,
             Long.MIN_VALUE,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: long overflow"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: long overflow"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -154,7 +155,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
 
     private Object foldTemporalAmount(Object val) {
         Neg neg = new Neg(Source.EMPTY, new Literal(Source.EMPTY, val, typeOf(val)));
-        return neg.fold();
+        return neg.fold(FoldContext.small());
     }
 
     private static DataType typeOf(Object val) {

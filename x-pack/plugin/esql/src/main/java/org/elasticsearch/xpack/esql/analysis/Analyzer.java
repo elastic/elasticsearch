@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -50,6 +52,9 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -63,12 +68,15 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
-import org.elasticsearch.xpack.esql.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -76,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -91,7 +100,7 @@ import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.stats.FeatureMetric;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.time.Duration;
@@ -132,7 +141,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
-import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
+import static org.elasticsearch.xpack.esql.telemetry.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.maybeParseTemporalAmount;
 
 /**
@@ -153,7 +162,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveTable(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
-            new ResolveFunctions()
+            new ResolveFunctions(),
+            new ResolveForkFunctions()
         );
         var resolution = new Batch<>(
             "Resolution",
@@ -163,10 +173,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
              * attempts to resolve this reference.
              */
             new ImplicitCasting(),
+            new ImplicitForkCasting(),
             new ResolveRefs(),
             new ResolveUnionTypes()  // Must be after ResolveRefs, so union types can be found
         );
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new UnionTypesCleanup());
+        var finish = new Batch<>(
+            "Finish Analysis",
+            Limiter.ONCE,
+            new AddImplicitLimit(),
+            new AddImplicitForkLimit(),
+            new UnionTypesCleanup()
+        );
         rules = List.of(init, resolution, finish);
     }
 
@@ -201,7 +218,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
             return resolveIndex(
                 plan,
-                plan.indexMode().equals(IndexMode.LOOKUP) ? context.lookupResolution().get(plan.table().index()) : context.indexResolution()
+                plan.indexMode().equals(IndexMode.LOOKUP)
+                    ? context.lookupResolution().get(plan.indexPattern().indexPattern())
+                    : context.indexResolution()
             );
         }
 
@@ -212,63 +231,39 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     ? plan
                     : new UnresolvedRelation(
                         plan.source(),
-                        plan.table(),
+                        plan.indexPattern(),
                         plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
                         indexResolutionMessage,
-                        plan.commandName()
+                        plan.telemetryLabel()
                     );
             }
-            TableIdentifier table = plan.table();
-            if (indexResolution.matches(table.index()) == false) {
+            IndexPattern table = plan.indexPattern();
+            if (indexResolution.matches(table.indexPattern()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
                 new UnresolvedRelation(
                     plan.source(),
-                    plan.table(),
+                    plan.indexPattern(),
                     plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
                     "invalid [" + table + "] resolution to [" + indexResolution + "]",
-                    plan.commandName()
+                    plan.telemetryLabel()
                 );
             }
 
             EsIndex esIndex = indexResolution.get();
 
-            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
-                String indexResolutionMessage = null;
-
-                var indexNameWithModes = esIndex.indexNameWithModes();
-                if (indexNameWithModes.size() != 1) {
-                    indexResolutionMessage = "invalid ["
-                        + table
-                        + "] resolution in lookup mode to ["
-                        + indexNameWithModes.size()
-                        + "] indices";
-                } else if (indexNameWithModes.values().iterator().next() != IndexMode.LOOKUP) {
-                    indexResolutionMessage = "invalid ["
-                        + table
-                        + "] resolution in lookup mode to an index in ["
-                        + indexNameWithModes.values().iterator().next()
-                        + "] mode";
-                }
-
-                if (indexResolutionMessage != null) {
-                    return new UnresolvedRelation(
-                        plan.source(),
-                        plan.table(),
-                        plan.frozen(),
-                        plan.metadataFields(),
-                        plan.indexMode(),
-                        indexResolutionMessage,
-                        plan.commandName()
-                    );
-                }
-            }
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
+            return new EsRelation(
+                plan.source(),
+                esIndex.name(),
+                plan.indexMode(),
+                esIndex.indexNameWithModes(),
+                attributes.isEmpty() ? NO_FIELDS : attributes
+            );
         }
     }
 
@@ -325,7 +320,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // the policy does not exist
                 return plan;
             }
-            final String policyName = (String) plan.policyName().fold();
+            final String policyName = (String) plan.policyName().fold(FoldContext.small() /* TODO remove me */);
             final var resolved = context.enrichResolution().getResolvedPolicy(policyName, plan.mode());
             if (resolved != null) {
                 var policy = new EnrichPolicy(resolved.matchType(), null, List.of(), resolved.matchField(), resolved.enrichFields());
@@ -451,9 +446,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    public static class ResolveRefs extends BaseAnalyzerRule {
+    public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
                 return plan;
             }
@@ -498,6 +493,22 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof LookupJoin j) {
                 return resolveLookupJoin(j);
+            }
+
+            if (plan instanceof Insist i) {
+                return resolveInsist(i, childrenOutput, context.indexResolution());
+            }
+
+            if (plan instanceof Fork f) {
+                return resolveFork(f, context);
+            }
+
+            if (plan instanceof Dedup dedup) {
+                return resolveDedup(dedup, childrenOutput);
+            }
+
+            if (plan instanceof RrfScoreEval rrf) {
+                return resolveRrfScoreEval(rrf, childrenOutput);
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -570,8 +581,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     resolved,
                     resolved.resolved()
                         ? new ReferenceAttribute(resolved.source(), resolved.name(), resolved.dataType(), resolved.nullable(), null, false)
-                        : resolved,
-                    p.limit()
+                        : resolved
                 );
             }
             return p;
@@ -680,17 +690,27 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return join;
         }
 
+        private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {
+            List<LogicalPlan> subPlans = fork.subPlans();
+
+            List<LogicalPlan> newSubPlans = new ArrayList<>();
+            for (var logicalPlan : subPlans) {
+                newSubPlans.add(logicalPlan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : rule(p, context)));
+            }
+            return new Fork(fork.source(), fork.child(), newSubPlans);
+        }
+
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
             List<Attribute> resolved = new ArrayList<>(cols.size());
             for (Attribute col : cols) {
                 if (col instanceof UnresolvedAttribute ua) {
-                    Attribute resolvedCol = maybeResolveAttribute(ua, output);
-                    if (resolvedCol instanceof UnresolvedAttribute ucol) {
+                    Attribute resolvedField = maybeResolveAttribute(ua, output);
+                    if (resolvedField instanceof UnresolvedAttribute ucol) {
                         String message = ua.unresolvedMessage();
                         String match = "column [" + ucol.name() + "]";
-                        resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
+                        resolvedField = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
                     }
-                    resolved.add(resolvedCol);
+                    resolved.add(resolvedField);
                 } else {
                     throw new IllegalStateException(
                         "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
@@ -698,6 +718,97 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return resolved;
+        }
+
+        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+            List<Attribute> list = new ArrayList<>();
+            for (Attribute a : insist.insistedAttributes()) {
+                list.add(resolveInsistAttribute(a, childrenOutput, indexResolution));
+            }
+            return insist.withAttributes(list);
+        }
+
+        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+            Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
+            // Field isn't mapped anywhere.
+            if (resolvedCol instanceof UnresolvedAttribute) {
+                return insistKeyword(attribute);
+            }
+
+            // Field is partially unmapped.
+            if (resolvedCol instanceof FieldAttribute fa && indexResolution.get().isPartiallyUnmappedField(fa.name())) {
+                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
+            }
+
+            // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
+            // clause—for example, it might be on top of a ROW clause—so the verifier will catch it and fail.
+            return resolvedCol;
+        }
+
+        private static Attribute invalidInsistAttribute(FieldAttribute fa) {
+            var name = fa.name();
+            EsField field = fa.field() instanceof InvalidMappedField imf
+                ? new InvalidMappedField(name, InvalidMappedField.makeErrorsMessageIncludingInsistKeyword(imf.getTypesToIndices()))
+                : new InvalidMappedField(
+                    name,
+                    Strings.format(
+                        "mapped as [2] incompatible types: [keyword] enforced by INSIST command, and [%s] in index mappings",
+                        fa.dataType().typeName()
+                    )
+                );
+            return new FieldAttribute(fa.source(), name, field);
+        }
+
+        private static FieldAttribute insistKeyword(Attribute attribute) {
+            return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
+        }
+
+        private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {
+            List<NamedExpression> aggregates = dedup.finalAggs();
+            List<Attribute> groupings = dedup.groupings();
+            List<NamedExpression> newAggs = new ArrayList<>();
+            List<Attribute> newGroupings = new ArrayList<>();
+
+            for (NamedExpression agg : aggregates) {
+                var newAgg = (NamedExpression) agg.transformUp(UnresolvedAttribute.class, ua -> {
+                    Expression ne = ua;
+                    Attribute maybeResolved = maybeResolveAttribute(ua, childrenOutput);
+                    if (maybeResolved != null) {
+                        ne = maybeResolved;
+                    }
+                    return ne;
+                });
+                newAggs.add(newAgg);
+            }
+
+            for (Attribute attr : groupings) {
+                if (attr instanceof UnresolvedAttribute ua) {
+                    newGroupings.add(resolveAttribute(ua, childrenOutput));
+                } else {
+                    newGroupings.add(attr);
+                }
+            }
+
+            return new Dedup(dedup.source(), dedup.child(), newAggs, newGroupings);
+        }
+
+        private LogicalPlan resolveRrfScoreEval(RrfScoreEval rrf, List<Attribute> childrenOutput) {
+            Attribute scoreAttr = rrf.scoreAttribute();
+            Attribute forkAttr = rrf.forkAttribute();
+
+            if (scoreAttr instanceof UnresolvedAttribute ua) {
+                scoreAttr = resolveAttribute(ua, childrenOutput);
+            }
+
+            if (forkAttr instanceof UnresolvedAttribute ua) {
+                forkAttr = resolveAttribute(ua, childrenOutput);
+            }
+
+            if (forkAttr != rrf.forkAttribute() || scoreAttr != rrf.scoreAttribute()) {
+                return new RrfScoreEval(rrf.source(), rrf.child(), scoreAttr, forkAttr);
+            }
+
+            return rrf;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
@@ -1045,6 +1156,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
+    private static class ResolveForkFunctions extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+        private final ResolveFunctions resolveFunctions = new ResolveFunctions();
+
+        @Override
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
+            return plan.transformUp(Fork.class, fork -> resolveFunctionsInForkSubQueries(fork, context));
+        }
+
+        private LogicalPlan resolveFunctionsInForkSubQueries(Fork fork, AnalyzerContext ctx) {
+            List<LogicalPlan> newSubPlans = new ArrayList<>();
+            for (var subPlan : fork.subPlans()) {
+                newSubPlans.add(resolveFunctions.apply(subPlan, ctx));
+            }
+            return fork.replaceSubPlans(newSubPlans);
+        }
+    }
+
     private static class AddImplicitLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
@@ -1061,6 +1189,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             var source = logicalPlan.source();
             return new Limit(source, new Literal(source, limit, DataType.INTEGER), logicalPlan);
+        }
+    }
+
+    private static class AddImplicitForkLimit extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        private final AddImplicitLimit addImplicitLimit = new AddImplicitLimit();
+
+        @Override
+        public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
+            return logicalPlan.transformUp(Fork.class, fork -> addImplicitLimitToForkSubQueries(fork, context));
+        }
+
+        private LogicalPlan addImplicitLimitToForkSubQueries(Fork fork, AnalyzerContext ctx) {
+            List<LogicalPlan> newSubPlans = new ArrayList<>();
+            for (var subPlan : fork.subPlans()) {
+                newSubPlans.add(addImplicitLimit.apply(subPlan, ctx));
+            }
+            return fork.replaceSubPlans(newSubPlans);
         }
     }
 
@@ -1100,7 +1245,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             return plan.transformExpressionsUp(
                 org.elasticsearch.xpack.esql.core.expression.function.Function.class,
-                e -> ImplicitCasting.cast(e, context.functionRegistry())
+                e -> ImplicitCasting.cast(e, context.functionRegistry().snapshotRegistry())
             );
         }
 
@@ -1230,7 +1375,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static boolean canCastMixedNumericTypes(org.elasticsearch.xpack.esql.core.expression.function.Function f) {
-            return f instanceof Coalesce;
+            return f instanceof Coalesce || f instanceof Case || f instanceof Greatest || f instanceof Least;
         }
 
         private static boolean canCastNumeric(DataType from, DataType to) {
@@ -1279,16 +1424,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
             String message = format(
                 "Cannot convert string [{}] to [{}], error [{}]",
-                value.fold(),
+                value.fold(FoldContext.small() /* TODO remove me */),
                 type,
                 (e instanceof ParsingException pe) ? pe.getErrorMessage() : e.getMessage()
             );
-            return new UnresolvedAttribute(value.source(), String.valueOf(value.fold()), message);
+            return new UnresolvedAttribute(value.source(), String.valueOf(value.fold(FoldContext.small() /* TODO remove me */)), message);
         }
 
         private static Expression castStringLiteralToTemporalAmount(Expression from) {
             try {
-                TemporalAmount result = maybeParseTemporalAmount(from.fold().toString().strip());
+                TemporalAmount result = maybeParseTemporalAmount(from.fold(FoldContext.small() /* TODO remove me */).toString().strip());
                 if (result == null) {
                     return from;
                 }
@@ -1304,10 +1449,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             try {
                 return isTemporalAmount(target)
                     ? castStringLiteralToTemporalAmount(from)
-                    : new Literal(from.source(), EsqlDataTypeConverter.convert(from.fold(), target), target);
+                    : new Literal(
+                        from.source(),
+                        EsqlDataTypeConverter.convert(from.fold(FoldContext.small() /* TODO remove me */), target),
+                        target
+                    );
             } catch (Exception e) {
                 return unresolvedAttribute(from, target.toString(), e);
             }
+        }
+    }
+
+    private static class ImplicitForkCasting extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+        private final ImplicitCasting implicitCasting = new ImplicitCasting();
+
+        @Override
+        public LogicalPlan apply(LogicalPlan logicalPlan, AnalyzerContext context) {
+            return logicalPlan.transformUp(Fork.class, fork -> implicitCastForkSubQueries(fork, context));
+        }
+
+        private LogicalPlan implicitCastForkSubQueries(Fork fork, AnalyzerContext ctx) {
+            List<LogicalPlan> newSubPlans = new ArrayList<>();
+            for (var subPlan : fork.subPlans()) {
+                newSubPlans.add(implicitCasting.apply(subPlan, ctx));
+            }
+            return fork.replaceSubPlans(newSubPlans);
         }
     }
 
@@ -1366,9 +1532,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
 
                 if (missing.isEmpty() == false) {
-                    List<Attribute> newOutput = new ArrayList<>(esr.output());
-                    newOutput.addAll(missing);
-                    return new EsRelation(esr.source(), esr.index(), newOutput, esr.indexMode(), esr.frozen());
+                    return new EsRelation(
+                        esr.source(),
+                        esr.indexPattern(),
+                        esr.indexMode(),
+                        esr.indexNameWithModes(),
+                        CollectionUtils.combine(esr.output(), missing)
+                    );
                 }
                 return esr;
             });

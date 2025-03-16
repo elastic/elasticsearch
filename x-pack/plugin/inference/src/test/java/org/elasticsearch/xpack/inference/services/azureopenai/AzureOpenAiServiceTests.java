@@ -35,7 +35,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -54,6 +55,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +63,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -70,7 +73,6 @@ import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.c
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils.API_KEY_HEADER;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettingsTests.getAzureOpenAiSecretSettingsMap;
 import static org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettingsTests.getPersistentAzureOpenAiServiceSettingsMap;
@@ -1339,7 +1341,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("foo", "bar"),
+                List.of("a", "bb"),
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1349,18 +1351,28 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
-                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("foo", floatResult.chunks().get(0).matchedText());
-                assertArrayEquals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding(), 0.0f);
+                assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertArrayEquals(
+                    new float[] { 0.123f, -0.123f },
+                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    0.0f
+                );
             }
             {
-                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
-                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
+                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("bar", floatResult.chunks().get(0).matchedText());
-                assertArrayEquals(new float[] { 1.123f, -1.123f }, floatResult.chunks().get(0).embedding(), 0.0f);
+                assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertArrayEquals(
+                    new float[] { 1.123f, -1.123f },
+                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    0.0f
+                );
             }
 
             assertThat(webServer.requests(), hasSize(1));
@@ -1370,7 +1382,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(2));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("foo", "bar")));
+            assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
         }
     }
@@ -1398,13 +1410,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamChatCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"hello, world"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException, URISyntaxException {
+    private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = AzureOpenAiCompletionModelTests.createCompletionModel(
@@ -1429,7 +1439,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -1445,13 +1455,14 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
-            .hasErrorWithStatusCode(401)
-            .hasErrorContaining("You didn't provide an API key...");
+        var e = assertThrows(ElasticsearchStatusException.class, this::streamChatCompletion);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Received an authentication error status code for request from inference entity id [id] status [401]."
+                    + " Error message: [You didn't provide an API key...]"
+            )
+        );
     }
 
     @SuppressWarnings("checkstyle:LineLength")
@@ -1470,7 +1481,17 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": false,
                                     "sensitive": true,
                                     "updatable": true,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
+                                },
+                                "dimensions": {
+                                    "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#request-body-1.",
+                                    "label": "Dimensions",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding"]
                                 },
                                 "entra_id": {
                                     "description": "You must provide either an API key or an Entra ID.",
@@ -1478,7 +1499,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": false,
                                     "sensitive": true,
                                     "updatable": true,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "rate_limit.requests_per_minute": {
                                     "description": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
@@ -1486,7 +1508,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": false,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "int"
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "deployment_id": {
                                     "description": "The deployment name of your deployed models.",
@@ -1494,7 +1517,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "resource_name": {
                                     "description": "The name of your Azure OpenAI resource.",
@@ -1502,7 +1526,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "api_version": {
                                     "description": "The Azure API version ID to use.",
@@ -1510,7 +1535,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 }
                             }
                         }
@@ -1533,8 +1559,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

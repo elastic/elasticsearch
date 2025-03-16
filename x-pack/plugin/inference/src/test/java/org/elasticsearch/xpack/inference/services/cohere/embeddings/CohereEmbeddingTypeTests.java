@@ -50,11 +50,53 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
         );
     }
 
+    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAdditionPatch_WhenSpecifyingBit() {
+        assertThat(
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(8_840_0_00)),
+            is(CohereEmbeddingType.INT8)
+        );
+    }
+
+    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAddition_WhenSpecifyingBit() {
+        assertThat(
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(9_000_0_00)),
+            is(CohereEmbeddingType.INT8)
+        );
+    }
+
+    public void testTranslateToVersion_ReturnsBit_WhenVersionOnBitEnumAddition_WhenSpecifyingBit() {
+        assertThat(
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
+            is(CohereEmbeddingType.BIT)
+        );
+    }
+
+    public void testTranslateToVersion_ReturnsBit_WhenVersionOnBitEnumAdditionPatch_WhenSpecifyingBit() {
+        assertThat(
+            CohereEmbeddingType.translateToVersion(
+                CohereEmbeddingType.BIT,
+                TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X
+            ),
+            is(CohereEmbeddingType.BIT)
+        );
+    }
+
+    public void testTranslateToVersion_ReturnsFloat_WhenVersionOnBitEnumAddition_WhenSpecifyingFloat() {
+        assertThat(
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
+            is(CohereEmbeddingType.FLOAT)
+        );
+    }
+
     public void testFromElementType_CovertsFloatToCohereEmbeddingTypeFloat() {
         assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.FLOAT), is(CohereEmbeddingType.FLOAT));
     }
 
     public void testFromElementType_CovertsByteToCohereEmbeddingTypeByte() {
         assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.BYTE), is(CohereEmbeddingType.BYTE));
+    }
+
+    public void testFromElementType_ConvertsBitToCohereEmbeddingTypeBinary() {
+        assertThat(CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.BIT), is(CohereEmbeddingType.BIT));
     }
 }

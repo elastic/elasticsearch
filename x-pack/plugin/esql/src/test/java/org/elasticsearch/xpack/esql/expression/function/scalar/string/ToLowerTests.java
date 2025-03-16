@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,12 +42,12 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        suppliers.add(supplier("keyword ascii", DataType.KEYWORD, () -> randomAlphaOfLengthBetween(1, 10)));
-        suppliers.add(supplier("keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10)));
-        suppliers.add(supplier("text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
-        suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
-        suppliers.add(supplier("semantic_text ascii", DataType.SEMANTIC_TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
-        suppliers.add(supplier("semantic_text unicode", DataType.SEMANTIC_TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
+        suppliers(suppliers, "keyword ascii", DataType.KEYWORD, () -> randomAlphaOfLengthBetween(1, 10));
+        suppliers(suppliers, "keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10));
+        suppliers(suppliers, "text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10));
+        suppliers(suppliers, "text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
+        suppliers(suppliers, "semantic_text ascii", DataType.SEMANTIC_TEXT, () -> randomAlphaOfLengthBetween(1, 10));
+        suppliers(suppliers, "semantic_text unicode", DataType.SEMANTIC_TEXT, () -> randomUnicodeOfLengthBetween(1, 10));
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
@@ -54,7 +55,7 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
         String testString = randomAlphaOfLength(10);
         Configuration cfg = randomLocaleConfig();
         ToLower func = new ToLower(Source.EMPTY, new Literal(Source.EMPTY, testString, DataType.KEYWORD), cfg);
-        assertThat(BytesRefs.toBytesRef(testString.toLowerCase(cfg.locale())), equalTo(func.fold()));
+        assertThat(BytesRefs.toBytesRef(testString.toLowerCase(cfg.locale())), equalTo(func.fold(FoldContext.small())));
     }
 
     private Configuration randomLocaleConfig() {
@@ -69,7 +70,8 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
             "",
             false,
             Map.of(),
-            System.nanoTime()
+            System.nanoTime(),
+            randomBoolean()
         );
     }
 
@@ -78,8 +80,8 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
         return new ToLower(source, args.get(0), configuration);
     }
 
-    private static TestCaseSupplier supplier(String name, DataType type, Supplier<String> valueSupplier) {
-        return new TestCaseSupplier(name, List.of(type), () -> {
+    private static void suppliers(List<TestCaseSupplier> suppliers, String name, DataType type, Supplier<String> valueSupplier) {
+        suppliers.add(new TestCaseSupplier(name, List.of(type), () -> {
             List<TestCaseSupplier.TypedData> values = new ArrayList<>();
             String expectedToString = "ChangeCaseEvaluator[val=Attribute[channel=0], locale=en_US, caseType=LOWER]";
 
@@ -88,6 +90,16 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
 
             String expectedValue = value.toLowerCase(EsqlTestUtils.TEST_CFG.locale());
             return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(new BytesRef(expectedValue)));
-        });
+        }));
+        suppliers.add(new TestCaseSupplier(name + " mv", List.of(type), () -> {
+            List<TestCaseSupplier.TypedData> values = new ArrayList<>();
+            String expectedToString = "ChangeCaseEvaluator[val=Attribute[channel=0], locale=en_US, caseType=LOWER]";
+
+            List<String> strings = randomList(2, 10, valueSupplier);
+            values.add(new TestCaseSupplier.TypedData(strings.stream().map(BytesRef::new).toList(), type, "0"));
+
+            List<BytesRef> expectedValue = strings.stream().map(s -> new BytesRef(s.toLowerCase(EsqlTestUtils.TEST_CFG.locale()))).toList();
+            return new TestCaseSupplier.TestCase(values, expectedToString, type, equalTo(expectedValue));
+        }));
     }
 }

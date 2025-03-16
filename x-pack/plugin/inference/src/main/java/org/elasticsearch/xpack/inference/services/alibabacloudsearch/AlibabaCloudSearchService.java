@@ -305,10 +305,9 @@ public class AlibabaCloudSearchService extends SenderService {
         AlibabaCloudSearchModel alibabaCloudSearchModel = (AlibabaCloudSearchModel) model;
         var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            getEmbeddingTypeFromTaskType(alibabaCloudSearchModel.getTaskType()),
             alibabaCloudSearchModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -316,14 +315,6 @@ public class AlibabaCloudSearchService extends SenderService {
             var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
         }
-    }
-
-    private EmbeddingRequestChunker.EmbeddingType getEmbeddingTypeFromTaskType(TaskType taskType) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.FLOAT;
-            case SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
-            default -> throw new IllegalArgumentException("Unsupported task type for chunking: " + taskType);
-        };
     }
 
     /**
@@ -379,7 +370,9 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     SERVICE_ID,
-                    new SettingsConfiguration.Builder().setDescription("The name of the model service to use for the {infer} task.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model service to use for the {infer} task."
+                    )
                         .setLabel("Project ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -390,7 +383,7 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     HOST,
-                    new SettingsConfiguration.Builder().setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The name of the host address used for the {infer} task. You can find the host address at "
                             + "https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] "
                             + "of the documentation."
@@ -405,9 +398,9 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     HTTP_SCHEMA_NAME,
-                    new SettingsConfiguration.Builder().setDescription("")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
                         .setLabel("HTTP Schema")
-                        .setRequired(true)
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
@@ -416,7 +409,9 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     WORKSPACE_NAME,
-                    new SettingsConfiguration.Builder().setDescription("The name of the workspace used for the {infer} task.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the workspace used for the {infer} task."
+                    )
                         .setLabel("Workspace")
                         .setRequired(true)
                         .setSensitive(false)
@@ -426,9 +421,12 @@ public class AlibabaCloudSearchService extends SenderService {
                 );
 
                 configurationMap.putAll(
-                    DefaultSecretSettings.toSettingsConfigurationWithDescription("A valid API key for the AlibabaCloud AI Search API.")
+                    DefaultSecretSettings.toSettingsConfigurationWithDescription(
+                        "A valid API key for the AlibabaCloud AI Search API.",
+                        supportedTaskTypes
+                    )
                 );
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

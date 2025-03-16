@@ -14,6 +14,9 @@ import org.elasticsearch.compute.ann.IntermediateState;
 /**
  * Computes the extent of a set of cartesian points. It is assumed the points are encoded as longs.
  * This requires that the planner has planned that points are loaded from the index as doc-values.
+ * The intermediate state is the extent of the shapes, encoded as four integers: minX, maxX, maxY, minY.
+ * The order of the integers is the same as defined in the constructor of the Rectangle class.
+ * Note that this is very different from the six values used for the intermediate state of geo_shape geometries.
  */
 @Aggregator(
     {

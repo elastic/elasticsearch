@@ -15,11 +15,11 @@ import org.junit.ClassRule;
 
 public class GeoJdbcSqlSpecIT extends GeoSqlSpecTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 
     @Override
     protected void loadDataset(RestClient client) throws Exception {
-        DataLoader.loadDatasetIntoEs(client, false);
+        DataLoader.loadDatasetIntoEs(client);
     }
 
     @Override

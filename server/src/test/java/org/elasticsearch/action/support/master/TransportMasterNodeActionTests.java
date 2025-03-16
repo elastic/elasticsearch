@@ -89,6 +89,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -256,7 +258,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 threadPool,
                 new ActionFilters(new HashSet<>()),
                 Request::new,
-                TestIndexNameExpressionResolver.newInstance(),
                 Response::new,
                 executor
             );
@@ -299,7 +300,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 threadPool,
                 new ActionFilters(new HashSet<>()),
                 ClusterUpdateSettingsRequest::new,
-                TestIndexNameExpressionResolver.newInstance(),
                 Response::new,
                 executor
             );
@@ -854,9 +854,10 @@ public class TransportMasterNodeActionTests extends ESTestCase {
 
         assertTrue(action.supportsReservedState());
 
-        assertTrue(
-            expectThrows(IllegalArgumentException.class, () -> action.validateForReservedState(request, clusterState)).getMessage()
-                .contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]")
+        var exception = expectThrows(IllegalArgumentException.class, () -> action.validateForReservedState(request, clusterState));
+        assertThat(
+            exception.getMessage(),
+            allOf(containsString("[a] set as read-only by [namespace_one]"), containsString("[e] set as read-only by [namespace_two]"))
         );
 
         ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)

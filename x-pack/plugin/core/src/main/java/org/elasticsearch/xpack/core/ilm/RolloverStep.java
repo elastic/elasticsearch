@@ -55,13 +55,13 @@ public class RolloverStep extends AsyncActionStep {
             listener.onResponse(null);
             return;
         }
-        IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexName);
+        IndexAbstraction indexAbstraction = currentClusterState.metadata().getProject().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "expected the index " + indexName + " to exist in the lookup but it didn't";
         final String rolloverTarget;
         final boolean targetFailureStore;
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            boolean isFailureStoreWriteIndex = indexMetadata.getIndex().equals(dataStream.getFailureStoreWriteIndex());
+            boolean isFailureStoreWriteIndex = indexMetadata.getIndex().equals(dataStream.getWriteFailureIndex());
             targetFailureStore = dataStream.isFailureStoreIndex(indexMetadata.getIndex().getName());
             if (isFailureStoreWriteIndex == false && dataStream.getWriteIndex().equals(indexMetadata.getIndex()) == false) {
                 logger.warn(

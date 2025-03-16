@@ -11,26 +11,28 @@ package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -48,7 +50,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  * Handles simulating an index template either by name (looking it up in the
  * cluster state), or by a provided template configuration
  */
-public class TransportSimulateTemplateAction extends TransportMasterNodeReadAction<
+public class TransportSimulateTemplateAction extends TransportLocalProjectMetadataAction<
     SimulateTemplateAction.Request,
     SimulateIndexTemplateResponse> {
 
@@ -60,29 +62,31 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final ClusterSettings clusterSettings;
     private final boolean isDslOnlyMode;
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportSimulateTemplateAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        ProjectResolver projectResolver
     ) {
         super(
             SimulateTemplateAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            SimulateTemplateAction.Request::new,
-            indexNameExpressionResolver,
-            SimulateIndexTemplateResponse::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            transportService.getTaskManager(),
+            clusterService,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
@@ -91,18 +95,27 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.clusterSettings = clusterService.getClusterSettings();
         this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            SimulateTemplateAction.Request::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         SimulateTemplateAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
         String uuid = UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
         final String temporaryIndexName = "simulate_template_index_" + uuid;
-        final ClusterState stateWithTemplate;
+        final ProjectMetadata projectWithTemplate;
         final String simulateTemplateToAdd;
 
         // First, if a template body was requested, we need to "fake add" that template to the
@@ -118,15 +131,15 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
-            stateWithTemplate = indexTemplateService.addIndexTemplateV2(
-                state,
+            projectWithTemplate = indexTemplateService.addIndexTemplateV2(
+                state.metadata(),
                 request.getIndexTemplateRequest().create(),
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
         } else {
             simulateTemplateToAdd = null;
-            stateWithTemplate = state;
+            projectWithTemplate = state.metadata();
         }
 
         // We also need the name of the template we're going to resolve, so if they specified a
@@ -144,28 +157,28 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             // They should have specified either a template name or the body of a template, but neither were specified
             listener.onFailure(new IllegalArgumentException("a template name to match or a new template body must be specified"));
             return;
-        } else if (stateWithTemplate.metadata().templatesV2().containsKey(matchingTemplate) == false) {
+        } else if (projectWithTemplate.templatesV2().containsKey(matchingTemplate) == false) {
             // They specified a template, but it didn't exist
             listener.onFailure(new IllegalArgumentException("unable to simulate template [" + matchingTemplate + "] that does not exist"));
             return;
         }
 
-        final ClusterState tempClusterState = TransportSimulateIndexTemplateAction.resolveTemporaryState(
+        final ProjectMetadata tempProjectMetadata = TransportSimulateIndexTemplateAction.resolveTemporaryState(
             matchingTemplate,
             temporaryIndexName,
-            stateWithTemplate
+            projectWithTemplate
         );
-        ComposableIndexTemplate templateV2 = tempClusterState.metadata().templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate templateV2 = tempProjectMetadata.templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
         Map<String, List<String>> overlapping = new HashMap<>();
-        overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
-        overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(findConflictingV1Templates(tempProjectMetadata, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(findConflictingV2Templates(tempProjectMetadata, matchingTemplate, templateV2.indexPatterns()));
 
         Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
             matchingTemplate,
             temporaryIndexName,
-            stateWithTemplate,
+            projectWithTemplate,
             isDslOnlyMode,
             xContentRegistry,
             indicesService,
@@ -186,7 +199,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     }
 
     @Override
-    protected ClusterBlockException checkBlock(SimulateTemplateAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(SimulateTemplateAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

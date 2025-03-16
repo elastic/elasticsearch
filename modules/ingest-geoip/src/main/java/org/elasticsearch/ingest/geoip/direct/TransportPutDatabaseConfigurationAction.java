@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.geoip.IngestGeoIpMetadata;
 import org.elasticsearch.ingest.geoip.direct.PutDatabaseConfigurationAction.Request;
 import org.elasticsearch.injection.guice.Inject;
@@ -41,8 +39,6 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-
-import static org.elasticsearch.ingest.IngestGeoIpFeatures.PUT_DATABASE_CONFIGURATION_ACTION_IPINFO;
 
 public class TransportPutDatabaseConfigurationAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
@@ -61,7 +57,6 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         }
     };
 
-    private final FeatureService featureService;
     private final MasterServiceTaskQueue<UpdateDatabaseConfigurationTask> updateDatabaseConfigurationTaskQueue;
 
     @Inject
@@ -69,9 +64,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        FeatureService featureService
+        ActionFilters actionFilters
     ) {
         super(
             PutDatabaseConfigurationAction.NAME,
@@ -80,11 +73,9 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.featureService = featureService;
         this.updateDatabaseConfigurationTaskQueue = clusterService.createTaskQueue(
             "update-geoip-database-configuration-state-update",
             Priority.NORMAL,
@@ -95,18 +86,6 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         final String id = request.getDatabase().id();
-
-        // if this is an ipinfo configuration, then make sure the whole cluster supports that feature
-        if (request.getDatabase().provider() instanceof DatabaseConfiguration.Ipinfo
-            && featureService.clusterHasFeature(clusterService.state(), PUT_DATABASE_CONFIGURATION_ACTION_IPINFO) == false) {
-            listener.onFailure(
-                new IllegalArgumentException(
-                    "Unable to use ipinfo database configurations in mixed-clusters with nodes that do not support feature "
-                        + PUT_DATABASE_CONFIGURATION_ACTION_IPINFO.id()
-                )
-            );
-            return;
-        }
 
         updateDatabaseConfigurationTaskQueue.submitTask(
             Strings.format("update-geoip-database-configuration-[%s]", id),
@@ -128,7 +107,7 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
 
     static void validatePrerequisites(DatabaseConfiguration database, ClusterState state) {
         // we need to verify that the database represents a unique file (name) among the various databases for this same provider
-        IngestGeoIpMetadata geoIpMeta = state.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        IngestGeoIpMetadata geoIpMeta = state.metadata().getProject().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         Optional<DatabaseConfiguration> sameName = geoIpMeta.getDatabases()
             .values()
@@ -151,7 +130,9 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             ClusterStateTaskListener {
 
         ClusterState execute(ClusterState currentState) throws Exception {
-            IngestGeoIpMetadata geoIpMeta = currentState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+            IngestGeoIpMetadata geoIpMeta = currentState.metadata()
+                .getProject()
+                .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
             String id = database.id();
             final DatabaseConfigurationMetadata existingDatabase = geoIpMeta.getDatabases().get(id);

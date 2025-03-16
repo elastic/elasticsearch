@@ -32,8 +32,8 @@ public class ValuesBytesRefAggregatorFunctionTests extends AggregatorFunctionTes
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesBytesRefAggregatorFunctionSupplier();
     }
 
     @Override

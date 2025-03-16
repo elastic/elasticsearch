@@ -58,7 +58,7 @@ public class LazyRolloverDuringDisruptionIT extends ESIntegTestCase {
         // Verify that the data stream is marked for rollover and that it has currently one index
         DataStream dataStream = getDataStream(dataStreamName);
         assertThat(dataStream.rolloverOnWrite(), equalTo(true));
-        assertThat(dataStream.getBackingIndices().getIndices().size(), equalTo(1));
+        assertThat(dataStream.getDataComponent().getIndices().size(), equalTo(1));
 
         // Introduce a disruption to the master node that should delay the rollover execution
         final var barrier = new CyclicBarrier(2);
@@ -107,7 +107,7 @@ public class LazyRolloverDuringDisruptionIT extends ESIntegTestCase {
         // Verify that the rollover has happened once
         dataStream = getDataStream(dataStreamName);
         assertThat(dataStream.rolloverOnWrite(), equalTo(false));
-        assertThat(dataStream.getBackingIndices().getIndices().size(), equalTo(2));
+        assertThat(dataStream.getDataComponent().getIndices().size(), equalTo(2));
     }
 
     private DataStream getDataStream(String dataStreamName) {

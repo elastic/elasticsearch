@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -25,7 +26,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createGoldOrPlatinumLicense;
+import static org.elasticsearch.xpack.logsdb.LogsdbLicenseServiceTests.createGoldOrPlatinumLicense;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,12 +41,12 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         License license = createGoldOrPlatinumLicense();
         var licenseState = new XPackLicenseState(() -> time, new XPackLicenseStatus(license.operationMode(), true, null));
 
-        var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        var licenseService = new LogsdbLicenseService(Settings.EMPTY);
         licenseService.setLicenseState(licenseState);
         var mockLicenseService = mock(LicenseService.class);
         when(mockLicenseService.getLicense()).thenReturn(license);
 
-        SyntheticSourceLicenseService syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        LogsdbLicenseService syntheticSourceLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         syntheticSourceLicenseService.setLicenseState(licenseState);
         syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
@@ -53,21 +54,23 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             IndexVersion::current,
+            () -> Version.CURRENT,
+            true,
             true
         );
     }
 
     public void testGetAdditionalIndexSettingsDefault() {
-        Settings settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, null, null, null, settings, List.of());
         assertThat(result.size(), equalTo(1));
-        assertThat(result.get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
+        assertThat(result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
     }
 
     public void testGetAdditionalIndexSettingsApm() throws IOException {
-        Settings settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-apm.app.test";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, null, null, null, settings, List.of());
@@ -75,7 +78,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsProfiling() throws IOException {
-        Settings settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         for (String dataStreamName : new String[] { "profiling-metrics", "profiling-events" }) {
             String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
             var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, null, null, null, settings, List.of());
@@ -89,7 +92,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsTsdb() throws IOException {
-        Settings settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of());
@@ -102,12 +105,12 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         long time = LocalDateTime.of(2024, 12, 31, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         var licenseState = new XPackLicenseState(() -> time, new XPackLicenseStatus(license.operationMode(), true, null));
 
-        var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        var licenseService = new LogsdbLicenseService(Settings.EMPTY);
         licenseService.setLicenseState(licenseState);
         var mockLicenseService = mock(LicenseService.class);
         when(mockLicenseService.getLicense()).thenReturn(license);
 
-        SyntheticSourceLicenseService syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        LogsdbLicenseService syntheticSourceLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         syntheticSourceLicenseService.setLicenseState(licenseState);
         syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
@@ -115,14 +118,16 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             IndexVersion::current,
+            () -> Version.CURRENT,
+            true,
             true
         );
 
-        Settings settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
         String dataStreamName = "metrics-my-app";
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of());
         assertThat(result.size(), equalTo(1));
-        assertThat(result.get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
+        assertThat(result.get(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
     }
 }

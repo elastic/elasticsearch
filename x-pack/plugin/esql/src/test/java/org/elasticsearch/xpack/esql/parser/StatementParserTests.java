@@ -324,7 +324,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testAggsWithGroupKeyAsAgg() {
-        var queries = new String[] { """
+        var queries = new String[]{"""
             row a = 1, b = 2
             | stats a by a
             """, """
@@ -337,7 +337,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             """, """
             row a = 1, b = 2
             | stats x = a by a
-            """ };
+            """};
 
         for (String query : queries) {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
@@ -683,16 +683,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testIdentifierAsFieldName() {
-        String[] operators = new String[] { "==", "!=", ">", "<", ">=", "<=" };
-        Class<?>[] expectedOperators = new Class<?>[] {
+        String[] operators = new String[]{"==", "!=", ">", "<", ">=", "<="};
+        Class<?>[] expectedOperators = new Class<?>[]{
             Equals.class,
             Not.class,
             GreaterThan.class,
             LessThan.class,
             GreaterThanOrEqual.class,
-            LessThanOrEqual.class };
-        String[] identifiers = new String[] { "abc", "`abc`", "ab_c", "a.b.c", "@a", "a.@b", "`a@b.c`" };
-        String[] expectedIdentifiers = new String[] { "abc", "abc", "ab_c", "a.b.c", "@a", "a.@b", "a@b.c" };
+            LessThanOrEqual.class};
+        String[] identifiers = new String[]{"abc", "`abc`", "ab_c", "a.b.c", "@a", "a.@b", "`a@b.c`"};
+        String[] expectedIdentifiers = new String[]{"abc", "abc", "ab_c", "a.b.c", "@a", "a.@b", "a@b.c"};
         LogicalPlan where;
         for (int i = 0; i < operators.length; i++) {
             for (int j = 0; j < identifiers.length; j++) {
@@ -848,7 +848,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNewLines() {
-        String[] delims = new String[] { "", "\r", "\n", "\r\n" };
+        String[] delims = new String[]{"", "\r", "\n", "\r\n"};
         Function<String, String> queryFun = d -> d + "from " + d + " foo " + d + "| eval " + d + " x = concat(bar, \"baz\")" + d;
         LogicalPlan reference = statement(queryFun.apply(delims[0]));
         for (int i = 1; i < delims.length; i++) {
@@ -929,7 +929,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(paramAsConstant("fn1", "IS_NULL")),
                 "line 1:22: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
             );
-        }
+    }
     }
 
     public void testMetadataFieldOnOtherSources() {
@@ -1221,7 +1221,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
             expectError("from test | eval x = ??, y = ??", List.of(paramAsConstant(null, 1)), "Not enough actual parameters 1");
             expectError("from test | eval x = ??, y = ?", List.of(paramAsConstant(null, 1)), "Not enough actual parameters 1");
-        }
+    }
     }
 
     public void testNamedParams() {
@@ -1265,18 +1265,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test | eval x = ?Å", List.of(paramAsConstant("Å", 5)), "line 1:23: token recognition error at: 'Å'");
 
         if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
-            expectError(
+        expectError(
                 "from test | where x < ???",
                 List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
                 "extraneous input '?' expecting <EOF>"
             );
         } else {
             expectError(
-                "from test | where x < ??",
-                List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
-                "extraneous input '?' expecting <EOF>"
-            );
-        }
+            "from test | where x < ??",
+            List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
+            "extraneous input '?' expecting <EOF>"
+        );
+    }
     }
 
     public void testPositionalParams() {
@@ -1602,15 +1602,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 params.get(0),
                 params.get(1),
                 params.get(2)
-            );
-            expectError(
+        );
+        expectError(
                 query,
                 List.of(paramAsConstant("n1", "f1"), paramAsConstant("n2", "fn2"), paramAsConstant("n3", "f3")),
-                "Inconsistent parameter declaration, "
+            "Inconsistent parameter declaration, "
                     + "use one of positional, named or anonymous params but not a combination of "
                     + errorMessage
-            );
-        }
+        );
+    }
     }
 
     public void testIntervalParam() {
@@ -2054,8 +2054,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             }
             if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
                 expectError("from test | " + missingParam.replace("?", "??"), List.of(paramAsConstant("f4", "f1*")), error);
-            }
         }
+    }
     }
 
     public void testFieldContainingDotsAndNumbers() {
@@ -2752,13 +2752,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testNamedFunctionArgumentNotConstant() {
         Map<String, String[]> commands = Map.ofEntries(
-            Map.entry("eval x = {}", new String[] { "31", "35" }),
-            Map.entry("where {}", new String[] { "28", "32" }),
-            Map.entry("stats {}", new String[] { "28", "32" }),
-            Map.entry("stats agg() by {}", new String[] { "37", "41" }),
-            Map.entry("sort {}", new String[] { "27", "31" }),
-            Map.entry("dissect {} \"%{bar}\"", new String[] { "30", "34" }),
-            Map.entry("grok {} \"%{WORD:foo}\"", new String[] { "27", "31" })
+            Map.entry("eval x = {}", new String[]{"31", "35"}),
+            Map.entry("where {}", new String[]{"28", "32"}),
+            Map.entry("stats {}", new String[]{"28", "32"}),
+            Map.entry("stats agg() by {}", new String[]{"37", "41"}),
+            Map.entry("sort {}", new String[]{"27", "31"}),
+            Map.entry("dissect {} \"%{bar}\"", new String[]{"30", "34"}),
+            Map.entry("grok {} \"%{WORD:foo}\"", new String[]{"27", "31"})
         );
 
         for (Map.Entry<String, String[]> command : commands.entrySet()) {
@@ -3121,7 +3121,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testFieldNamesAsCommands() throws Exception {
-        String[] keywords = new String[] {
+        String[] keywords = new String[]{
             "dissect",
             "drop",
             "enrich",
@@ -3134,7 +3134,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "mv_expand",
             "rename",
             "sort",
-            "stats" };
+            "stats"};
         for (String keyword : keywords) {
             var plan = statement("FROM test | STATS avg(" + keyword + ")");
             var aggregate = as(plan, Aggregate.class);
@@ -3935,6 +3935,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 List.of(paramAsPattern("f1", "f1*"), paramAsPattern("f2", "f2*"), paramAsPattern("f3", "f3*")),
                 error
             );
+        }
+    }
+
+    public void testUnclosedParenthesis() {
+        String [] queries = { "row a = )" ,  "row ]", "from source | eval x = [1,2,3]]"};
+        for (String q : queries) {
+            expectError(q, "Invalid query");
         }
     }
 }

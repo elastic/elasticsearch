@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.BitSet;
+import java.util.EmptyStackException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -91,6 +92,9 @@ public class EsqlParser {
             return result.apply(new AstBuilder(params), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
+            // likely thrown by an invalid popMode (such as extra closing parenthesis)
+        } catch (EmptyStackException ese) {
+            throw new ParsingException("Invalid query [{}]", query);
         }
     }
 

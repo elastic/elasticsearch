@@ -43,6 +43,7 @@ public class ServerProcessBuilder {
     private ServerArgs serverArgs;
     private ProcessInfo processInfo;
     private List<String> jvmOptions;
+    private Path workingDir;
     private Terminal terminal;
 
     // this allows mocking the process building by tests
@@ -79,6 +80,11 @@ public class ServerProcessBuilder {
      */
     public ServerProcessBuilder withJvmOptions(List<String> jvmOptions) {
         this.jvmOptions = jvmOptions;
+        return this;
+    }
+
+    public ServerProcessBuilder withWorkingDir(Path workingDir) {
+        this.workingDir = workingDir;
         return this;
     }
 
@@ -155,7 +161,7 @@ public class ServerProcessBuilder {
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), processStarter);
+            jvmProcess = createProcess(getCommand(), getJvmArgs(), jvmOptions, getEnvironment(), workingDir, processStarter);
             errorPump = new ErrorPumpThread(terminal, jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(serverArgs, jvmProcess.getOutputStream());
@@ -185,11 +191,13 @@ public class ServerProcessBuilder {
         List<String> jvmArgs,
         List<String> jvmOptions,
         Map<String, String> environment,
+        Path workingDir,
         ProcessStarter processStarter
     ) throws InterruptedException, IOException {
 
         var builder = new ProcessBuilder(Stream.concat(Stream.of(command), Stream.concat(jvmOptions.stream(), jvmArgs.stream())).toList());
         builder.environment().putAll(environment);
+        builder.directory(workingDir.toFile());
         builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 
         return processStarter.start(builder);

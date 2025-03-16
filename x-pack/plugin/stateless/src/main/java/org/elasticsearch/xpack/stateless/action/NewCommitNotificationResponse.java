@@ -40,7 +40,6 @@ public class NewCommitNotificationResponse extends ActionResponse {
     }
 
     public NewCommitNotificationResponse(StreamInput in) throws IOException {
-        super(in);
         this.primaryTermAndGenerationsInUse = in.readCollectionAsImmutableSet(PrimaryTermAndGeneration::new);
     }
 

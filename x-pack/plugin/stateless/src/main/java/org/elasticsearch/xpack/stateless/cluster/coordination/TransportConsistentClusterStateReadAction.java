@@ -230,7 +230,6 @@ public final class TransportConsistentClusterStateReadAction extends TransportAc
         }
 
         ReadMasterTermAndVersionResponse(StreamInput in) throws IOException {
-            super(in);
             term = in.readLong();
             version = in.readLong();
         }

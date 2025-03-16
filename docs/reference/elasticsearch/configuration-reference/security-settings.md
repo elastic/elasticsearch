@@ -52,13 +52,13 @@ All of these settings can be added to the `elasticsearch.yml` configuration file
 
 You can configure the following anonymous access settings in `elasticsearch.yml`. For more information, see [Enabling anonymous access](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/anonymous-access.md).
 
-`xpack.security.authc.anonymous.username`
+`xpack.security.authc.anonymous.username` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The username (principal) of the anonymous user. Defaults to `_es_anonymous_user`.
 
-`xpack.security.authc.anonymous.roles`
+`xpack.security.authc.anonymous.roles` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The roles to associate with the anonymous user. Required.
 
-`xpack.security.authc.anonymous.authz_exception`
+`xpack.security.authc.anonymous.authz_exception` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) When `true`, an HTTP 403 response is returned if the anonymous user does not have the appropriate permissions for the requested action. The user is not prompted to provide credentials to access the requested resource. When set to `false`, an HTTP 401 response is returned and the user can provide credentials with the appropriate permissions to gain access. Defaults to `true`.
 
 

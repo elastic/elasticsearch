@@ -43,6 +43,10 @@ You can also update [dynamic cluster settings](docs-content://deploy-manage/depl
 In some cases, you may get a warning saying "User settings are different across Elasticsearch instances". To fix this issue, ensure that your user settings (including the comments sections and whitespaces) are identical across all Elasticsearch nodes (not only the data tiers, but also the Master, Machine Learning, and Coordinating nodes).
 ::::
 
+::::{note}
+If your use case depends on the ability to receive CORS requests and you have a cluster that was provisioned prior to January 25th 2019, you must manually set `http.cors.enabled` to `true` and allow a specific set of hosts with `http.cors.allow-origin`. Applying these changes in your Elasticsearch configuration  allows cross-origin resource sharing requests.
+::::
+
 ## Add or edit user settings for {{ece}}:
 ```{applies_to}
   deployment:

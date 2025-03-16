@@ -274,7 +274,7 @@ $$$email-account-attributes$$$
 `smtp.wait_on_quit`
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) If set to false the QUIT command is sent and the connection closed. If set to true, the QUIT command is sent and a reply is waited for. True by default.
 
-`xpack.notification.email.html.sanitization.allow`
+`xpack.notification.email.html.sanitization.allow` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   Specifies the HTML elements that are allowed in email notifications. For more information, see [Configuring HTML sanitization options](docs-content://explore-analyze/alerts-cases/watcher/actions-email.md#email-html-sanitization). You can specify individual HTML elements and the following HTML feature groups:
 
     $$$html-feature-groups$$$
@@ -302,10 +302,10 @@ $$$email-account-attributes$$$
     :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Only embedded images. Embedded images can only use the `cid:` URL protocol in their `src` attribute.
 
 
-`xpack.notification.email.html.sanitization.disallow`
+`xpack.notification.email.html.sanitization.disallow` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the HTML elements that are NOT allowed in email notifications. You can specify individual HTML elements and [HTML feature groups](#html-feature-groups).
 
-`xpack.notification.email.html.sanitization.enabled`
+`xpack.notification.email.html.sanitization.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Set to `false` to completely disable HTML sanitation. Not recommended. Defaults to `true`.
 
 `xpack.notification.reporting.warning.kbn-csv-contains-formulas.text`

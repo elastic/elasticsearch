@@ -66,51 +66,51 @@ $$$reindex-remote-whitelist$$$
 `reindex.remote.whitelist` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the hosts that can be [reindexed from remotely](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-reindex). Expects a YAML array of `host:port` strings. Consists of a comma-delimited list of `host:port` entries. Defaults to `["\*.io:*", "\*.com:*"]`.
 
-`reindex.ssl.certificate`
+`reindex.ssl.certificate` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   Specifies the path to the PEM encoded certificate (or certificate chain) to be used for HTTP client authentication (if required by the remote cluster) This setting requires that `reindex.ssl.key` also be set. You cannot specify both `reindex.ssl.certificate` and `reindex.ssl.keystore.path`.
 
-`reindex.ssl.certificate_authorities`
+`reindex.ssl.certificate_authorities` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   List of paths to PEM encoded certificate files that should be trusted. You cannot specify both `reindex.ssl.certificate_authorities` and `reindex.ssl.truststore.path`.
 
-`reindex.ssl.key`
+`reindex.ssl.key` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   Specifies the path to the PEM encoded private key associated with the certificate used for client authentication (`reindex.ssl.certificate`). You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
 
-`reindex.ssl.key_passphrase`
+`reindex.ssl.key_passphrase` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   Specifies the passphrase to decrypt the PEM encoded private key (`reindex.ssl.key`) if it is encrypted. [7.17.0] Prefer `reindex.ssl.secure_key_passphrase` instead. Cannot be used with `reindex.ssl.secure_key_passphrase`.
 
-`reindex.ssl.keystore.key_password`
+`reindex.ssl.keystore.key_password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   The password for the key in the keystore (`reindex.ssl.keystore.path`). Defaults to the keystore password. [7.17.0] Prefer `reindex.ssl.keystore.secure_key_password` instead. This setting cannot be used with `reindex.ssl.keystore.secure_key_password`.
 
-`reindex.ssl.keystore.password`
+`reindex.ssl.keystore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   The password to the keystore (`reindex.ssl.keystore.path`). [7.17.0] Prefer `reindex.ssl.keystore.secure_password` instead. This setting cannot be used with `reindex.ssl.keystore.secure_password`.
 
-`reindex.ssl.keystore.path`
+`reindex.ssl.keystore.path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   Specifies the path to the keystore that contains a private key and certificate to be used for HTTP client authentication (if required by the remote cluster). This keystore can be in "JKS" or "PKCS#12" format. You cannot specify both `reindex.ssl.key` and `reindex.ssl.keystore.path`.
 
-`reindex.ssl.keystore.type`
+`reindex.ssl.keystore.type` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   The type of the keystore (`reindex.ssl.keystore.path`). Must be either `jks` or `PKCS12`. If the keystore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
-`reindex.ssl.secure_key_passphrase` ([Secure](docs-content://deploy-manage/security/secure-settings.md))
+`reindex.ssl.secure_key_passphrase` ([Secure](docs-content://deploy-manage/security/secure-settings.md)) ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   Specifies the passphrase to decrypt the PEM encoded private key (`reindex.ssl.key`) if it is encrypted. Cannot be used with `reindex.ssl.key_passphrase`.
 
-`reindex.ssl.keystore.secure_key_password` ([Secure](docs-content://deploy-manage/security/secure-settings.md))
+`reindex.ssl.keystore.secure_key_password` ([Secure](docs-content://deploy-manage/security/secure-settings.md)) ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   The password for the key in the keystore (`reindex.ssl.keystore.path`). Defaults to the keystore password. This setting cannot be used with `reindex.ssl.keystore.key_password`.
 
-`reindex.ssl.keystore.secure_password` ([Secure](docs-content://deploy-manage/security/secure-settings.md))
+`reindex.ssl.keystore.secure_password` ([Secure](docs-content://deploy-manage/security/secure-settings.md)) ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   The password to the keystore (`reindex.ssl.keystore.path`). This setting cannot be used with `reindex.ssl.keystore.password`.
 
-`reindex.ssl.truststore.password`
+`reindex.ssl.truststore.password` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   The password to the truststore (`reindex.ssl.truststore.path`). [7.17.0] Prefer `reindex.ssl.truststore.secure_password` instead. This setting cannot be used with `reindex.ssl.truststore.secure_password`.
 
-`reindex.ssl.truststore.path`
+`reindex.ssl.truststore.path` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   The path to the Java Keystore file that contains the certificates to trust. This keystore can be in "JKS" or "PKCS#12" format. You cannot specify both `reindex.ssl.certificate_authorities` and `reindex.ssl.truststore.path`.
 
-`reindex.ssl.truststore.secure_password` ([Secure](docs-content://deploy-manage/security/secure-settings.md))
+`reindex.ssl.truststore.secure_password` ([Secure](docs-content://deploy-manage/security/secure-settings.md)) ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   The password to the truststore (`reindex.ssl.truststore.path`). This setting cannot be used with `reindex.ssl.truststore.password`.
 
-`reindex.ssl.truststore.type`
+`reindex.ssl.truststore.type` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   The type of the truststore (`reindex.ssl.truststore.path`). Must be either `jks` or `PKCS12`. If the truststore path ends in ".p12", ".pfx" or "pkcs12", this setting defaults to `PKCS12`. Otherwise, it defaults to `jks`.
 
-`reindex.ssl.verification_mode`
+`reindex.ssl.verification_mode` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   Indicates the type of verification to protect against man in the middle attacks and certificate forgery. One of `full` (verify the hostname and the certificate path), `certificate` (verify the certificate path, but not the hostname) or `none` (perform no verification - this is strongly discouraged in production environments). Defaults to `full`.
 

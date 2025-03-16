@@ -69,10 +69,10 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         // alternatively, when scheduler(s)' concurrency capacity exceeds the executor's thread count, excess merges will be enqueued
         MERGE_EXECUTOR_THREAD_COUNT = MERGE_SCHEDULER_MAX_CONCURRENCY + randomFrom(-2, -1, 0, 1, 2);
         return Settings.builder()
-                .put(super.nodeSettings())
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), MERGE_EXECUTOR_THREAD_COUNT)
-                .build();
+            .put(super.nodeSettings())
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), MERGE_EXECUTOR_THREAD_COUNT)
+            .build();
     }
 
     @Override
@@ -88,9 +88,9 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             }
 
             protected ElasticsearchMergeScheduler createMergeScheduler(
-                    ShardId shardId,
-                    IndexSettings indexSettings,
-                    @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+                ShardId shardId,
+                IndexSettings indexSettings,
+                @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
             ) {
                 ElasticsearchMergeScheduler mergeScheduler = super.createMergeScheduler(
                     shardId,
@@ -205,8 +205,8 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
     public void testStressMergeQueue() throws Exception {
         createIndex(
             "index",
-                // stress test merging across multiple shards
-                indexSettings(randomIntBetween(1, 10), 0)
+            // stress test merging across multiple shards
+            indexSettings(randomIntBetween(1, 10), 0)
                 // few segments per merge ought to result in more merging activity
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), randomIntBetween(2, 3))
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), randomIntBetween(2, 3))

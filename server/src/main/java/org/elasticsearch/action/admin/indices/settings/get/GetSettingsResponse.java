@@ -37,7 +37,6 @@ public class GetSettingsResponse extends ActionResponse implements ChunkedToXCon
     }
 
     public GetSettingsResponse(StreamInput in) throws IOException {
-        super(in);
         indexToSettings = in.readImmutableMap(Settings::readSettingsFromStream);
         indexToDefaultSettings = in.readImmutableMap(Settings::readSettingsFromStream);
     }

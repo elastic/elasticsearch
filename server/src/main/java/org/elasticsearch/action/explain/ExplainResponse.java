@@ -64,7 +64,6 @@ public class ExplainResponse extends ActionResponse implements ToXContentObject 
     }
 
     public ExplainResponse(StreamInput in) throws IOException {
-        super(in);
         index = in.readString();
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readString();

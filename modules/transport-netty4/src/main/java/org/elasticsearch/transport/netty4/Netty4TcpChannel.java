@@ -12,18 +12,23 @@ package org.elasticsearch.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPromise;
+import io.netty.channel.DefaultChannelPromise;
+import io.netty.util.concurrent.ImmediateEventExecutor;
+import io.netty.util.internal.PlatformDependent;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.TcpChannel;
 
 import java.net.InetSocketAddress;
+import java.util.Queue;
 
 import static org.elasticsearch.transport.netty4.Netty4Utils.addListener;
-import static org.elasticsearch.transport.netty4.Netty4Utils.safeWriteAndFlush;
 
 public class Netty4TcpChannel implements TcpChannel {
 
@@ -34,6 +39,8 @@ public class Netty4TcpChannel implements TcpChannel {
     private final ListenableFuture<Void> closeContext = new ListenableFuture<>();
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
+    private final Runnable flushTask;
+    private final Queue<Tuple<Object, ChannelPromise>> sendQueue = PlatformDependent.newFixedMpscUnpaddedQueue(128);
 
     Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, ChannelFuture connectFuture) {
         this.channel = channel;
@@ -43,6 +50,21 @@ public class Netty4TcpChannel implements TcpChannel {
         this.rstOnClose = rstOnClose;
         addListener(this.channel.closeFuture(), closeContext);
         addListener(connectFuture, connectContext);
+        flushTask = () -> {
+            if (flushQueue()) {
+                channel.flush();
+            }
+        };
+    }
+
+    private boolean flushQueue() {
+        boolean wroteMessage = false;
+        Tuple<Object, ChannelPromise> toWrite;
+        while ((toWrite = sendQueue.poll()) != null) {
+            channel.write(toWrite.v1(), toWrite.v2());
+            wroteMessage = true;
+        }
+        return wroteMessage;
     }
 
     @Override
@@ -117,7 +139,25 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        safeWriteAndFlush(channel, reference, listener);
+        // Use ImmediateEventExecutor.INSTANCE since we want to be able to complete this promise, and any waiting listeners, even if the
+        // channel's event loop has shut down. Normally this completion will happen on the channel's event loop anyway because the write op
+        // can only be completed by some network event from this point on. However...
+        final Channel channel = this.channel;
+        final var promise = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
+        addListener(promise, listener);
+        assert Netty4Utils.assertCorrectPromiseListenerThreading(promise);
+        var eventLoop = channel.eventLoop();
+        if (eventLoop.inEventLoop()) {
+            flushQueue();
+            channel.writeAndFlush(reference, promise);
+        } else {
+            if (sendQueue.offer(new Tuple<>(reference, promise)) == false) {
+                channel.writeAndFlush(reference, promise);
+            } else {
+                eventLoop.execute(flushTask);
+            }
+        }
+        Netty4Utils.handleTerminatedEventLoop(channel, promise);
     }
 
     public Channel getNettyChannel() {

@@ -143,11 +143,11 @@ public class Netty4TcpChannel implements TcpChannel {
         var eventLoop = channel.eventLoop();
         if (eventLoop.inEventLoop()) {
             // from the eventloop we minimize allocations and latency by forwarding the current queue and the new message and triggering
-            // one flush after wards
+            // the flush task after
             flushQueue();
             channel.writeAndFlush(reference, promise);
         } else {
-            // We are not on the channel's transport thread, queue the write and trigger a flush task
+            // We are not on the channel's eventloop thread, queue the write and submit the flush task
             if (sendQueue.offer(new Tuple<>(reference, promise)) == false) {
                 channel.writeAndFlush(reference, promise);
             } else {

@@ -9,11 +9,20 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -21,6 +30,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Tests for the automatic queue resizing of the {@code QueueResizingEsThreadPoolExecutorTests}
@@ -32,7 +42,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         ThreadContext context = new ThreadContext(Settings.EMPTY);
 
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            "test-threadpool",
+            new EsExecutors.QualifiedName("test-threadpool"),
             1,
             1,
             1000,
@@ -42,7 +52,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA),
+            MeterRegistry.NOOP
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -84,7 +95,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         TaskExecutionTimeTrackingEsThreadPoolExecutor executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            "test-threadpool",
+            new EsExecutors.QualifiedName("test-threadpool"),
             1,
             1,
             1000,
@@ -94,7 +105,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA)
+            new TaskTrackingConfig(randomBoolean(), DEFAULT_EWMA_ALPHA),
+            MeterRegistry.NOOP
         );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
@@ -116,7 +128,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         var testStartTimeNanos = System.nanoTime();
         ThreadContext context = new ThreadContext(Settings.EMPTY);
         var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
-            "test-threadpool",
+            new EsExecutors.QualifiedName("test-threadpool"),
             1,
             1,
             1000,
@@ -126,7 +138,8 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
             EsExecutors.daemonThreadFactory("queuetest"),
             new EsAbortPolicy(),
             context,
-            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA)
+            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA),
+            MeterRegistry.NOOP
         );
         var taskRunningLatch = new CountDownLatch(1);
         var exitTaskLatch = new CountDownLatch(1);
@@ -145,6 +158,69 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutorTests extends ESTestCa
         assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L));
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
+    }
+
+    public void testQueueLatencyMetrics() {
+        RecordingMeterRegistry meterRegistry = new RecordingMeterRegistry();
+        final var threadPoolName = randomIdentifier();
+        var executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+            new EsExecutors.QualifiedName(threadPoolName),
+            1,
+            1,
+            1000,
+            TimeUnit.MILLISECONDS,
+            ConcurrentCollections.newBlockingQueue(),
+            TimedRunnable::new,
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            new ThreadContext(Settings.EMPTY),
+            new TaskTrackingConfig(true, DEFAULT_EWMA_ALPHA),
+            meterRegistry
+        );
+
+        try {
+            final var barrier = new CyclicBarrier(2);
+            final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
+            Future<?> runningTask = executor.submit(() -> {
+                safeAwait(barrier);
+                safeAwait(barrier);
+            });
+            safeAwait(barrier); // wait till first task starts
+            handlingTimeTracker.addHandlingTime(0L); // first task should not be delayed
+            for (int i = 0; i < 10; i++) {
+                Future<?> waitingTask = executor.submit(() -> {
+                    safeAwait(barrier);
+                    safeAwait(barrier);
+                });
+                final long delayTimeMs = randomLongBetween(1, 50);
+                safeSleep(delayTimeMs);
+                safeAwait(barrier); // let running task complete
+                safeAwait(barrier); // wait for next task to start
+                safeGet(runningTask); // ensure previous task is complete
+                handlingTimeTracker.addHandlingTime(delayTimeMs);
+                runningTask = waitingTask;
+            }
+            safeAwait(barrier); // let last task finish
+            safeGet(runningTask);
+            meterRegistry.getRecorder().collect();
+
+            List<Measurement> measurements = meterRegistry.getRecorder()
+                .getMeasurements(
+                    InstrumentType.LONG_GAUGE,
+                    ThreadPool.THREAD_POOL_METRIC_PREFIX + threadPoolName
+                        + TaskExecutionTimeTrackingEsThreadPoolExecutor.THREAD_POOL_METRIC_NAME_QUEUE_TIME
+                );
+            assertThat(measurements, hasSize(2));
+            // we have to use greater than or equal to because the actual delay might be higher than what we imposed
+            assertThat(getPercentile(measurements, "90"), greaterThanOrEqualTo(handlingTimeTracker.getPercentile(0.9f)));
+            assertThat(getPercentile(measurements, "50"), greaterThanOrEqualTo(handlingTimeTracker.getPercentile(0.5f)));
+        } finally {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
+    }
+
+    private long getPercentile(List<Measurement> measurements, String percentile) {
+        return measurements.stream().filter(m -> m.attributes().get("percentile").equals(percentile)).findFirst().orElseThrow().getLong();
     }
 
     /**

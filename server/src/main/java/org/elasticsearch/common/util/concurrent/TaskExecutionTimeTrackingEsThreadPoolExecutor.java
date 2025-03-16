@@ -10,9 +10,16 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.LongGauge;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,15 +34,20 @@ import java.util.function.Function;
  */
 public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
+    private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90 };
+    public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".threads.queue.latency.histogram";
+
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
     private final LongAdder totalExecutionTime = new LongAdder();
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
+    private final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
+    private final LongGauge queueLatencyGauge;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
-        String name,
+        EsExecutors.QualifiedName name,
         int corePoolSize,
         int maximumPoolSize,
         long keepAliveTime,
@@ -45,12 +57,40 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ThreadFactory threadFactory,
         RejectedExecutionHandler handler,
         ThreadContext contextHolder,
-        TaskTrackingConfig trackingConfig
+        TaskTrackingConfig trackingConfig,
+        MeterRegistry meterRegistry
     ) {
-        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
+        super(
+            name.toCompositeString(),
+            corePoolSize,
+            maximumPoolSize,
+            keepAliveTime,
+            unit,
+            workQueue,
+            threadFactory,
+            handler,
+            contextHolder
+        );
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
+        this.queueLatencyGauge = meterRegistry.registerLongsGauge(
+            ThreadPool.THREAD_POOL_METRIC_PREFIX + name.threadPoolName() + THREAD_POOL_METRIC_NAME_QUEUE_TIME,
+            "Time tasks spent in the queue for the " + name.threadPoolName() + " thread pool",
+            "milliseconds",
+            () -> {
+                List<LongWithAttributes> metricValues = Arrays.stream(LATENCY_PERCENTILES_TO_REPORT)
+                    .mapToObj(
+                        percentile -> new LongWithAttributes(
+                            handlingTimeTracker.getPercentile(percentile / 100f),
+                            Map.of("percentile", String.valueOf(percentile))
+                        )
+                    )
+                    .toList();
+                handlingTimeTracker.clear();
+                return metricValues;
+            }
+        );
     }
 
     @Override
@@ -117,6 +157,15 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                 // taskExecutionNanos may be -1 if the task threw an exception
                 executionEWMA.addValue(taskExecutionNanos);
                 totalExecutionTime.add(taskExecutionNanos);
+            }
+            final long taskQueueLatency = timedRunnable.getQueueTimeNanos();
+            assert taskQueueLatency >= 0 || (failedOrRejected && taskQueueLatency == -1)
+                : "queue latency should always be non-negative or `-1` to indicate rejection, got: "
+                    + taskQueueLatency
+                    + ", failedOrRejected: "
+                    + failedOrRejected;
+            if (taskQueueLatency != -1) {
+                handlingTimeTracker.addHandlingTime(TimeUnit.NANOSECONDS.toMillis(taskQueueLatency));
             }
         } finally {
             // if trackOngoingTasks is false -> ongoingTasks must be empty

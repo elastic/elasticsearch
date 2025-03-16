@@ -51,10 +51,12 @@ public class EsqlListQueriesResponse extends ActionResponse implements ToXConten
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject("queries");
         // for (Query query : queries) {
         // query.toXContent(builder, params);
         // }
+        builder.endObject();
         builder.endObject();
         return builder;
     }

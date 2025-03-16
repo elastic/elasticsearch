@@ -34,7 +34,6 @@ public class GetVirtualBatchedCompoundCommitChunkResponse extends ActionResponse
     }
 
     public GetVirtualBatchedCompoundCommitChunkResponse(StreamInput in) throws IOException {
-        super(in);
         data = in.readReleasableBytesReference();
     }
 

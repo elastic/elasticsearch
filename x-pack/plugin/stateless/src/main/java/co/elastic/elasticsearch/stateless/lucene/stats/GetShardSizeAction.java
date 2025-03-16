@@ -114,7 +114,6 @@ public class GetShardSizeAction {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.shardSize = in.readOptionalWriteable(ShardSize::from);
         }
 

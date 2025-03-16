@@ -60,7 +60,6 @@ public class RegisterCommitResponse extends ActionResponse {
     }
 
     public RegisterCommitResponse(StreamInput in, @Nullable String nodeId) throws IOException {
-        super(in);
         this.latestUploadedBatchedCompoundCommitTermAndGen = new PrimaryTermAndGeneration(in);
         this.compoundCommit = in.readOptionalWriteable(input -> StatelessCompoundCommit.readFromTransport(in));
         this.nodeId = nodeId; // not serialized

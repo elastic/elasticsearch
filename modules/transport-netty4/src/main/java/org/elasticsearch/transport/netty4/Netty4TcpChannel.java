@@ -138,9 +138,6 @@ public class Netty4TcpChannel implements TcpChannel {
 
     @Override
     public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
-        // Use ImmediateEventExecutor.INSTANCE since we want to be able to complete this promise, and any waiting listeners, even if the
-        // channel's event loop has shut down. Normally this completion will happen on the channel's event loop anyway because the write op
-        // can only be completed by some network event from this point on. However...
         final Channel channel = this.channel;
         final var promise = Netty4Utils.asChannelPromise(listener, channel);
         var eventLoop = channel.eventLoop();

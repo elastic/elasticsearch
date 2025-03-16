@@ -89,7 +89,7 @@ Poorly written regular expressions can degrade cluster stability and performance
 
 $$$script-painless-regex-enabled$$$
 
-`script.painless.regex.enabled`
+`script.painless.regex.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Enables regex in Painless scripts. Accepts:
 
     `limited` (Default)

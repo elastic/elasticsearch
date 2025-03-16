@@ -1,7 +1,9 @@
 ---
-navigation_title: "Serverless differences"
+navigation_title: "{{es}} settings {{serverless-short}}"
 mapped_pages:
   - https://www.elastic.co/guide/en/serverless/current/elasticsearch-differences.html
+applies_to:
+  serverless:
 ---
 
 # Differences from other {{es}} offerings [elasticsearch-differences]

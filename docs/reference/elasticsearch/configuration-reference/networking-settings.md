@@ -337,7 +337,7 @@ Use the following advanced settings to configure the transport interface indepen
 
 $$$transport-settings-compress$$$
 
-`transport.compress`
+`transport.compress` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), string) Determines which transport requests are compressed before sending them to another node. {{es}} will compress transport responses if and only if the corresponding request was compressed. See also `transport.compression_scheme`, which specifies the compression scheme which is used. Accepts the following values:
 
     `false`
@@ -352,7 +352,7 @@ $$$transport-settings-compress$$$
 
 $$$transport-settings-compression-scheme$$$
 
-`transport.compression_scheme`
+`transport.compression_scheme` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), string) Configures the compression scheme for requests which are selected for compression by to the `transport.compress` setting. Accepts either `deflate` or `lz4`, which offer different trade-offs between compression ratio and CPU usage. {{es}} will use the same compression scheme for responses as for the corresponding requests. Defaults to `lz4`.
 
 `transport.tcp.keep_alive`

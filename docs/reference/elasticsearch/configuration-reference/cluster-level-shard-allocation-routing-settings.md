@@ -165,7 +165,7 @@ You can use the following settings to control disk-based allocation:
 
 $$$cluster-routing-disk-threshold$$$
 
-`cluster.routing.allocation.disk.threshold_enabled`
+`cluster.routing.allocation.disk.threshold_enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Defaults to `true`. Set to `false` to disable the disk allocation decider. Upon disabling, it will also remove any existing `index.blocks.read_only_allow_delete` index blocks.
 
 $$$cluster-routing-watermark-low$$$

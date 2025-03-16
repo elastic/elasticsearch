@@ -375,6 +375,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {lookup-join.MvJoinKeyFromRow SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/124951
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocalNoRemotes
+  issue: https://github.com/elastic/elasticsearch/issues/124959
 
 # Examples:
 #

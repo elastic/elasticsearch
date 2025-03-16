@@ -2978,3 +2978,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
     }
 }
+    public void testUnclosedParenthesis() {
+        String[] queries = { "row a = )", "row ]", "from source | eval x = [1,2,3]]" };
+        for (String q : queries) {
+            expectError(q, "Invalid query");
+        }
+    }
+}

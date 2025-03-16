@@ -178,6 +178,8 @@ import static org.mockito.Mockito.mock;
 
 public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
+    private static final int SEARCH_POOL_SIZE = 10;
+
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
@@ -263,7 +265,10 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put("search.default_search_timeout", "5s").build();
+        return Settings.builder()
+            .put("search.default_search_timeout", "5s")
+            .put("thread_pool.search.size", SEARCH_POOL_SIZE) // customized search pool size, reconfiguring at runtime is unsupported
+            .build();
     }
 
     public void testClearOnClose() {
@@ -2088,6 +2093,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             CountDownLatch latch = new CountDownLatch(1);
             shardRequest.source().query(new MatchNoneQueryBuilder());
             service.executeQueryPhase(shardRequest, task, new ActionListener<>() {
+
                 @Override
                 public void onResponse(SearchPhaseResult result) {
                     try {
@@ -2688,8 +2694,11 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     public void testSlicingBehaviourForParallelCollection() throws Exception {
         IndexService indexService = createIndex("index", Settings.EMPTY);
         ThreadPoolExecutor executor = (ThreadPoolExecutor) indexService.getThreadPool().executor(ThreadPool.Names.SEARCH);
-        final int configuredMaxPoolSize = 10;
-        executor.setMaximumPoolSize(configuredMaxPoolSize); // We set this explicitly to be independent of CPU cores.
+
+        // We configure the executor pool size explicitly in nodeSettings to be independent of CPU cores
+        assert String.valueOf(SEARCH_POOL_SIZE).equals(node().settings().get("thread_pool.search.size"))
+            : "Unexpected thread_pool.search.size";
+
         int numDocs = randomIntBetween(50, 100);
         for (int i = 0; i < numDocs; i++) {
             prepareIndex("index").setId(String.valueOf(i)).setSource("field", "value").get();
@@ -2722,7 +2731,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     final int maxPoolSize = executor.getMaximumPoolSize();
                     assertEquals(
                         "Sanity check to ensure this isn't the default of 1 when pool size is unset",
-                        configuredMaxPoolSize,
+                        SEARCH_POOL_SIZE,
                         maxPoolSize
                     );
 
@@ -2752,7 +2761,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                     final int maxPoolSize = executor.getMaximumPoolSize();
                     assertEquals(
                         "Sanity check to ensure this isn't the default of 1 when pool size is unset",
-                        configuredMaxPoolSize,
+                        SEARCH_POOL_SIZE,
                         maxPoolSize
                     );
 
@@ -2843,7 +2852,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                         final int maxPoolSize = executor.getMaximumPoolSize();
                         assertEquals(
                             "Sanity check to ensure this isn't the default of 1 when pool size is unset",
-                            configuredMaxPoolSize,
+                            SEARCH_POOL_SIZE,
                             maxPoolSize
                         );
 

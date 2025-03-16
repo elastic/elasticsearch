@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -37,13 +36,7 @@ public abstract class SearchPhaseResult extends TransportResponse {
     private ShardSearchRequest shardSearchRequest;
     private RescoreDocIds rescoreDocIds = RescoreDocIds.EMPTY;
 
-    protected SearchPhaseResult() {
-
-    }
-
-    protected SearchPhaseResult(StreamInput in) throws IOException {
-        super(in);
-    }
+    protected SearchPhaseResult() {}
 
     /**
      * Specifies whether the specific search phase results are associated with an opened SearchContext on the shards that

@@ -135,7 +135,6 @@ public class TransportHealthNodeActionTests extends ESTestCase {
         Response() {}
 
         Response(StreamInput in) throws IOException {
-            super(in);
             identity = in.readLong();
         }
 

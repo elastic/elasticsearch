@@ -55,7 +55,6 @@ final class ComputeResponse extends TransportResponse {
     }
 
     ComputeResponse(StreamInput in) throws IOException {
-        super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
                 profiles = in.readCollectionAsImmutableList(DriverProfile::readFrom);

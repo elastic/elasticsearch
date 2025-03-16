@@ -192,8 +192,8 @@ public class EsqlParser {
 
                 if (parser.isDevVersion() == false) {
                     m = REPLACE_DEV.matcher(message);
-                message = m.replaceAll(StringUtils.EMPTY);
-            }
+                    message = m.replaceAll(StringUtils.EMPTY);
+                }
             }
             throw new ParsingException(message, e, line, charPositionInLine);
         }

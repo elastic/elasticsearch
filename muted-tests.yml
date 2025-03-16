@@ -387,6 +387,9 @@ tests:
 - class: org.elasticsearch.integration.DataStreamLifecycleServiceRuntimeSecurityIT
   method: testRolloverLifecycleAndForceMergeAuthorized
   issue: https://github.com/elastic/elasticsearch/issues/124978
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test10Install
+  issue: https://github.com/elastic/elasticsearch/issues/124957
 
 # Examples:
 #

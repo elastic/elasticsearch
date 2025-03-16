@@ -101,7 +101,6 @@ public class GetAllShardSizesAction {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.shardSizes = in.readImmutableMap(ShardId::new, ShardSize::from);
         }
 

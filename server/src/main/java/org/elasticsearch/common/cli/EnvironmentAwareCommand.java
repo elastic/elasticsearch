@@ -84,11 +84,7 @@ public abstract class EnvironmentAwareCommand extends Command {
                 throw new UserException(ExitCodes.USAGE, "setting [" + kvp.key + "] must not be empty");
             }
             if (settings.containsKey(kvp.key)) {
-                final String message = String.format(
-                    Locale.ROOT,
-                    "setting [%s] set twice via command line -E",
-                    kvp.key
-                );
+                final String message = String.format(Locale.ROOT, "setting [%s] set twice via command line -E", kvp.key);
                 throw new UserException(ExitCodes.USAGE, message);
             }
             settings.put(kvp.key, kvp.value);

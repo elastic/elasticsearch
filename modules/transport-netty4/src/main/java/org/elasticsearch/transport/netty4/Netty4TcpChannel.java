@@ -13,8 +13,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPromise;
-import io.netty.channel.DefaultChannelPromise;
-import io.netty.util.concurrent.ImmediateEventExecutor;
 import io.netty.util.internal.PlatformDependent;
 
 import org.elasticsearch.action.ActionListener;
@@ -144,9 +142,7 @@ public class Netty4TcpChannel implements TcpChannel {
         // channel's event loop has shut down. Normally this completion will happen on the channel's event loop anyway because the write op
         // can only be completed by some network event from this point on. However...
         final Channel channel = this.channel;
-        final var promise = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
-        addListener(promise, listener);
-        assert Netty4Utils.assertCorrectPromiseListenerThreading(promise);
+        final var promise = Netty4Utils.asChannelPromise(listener, channel);
         var eventLoop = channel.eventLoop();
         if (eventLoop.inEventLoop()) {
             // from the eventloop we minimize allocations and latency by forwarding the current queue and the new message and triggering

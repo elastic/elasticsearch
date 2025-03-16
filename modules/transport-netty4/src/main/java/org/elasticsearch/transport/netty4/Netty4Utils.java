@@ -195,14 +195,19 @@ public class Netty4Utils {
      * if the event loop is concurrently shutting down since Netty does not offer this guarantee.
      */
     public static void safeWriteAndFlush(Channel channel, Object message, ActionListener<Void> listener) {
-        // Use ImmediateEventExecutor.INSTANCE since we want to be able to complete this promise, and any waiting listeners, even if the
-        // channel's event loop has shut down. Normally this completion will happen on the channel's event loop anyway because the write op
-        // can only be completed by some network event from this point on. However...
-        final var promise = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
-        addListener(promise, listener);
-        assert assertCorrectPromiseListenerThreading(promise);
+        final var promise = asChannelPromise(listener, channel);
         channel.writeAndFlush(message, promise);
         handleTerminatedEventLoop(channel.eventLoop(), promise);
+    }
+
+    static DefaultChannelPromise asChannelPromise(ActionListener<Void> listener, Channel channel) {
+        // Use ImmediateEventExecutor.INSTANCE since we want to be able to complete this promise, and any waiting listeners, even if the
+        // channel's event loop has shut down. Normally this completion will happen on the channel's event loop anyway because the write op
+        // can only be completed by some network event from this point on.
+        final var promise = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
+        addListener(promise, listener);
+        assert Netty4Utils.assertCorrectPromiseListenerThreading(promise);
+        return promise;
     }
 
     static void handleTerminatedEventLoop(EventLoop eventLoop, DefaultChannelPromise promise) {

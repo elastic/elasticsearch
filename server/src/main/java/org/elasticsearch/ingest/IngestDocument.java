@@ -263,6 +263,8 @@ public final class IngestDocument {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 return false;
+            } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+                context = map.get(pathElement);
             } else if (context instanceof Map<?, ?> map) {
                 context = map.get(pathElement);
             } else if (context instanceof List<?> list) {
@@ -289,6 +291,8 @@ public final class IngestDocument {
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             return false;
+        } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+            return map.containsKey(leafKey);
         } else if (context instanceof Map<?, ?> map) {
             return map.containsKey(leafKey);
         } else if (context instanceof List<?> list) {
@@ -329,6 +333,12 @@ public final class IngestDocument {
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             throw new IllegalArgumentException(Errors.cannotRemove(path, leafKey, null));
+        } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+            if (map.containsKey(leafKey)) {
+                map.remove(leafKey);
+            } else {
+                throw new IllegalArgumentException(Errors.notPresent(path, leafKey));
+            }
         } else if (context instanceof Map<?, ?> map) {
             if (map.containsKey(leafKey)) {
                 map.remove(leafKey);
@@ -361,6 +371,13 @@ public final class IngestDocument {
             String pathElement = pathElements[i];
             if (context == null) {
                 return ResolveResult.error(Errors.cannotResolve(fullPath, pathElement, null));
+            } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    return ResolveResult.error(Errors.notPresent(fullPath, pathElement));
+                } else {
+                    context = object;
+                }
             } else if (context instanceof Map<?, ?>) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
@@ -521,6 +538,15 @@ public final class IngestDocument {
             String pathElement = fieldPath.pathElements[i];
             if (context == null) {
                 throw new IllegalArgumentException(Errors.cannotResolve(path, pathElement, null));
+            } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+                Object object = map.getOrDefault(pathElement, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    Map<Object, Object> newMap = new HashMap<>();
+                    map.put(pathElement, newMap);
+                    context = newMap;
+                } else {
+                    context = object;
+                }
             } else if (context instanceof Map<?, ?>) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) context;
@@ -552,6 +578,22 @@ public final class IngestDocument {
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
         if (context == null) {
             throw new IllegalArgumentException(Errors.cannotSet(path, leafKey, null));
+        } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+            if (append) {
+                Object object = map.getOrDefault(leafKey, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (object == NOT_FOUND) {
+                    List<Object> list = new ArrayList<>();
+                    appendValues(list, value);
+                    map.put(leafKey, list);
+                } else {
+                    Object list = appendValues(object, value, allowDuplicates);
+                    if (list != object) {
+                        map.put(leafKey, list);
+                    }
+                }
+                return;
+            }
+            map.put(leafKey, value);
         } else if (context instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) context;

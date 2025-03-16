@@ -40,6 +40,7 @@ public class Netty4TcpChannel implements TcpChannel {
     private final ChannelStats stats = new ChannelStats();
     private final boolean rstOnClose;
     private final Runnable flushTask;
+    // queue of objects that will be written by the next execution of #flushTask and the promise to resolve on their completion
     private final Queue<Tuple<Object, ChannelPromise>> sendQueue = PlatformDependent.newFixedMpscUnpaddedQueue(128);
 
     Netty4TcpChannel(Channel channel, boolean isServer, String profile, boolean rstOnClose, ChannelFuture connectFuture) {
@@ -148,16 +149,19 @@ public class Netty4TcpChannel implements TcpChannel {
         assert Netty4Utils.assertCorrectPromiseListenerThreading(promise);
         var eventLoop = channel.eventLoop();
         if (eventLoop.inEventLoop()) {
+            // from the eventloop we minimize allocations and latency by forwarding the current queue and the new message and triggering
+            // one flush after wards
             flushQueue();
             channel.writeAndFlush(reference, promise);
         } else {
+            // We are not on the channel's transport thread, queue the write and trigger a flush task
             if (sendQueue.offer(new Tuple<>(reference, promise)) == false) {
                 channel.writeAndFlush(reference, promise);
             } else {
                 eventLoop.execute(flushTask);
             }
         }
-        Netty4Utils.handleTerminatedEventLoop(channel, promise);
+        Netty4Utils.handleTerminatedEventLoop(eventLoop, promise);
     }
 
     public Channel getNettyChannel() {

@@ -32,7 +32,6 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
         private final OperationMode mode;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             mode = in.readEnum(OperationMode.class);
         }
 

@@ -1925,7 +1925,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testHostOnMessages() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(2);
         final AtomicReference<InetSocketAddress> addressA = new AtomicReference<>();
-        final AtomicReference<InetSocketAddress> addressB = new AtomicReference<>();
         serviceB.registerRequestHandler(
             "internal:action1",
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -1949,7 +1948,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleResponse(TestResponse response) {
-                addressB.set(response.remoteAddress());
                 latch.countDown();
             }
 
@@ -1965,9 +1963,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         // nodeA opened the connection so the request originates from an ephemeral port, but from the right interface at least
         assertEquals(nodeA.getAddress().address().getAddress(), addressA.get().getAddress());
-
-        // the response originates from the expected transport port
-        assertEquals(nodeB.getAddress().address(), addressB.get());
     }
 
     public void testRejectEarlyIncomingRequests() throws Exception {
@@ -2092,7 +2087,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final String info;
 
         TestResponse(StreamInput in) throws IOException {
-            super(in);
             this.info = in.readOptionalString();
         }
 

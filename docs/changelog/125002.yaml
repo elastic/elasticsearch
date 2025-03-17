@@ -1,0 +1,5 @@
+pr: 125002
+summary: Don't generate stacktrace in `TaskCancelledException`
+area: Search
+type: bug
+issues: []

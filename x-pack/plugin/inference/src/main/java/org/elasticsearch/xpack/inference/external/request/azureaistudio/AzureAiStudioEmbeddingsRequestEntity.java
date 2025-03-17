@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.request.azureaistudio;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -18,13 +19,19 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DIMENSIONS_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.INPUT_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.USER_FIELD;
+import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.invalidInputTypeMessage;
 
 public record AzureAiStudioEmbeddingsRequestEntity(
     List<String> input,
+    InputType inputType,
     @Nullable String user,
     @Nullable Integer dimensions,
     boolean dimensionsSetByUser
 ) implements ToXContentObject {
+
+    private static final String DOCUMENT = "document";
+    private static final String QUERY = "query";
+    public static final String INPUT_TYPE_FIELD = "input_type";
 
     public AzureAiStudioEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -44,8 +51,24 @@ public record AzureAiStudioEmbeddingsRequestEntity(
             builder.field(DIMENSIONS_FIELD, dimensions);
         }
 
+        if (InputType.isSpecified(inputType)) {
+            builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
+        }
+
         builder.endObject();
 
         return builder;
+    }
+
+    // default for testing
+    public static String convertToString(InputType inputType) {
+        return switch (inputType) {
+            case INGEST, INTERNAL_INGEST -> DOCUMENT;
+            case SEARCH, INTERNAL_SEARCH -> QUERY;
+            default -> {
+                assert false : invalidInputTypeMessage(inputType);
+                yield null;
+            }
+        };
     }
 }

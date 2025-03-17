@@ -265,7 +265,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     protected Object simulateMethod(Method method, Object[] args) {
         InferenceAction.Request request = (InferenceAction.Request) args[1];
         assertThat(request.getTaskType(), equalTo(TaskType.ANY));
-        assertThat(request.getInputType(), equalTo(InputType.SEARCH));
+        assertThat(request.getInputType(), equalTo(InputType.INTERNAL_SEARCH));
         assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
 
         List<String> input = request.getInput();

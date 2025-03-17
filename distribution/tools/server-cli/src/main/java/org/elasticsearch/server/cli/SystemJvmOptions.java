@@ -25,6 +25,7 @@ final class SystemJvmOptions {
 
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
+        String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
 
         boolean useEntitlements = true;
@@ -66,8 +67,9 @@ final class SystemJvmOptions {
                 "-Djava.locale.providers=CLDR",
                 // Enable vectorization for whatever version we are running. This ensures we use vectorization even when running EA builds.
                 "-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + Runtime.version().feature(),
-                // Pass through distribution type
-                "-Des.distribution.type=" + distroType
+                // Pass through distribution type and java type
+                "-Des.distribution.type=" + distroType,
+                "-Des.java.type=" + javaType
             ),
             maybeEnableNativeAccess(useEntitlements),
             maybeOverrideDockerCgroup(distroType),

@@ -71,6 +71,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         ComposableIndexTemplate.builder().build(),
         Collections.emptyMap(),
         Collections.singletonList("FAKE_ORIGIN"),
+        "FAKE_ORIGIN",
         ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
     );
 

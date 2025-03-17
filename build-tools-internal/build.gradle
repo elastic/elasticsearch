@@ -303,6 +303,7 @@ dependencies {
   api buildLibs.asm.tree
   api buildLibs.httpclient5
   api buildLibs.httpcore5
+
   compileOnly buildLibs.checkstyle
   compileOnly buildLibs.reflections
 

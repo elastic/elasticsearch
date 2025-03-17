@@ -113,6 +113,11 @@ public class EsqlCapabilities {
         CASTING_OPERATOR,
 
         /**
+         * Support for the ::date casting operator
+         */
+        CASTING_OPERATOR_FOR_DATE,
+
+        /**
          * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
          */
         MV_ORDERING_SORTED_ASCENDING,
@@ -840,7 +845,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V4(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+        INLINESTATS_V5(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
 
         /**
          * Support partial_results
@@ -865,7 +870,28 @@ public class EsqlCapabilities {
         /**
          * Support for RRF command
          */
-        RRF(Build.current().isSnapshot());
+        RRF(Build.current().isSnapshot()),
+
+        /**
+         * Lucene query pushdown to StartsWith and EndsWith functions.
+         * This capability was created to avoid receiving wrong warnings from old nodes in mixed clusters
+         */
+        STARTS_WITH_ENDS_WITH_LUCENE_PUSHDOWN,
+
+        /**
+         * Full text functions can be scored when being part of a disjunction
+         */
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
+         * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
+         */
+        TO_LOWER_MV,
+
+        /**
+         * Use double parameter markers to represent field or function names.
+         */
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot());
 
         private final boolean enabled;
 

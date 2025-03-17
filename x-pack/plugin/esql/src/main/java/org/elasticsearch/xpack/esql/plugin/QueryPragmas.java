@@ -18,6 +18,7 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 
@@ -55,11 +56,20 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<TimeValue> STATUS_INTERVAL = Setting.timeSetting("status_interval", Driver.DEFAULT_STATUS_INTERVAL);
 
-    public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
+    public static final Setting<Integer> MAX_CONCURRENT_NODES_PER_CLUSTER = //
+        Setting.intSetting("max_concurrent_nodes_per_cluster", -1, -1, 100);
+    public static final Setting<Integer> MAX_CONCURRENT_SHARDS_PER_NODE = //
+        Setting.intSetting("max_concurrent_shards_per_node", 10, 1, 100);
 
     public static final Setting<Boolean> NODE_LEVEL_REDUCTION = Setting.boolSetting("node_level_reduction", true);
 
     public static final Setting<ByteSizeValue> FOLD_LIMIT = Setting.memorySizeSetting("fold_limit", "5%");
+
+    public static final Setting<MappedFieldType.FieldExtractPreference> FIELD_EXTRACT_PREFERENCE = Setting.enumSetting(
+        MappedFieldType.FieldExtractPreference.class,
+        "field_extract_preference",
+        MappedFieldType.FieldExtractPreference.NONE
+    );
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
@@ -123,6 +133,13 @@ public final class QueryPragmas implements Writeable {
     }
 
     /**
+     * The maximum number of nodes to be queried at once by this query. This is safeguard to avoid overloading the cluster.
+     */
+    public int maxConcurrentNodesPerCluster() {
+        return MAX_CONCURRENT_NODES_PER_CLUSTER.get(settings);
+    }
+
+    /**
      * The maximum number of shards can be executed concurrently on a single node by this query. This is a safeguard to avoid
      * opening and holding many shards (equivalent to many file descriptors) or having too many field infos created by a single query.
      */
@@ -147,6 +164,16 @@ public final class QueryPragmas implements Writeable {
      */
     public ByteSizeValue foldLimit() {
         return FOLD_LIMIT.get(settings);
+    }
+
+    /**
+     * The default preference for extracting fields, defaults to {@code NONE}. Some fields must
+     * be extracted in some special way because of how they are used in the plan. But most fields
+     * can be loaded in many ways so they pick the ways that they think are most efficient in their
+     * {@link MappedFieldType#blockLoader} method. This can influence their choice.
+     */
+    public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+        return FIELD_EXTRACT_PREFERENCE.get(settings);
     }
 
     public boolean isEmpty() {

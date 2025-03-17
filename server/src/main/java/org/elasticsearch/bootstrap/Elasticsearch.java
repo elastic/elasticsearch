@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
@@ -35,7 +36,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
-import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -57,6 +59,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.invoke.MethodHandles;
+import java.lang.management.ManagementFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -66,6 +69,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -81,6 +85,9 @@ import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler
  * This class starts elasticsearch.
  */
 class Elasticsearch {
+
+    private static final String PLUGIN_POLICY_OVERRIDE_PREFIX = "es.entitlements.policy.";
+    private static final String SERVER_POLICY_OVERRIDE = "es.entitlements.server_policy";
 
     /**
      * Main entry point for starting elasticsearch.
@@ -175,6 +182,9 @@ class Elasticsearch {
      * <p> Phase 2 consists of everything that must occur up to and including security manager initialization.
      */
     private static void initPhase2(Bootstrap bootstrap) throws IOException {
+        // always start by dumping what we know about the process to the log
+        logSystemInfo();
+
         final ServerArgs args = bootstrap.args();
         final SecureSettings secrets = args.secrets();
         bootstrap.setSecureSettings(secrets);
@@ -238,11 +248,20 @@ class Elasticsearch {
 
             var pluginData = Stream.concat(
                 modulesBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
                 pluginsBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
-            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData);
+
+            var pluginPolicyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
+            var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyOverrides, Build.current().version());
+            var serverPolicyPatch = PolicyUtils.parseEncodedPolicyIfExists(
+                System.getProperty(SERVER_POLICY_OVERRIDE),
+                Build.current().version(),
+                false,
+                "server",
+                PolicyManager.SERVER_LAYER_MODULES.stream().map(Module::getName).collect(Collectors.toUnmodifiableSet())
+            );
 
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
@@ -250,6 +269,7 @@ class Elasticsearch {
             Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
                 .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
             EntitlementBootstrap.bootstrap(
+                serverPolicyPatch,
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
                 nodeEnv.settings()::getValues,
@@ -280,6 +300,64 @@ class Elasticsearch {
         }
 
         bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    private static void logSystemInfo() {
+        final Logger logger = LogManager.getLogger(Elasticsearch.class);
+        logger.info(
+            "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+            Build.current().qualifiedVersion(),
+            ProcessHandle.current().pid(),
+            Build.current().type().displayName(),
+            Build.current().hash(),
+            Build.current().date(),
+            Constants.OS_NAME,
+            Constants.OS_VERSION,
+            Constants.OS_ARCH,
+            Constants.JVM_VENDOR,
+            Constants.JVM_NAME,
+            System.getProperty("java.version"),
+            Runtime.version().toString()
+        );
+        boolean isBundledJdk = System.getProperty("es.java.type", "").equals("bundled JDK");
+        logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), isBundledJdk);
+        logger.info("JVM arguments {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
+        logger.info("Default Locale [{}]", Locale.getDefault());
+        if (Build.current().isProductionRelease() == false) {
+            logger.warn(
+                "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
+                Build.current().qualifiedVersion()
+            );
+        }
+    }
+
+    private static Map<String, String> collectPluginPolicyOverrides(
+        Set<PluginBundle> modulesBundles,
+        Set<PluginBundle> pluginsBundles,
+        Logger logger
+    ) {
+        var policyOverrides = new HashMap<String, String>();
+        var systemProperties = BootstrapInfo.getSystemProperties();
+        systemProperties.keys().asIterator().forEachRemaining(key -> {
+            var value = systemProperties.get(key);
+            if (key instanceof String k && k.startsWith(PLUGIN_POLICY_OVERRIDE_PREFIX) && value instanceof String v) {
+                policyOverrides.put(k.substring(PLUGIN_POLICY_OVERRIDE_PREFIX.length()), v);
+            }
+        });
+        var pluginNames = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
+            .map(bundle -> bundle.pluginDescriptor().getName())
+            .collect(Collectors.toUnmodifiableSet());
+
+        for (var overriddenPluginName : policyOverrides.keySet()) {
+            if (pluginNames.contains(overriddenPluginName) == false) {
+                logger.warn(
+                    "Found command-line override for unknown plugin [{}] (available plugins: [{}])",
+                    overriddenPluginName,
+                    String.join(", ", pluginNames)
+                );
+            }
+        }
+        return policyOverrides;
     }
 
     private static class EntitlementSelfTester {

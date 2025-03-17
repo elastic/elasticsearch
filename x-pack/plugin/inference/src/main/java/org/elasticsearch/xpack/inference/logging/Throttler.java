@@ -118,26 +118,20 @@ public class Throttler implements Closeable {
         logExecutors.clear();
     }
 
-    // default for testing
-    static class LogExecutor {
+    private static class LogExecutor {
         // -1 here because we need to determine if we haven't logged the first time
         // After the first time we'll set it to 0, then the thread that runs on an interval
         // needs to know if there are any repeated message, if it sees 0, it knows there are none
         // and skips emitting the message again.
         private static final long INITIAL_LOG_COUNTER_VALUE = -1;
 
-        private final AtomicLong skippedLogCalls;
+        private final AtomicLong skippedLogCalls = new AtomicLong(INITIAL_LOG_COUNTER_VALUE);
         private Instant timeOfLastLogCall;
         private final Clock clock;
         private final Consumer<String> throttledConsumer;
         private final String originalMessage;
 
         LogExecutor(Clock clock, Consumer<String> throttledConsumer, String originalMessage) {
-            this(clock, INITIAL_LOG_COUNTER_VALUE, throttledConsumer, originalMessage);
-        }
-
-        LogExecutor(Clock clock, long skippedLogCalls, Consumer<String> throttledConsumer, String originalMessage) {
-            this.skippedLogCalls = new AtomicLong(skippedLogCalls);
             this.clock = Objects.requireNonNull(clock);
             timeOfLastLogCall = Instant.now(this.clock);
             this.throttledConsumer = Objects.requireNonNull(throttledConsumer);
@@ -151,7 +145,7 @@ public class Throttler implements Closeable {
                 if (hasRepeatedLogsToEmit(numSkippedLogCalls) == false) {
                     // Since we tried to log but there were no repeated messages we'll reset this entry so a new message
                     // would get logged like it is the first time
-                    skippedLogCalls.set(INITIAL_LOG_COUNTER_VALUE);
+                    reset();
                     return;
                 }
             }
@@ -173,6 +167,10 @@ public class Throttler implements Closeable {
 
         private static boolean hasRepeatedLogsToEmit(long numSkippedLogCalls) {
             return numSkippedLogCalls > 0;
+        }
+
+        private void reset() {
+            skippedLogCalls.set(INITIAL_LOG_COUNTER_VALUE);
         }
 
         void logFirstMessage() {

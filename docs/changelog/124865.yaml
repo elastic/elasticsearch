@@ -1,0 +1,7 @@
+pr: 124865
+summary: "Permanently switch from Java SecurityManager to Entitlements.
+  With JDK24, the Java SecurityManager has been completely disabled. In order to retain an additional protection
+  mechanism, Elasticsearch is replacing SecurityManager with our own protection mechanism, Entitlements."
+area: Infra/Core
+type: upgrade
+issues: []

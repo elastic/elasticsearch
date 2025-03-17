@@ -296,6 +296,30 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx);
   /**
+   * Enter a parse tree produced by the {@code inputDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   */
+  void enterInputDoubleParams(EsqlBaseParser.InputDoubleParamsContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   */
+  void exitInputDoubleParams(EsqlBaseParser.InputDoubleParamsContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code inputNamedOrPositionalDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   */
+  void enterInputNamedOrPositionalDoubleParams(EsqlBaseParser.InputNamedOrPositionalDoubleParamsContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputNamedOrPositionalDoubleParams}
+   * labeled alternative in {@link EsqlBaseParser#doubleParameter}.
+   * @param ctx the parse tree
+   */
+  void exitInputNamedOrPositionalDoubleParams(EsqlBaseParser.InputNamedOrPositionalDoubleParamsContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#identifierOrParameter}.
    * @param ctx the parse tree
    */
@@ -581,6 +605,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rrfCommand}.
+   * @param ctx the parse tree
+   */
+  void enterRrfCommand(EsqlBaseParser.RrfCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rrfCommand}.
+   * @param ctx the parse tree
+   */
+  void exitRrfCommand(EsqlBaseParser.RrfCommandContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

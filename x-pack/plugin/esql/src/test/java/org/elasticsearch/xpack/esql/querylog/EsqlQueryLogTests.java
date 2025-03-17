@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.slowlog;
+package org.elasticsearch.xpack.esql.querylog;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -33,40 +33,40 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_PLANNING_TOOK;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_PLANNING_TOOK_MILLIS;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_QUERY;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_TOOK;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class EsqlSlowLogTests extends ESTestCase {
+public class EsqlQueryLogTests extends ESTestCase {
     private static ClusterSettings settings = new ClusterSettings(
         Settings.builder()
-            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40ms")
-            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "30ms")
-            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "20ms")
-            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10ms")
-            .put(EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING.getKey(), true)
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "30ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "20ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING.getKey(), true)
 
             .build(),
         new HashSet<>(
             Arrays.asList(
-                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
-                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
-                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
-                EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING
             )
         )
     );
 
     static MockAppender appender;
-    static Logger queryLog = LogManager.getLogger(EsqlSlowLog.LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(EsqlQueryLog.LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
@@ -86,7 +86,7 @@ public class EsqlSlowLogTests extends ESTestCase {
     }
 
     public void testPrioritiesOnSuccess() {
-        EsqlSlowLog slowLog = new EsqlSlowLog(settings, mockFieldProvider());
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockFieldProvider());
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -105,23 +105,23 @@ public class EsqlSlowLogTests extends ESTestCase {
 
         for (int i = 0; i < actualTook.length; i++) {
             EsqlExecutionInfo warnQuery = getEsqlExecutionInfo(actualTook[i], actualPlanningTook[i]);
-            slowLog.onQueryPhase(new Result(List.of(), List.of(), List.of(), warnQuery), query);
+            queryLog.onQueryPhase(new Result(List.of(), List.of(), List.of(), warnQuery), query);
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
                 var msg = (ESLogMessage) appender.lastMessage();
-                long took = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_TOOK));
+                long took = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK));
                 long tookMillisExpected = took / 1_000_000L;
-                long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_TOOK_MILLIS));
+                long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS));
                 assertThat(took, is(actualTook[i]));
                 assertThat(tookMillis, is(tookMillisExpected));
 
-                long planningTook = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK));
+                long planningTook = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK));
                 long planningTookMillisExpected = planningTook / 1_000_000;
-                long planningTookMillis = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK_MILLIS));
+                long planningTookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS));
                 assertThat(planningTook, is(actualPlanningTook[i]));
                 assertThat(planningTookMillis, is(planningTookMillisExpected));
                 assertThat(took, greaterThan(planningTook));
-                assertThat(msg.get(ELASTICSEARCH_SLOWLOG_QUERY), is(query));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
                 assertThat(appender.lastEvent(), is(nullValue()));
@@ -155,7 +155,7 @@ public class EsqlSlowLogTests extends ESTestCase {
     }
 
     public void testPrioritiesOnFailure() {
-        EsqlSlowLog slowLog = new EsqlSlowLog(settings, mockFieldProvider());
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockFieldProvider());
         String query = "from " + randomAlphaOfLength(10);
 
         long[] actualTook = {
@@ -170,18 +170,18 @@ public class EsqlSlowLogTests extends ESTestCase {
         String validationError = randomAlphaOfLength(10);
         ValidationException ex = new ValidationException().addValidationError(validationError);
         for (int i = 0; i < actualTook.length; i++) {
-            slowLog.onQueryFailure(query, ex, actualTook[i]);
+            queryLog.onQueryFailure(query, ex, actualTook[i]);
             if (expectedLevel[i] != null) {
                 assertThat(appender.lastEvent(), is(not(nullValue())));
                 var msg = (ESLogMessage) appender.lastMessage();
-                long took = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_TOOK));
+                long took = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK));
                 long tookMillisExpected = took / 1_000_000L;
-                long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_TOOK_MILLIS));
+                long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS));
                 assertThat(took, is(actualTook[i]));
                 assertThat(tookMillis, is(tookMillisExpected));
-                assertThat(msg.get(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK), is(nullValue()));
-                assertThat(msg.get(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK_MILLIS), is(nullValue()));
-                assertThat(msg.get(ELASTICSEARCH_SLOWLOG_QUERY), is(query));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK), is(nullValue()));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS), is(nullValue()));
+                assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                 assertThat(appender.getLastEventAndReset().getLevel(), equalTo(expectedLevel[i]));
             } else {
                 assertThat(appender.lastEvent(), is(nullValue()));

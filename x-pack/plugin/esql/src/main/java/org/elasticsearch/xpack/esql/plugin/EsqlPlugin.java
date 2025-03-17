@@ -69,8 +69,8 @@ import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
+import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
-import org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog;
 
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
@@ -110,8 +110,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING = Setting.timeSetting(
-        "esql.slowlog.threshold.query.warn",
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.query.warn",
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
@@ -119,8 +119,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING = Setting.timeSetting(
-        "esql.slowlog.threshold.query.info",
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.query.info",
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
@@ -128,8 +128,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING = Setting.timeSetting(
-        "esql.slowlog.threshold.query.debug",
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.query.debug",
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
@@ -137,8 +137,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<TimeValue> ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING = Setting.timeSetting(
-        "esql.slowlog.threshold.query.trace",
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.query.trace",
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
@@ -146,8 +146,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<Boolean> ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING = Setting.boolSetting(
-        "esql.slowlog.include.user",
+    public static final Setting<Boolean> ESQL_QUERYLOG_INCLUDE_USER_SETTING = Setting.boolSetting(
+        "esql.querylog.include.user",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -170,7 +170,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
-                new EsqlSlowLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider())
+                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider())
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),
@@ -211,11 +211,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
             QUERY_RESULT_TRUNCATION_MAX_SIZE,
             QUERY_ALLOW_PARTIAL_RESULTS,
-            ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
-            ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-            ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
-            ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
-            ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING
+            ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING,
+            ESQL_QUERYLOG_INCLUDE_USER_SETTING
         );
     }
 

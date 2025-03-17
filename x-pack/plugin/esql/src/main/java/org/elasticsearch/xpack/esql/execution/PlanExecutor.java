@@ -22,11 +22,11 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
-import org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
@@ -43,9 +43,9 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
-    private final EsqlSlowLog slowLog;
+    private final EsqlQueryLog queryLog;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState, EsqlSlowLog slowLog) {
+    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState, EsqlQueryLog queryLog) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
@@ -53,7 +53,7 @@ public class PlanExecutor {
         this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics, licenseState);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
-        this.slowLog = slowLog;
+        this.queryLog = queryLog;
     }
 
     public void esql(
@@ -98,7 +98,7 @@ public class PlanExecutor {
 
     private void onQuerySuccess(EsqlQueryRequest request, ActionListener<Result> listener, Result x, PlanTelemetry planTelemetry) {
         planTelemetryManager.publish(planTelemetry, true);
-        slowLog.onQueryPhase(x, request.query());
+        queryLog.onQueryPhase(x, request.query());
         listener.onResponse(x);
     }
 
@@ -113,7 +113,7 @@ public class PlanExecutor {
         // TODO when we decide if we will differentiate Kibana from REST, this String value will likely come from the request
         metrics.failed(clientId);
         planTelemetryManager.publish(planTelemetry, false);
-        slowLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
+        queryLog.onQueryFailure(request.query(), ex, System.nanoTime() - begin);
         listener.onFailure(ex);
     }
 

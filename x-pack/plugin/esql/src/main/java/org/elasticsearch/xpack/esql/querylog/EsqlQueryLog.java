@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.slowlog;
+package org.elasticsearch.xpack.esql.querylog;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -22,26 +22,26 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING;
 
-public final class EsqlSlowLog {
+public final class EsqlQueryLog {
 
-    public static final String ELASTICSEARCH_SLOWLOG_PREFIX = "elasticsearch.slowlog";
-    public static final String ELASTICSEARCH_SLOWLOG_ERROR_MESSAGE = ELASTICSEARCH_SLOWLOG_PREFIX + ".error.message";
-    public static final String ELASTICSEARCH_SLOWLOG_ERROR_TYPE = ELASTICSEARCH_SLOWLOG_PREFIX + ".error.type";
-    public static final String ELASTICSEARCH_SLOWLOG_TOOK = ELASTICSEARCH_SLOWLOG_PREFIX + ".took";
-    public static final String ELASTICSEARCH_SLOWLOG_TOOK_MILLIS = ELASTICSEARCH_SLOWLOG_PREFIX + ".took_millis";
-    public static final String ELASTICSEARCH_SLOWLOG_PLANNING_TOOK = ELASTICSEARCH_SLOWLOG_PREFIX + ".planning.took";
-    public static final String ELASTICSEARCH_SLOWLOG_PLANNING_TOOK_MILLIS = ELASTICSEARCH_SLOWLOG_PREFIX + ".planning.took_millis";
-    public static final String ELASTICSEARCH_SLOWLOG_SUCCESS = ELASTICSEARCH_SLOWLOG_PREFIX + ".success";
-    public static final String ELASTICSEARCH_SLOWLOG_SEARCH_TYPE = ELASTICSEARCH_SLOWLOG_PREFIX + ".search_type";
-    public static final String ELASTICSEARCH_SLOWLOG_QUERY = ELASTICSEARCH_SLOWLOG_PREFIX + ".query";
+    public static final String ELASTICSEARCH_QUERYLOG_PREFIX = "elasticsearch.querylog";
+    public static final String ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE = ELASTICSEARCH_QUERYLOG_PREFIX + ".error.message";
+    public static final String ELASTICSEARCH_QUERYLOG_ERROR_TYPE = ELASTICSEARCH_QUERYLOG_PREFIX + ".error.type";
+    public static final String ELASTICSEARCH_QUERYLOG_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".took";
+    public static final String ELASTICSEARCH_QUERYLOG_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".took_millis";
+    public static final String ELASTICSEARCH_QUERYLOG_PLANNING_TOOK = ELASTICSEARCH_QUERYLOG_PREFIX + ".planning.took";
+    public static final String ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS = ELASTICSEARCH_QUERYLOG_PREFIX + ".planning.took_millis";
+    public static final String ELASTICSEARCH_QUERYLOG_SUCCESS = ELASTICSEARCH_QUERYLOG_PREFIX + ".success";
+    public static final String ELASTICSEARCH_QUERYLOG_SEARCH_TYPE = ELASTICSEARCH_QUERYLOG_PREFIX + ".search_type";
+    public static final String ELASTICSEARCH_QUERYLOG_QUERY = ELASTICSEARCH_QUERYLOG_PREFIX + ".query";
 
-    public static final String LOGGER_NAME = "esql.slowlog.query";
+    public static final String LOGGER_NAME = "esql.querylog";
     private static final Logger queryLogger = LogManager.getLogger(LOGGER_NAME);
     private final SlowLogFields additionalFields;
 
@@ -52,18 +52,14 @@ public final class EsqlSlowLog {
 
     private volatile boolean includeUser;
 
-    public EsqlSlowLog(ClusterSettings settings, SlowLogFieldProvider slowLogFieldProvider) {
-        settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
-        settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING, this::setQueryInfoThreshold);
-        settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING, this::setQueryDebugThreshold);
-        settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING, this::setQueryTraceThreshold);
-        settings.initializeAndWatch(ESQL_SLOWLOG_THRESHOLD_INCLUDE_USER_SETTING, this::setIncludeUser);
+    public EsqlQueryLog(ClusterSettings settings, SlowLogFieldProvider slowLogFieldProvider) {
+        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
+        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING, this::setQueryInfoThreshold);
+        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING, this::setQueryDebugThreshold);
+        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING, this::setQueryTraceThreshold);
+        settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, this::setIncludeUser);
 
         this.additionalFields = slowLogFieldProvider.create();
-    }
-
-    public EsqlSlowLog(ClusterSettings settings) {
-        this(settings, null);
     }
 
     public void onQueryPhase(Result esqlResult, String query) {
@@ -135,23 +131,23 @@ public final class EsqlSlowLog {
 
         private static void addGenericFields(Map<String, Object> fieldMap, String query, boolean success) {
             String source = escapeJson(query);
-            fieldMap.put(ELASTICSEARCH_SLOWLOG_SUCCESS, success);
-            fieldMap.put(ELASTICSEARCH_SLOWLOG_SEARCH_TYPE, "ESQL");
-            fieldMap.put(ELASTICSEARCH_SLOWLOG_QUERY, source);
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_SUCCESS, success);
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_SEARCH_TYPE, "ESQL");
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_QUERY, source);
         }
 
         private static void addResultFields(Map<String, Object> fieldMap, Result esqlResult) {
-            fieldMap.put(ELASTICSEARCH_SLOWLOG_TOOK, esqlResult.executionInfo().overallTook().nanos());
-            fieldMap.put(ELASTICSEARCH_SLOWLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
-            fieldMap.put(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK, esqlResult.executionInfo().planningTookTime().nanos());
-            fieldMap.put(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK_MILLIS, esqlResult.executionInfo().planningTookTime().millis());
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK, esqlResult.executionInfo().overallTook().nanos());
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS, esqlResult.executionInfo().overallTook().millis());
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK, esqlResult.executionInfo().planningTookTime().nanos());
+            fieldMap.put(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS, esqlResult.executionInfo().planningTookTime().millis());
         }
 
         private static void addErrorFields(Map<String, Object> jsonFields, long took, Exception exception) {
-            jsonFields.put(ELASTICSEARCH_SLOWLOG_TOOK, took);
-            jsonFields.put(ELASTICSEARCH_SLOWLOG_TOOK_MILLIS, took / 1_000_000);
-            jsonFields.put(ELASTICSEARCH_SLOWLOG_ERROR_MESSAGE, exception.getMessage() == null ? "" : exception.getMessage());
-            jsonFields.put(ELASTICSEARCH_SLOWLOG_ERROR_TYPE, exception.getClass().getName());
+            jsonFields.put(ELASTICSEARCH_QUERYLOG_TOOK, took);
+            jsonFields.put(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS, took / 1_000_000);
+            jsonFields.put(ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE, exception.getMessage() == null ? "" : exception.getMessage());
+            jsonFields.put(ELASTICSEARCH_QUERYLOG_ERROR_TYPE, exception.getClass().getName());
         }
     }
 }

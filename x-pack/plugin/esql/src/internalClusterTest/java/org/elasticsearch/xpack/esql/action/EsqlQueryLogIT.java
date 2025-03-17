@@ -21,7 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
-import org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog;
+import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -30,14 +30,14 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_ERROR_MESSAGE;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_ERROR_TYPE;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_PLANNING_TOOK;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_PLANNING_TOOK_MILLIS;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_QUERY;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_SUCCESS;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_TOOK;
-import static org.elasticsearch.xpack.esql.slowlog.EsqlSlowLog.ELASTICSEARCH_SLOWLOG_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_SUCCESS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -45,9 +45,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
+public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
     static MockAppender appender;
-    static Logger queryLog = LogManager.getLogger(EsqlSlowLog.LOGGER_NAME);
+    static Logger queryLog = LogManager.getLogger(EsqlQueryLog.LOGGER_NAME);
     static Level origQueryLogLevel = queryLog.getLevel();
 
     @BeforeClass
@@ -83,13 +83,13 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
 
         Map<Level, String> levels = Map.of(
             Level.WARN,
-            EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(),
+            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(),
             Level.INFO,
-            EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(),
+            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(),
             Level.DEBUG,
-            EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(),
+            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(),
             Level.TRACE,
-            EsqlPlugin.ESQL_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey()
+            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey()
         );
         testAllLevels(
             levels,
@@ -176,36 +176,36 @@ public class EsqlSlowLogIT extends AbstractEsqlIntegTestCase {
                         return;
                     }
                     var msg = (ESLogMessage) appender.lastMessage();
-                    long took = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_TOOK));
+                    long took = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK));
                     long tookMillisExpected = took / 1_000_000;
-                    long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_TOOK_MILLIS));
+                    long tookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK_MILLIS));
                     assertThat(took, greaterThan(0L));
                     assertThat(tookMillis, greaterThanOrEqualTo(timeoutMillis));
                     assertThat(tookMillis, is(tookMillisExpected));
 
                     if (expectedException == null) {
-                        long planningTook = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK));
+                        long planningTook = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK));
                         long planningTookMillisExpected = planningTook / 1_000_000;
-                        long planningTookMillis = Long.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_PLANNING_TOOK_MILLIS));
+                        long planningTookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS));
                         assertThat(planningTook, greaterThanOrEqualTo(0L));
                         assertThat(planningTookMillis, is(planningTookMillisExpected));
                         assertThat(took, greaterThan(planningTook));
                     }
 
-                    assertThat(msg.get(ELASTICSEARCH_SLOWLOG_QUERY), is(query));
+                    assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                     assertThat(appender.getLastEventAndReset().getLevel(), equalTo(logLevel.getKey()));
 
-                    boolean success = Boolean.valueOf(msg.get(ELASTICSEARCH_SLOWLOG_SUCCESS));
+                    boolean success = Boolean.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_SUCCESS));
                     assertThat(success, is(expectedException == null));
                     if (expectedErrorMsg == null) {
-                        assertThat(msg.get(ELASTICSEARCH_SLOWLOG_ERROR_MESSAGE), is(nullValue()));
+                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE), is(nullValue()));
                     } else {
-                        assertThat(msg.get(ELASTICSEARCH_SLOWLOG_ERROR_MESSAGE), containsString(expectedErrorMsg));
+                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE), containsString(expectedErrorMsg));
                     }
                     if (expectedException == null) {
-                        assertThat(msg.get(ELASTICSEARCH_SLOWLOG_ERROR_TYPE), is(nullValue()));
+                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_TYPE), is(nullValue()));
                     } else {
-                        assertThat(msg.get(ELASTICSEARCH_SLOWLOG_ERROR_TYPE), is(expectedException));
+                        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_TYPE), is(expectedException));
                     }
                 } finally {
                     latch.countDown();

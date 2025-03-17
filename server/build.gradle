@@ -291,7 +291,3 @@ tasks.named("licenseHeaders").configure {
 }
 
 tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }
-
-tasks.named('javaRestTest') {
-  usesDefaultDistribution()
-}

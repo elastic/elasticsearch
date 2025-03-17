@@ -153,7 +153,78 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 searchResponse.decRef();
             }
         }
+    }
 
+    public void testSynthesizeRandomArrayInNestedContext() throws Exception {
+        var arrayValues = new Object[randomIntBetween(1, 8)][randomIntBetween(1, 64)];
+        for (int i = 0; i < arrayValues.length; i++) {
+            for (int j = 0; j < arrayValues[i].length; j++) {
+                arrayValues[i][j] = randomInt(10) == 0 ? null : getRandomValue();
+            }
+        }
+
+        var mapping = jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("parent")
+            .field("type", "nested")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", getFieldTypeName())
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        var indexService = createIndex(
+            "test-index",
+            Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
+            mapping
+        );
+
+        var indexRequest = new IndexRequest("test-index");
+        indexRequest.id("my-id-1");
+        var source = jsonBuilder().startObject().startArray("parent");
+        for (Object[] arrayValue : arrayValues) {
+            source.startObject().array("field", arrayValue).endObject();
+        }
+        source.endArray().endObject();
+        indexRequest.source(source);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        client().index(indexRequest).actionGet();
+
+        var searchRequest = new SearchRequest("test-index");
+        searchRequest.source().query(new IdsQueryBuilder().addIds("my-id-1"));
+        var searchResponse = client().search(searchRequest).actionGet();
+        try {
+            var hit = searchResponse.getHits().getHits()[0];
+            assertThat(hit.getId(), equalTo("my-id-1"));
+            var sourceAsMap = hit.getSourceAsMap();
+            assertThat(sourceAsMap, hasKey("parent"));
+            List<?> objectArray;
+            if (arrayValues.length > 1) {
+                objectArray = (List<?>) sourceAsMap.get("parent");
+            } else {
+                objectArray = List.of(sourceAsMap.get("parent"));
+            }
+            for (int i = 0; i < arrayValues.length; i++) {
+                var expected = arrayValues[i];
+                List<?> actual = (List<?>) ((Map<?, ?>) objectArray.get(i)).get("field");
+                assertThat(actual, Matchers.contains(expected));
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+
+        assertThat(indexService.mapperService().mappingLookup().getMapper("parent.field").getOffsetFieldName(), nullValue());
+
+        try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
+            var reader = searcher.getDirectoryReader();
+            var document = reader.storedFields().document(0);
+            Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
+            assertThat(storedFieldNames, contains("_ignored_source"));
+            assertThat(FieldInfos.getMergedFieldInfos(reader).fieldInfo("parent.field.offsets"), nullValue());
+        }
     }
 
     protected abstract String getFieldTypeName();

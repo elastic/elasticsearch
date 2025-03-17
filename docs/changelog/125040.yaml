@@ -1,0 +1,5 @@
+pr: 125040
+summary: Add Apache Arrow as a bulk ingestion format
+area: CRUD
+type: enhancement
+issues: []

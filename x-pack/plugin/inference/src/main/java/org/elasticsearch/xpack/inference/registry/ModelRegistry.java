@@ -919,6 +919,11 @@ public class ModelRegistry implements ClusterStateListener {
             return;
         }
 
+        if (event.state().metadata().projects().size() > 1) {
+            // TODO: Add support to handle multi-projects
+            return;
+        }
+
         var state = ModelRegistryMetadata.fromState(event.state().projectState().metadata());
         if (state.isUpgraded()) {
             return;

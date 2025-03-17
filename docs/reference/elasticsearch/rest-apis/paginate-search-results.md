@@ -287,7 +287,7 @@ Perl
 :   See [Search::Elasticsearch::Client::5_0::Bulk](https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk) and [Search::Elasticsearch::Client::5_0::Scroll](https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Scroll)
 
 Python
-:   See [elasticsearch.helpers.*](https://elasticsearch-py.readthedocs.io/en/stable/helpers.md)
+:   See [elasticsearch.helpers.*](https://elasticsearch-py.readthedocs.io/en/stable/helpers.html)
 
 JavaScript
 :   See [client.helpers.*](elasticsearch-js://reference/client-helpers.md)

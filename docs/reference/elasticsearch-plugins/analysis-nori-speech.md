@@ -5,7 +5,7 @@ mapped_pages:
 
 # nori_part_of_speech token filter [analysis-nori-speech]
 
-The `nori_part_of_speech` token filter removes tokens that match a set of part-of-speech tags. The list of supported tags and their meanings can be found here: [Part of speech tags](https://lucene.apache.org/core/10_1_0/core/../analysis/nori/org/apache/lucene/analysis/ko/POS.Tag.md)
+The `nori_part_of_speech` token filter removes tokens that match a set of part-of-speech tags. The list of supported tags and their meanings can be found here: [Part of speech tags](https://lucene.apache.org/core/10_1_0/core/../analysis/nori/org/apache/lucene/analysis/ko/POS.Tag.html)
 
 It accepts the following setting:
 

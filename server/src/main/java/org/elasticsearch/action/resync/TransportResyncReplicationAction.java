@@ -138,6 +138,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
         return request.getOperations().length;
     }
 
+    @Override
+    protected long primaryLargestOperationSize(ResyncReplicationRequest request) {
+        return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).max().orElse(0);
+    }
+
     public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }

@@ -47,7 +47,7 @@ public class ToUnsignedLong extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(UNSIGNED_LONG, (fieldEval, source) -> fieldEval),
+        Map.entry(UNSIGNED_LONG, (source, fieldEval) -> fieldEval),
         Map.entry(DATETIME, ToUnsignedLongFromLongEvaluator.Factory::new),
         Map.entry(BOOLEAN, ToUnsignedLongFromBooleanEvaluator.Factory::new),
         Map.entry(KEYWORD, ToUnsignedLongFromStringEvaluator.Factory::new),
@@ -63,10 +63,10 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         description = """
             Converts an input value to an unsigned long value. If the input parameter is of a date type,
             its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long.
-            Boolean *true* will be converted to unsigned long *1*, *false* to *0*.""",
+            Boolean `true` will be converted to unsigned long `1`, `false` to `0`.""",
         examples = @Example(file = "ints", tag = "to_unsigned_long-str", explanation = """
-            Note that in this example, the last conversion of the string isn't possible.
-            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            Note that in this example, the last conversion of the string isn’t possible.
+            When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
             The header will provide information on the source of the failure:
 
             `"Line 1:133: evaluation of [TO_UL(str3)] failed, treating result as null. Only first 20 failures recorded."`

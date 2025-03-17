@@ -149,8 +149,15 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Comp
             if (offsetToOrd != null && hasValue) {
                 int count = valueDocValues.docValueCount();
                 long[] values = new long[count];
+                int duplicates = 0;
                 for (int i = 0; i < count; i++) {
-                    values[i] = valueDocValues.nextValue();
+                    long value = valueDocValues.nextValue();
+                    if (i > 0 && value == values[i - 1]) {
+                        duplicates++;
+                        continue;
+                    }
+
+                    values[i - duplicates] = value;
                 }
 
                 for (int offset : offsetToOrd) {

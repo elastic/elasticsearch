@@ -144,7 +144,7 @@ public final class TestProjectResolvers {
 
             @Override
             public boolean supportsMultipleProjects() {
-                return true;
+                return only == false;
             }
         };
     }

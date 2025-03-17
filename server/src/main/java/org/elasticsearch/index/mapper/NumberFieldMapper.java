@@ -850,12 +850,12 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Short parse(XContentParser parser, boolean coerce) throws IOException {
+            public Byte parse(XContentParser parser, boolean coerce) throws IOException {
                 int value = parser.intValue(coerce);
                 if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
                     throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
                 }
-                return (short) value;
+                return (byte) value;
             }
 
             @Override

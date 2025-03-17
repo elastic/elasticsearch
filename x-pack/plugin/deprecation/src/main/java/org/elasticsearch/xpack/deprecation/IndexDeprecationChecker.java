@@ -101,8 +101,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "One or more Transforms write to this index with a compatibility version < 9.0",
-                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html"
-                        + "#breaking_90_transform_destination_index",
+                    "https://ela.st/es-deprecation-9-transform-destination-index",
                     Strings.format(
                         "This index was created in version [%s] and requires action before upgrading to 9.0. The following transforms are "
                             + "configured to write to this index: [%s]. Refer to the migration guide to learn more about how to prepare "
@@ -117,7 +116,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "Old index with a compatibility version < 9.0",
-                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html",
+                    "https://ela.st/es-deprecation-9-index-version",
                     "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
                     false,
                     Map.of("reindex_required", true)
@@ -144,8 +143,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "One or more Transforms write to this old index with a compatibility version < 9.0",
-                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html"
-                        + "#breaking_90_transform_destination_index",
+                    "https://ela.st/es-deprecation-9-transform-destination-index",
                     Strings.format(
                         "This index was created in version [%s] and will be supported as a read-only index in 9.0. The following "
                             + "transforms are no longer able to write to this index: [%s]. Refer to the migration guide to learn more "
@@ -160,7 +158,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "Old index with a compatibility version < 9.0 has been ignored",
-                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html",
+                    "https://ela.st/es-deprecation-9-index-version",
                     "This read-only index has version: "
                         + currentCompatibilityVersion.toReleaseVersion()
                         + " and will be supported as read-only in 9.0",

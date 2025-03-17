@@ -22,11 +22,12 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -51,6 +52,7 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
 import static org.elasticsearch.xpack.inference.external.action.voyageai.VoyageAIActionCreator.EMBEDDINGS_HANDLER;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequestEntity.convertToString;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationBinary;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationByte;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
@@ -110,14 +112,15 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             var action = createAction(
                 getUrl(webServer),
                 "secret",
-                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true),
+                new VoyageAIEmbeddingsTaskSettings(null, true),
                 "model",
                 VoyageAIEmbeddingType.FLOAT,
                 sender
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            var inputType = InputTypeTests.randomSearchAndIngestWithNull();
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -135,25 +138,46 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(
-                requestMap,
-                equalTo(
-                    Map.of(
-                        "input",
-                        List.of("abc"),
-                        "model",
-                        "model",
-                        "input_type",
-                        "document",
-                        "output_dtype",
-                        "float",
-                        "truncation",
-                        true,
-                        "output_dimension",
-                        1024
+            if (inputType != null && inputType != InputType.UNSPECIFIED) {
+                var convertedInputType = convertToString(inputType);
+                MatcherAssert.assertThat(
+                    requestMap,
+                    equalTo(
+                        Map.of(
+                            "input",
+                            List.of("abc"),
+                            "model",
+                            "model",
+                            "input_type",
+                            convertedInputType,
+                            "output_dtype",
+                            "float",
+                            "truncation",
+                            true,
+                            "output_dimension",
+                            1024
+                        )
                     )
-                )
-            );
+                );
+            } else {
+                MatcherAssert.assertThat(
+                    requestMap,
+                    equalTo(
+                        Map.of(
+                            "input",
+                            List.of("abc"),
+                            "model",
+                            "model",
+                            "output_dtype",
+                            "float",
+                            "truncation",
+                            true,
+                            "output_dimension",
+                            1024
+                        )
+                    )
+                );
+            }
         }
     }
 
@@ -185,14 +209,15 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             var action = createAction(
                 getUrl(webServer),
                 "secret",
-                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true),
+                new VoyageAIEmbeddingsTaskSettings(null, true),
                 "model",
                 VoyageAIEmbeddingType.INT8,
                 sender
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            var inputType = InputTypeTests.randomSearchAndIngestWithNull();
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -210,25 +235,46 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(
-                requestMap,
-                is(
-                    Map.of(
-                        "input",
-                        List.of("abc"),
-                        "model",
-                        "model",
-                        "input_type",
-                        "document",
-                        "output_dtype",
-                        "int8",
-                        "truncation",
-                        true,
-                        "output_dimension",
-                        1024
+            if (inputType != null && inputType != InputType.UNSPECIFIED) {
+                var convertedInputType = convertToString(inputType);
+                MatcherAssert.assertThat(
+                    requestMap,
+                    is(
+                        Map.of(
+                            "input",
+                            List.of("abc"),
+                            "model",
+                            "model",
+                            "input_type",
+                            convertedInputType,
+                            "output_dtype",
+                            "int8",
+                            "truncation",
+                            true,
+                            "output_dimension",
+                            1024
+                        )
                     )
-                )
-            );
+                );
+            } else {
+                MatcherAssert.assertThat(
+                    requestMap,
+                    is(
+                        Map.of(
+                            "input",
+                            List.of("abc"),
+                            "model",
+                            "model",
+                            "output_dtype",
+                            "int8",
+                            "truncation",
+                            true,
+                            "output_dimension",
+                            1024
+                        )
+                    )
+                );
+            }
         }
     }
 
@@ -260,14 +306,15 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             var action = createAction(
                 getUrl(webServer),
                 "secret",
-                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true),
+                new VoyageAIEmbeddingsTaskSettings(null, true),
                 "model",
                 VoyageAIEmbeddingType.BINARY,
                 sender
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            var inputType = InputTypeTests.randomSearchAndIngestWithNull();
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -285,25 +332,46 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(
-                requestMap,
-                is(
-                    Map.of(
-                        "input",
-                        List.of("abc"),
-                        "model",
-                        "model",
-                        "input_type",
-                        "document",
-                        "output_dtype",
-                        "binary",
-                        "truncation",
-                        true,
-                        "output_dimension",
-                        1024
+            if (inputType != null && inputType != InputType.UNSPECIFIED) {
+                var convertedInputType = convertToString(inputType);
+                MatcherAssert.assertThat(
+                    requestMap,
+                    is(
+                        Map.of(
+                            "input",
+                            List.of("abc"),
+                            "model",
+                            "model",
+                            "input_type",
+                            convertedInputType,
+                            "output_dtype",
+                            "binary",
+                            "truncation",
+                            true,
+                            "output_dimension",
+                            1024
+                        )
                     )
-                )
-            );
+                );
+            } else {
+                MatcherAssert.assertThat(
+                    requestMap,
+                    is(
+                        Map.of(
+                            "input",
+                            List.of("abc"),
+                            "model",
+                            "model",
+                            "output_dtype",
+                            "binary",
+                            "truncation",
+                            true,
+                            "output_dimension",
+                            1024
+                        )
+                    )
+                );
+            }
         }
     }
 
@@ -314,7 +382,11 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomSearchAndIngestWithNull()),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -334,7 +406,11 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomSearchAndIngestWithNull()),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -348,7 +424,11 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomSearchAndIngestWithNull()),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -368,8 +448,8 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             threadPool,
             model,
             EMBEDDINGS_HANDLER,
-            (documentsOnlyInput) -> new VoyageAIEmbeddingsRequest(documentsOnlyInput.getInputs(), model),
-            DocumentsOnlyInput.class
+            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(embeddingsInput.getInputs(), embeddingsInput.getInputType(), model),
+            EmbeddingsInput.class
         );
 
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("VoyageAI embeddings");

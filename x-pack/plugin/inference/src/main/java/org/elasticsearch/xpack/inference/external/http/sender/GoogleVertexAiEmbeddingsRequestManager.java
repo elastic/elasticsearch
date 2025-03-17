@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.googlevertexai.GoogleVertexAiResponseHandler;
@@ -61,9 +62,12 @@ public class GoogleVertexAiEmbeddingsRequestManager extends GoogleVertexAiReques
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
+        List<String> docsInput = input.getInputs();
+        InputType inputType = input.getInputType();
+
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
-        var request = new GoogleVertexAiEmbeddingsRequest(truncator, truncatedInput, model);
+        var request = new GoogleVertexAiEmbeddingsRequest(truncator, truncatedInput, inputType, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

@@ -13,7 +13,7 @@ applies_to:
 
 Change how {{es}} runs by providing your own user settings. Elasticsearch Service appends these settings to each node’s `elasticsearch.yml` configuration file.
 
-Elasticsearch Service automatically rejects `elasticsearch.yml` settings that could break your cluster. For a list of supported settings, check [Supported {{es}} settings](#TODO).
+Elasticsearch Service automatically rejects `elasticsearch.yml` settings that could break your cluster. For a list of supported settings, check [Supported {{es}} settings](index.md).
 
 ::::{tip}
 Some settings that could break your cluster if set incorrectly are blocked, such as certain zen discovery and security settings. For examples of a few of the settings that are generally safe in cloud environments, check [Edit stack settings](docs-content://deploy-manage/deploy/cloud-enterprise/edit-stack-settings.md) for {{ece}} and  [Edit stack settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md) for the {{ech}} offering.

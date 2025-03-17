@@ -203,7 +203,7 @@ public class ReferenceDocsTests extends ESTestCase {
         assertEquals(
             "https://www.elastic.co/docs/deploy-manage/deploy/self-managed/important-settings-configuration?version="
                 + ReferenceDocs.VERSION_COMPONENT
-                + "#initial-master-nodes",
+                + "#initial_master_nodes",
             ReferenceDocs.INITIAL_MASTER_NODES.toString()
         );
     }

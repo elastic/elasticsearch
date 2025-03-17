@@ -390,6 +390,9 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test10Install
   issue: https://github.com/elastic/elasticsearch/issues/124957
+- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
+  method: testRolloverAction
+  issue: https://github.com/elastic/elasticsearch/issues/124987
 
 # Examples:
 #

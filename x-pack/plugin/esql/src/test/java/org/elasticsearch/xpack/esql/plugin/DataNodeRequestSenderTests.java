@@ -325,7 +325,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
             runWithDelay(() -> {
                 concurrentRequests.decrementAndGet();
-                listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of()));
             });
         }));
         assertThat(sent.size(), equalTo(5));
@@ -348,7 +348,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var response = safeGet(sendRequests(targetShards, randomBoolean(), 1, (node, shardIds, aliasFilters, listener) -> {
             runWithDelay(() -> {
                 if (processed.incrementAndGet() == 1) {
-                    listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of()));
                 } else {
                     listener.onSkip();
                 }
@@ -370,7 +370,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
                 if (Objects.equals(node.getId(), node1.getId()) && shardIds.equals(List.of(shard1))) {
                     listener.onFailure(new RuntimeException("test request level non fatal failure"), false);
                 } else if (Objects.equals(node.getId(), node3.getId()) && shardIds.equals(List.of(shard2))) {
-                    listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of()));
                 } else if (Objects.equals(node.getId(), node2.getId()) && shardIds.equals(List.of(shard1))) {
                     listener.onSkip();
                 }
@@ -395,7 +395,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var sent = Collections.synchronizedList(new ArrayList<String>());
         safeGet(sendRequests(targetShards, randomBoolean(), -1, (node, shardIds, aliasFilters, listener) -> {
             sent.add(node.getId());
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of())));
         }));
         assertThat(sent, equalTo(List.of("node-1", "node-2", "node-3", "node-4")));
     }
@@ -408,7 +408,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         var sent = ConcurrentCollections.<NodeRequest>newQueue();
         safeGet(sendRequests(targetShards, randomBoolean(), -1, (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(List.of(), Map.of())));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of())));
         }));
         assertThat(groupRequests(sent, 1), equalTo(Map.of(node1, List.of(shard1))));
         assertThat(groupRequests(sent, 1), anyOf(equalTo(Map.of(node2, List.of(shard2))), equalTo(Map.of(warmNode2, List.of(shard2)))));

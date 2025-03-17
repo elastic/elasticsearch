@@ -278,7 +278,7 @@ abstract class DataNodeRequestSender {
                 if (rootTask.isCancelled()) {
                     onFailure(new TaskCancelledException("null"), true);
                 } else {
-                    onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of()));
                 }
             }
         });

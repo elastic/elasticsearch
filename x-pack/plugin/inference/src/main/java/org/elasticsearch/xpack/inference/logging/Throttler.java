@@ -45,6 +45,8 @@ public class Throttler implements Closeable {
     private final AtomicReference<Scheduler.Cancellable> cancellableTask = new AtomicReference<>();
     private final AtomicBoolean isRunning = new AtomicBoolean(true);
     private final ThreadPool threadPool;
+    // This lock governs the ability of the utility thread to get exclusive access to remove entries
+    // from the map
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**

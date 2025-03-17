@@ -687,7 +687,7 @@ public class IndexMetadataTests extends ESTestCase {
         IndexMetadata idx = IndexMetadata.builder("test").settings(settings).reshardingMetadata(reshardingMetadata).build();
 
         // the version prior to TransportVersions.INDEX_RESHARDING_METADATA
-        final var version = TransportVersions.ML_INFERENCE_DEEPSEEK;
+        final var version = TransportVersions.ESQL_FAILURE_FROM_REMOTE;
         // should round trip
         final var deserialized = roundTripWithVersion(idx, version);
 

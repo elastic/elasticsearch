@@ -238,14 +238,6 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
 
-    public void testNumCandsExceedsLimit() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new KnnSearchBuilder("field", randomVector(3), 100, 10002, null, null)
-        );
-        assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
-    }
-
     public void testInvalidK() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

@@ -51,14 +51,22 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     private DenseVectorFieldMapper.IndexOptions randomIndexOptionsNonQuantized() {
         return randomFrom(
-            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), randomIntBetween(1_000, 10_000)),
+            new DenseVectorFieldMapper.HnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                randomIntBetween(1_000, 10_000)
+            ),
             new DenseVectorFieldMapper.FlatIndexOptions()
         );
     }
 
     private DenseVectorFieldMapper.IndexOptions randomIndexOptionsAll() {
         return randomFrom(
-            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), randomIntBetween(1_000, 10_000)),
+            new DenseVectorFieldMapper.HnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                randomIntBetween(1_000, 10_000)
+            ),
             new DenseVectorFieldMapper.Int8HnswIndexOptions(
                 randomIntBetween(1, 100),
                 randomIntBetween(1, 10_000),
@@ -74,7 +82,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             new DenseVectorFieldMapper.FlatIndexOptions(),
             new DenseVectorFieldMapper.Int8FlatIndexOptions(randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true))),
             new DenseVectorFieldMapper.Int4FlatIndexOptions(randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true))),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), randomIntBetween(1_000, 10_000)),
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                randomIntBetween(1_000, 10_000)
+            ),
             new DenseVectorFieldMapper.BBQFlatIndexOptions()
         );
     }
@@ -93,7 +105,11 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomIntBetween(1_000, 10_000),
                 randomFrom((Float) null, 0f, (float) randomDoubleBetween(0.9, 1.0, true))
             ),
-            new DenseVectorFieldMapper.BBQHnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), randomIntBetween(1_000, 10_000))
+            new DenseVectorFieldMapper.BBQHnswIndexOptions(
+                randomIntBetween(1, 100),
+                randomIntBetween(1, 10_000),
+                randomIntBetween(1_000, 10_000)
+            )
         );
     }
 
@@ -174,37 +190,6 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         assertEquals(vector, fetchSourceValue(fft, vector));
         DenseVectorFieldType bft = createByteFieldType();
         assertEquals(vector, fetchSourceValue(bft, vector));
-    }
-
-    public void testValidateNumCandidates() {
-        // Test case where numCands is less than or equal to maxSearchEf
-        {
-            int maxSearchEf = randomIntBetween(1, 1000);
-            int numCands = randomIntBetween(0, maxSearchEf);
-            DenseVectorFieldMapper.IndexOptions indexOptions = new DenseVectorFieldMapper.HnswIndexOptions(
-                randomIntBetween(1, 100),
-                randomIntBetween(1, 10_000),
-                maxSearchEf
-            );
-            indexOptions.validateNumCandidates(numCands);
-            // No exception should be thrown
-        }
-
-        // Test case where numCands is greater than maxSearchEf
-        {
-            int maxSearchEf = randomIntBetween(1, 1000);
-            int numCands = randomIntBetween(maxSearchEf + 1, maxSearchEf + 1000);
-            DenseVectorFieldMapper.IndexOptions indexOptions = new DenseVectorFieldMapper.HnswIndexOptions(
-                randomIntBetween(1, 100),
-                randomIntBetween(1, 10_000),
-                maxSearchEf
-            );
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> indexOptions.validateNumCandidates(numCands)
-            );
-            assertThat(e.getMessage(), containsString("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + maxSearchEf + "]"));
-        }
     }
 
     public void testCreateNestedKnnQuery() {
@@ -414,11 +399,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             dims,
             true,
             VectorSimilarity.COSINE,
-            new DenseVectorFieldMapper.HnswIndexOptions(
-                randomIntBetween(1, 100),
-                randomIntBetween(1, 10_000),
-                1000
-            ),
+            new DenseVectorFieldMapper.HnswIndexOptions(randomIntBetween(1, 100), randomIntBetween(1, 10_000), 1000),
             Collections.emptyMap()
         );
         float[] queryVector = new float[dims];

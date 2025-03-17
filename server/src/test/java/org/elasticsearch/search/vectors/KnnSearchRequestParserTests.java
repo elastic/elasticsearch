@@ -179,22 +179,6 @@ public class KnnSearchRequestParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("[num_candidates] cannot be less than [k]"));
     }
 
-    public void testNumCandsExceedsLimit() throws IOException {
-        XContentType xContentType = randomFrom(XContentType.values());
-        XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())
-            .startObject()
-            .startObject(KnnSearchRequestParser.KNN_SECTION_FIELD.getPreferredName())
-            .field(KnnSearch.FIELD_FIELD.getPreferredName(), "field")
-            .field(KnnSearch.K_FIELD.getPreferredName(), 100)
-            .field(KnnSearch.NUM_CANDS_FIELD.getPreferredName(), 10002)
-            .field(KnnSearch.QUERY_VECTOR_FIELD.getPreferredName(), new float[] { 1.0f, 2.0f, 3.0f })
-            .endObject()
-            .endObject();
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseSearchRequest(builder));
-        assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [10000]"));
-    }
-
     public void testInvalidK() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())

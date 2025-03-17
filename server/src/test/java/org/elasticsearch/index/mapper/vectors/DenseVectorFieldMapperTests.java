@@ -63,6 +63,7 @@ import java.util.Set;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.NUM_CANDS_LIMIT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -852,6 +853,23 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                     .endObject()
             )
         );
+
+        checker.registerUpdateCheck(
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int4_hnsw")
+                .endObject(),
+            b -> b.field("type", "dense_vector")
+                .field("dims", dims)
+                .field("index", true)
+                .startObject("index_options")
+                .field("type", "int4_hnsw")
+                .field("max_search_ef", 1000)
+                .endObject(),
+            m -> assertTrue(m.toString().contains("\"max_search_ef\":1000"))
+        );
     }
 
     @Override
@@ -937,7 +955,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .field("type", "int8_hnsw")
                 .field("m", 16)
                 .field("ef_construction", 100)
-                .field("max_search_ef", DenseVectorFieldMapper.NUM_CANDS_LIMIT)
+                .field("max_search_ef", NUM_CANDS_LIMIT)
                 .endObject();
             b.endObject();
         });
@@ -2089,6 +2107,22 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             })));
             assertThat(e.getMessage(), containsString("only supports even dimensions"));
         }
+    }
+
+    public void testMaxSearchEfBounds() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "dense_vector");
+            b.field("dims", dims);
+            b.field("index", true);
+            b.field("similarity", "dot_product");
+            b.startObject("index_options");
+            b.field("type", "hnsw");
+            b.field("m", 5);
+            b.field("ef_construction", 50);
+            b.field("max_search_ef", 0); // Invalid value
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Failed to parse mapping: [max_search_ef] must be greater than 0"));
     }
 
     @Override

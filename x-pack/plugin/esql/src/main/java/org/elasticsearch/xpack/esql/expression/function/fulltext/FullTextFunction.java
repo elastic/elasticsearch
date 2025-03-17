@@ -53,7 +53,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 
 /**
  * Base class for full-text functions that use ES queries to match documents.
- * These functions needs to be pushed down to Lucene queries to be executed - there's no Evaluator for them, but depend on
+ * These functions needs to be pushed down to Lucene queries to be executed - there’s no Evaluator for them, but depend on
  * {@link org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer} to rewrite them into Lucene queries.
  */
 public abstract class FullTextFunction extends Function

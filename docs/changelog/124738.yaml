@@ -1,0 +1,5 @@
+pr: 124738
+summary: Upgrade AWS v2 SDK to 2.30.38
+area: Machine Learning
+type: upgrade
+issues: []

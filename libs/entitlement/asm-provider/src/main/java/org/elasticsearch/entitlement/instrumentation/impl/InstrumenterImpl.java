@@ -111,13 +111,7 @@ public class InstrumenterImpl implements Instrumenter {
         } catch (ClassCircularityError e) {
             // Apparently, verification during instrumentation is challenging for class resolution and loading
             // Treat this not as an error, but as "inconclusive"
-            logger.warn(
-                "Cannot perform bytecode verification ({}) for class [{}]: {}: {}",
-                phase,
-                className,
-                e.getClass().getName(),
-                e.getMessage()
-            );
+            logger.warn(Strings.format("Cannot perform bytecode verification (%s) for class [%s]", phase, className), e);
         } catch (IllegalArgumentException e) {
             // The ASM CheckClassAdapter in some cases throws this instead of printing the error
             logger.error(Strings.format("Bytecode verification (%s) for class [%s] failed", phase, className), e);

@@ -138,7 +138,6 @@ public class EntitlementInitialization {
             inst.retransformClasses(classesToRetransform);
         } catch (VerifyError e) {
             // Turn on verification and try to retransform one class at the time to get detailed diagnostic
-            ensureClassesSensitiveToVerificationAreInitialized();
             transformer.enableClassVerification();
 
             for (var classToRetransform : classesToRetransform) {

@@ -13,9 +13,9 @@ Documents using this type can be used:
 
 * to find geoshapes within:
 
-    * a [bounding box](/reference/query-languages/query-dsl-geo-bounding-box-query.md)
-    * a certain [distance](/reference/query-languages/query-dsl-geo-distance-query.md) of a central point
-    * a [`geo_shape` query](/reference/query-languages/query-dsl-geo-shape-query.md) (for example, intersecting polygons).
+    * a [bounding box](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md)
+    * a certain [distance](/reference/query-languages/query-dsl/query-dsl-geo-distance-query.md) of a central point
+    * a [`geo_shape` query](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md) (for example, intersecting polygons).
 
 * to aggregate documents by geographic grids:
 

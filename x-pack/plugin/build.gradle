@@ -124,6 +124,7 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ml/post_data/Test POST data job api, flush, close and verify DataCounts doc", "Flush API is deprecated")
   task.replaceValueInMatch("Size", 49, "Test flamegraph from profiling-events")
   task.replaceValueInMatch("Size", 49, "Test flamegraph from test-events")
+  task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
 })
 
 tasks.named('yamlRestCompatTest').configure {

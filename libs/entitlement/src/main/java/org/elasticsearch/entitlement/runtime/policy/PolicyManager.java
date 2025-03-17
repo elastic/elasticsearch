@@ -141,9 +141,9 @@ public class PolicyManager {
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
-    private static final Set<Module> systemModules = findSystemModules();
+    private static final Set<Module> SYSTEM_LAYER_MODULES = findSystemLayerModules();
 
-    private static Set<Module> findSystemModules() {
+    private static Set<Module> findSystemLayerModules() {
         var systemModulesDescriptors = ModuleFinder.ofSystem()
             .findAll()
             .stream()
@@ -162,6 +162,13 @@ public class PolicyManager {
                 )
         ).collect(Collectors.toUnmodifiableSet());
     }
+
+    // Anything in the boot layer that is not in the system layer, is in the server layer
+    public static final Set<Module> SERVER_LAYER_MODULES = ModuleLayer.boot()
+        .modules()
+        .stream()
+        .filter(m -> SYSTEM_LAYER_MODULES.contains(m) == false)
+        .collect(Collectors.toUnmodifiableSet());
 
     private final Map<String, Path> sourcePaths;
     /**
@@ -725,7 +732,7 @@ public class PolicyManager {
             generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
-        if (systemModules.contains(requestingClass.getModule())) {
+        if (SYSTEM_LAYER_MODULES.contains(requestingClass.getModule())) {
             generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }

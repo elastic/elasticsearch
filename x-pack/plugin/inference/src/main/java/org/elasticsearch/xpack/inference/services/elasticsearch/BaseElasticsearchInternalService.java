@@ -281,10 +281,14 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         TimeValue timeout
     ) {
         var request = InferModelAction.Request.forTextInput(id, update, inputs, true, timeout);
-        request.setPrefixType(
-            InputType.SEARCH == inputType ? TrainedModelPrefixStrings.PrefixType.SEARCH : TrainedModelPrefixStrings.PrefixType.INGEST
-        );
-        request.setHighPriority(InputType.SEARCH == inputType);
+        var isSearchInput = InputType.SEARCH == inputType || InputType.INTERNAL_SEARCH == inputType;
+        var isIngestInput = InputType.INGEST == inputType || InputType.INTERNAL_INGEST == inputType;
+        if (isSearchInput) {
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+        } else if (isIngestInput) {
+            request.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
+        }
+        request.setHighPriority(isSearchInput);
         request.setChunked(false);
         return request;
     }

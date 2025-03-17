@@ -554,7 +554,6 @@ public abstract class TransportBroadcastByNodeAction<
         protected List<ShardOperationResult> results;
 
         NodeResponse(StreamInput in) throws IOException {
-            super(in);
             nodeId = in.readString();
             totalShards = in.readVInt();
             results = in.readCollectionAsList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);

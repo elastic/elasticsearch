@@ -374,12 +374,6 @@ age:(+>=10 +<20)
 ::::
 
 
-The parsing of ranges in query strings can be complex and error prone. It is much more reliable to use an explicit [`range` query](../>=10 AND <20)
-age:(+>=10 +<20)
-```
-::::
-
-
 The parsing of ranges in query strings can be complex and error prone. It is much more reliable to use an explicit [`range` query](/reference/query-languages/query-dsl/query-dsl-range-query.md).
 
 

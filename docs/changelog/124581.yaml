@@ -1,0 +1,5 @@
+pr: 124581
+summary: New `vector_rescore` parameter as a quantized index type option
+area: Vector Search
+type: enhancement
+issues: []

@@ -31,6 +31,7 @@ The cache can be expired manually with the [clear cache API](https://www.elastic
 ```console
 POST /my-index-000001,my-index-000002/_cache/clear?request=true
 ```
+% TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
 ## Enabling and disabling caching [_enabling_and_disabling_caching]
 
@@ -71,6 +72,7 @@ GET /my-index-000001/_search?request_cache=true
   }
 }
 ```
+% TEST[continued]
 
 Requests where `size` is greater than `0` will not be cached even if the request cache is enabled in the index settings. To cache these requests you will need to use the query parameter.
 

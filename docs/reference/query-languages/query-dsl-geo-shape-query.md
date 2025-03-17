@@ -40,6 +40,7 @@ POST /example/_doc?refresh
   }
 }
 ```
+% TESTSETUP
 
 The following query will find the point using {{es}}'s `envelope` GeoJSON extension:
 
@@ -87,6 +88,7 @@ PUT /example_points/_doc/1?refresh
   "location": [13.400544, 52.530286]
 }
 ```
+% TEST[continued]
 
 Using the same query, the documents with matching `geo_point` fields are returned.
 
@@ -113,6 +115,7 @@ GET /example_points/_search
   }
 }
 ```
+% TEST[continued]
 
 ```console-result
 {
@@ -144,6 +147,7 @@ GET /example_points/_search
   }
 }
 ```
+% TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
 
 
 ## Pre-indexed shape [_pre_indexed_shape]

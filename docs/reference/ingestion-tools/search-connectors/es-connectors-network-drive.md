@@ -107,6 +107,7 @@ Download the sample configuration file. You can either download it manually or r
 ```sh
 curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -246,6 +247,7 @@ $$$es-connectors-network-drive-client-indexing-files-and-folders-recursively-wit
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-folder$$$
 **Indexing files and folders directly inside folder**
@@ -257,6 +259,7 @@ $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside-a-set-of-folders$$$
 **Indexing files and folders directly inside a set of folders**
@@ -268,6 +271,7 @@ $$$es-connectors-network-drive-client-indexing-files-and-folders-directly-inside
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-pattern$$$
 **Excluding files and folders that match a pattern**
@@ -279,6 +283,7 @@ $$$es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-p
   }
 ]
 ```
+% NOTCONSOLE
 
 
 ### Content extraction [es-connectors-network-drive-client-content-extraction]

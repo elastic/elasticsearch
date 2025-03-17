@@ -20,6 +20,7 @@ Inner hits can be used by defining an `inner_hits` definition on a `nested`, `ha
     }
 }
 ```
+% NOTCONSOLE
 
 If `inner_hits` is defined on a query that supports it then each search hit will contain an `inner_hits` json object with the following structure:
 
@@ -48,6 +49,7 @@ If `inner_hits` is defined on a query that supports it then each search hit will
      ...
 ]
 ```
+% NOTCONSOLE
 
 
 ## Options [inner-hits-options]
@@ -177,6 +179,8 @@ An example of a response snippet that could be generated from the above search r
 
 1. The name used in the inner hit definition in the search request. A custom key can be used via the `name` option.
 
+% TESTRESPONSE[s/"_source": .../"_source": $body.hits.hits.0._source/]
+% TESTRESPONSE[s/.../"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
 The `_nested` metadata is crucial in the above example, because it defines from what inner nested object this inner hit came from. The `field` defines the object array field the nested hit is from and the `offset` relative to its location in the `_source`. Due to sorting and scoring the actual location of the hit objects in the `inner_hits` is usually different than the location a nested inner object was defined.
 
@@ -453,4 +457,6 @@ An example of a response snippet that could be generated from the above search r
   }
 }
 ```
+% TESTRESPONSE[s/"_source": .../"_source": $body.hits.hits.0._source/]
+% TESTRESPONSE[s/.../"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 

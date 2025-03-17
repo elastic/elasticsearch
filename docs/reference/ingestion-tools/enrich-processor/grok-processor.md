@@ -83,6 +83,7 @@ This pipeline will insert these named captures as new fields within the document
   ]
 }
 ```
+% TESTRESPONSE[s/2016-11-08T19:43:03.850+0000/$body.docs.0.doc._ingest.timestamp/]
 
 
 ## Custom Patterns [custom-patterns]
@@ -108,6 +109,7 @@ You can add your own patterns to a processor definition under the `pattern_defin
   ]
 }
 ```
+% NOTCONSOLE
 
 
 ## Providing Multiple Match Patterns [trace-match]
@@ -166,6 +168,7 @@ response:
   ]
 }
 ```
+% TESTRESPONSE[s/2016-11-08T19:43:03.850+0000/$body.docs.0.doc._ingest.timestamp/]
 
 Both patterns will set the field `pet` with the appropriate match, but what if we want to trace which of our patterns matched and populated our fields? We can do this with the `trace_match` parameter. Here is the output of that same pipeline, but with `"trace_match": true` configured:
 
@@ -190,6 +193,7 @@ Both patterns will set the field `pet` with the appropriate match, but what if w
   ]
 }
 ```
+% TESTRESPONSE[s/2016-11-08T19:43:03.850+0000/$body.docs.0.doc._ingest.timestamp/]
 
 In the above response, you can see that the index of the pattern that matched was `"1"`. This is to say that it was the second (index starts at zero) pattern in `patterns` to match.
 
@@ -214,6 +218,7 @@ The above request will return a response body containing a key-value representat
     ...
 }
 ```
+% NOTCONSOLE
 
 By default, the API returns a list of legacy Grok patterns. These legacy patterns predate the [Elastic Common Schema (ECS)](ecs://reference/ecs-field-reference.md) and don’t use ECS field names. To return patterns that extract ECS field names, specify `v1` in the optional `ecs_compatibility` query parameter.
 
@@ -240,6 +245,7 @@ The API returns the following response.
     ...
 }
 ```
+% NOTCONSOLE
 
 This can be useful to reference as the built-in patterns change across versions.
 
@@ -270,5 +276,6 @@ PUT _cluster/settings
   }
 }
 ```
+% NOTCONSOLE
 
 

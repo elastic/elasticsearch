@@ -86,7 +86,7 @@ Avoid using the `word_delimiter` filter with tokenizers that remove punctuation,
 :   (Optional, Boolean) If `true`, the filter produces catenated tokens for chains of alphanumeric characters separated by non-alphabetic delimiters. For example: `super-duper-xl-500` → [ `super`, **`superduperxl500`**, `duper`, `xl`, `500` ]. Defaults to `false`.
 
 ::::{warning}
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -96,7 +96,7 @@ When used for search analysis, catenated tokens can cause problems for the [`mat
 :   (Optional, Boolean) If `true`, the filter produces catenated tokens for chains of numeric characters separated by non-alphabetic delimiters. For example: `01-02-03` → [ `01`, **`010203`**, `02`, `03` ]. Defaults to `false`.
 
 ::::{warning}
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -106,7 +106,7 @@ When used for search analysis, catenated tokens can cause problems for the [`mat
 :   (Optional, Boolean) If `true`, the filter produces catenated tokens for chains of alphabetical characters separated by non-alphabetic delimiters. For example: `super-duper-xl` → [ `super`, **`superduperxl`**, `duper`, `xl` ]. Defaults to `false`.
 
 ::::{warning}
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 

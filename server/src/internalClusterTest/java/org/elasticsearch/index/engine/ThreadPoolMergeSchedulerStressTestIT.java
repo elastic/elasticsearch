@@ -29,8 +29,8 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -52,31 +52,16 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
 
-    private static final AtomicReference<ThreadPoolMergeExecutorService> MERGE_EXECUTOR_SERVICE_REFERENCE = new AtomicReference<>();
-    private static final Set<OneMerge> ENQUEUED_MERGES_SET = ConcurrentCollections.newConcurrentSet();
-    private static final Set<OneMerge> RUNNING_MERGES_SET = ConcurrentCollections.newConcurrentSet();
-    private static int WAIT_MERGES_ENQUEUED_COUNT;
-    private static Semaphore RUN_MERGE_SEMAPHORE;
-
     private static final int MERGE_SCHEDULER_MAX_CONCURRENCY = 3;
-    private static int MERGE_EXECUTOR_THREAD_COUNT;
-
-    @BeforeClass
-    public static void beforeTests() {
-        WAIT_MERGES_ENQUEUED_COUNT = randomIntBetween(50, 100);
-        // maybe let a few merges run at the start
-        RUN_MERGE_SEMAPHORE = new Semaphore(randomIntBetween(0, 5));
-    }
 
     @Override
     protected Settings nodeSettings() {
-        // when there are more threads than scheduler(s)' concurrency capacity, excess merges will be backlogged (by the merge schedulers)
-        // alternatively, when scheduler(s)' concurrency capacity exceeds the executor's thread count, excess merges will be enqueued
-        MERGE_EXECUTOR_THREAD_COUNT = MERGE_SCHEDULER_MAX_CONCURRENCY + randomFrom(-2, -1, 0, 1, 2);
         return Settings.builder()
             .put(super.nodeSettings())
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), MERGE_EXECUTOR_THREAD_COUNT)
+            // when there are more threads than scheduler(s)' concurrency capacity, excess merges will be backlogged
+            // alternatively, when scheduler(s)' concurrency capacity exceeds the executor's thread count, excess merges will be enqueued
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), MERGE_SCHEDULER_MAX_CONCURRENCY + randomFrom(-2, -1, 0, 1, 2))
             .build();
     }
 
@@ -87,7 +72,22 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
 
     public static class TestEnginePlugin extends Plugin implements EnginePlugin {
 
-        static class TestInternalEngine extends org.elasticsearch.index.engine.InternalEngine {
+        final AtomicReference<ThreadPoolMergeExecutorService> mergeExecutorServiceReference = new AtomicReference<>();
+        final Set<OneMerge> enqueuedMergesSet = ConcurrentCollections.newConcurrentSet();
+        final Set<OneMerge> runningMergesSet = ConcurrentCollections.newConcurrentSet();
+        // maybe let a few merges run at the start
+        final int initialRunMergesCount = randomIntBetween(0, 5);
+        final Semaphore runMergeSemaphore = new Semaphore(initialRunMergesCount);
+        final int waitMergesEnqueuedCount = randomIntBetween(50, 100);
+
+        void allowAllMerging() {
+            // even when indexing is done, queued and backlogged merges can themselves trigger further merging
+            // don't let this test be bothered by that, and simply let all merging run unhindered
+            runMergeSemaphore.release(Integer.MAX_VALUE - initialRunMergesCount);
+        }
+
+        class TestInternalEngine extends org.elasticsearch.index.engine.InternalEngine {
+
             TestInternalEngine(EngineConfig engineConfig) {
                 super(engineConfig);
             }
@@ -104,9 +104,106 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
                 );
                 assertThat(mergeScheduler, instanceOf(ThreadPoolMergeScheduler.class));
                 // assert there is a single merge executor service for all shards
-                MERGE_EXECUTOR_SERVICE_REFERENCE.compareAndSet(null, threadPoolMergeExecutorService);
-                assertThat(MERGE_EXECUTOR_SERVICE_REFERENCE.get(), is(threadPoolMergeExecutorService));
+                mergeExecutorServiceReference.compareAndSet(null, threadPoolMergeExecutorService);
+                assertThat(mergeExecutorServiceReference.get(), is(threadPoolMergeExecutorService));
                 return new TestMergeScheduler((ThreadPoolMergeScheduler) mergeScheduler);
+            }
+
+            class TestMergeScheduler implements ElasticsearchMergeScheduler {
+
+                ThreadPoolMergeScheduler delegateMergeScheduler;
+
+                TestMergeScheduler(ThreadPoolMergeScheduler threadPoolMergeScheduler) {
+                    this.delegateMergeScheduler = threadPoolMergeScheduler;
+                }
+
+                @Override
+                public Set<OnGoingMerge> onGoingMerges() {
+                    return delegateMergeScheduler.onGoingMerges();
+                }
+
+                @Override
+                public MergeStats stats() {
+                    return delegateMergeScheduler.stats();
+                }
+
+                @Override
+                public void refreshConfig() {
+                    delegateMergeScheduler.refreshConfig();
+                }
+
+                @Override
+                public MergeScheduler getMergeScheduler() {
+                    return new MergeScheduler() {
+                        @Override
+                        public void merge(MergeSource mergeSource, MergeTrigger trigger) {
+                            delegateMergeScheduler.merge(new MergeSource() {
+                                @Override
+                                public OneMerge getNextMerge() {
+                                    OneMerge nextMerge = mergeSource.getNextMerge();
+                                    if (nextMerge != null) {
+                                        assertTrue(TestEnginePlugin.this.enqueuedMergesSet.add(nextMerge));
+                                        // avoid excess merges pilling up
+                                        if (TestEnginePlugin.this.enqueuedMergesSet
+                                            .size() > TestEnginePlugin.this.waitMergesEnqueuedCount) {
+                                            runMergeSemaphore.release();
+                                        }
+                                    }
+                                    return nextMerge;
+                                }
+
+                                @Override
+                                public void onMergeFinished(OneMerge merge) {
+                                    mergeSource.onMergeFinished(merge);
+                                }
+
+                                @Override
+                                public boolean hasPendingMerges() {
+                                    return mergeSource.hasPendingMerges();
+                                }
+
+                                @Override
+                                public void merge(OneMerge merge) throws IOException {
+                                    assertNotNull(merge);
+                                    try {
+                                        // most merges need to acquire the semaphore in order to run
+                                        if (frequently()) {
+                                            runMergeSemaphore.acquire();
+                                        }
+                                    } catch (InterruptedException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                    // assert to-be-run merge was enqueued
+                                    assertTrue(TestEnginePlugin.this.enqueuedMergesSet.remove(merge));
+                                    TestEnginePlugin.this.runningMergesSet.add(merge);
+                                    assertThat(
+                                        TestEnginePlugin.this.runningMergesSet.size(),
+                                        lessThanOrEqualTo(
+                                            TestEnginePlugin.this.mergeExecutorServiceReference.get().getMaxConcurrentMerges()
+                                        )
+                                    );
+                                    mergeSource.merge(merge);
+                                    assertTrue(TestEnginePlugin.this.runningMergesSet.remove(merge));
+                                }
+                            }, trigger);
+                        }
+
+                        @Override
+                        public Directory wrapForMerge(OneMerge merge, Directory in) {
+                            return delegateMergeScheduler.wrapForMerge(merge, in);
+                        }
+
+                        @Override
+                        public Executor getIntraMergeExecutor(OneMerge merge) {
+                            return delegateMergeScheduler.getIntraMergeExecutor(merge);
+                        }
+
+                        @Override
+                        public void close() throws IOException {
+                            delegateMergeScheduler.close();
+                        }
+                    };
+                }
             }
         }
 
@@ -115,103 +212,13 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             return Optional.of(TestInternalEngine::new);
         }
 
-        static class TestMergeScheduler implements ElasticsearchMergeScheduler {
-
-            ThreadPoolMergeScheduler delegateMergeScheduler;
-
-            TestMergeScheduler(ThreadPoolMergeScheduler threadPoolMergeScheduler) {
-                this.delegateMergeScheduler = threadPoolMergeScheduler;
-            }
-
-            @Override
-            public Set<OnGoingMerge> onGoingMerges() {
-                return delegateMergeScheduler.onGoingMerges();
-            }
-
-            @Override
-            public MergeStats stats() {
-                return delegateMergeScheduler.stats();
-            }
-
-            @Override
-            public void refreshConfig() {
-                delegateMergeScheduler.refreshConfig();
-            }
-
-            @Override
-            public MergeScheduler getMergeScheduler() {
-                return new MergeScheduler() {
-                    @Override
-                    public void merge(MergeSource mergeSource, MergeTrigger trigger) throws IOException {
-                        delegateMergeScheduler.merge(new MergeSource() {
-                            @Override
-                            public OneMerge getNextMerge() {
-                                OneMerge nextMerge = mergeSource.getNextMerge();
-                                if (nextMerge != null) {
-                                    assertTrue(ENQUEUED_MERGES_SET.add(nextMerge));
-                                    // avoid excess merges piling up
-                                    if (ENQUEUED_MERGES_SET.size() > WAIT_MERGES_ENQUEUED_COUNT) {
-                                        RUN_MERGE_SEMAPHORE.release();
-                                    }
-                                }
-                                return nextMerge;
-                            }
-
-                            @Override
-                            public void onMergeFinished(OneMerge merge) {
-                                mergeSource.onMergeFinished(merge);
-                            }
-
-                            @Override
-                            public boolean hasPendingMerges() {
-                                return mergeSource.hasPendingMerges();
-                            }
-
-                            @Override
-                            public void merge(OneMerge merge) throws IOException {
-                                assertNotNull(merge);
-                                try {
-                                    // most merges need to acquire the semaphore in order to run
-                                    if (frequently()) {
-                                        RUN_MERGE_SEMAPHORE.acquire();
-                                    }
-                                } catch (InterruptedException e) {
-                                    throw new RuntimeException(e);
-                                }
-                                // assert to-be-run merge was enqueued
-                                assertTrue(ENQUEUED_MERGES_SET.remove(merge));
-                                RUNNING_MERGES_SET.add(merge);
-                                assertThat(RUNNING_MERGES_SET.size(), lessThanOrEqualTo(MERGE_EXECUTOR_THREAD_COUNT));
-                                mergeSource.merge(merge);
-                                assertTrue(RUNNING_MERGES_SET.remove(merge));
-                            }
-                        }, trigger);
-                    }
-
-                    @Override
-                    public Directory wrapForMerge(OneMerge merge, Directory in) {
-                        return delegateMergeScheduler.wrapForMerge(merge, in);
-                    }
-
-                    @Override
-                    public Executor getIntraMergeExecutor(OneMerge merge) {
-                        return delegateMergeScheduler.getIntraMergeExecutor(merge);
-                    }
-
-                    @Override
-                    public void close() throws IOException {
-                        delegateMergeScheduler.close();
-                    }
-                };
-            }
-        }
     }
 
     public void testMergingFallsBehindAndThenCatchesUp() throws Exception {
         createIndex(
             "index",
-            // stress test merging across multiple shards
-            indexSettings(randomIntBetween(1, 10), 0)
+                // stress test merging across multiple shards
+                indexSettings(randomIntBetween(1, 10), 0)
                 // few segments per merge ought to result in more merging activity
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), randomIntBetween(2, 3))
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), randomIntBetween(2, 3))
@@ -249,28 +256,25 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             });
             indexingThreads[i].start();
         }
-        // wait for merges to enqueue or backlog
+        TestEnginePlugin testEnginePlugin = getTestEnginePlugin();
         assertBusy(() -> {
-            assertThat(RUN_MERGE_SEMAPHORE.getQueueLength(), is(MERGE_EXECUTOR_THREAD_COUNT));
-            // also wait for all the merge threads to be blocked at the semaphore,
-            // in order to be sure there's definitely no merging going on beyond this point
-            assertThat(ENQUEUED_MERGES_SET.size(), greaterThanOrEqualTo(WAIT_MERGES_ENQUEUED_COUNT));
+            // wait for merges to enqueue or backlog
+            assertThat(testEnginePlugin.enqueuedMergesSet.size(), greaterThanOrEqualTo(testEnginePlugin.waitMergesEnqueuedCount));
         }, 1, TimeUnit.MINUTES);
+        // get the segments count before unblocking the merge threads
+        var segmentsBefore = getSegmentsCountForAllShards("index");
         // finish up indexing
         indexingDone.set(true);
         for (Thread indexingThread : indexingThreads) {
             indexingThread.join();
         }
-        // get the segments count before unblocking the merge threads
-        var segmentsBefore = getSegmentsCountForAllShards("index");
-        // even though indexing is done, merging can itself trigger further merging
-        // don't let this test be bothered by that, let any merging run un-hindered
-        RUN_MERGE_SEMAPHORE.release(999999);
+        // unblock merge threads
+        testEnginePlugin.allowAllMerging();
         // await all merging to catch up
         assertBusy(() -> {
-            assertThat(RUNNING_MERGES_SET.size(), is(0));
-            assertThat(ENQUEUED_MERGES_SET.size(), is(0));
-            MERGE_EXECUTOR_SERVICE_REFERENCE.get().allDone();
+            assertThat(testEnginePlugin.runningMergesSet.size(), is(0));
+            assertThat(testEnginePlugin.enqueuedMergesSet.size(), is(0));
+            testEnginePlugin.mergeExecutorServiceReference.get().allDone();
         }, 1, TimeUnit.MINUTES);
         // refresh, otherwise we'd be still seeing the old merged-away segments
         assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());
@@ -302,5 +306,9 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             }
         }
         return count;
+    }
+
+    private TestEnginePlugin getTestEnginePlugin() {
+        return getInstanceFromNode(PluginsService.class).filterPlugins(TestEnginePlugin.class).toList().get(0);
     }
 }

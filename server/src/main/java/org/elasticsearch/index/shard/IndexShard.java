@@ -18,7 +18,6 @@ import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
@@ -84,7 +83,6 @@ import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
@@ -4142,26 +4140,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (shardFieldStats == null || didRefresh) {
-                try (var searcher = getEngine().acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
-                    int numSegments = 0;
-                    int totalFields = 0;
-                    long usages = 0;
-                    for (LeafReaderContext leaf : searcher.getLeafContexts()) {
-                        numSegments++;
-                        var fieldInfos = leaf.reader().getFieldInfos();
-                        totalFields += fieldInfos.size();
-                        if (fieldInfos instanceof FieldInfosWithUsages ft) {
-                            if (usages != -1) {
-                                usages += ft.getTotalUsages();
-                            }
-                        } else {
-                            usages = -1;
-                        }
-                    }
-                    shardFieldStats = new ShardFieldStats(numSegments, totalFields, usages);
-                } catch (AlreadyClosedException ignored) {
-
-                }
+                shardFieldStats = getEngine().getShardFieldStats();
             }
         }
     }

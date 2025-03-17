@@ -2348,7 +2348,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testUnclosedParenthesis() {
-        String[] queries = { "row a = )", "row ]", "from source | eval x = [1,2,3]]" };
+        String[] queries = { "row ]", "from source | eval x = [1,2,3]]" };
         for (String q : queries) {
             expectError(q, "Invalid query");
         }

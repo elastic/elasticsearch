@@ -253,8 +253,8 @@ class Elasticsearch {
                     .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
 
-            var pluginPolicyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
-            var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyOverrides, Build.current().version());
+            var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);
+            var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyPatches, Build.current().version());
             var serverPolicyPatch = PolicyUtils.parseEncodedPolicyIfExists(
                 System.getProperty(SERVER_POLICY_OVERRIDE),
                 Build.current().version(),
@@ -331,33 +331,33 @@ class Elasticsearch {
         }
     }
 
-    private static Map<String, String> collectPluginPolicyOverrides(
+    private static Map<String, String> collectPluginPolicyPatches(
         Set<PluginBundle> modulesBundles,
         Set<PluginBundle> pluginsBundles,
         Logger logger
     ) {
-        var policyOverrides = new HashMap<String, String>();
+        var policyPatches = new HashMap<String, String>();
         var systemProperties = BootstrapInfo.getSystemProperties();
         systemProperties.keys().asIterator().forEachRemaining(key -> {
             var value = systemProperties.get(key);
             if (key instanceof String k && k.startsWith(PLUGIN_POLICY_OVERRIDE_PREFIX) && value instanceof String v) {
-                policyOverrides.put(k.substring(PLUGIN_POLICY_OVERRIDE_PREFIX.length()), v);
+                policyPatches.put(k.substring(PLUGIN_POLICY_OVERRIDE_PREFIX.length()), v);
             }
         });
         var pluginNames = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
             .map(bundle -> bundle.pluginDescriptor().getName())
             .collect(Collectors.toUnmodifiableSet());
 
-        for (var overriddenPluginName : policyOverrides.keySet()) {
-            if (pluginNames.contains(overriddenPluginName) == false) {
+        for (var patchedPluginName : policyPatches.keySet()) {
+            if (pluginNames.contains(patchedPluginName) == false) {
                 logger.warn(
-                    "Found command-line override for unknown plugin [{}] (available plugins: [{}])",
-                    overriddenPluginName,
+                    "Found command-line policy patch for unknown plugin [{}] (available plugins: [{}])",
+                    patchedPluginName,
                     String.join(", ", pluginNames)
                 );
             }
         }
-        return policyOverrides;
+        return policyPatches;
     }
 
     private static class EntitlementSelfTester {

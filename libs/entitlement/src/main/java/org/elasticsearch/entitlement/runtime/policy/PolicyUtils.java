@@ -49,8 +49,11 @@ public class PolicyUtils {
 
     private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
 
-    public static Map<String, Policy> createPluginPolicies(Collection<PluginData> pluginData, Map<String, String> overrides, String version)
-        throws IOException {
+    public static Map<String, Policy> createPluginPolicies(
+        Collection<PluginData> pluginData,
+        Map<String, String> pluginPolicyPatches,
+        String version
+    ) throws IOException {
         Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
         for (var entry : pluginData) {
             Path pluginRoot = entry.pluginPath();
@@ -59,7 +62,7 @@ public class PolicyUtils {
             final Set<String> moduleNames = getModuleNames(pluginRoot, entry.isModular());
 
             var pluginPolicyPatch = parseEncodedPolicyIfExists(
-                overrides.get(pluginName),
+                pluginPolicyPatches.get(pluginName),
                 version,
                 entry.isExternalPlugin(),
                 pluginName,

@@ -36,15 +36,15 @@ FROM sample_data main
 main message:keyword
 ;
 
-evalShadow
+evalNonShadow
 required_capability: name_qualifiers
 
 ROW main x = 2
-| EVAL main x = main x * 3
+| EVAL main y = main x * 3, other x = main y - 5
 ;
 
-main x:integer
-6
+main x:integer | main y:integer | other x:integer
+2              | 6              | 1
 ;
 
 rename

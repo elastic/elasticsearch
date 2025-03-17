@@ -18,7 +18,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
@@ -30,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
@@ -48,7 +48,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
      * Make sure that we don't send data-node requests to the target shards which won't match the query
      */
     public void testCanMatch() {
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("events_2022")
@@ -60,9 +60,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("@timestamp", "2022-05-02", "uid", "u1"))
             .add(new IndexRequest().source("@timestamp", "2022-12-15", "uid", "u1"))
             .get();
-        ElasticsearchAssertions.assertAcked(
-            client().admin().indices().prepareCreate("events_2023").setMapping("@timestamp", "type=date", "uid", "type=keyword")
-        );
+        assertAcked(client().admin().indices().prepareCreate("events_2023").setMapping("@timestamp", "type=date", "uid", "type=keyword"));
         client().prepareBulk("events_2023")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .add(new IndexRequest().source("@timestamp", "2023-01-15", "uid", "u2"))
@@ -125,7 +123,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testAliasFilters() {
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("employees")
@@ -141,7 +139,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("emp_no", 106, "dept", "sales", "hired", "2012-08-09", "salary", 30.1))
             .get();
 
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -213,7 +211,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
     public void testFailOnUnavailableShards() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String logsOnlyNode = internalCluster().startDataOnlyNode();
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("events")
@@ -230,7 +228,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("timestamp", 2, "message", "b"))
             .add(new IndexRequest().source("timestamp", 3, "message", "c"))
             .get();
-        ElasticsearchAssertions.assertAcked(
+        assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate("logs")
@@ -255,15 +253,53 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testSkipOnNonExistingField() {
+        assertAcked(client().admin().indices().prepareCreate("index1").setMapping("filed1", "type=keyword"));
+        client().prepareBulk("index1")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().source("field1", "a"))
+            .get();
+
+        assertAcked(client().admin().indices().prepareCreate("index2").setMapping("filed2", "type=keyword"));
+        client().prepareBulk("index2")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .add(new IndexRequest().source("field2", "b"))
+            .get();
+
+        try {
+            Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
+            for (var transportService : internalCluster().getInstances(TransportService.class)) {
+                as(transportService, MockTransportService.class).addRequestHandlingBehavior(
+                    ComputeService.DATA_ACTION_NAME,
+                    (handler, request, channel, task) -> {
+                        DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
+                        for (ShardId shardId : dataNodeRequest.shardIds()) {
+                            queriedIndices.add(shardId.getIndexName());
+                        }
+                        handler.messageReceived(request, channel, task);
+                    }
+                );
+
+            }
+            try (var resp = run("from index* | WHERE field1 == \"a\"")) {
+                assertThat(getValuesList(resp), hasSize(1));
+                assertThat(queriedIndices, equalTo(Set.of("index1")));
+                queriedIndices.clear();
+            }
+        } finally {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                as(transportService, MockTransportService.class).clearAllRules();
+            }
+        }
+    }
+
     public void testSkipOnIndexName() {
         internalCluster().ensureAtLeastNumDataNodes(2);
         int numIndices = between(2, 10);
         Map<String, Integer> indexToNumDocs = new HashMap<>();
         for (int i = 0; i < numIndices; i++) {
             String index = "events-" + i;
-            ElasticsearchAssertions.assertAcked(
-                client().admin().indices().prepareCreate(index).setMapping("timestamp", "type=long", "message", "type=keyword")
-            );
+            assertAcked(client().admin().indices().prepareCreate(index).setMapping("timestamp", "type=long", "message", "type=keyword"));
             BulkRequestBuilder bulk = client().prepareBulk(index).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             int docs = between(1, 5);
             long timestamp = 1;

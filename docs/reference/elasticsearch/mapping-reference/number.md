@@ -82,13 +82,13 @@ $$$floating_point$$$
 ::::{admonition} Mapping numeric identifiers
 :class: tip
 
-Not all numeric data should be mapped as a `numeric` field data type. {{es}} optimizes numeric fields, such as `integer` or `long`, for [`range`](/reference/query-languages/query-dsl-range-query.md) queries. However, [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) fields are better for [`term`](/reference/query-languages/query-dsl-term-query.md) and other [term-level](/reference/query-languages/term-level-queries.md) queries.
+Not all numeric data should be mapped as a `numeric` field data type. {{es}} optimizes numeric fields, such as `integer` or `long`, for [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries. However, [`keyword`](/reference/elasticsearch/mapping-reference/keyword.md) fields are better for [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md) and other [term-level](/reference/query-languages/query-dsl/term-level-queries.md) queries.
 
 Identifiers, such as an ISBN or a product ID, are rarely used in `range` queries. However, they are often retrieved using term-level queries.
 
 Consider mapping a numeric identifier as a `keyword` if:
 
-* You don’t plan to search for the identifier data using [`range`](/reference/query-languages/query-dsl-range-query.md) queries.
+* You don’t plan to search for the identifier data using [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md) queries.
 * Fast retrieval is important. `term` query searches on `keyword` fields are often faster than `term` searches on numeric fields.
 
 If you’re unsure which to use, you can use a [multi-field](/reference/elasticsearch/mapping-reference/multi-fields.md) to map the data as both a `keyword` *and* a numeric data type.
@@ -176,7 +176,7 @@ The following parameters are accepted by numeric types:
 
 `scaled_float` is stored as a single `long` value, which is the product of multiplying the original value by the scaling factor. If the multiplication results in a value that is outside the range of a `long`, the value is saturated to the minimum or maximum value of a `long`. For example, if the scaling factor is `100` and the value is `92233720368547758.08`, the expected value is `9223372036854775808`. However, the value that is stored is `9223372036854775807`, the maximum value for a `long`.
 
-This can lead to unexpected results with [range queries](/reference/query-languages/query-dsl-range-query.md) when the scaling factor or provided `float` value are exceptionally large.
+This can lead to unexpected results with [range queries](/reference/query-languages/query-dsl/query-dsl-range-query.md) when the scaling factor or provided `float` value are exceptionally large.
 
 
 ## Synthetic `_source` [numeric-synthetic-source]

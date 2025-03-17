@@ -29,7 +29,6 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
     private final ReloadAnalyzersResponse reloadAnalyzersResponse;
 
     public SynonymUpdateResponse(StreamInput in) throws IOException {
-        super(in);
         this.updateStatus = in.readEnum(UpdateSynonymsResultStatus.class);
         this.reloadAnalyzersResponse = new ReloadAnalyzersResponse(in);
     }

@@ -33,7 +33,7 @@ public class ToIP extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToIP", ToIP::new);
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(IP, (field, source) -> field),
+        Map.entry(IP, (source, field) -> field),
         Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new),
         Map.entry(SEMANTIC_TEXT, ToIPFromStringEvaluator.Factory::new)

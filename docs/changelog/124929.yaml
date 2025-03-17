@@ -1,0 +1,5 @@
+pr: 124929
+summary: Include failures in partial response
+area: ES|QL
+type: enhancement
+issues: []

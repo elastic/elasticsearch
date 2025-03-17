@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +40,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorFactories,
+        Map<String, ExpressionEvaluator.Factory> fieldsEvaluatorFactories,
         int scoreChannel
     ) implements OperatorFactory {
 
@@ -50,7 +51,7 @@ public class RerankOperator extends AsyncOperator<Page> {
                 + " query="
                 + queryText
                 + " rerank_fields="
-                + rerankFieldsEvaluatorFactories.keySet()
+                + fieldsEvaluatorFactories.keySet()
                 + " score_channel="
                 + scoreChannel
                 + "]";
@@ -63,13 +64,18 @@ public class RerankOperator extends AsyncOperator<Page> {
                 inferenceService,
                 inferenceId,
                 queryText,
-                rerankFieldsEvaluatorFactories.keySet().toArray(new String[0]),
-                rerankFieldsEvaluatorFactories.values()
-                    .stream()
-                    .map(factory -> factory.get(driverContext))
-                    .toArray(EvalOperator.ExpressionEvaluator[]::new),
+                fieldNames(),
+                fieldsEvaluators(driverContext),
                 scoreChannel
             );
+        }
+
+        private String[] fieldNames() {
+            return fieldsEvaluatorFactories.keySet().toArray(String[]::new);
+        }
+
+        private ExpressionEvaluator[] fieldsEvaluators(DriverContext context) {
+            return fieldsEvaluatorFactories.values().stream().map(factory -> factory.get(context)).toArray(ExpressionEvaluator[]::new);
         }
     }
 
@@ -77,8 +83,8 @@ public class RerankOperator extends AsyncOperator<Page> {
     private final BlockFactory blockFactory;
     private final String inferenceId;
     private final String queryText;
-    private final String[] rerankFieldNames;
-    private final EvalOperator.ExpressionEvaluator[] rerankFieldsEvaluators;
+    private final String[] fieldNames;
+    private final ExpressionEvaluator[] fieldsEvaluators;
     private final int scoreChannel;
 
     public RerankOperator(
@@ -86,44 +92,45 @@ public class RerankOperator extends AsyncOperator<Page> {
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        String[] rerankFieldNames,
-        EvalOperator.ExpressionEvaluator[] rerankFieldsEvaluators,
+        String[] fieldNames,
+        ExpressionEvaluator[] fieldsEvaluators,
         int scoreChannel
     ) {
         super(driverContext, inferenceService.getThreadContext(), MAX_INFERENCE_WORKER);
 
         assert inferenceService.getThreadContext() != null;
+        assert fieldNames.length == fieldsEvaluators.length;
 
         this.blockFactory = driverContext.blockFactory();
         this.inferenceService = inferenceService;
         this.inferenceId = inferenceId;
         this.queryText = queryText;
-        this.rerankFieldNames = rerankFieldNames;
-        this.rerankFieldsEvaluators = rerankFieldsEvaluators;
+        this.fieldNames = fieldNames;
+        this.fieldsEvaluators = fieldsEvaluators;
         this.scoreChannel = scoreChannel;
     }
 
     @Override
     protected void performAsync(Page inputPage, ActionListener<Page> listener) {
         // Ensure input page blocks are released when the listener is called.
-        final ActionListener<Page> outputListener = ActionListener.runAfter(listener, inputPage::releaseBlocks);
+        final ActionListener<Page> outputListener = ActionListener.runAfter(listener, () -> { inputPage.releaseBlocks(); });
 
-        final ActionListener<InferenceAction.Response> inferenceResonseListener = ActionListener.wrap(
-            inferenceResponse -> buildOutput(inputPage, inferenceResponse, outputListener),
-            outputListener::onFailure
-        );
-
-        final ActionListener<InferenceAction.Request> buildInferenceRequestListener = ActionListener.wrap(
-            (inferenceRequest) -> inferenceService.doInference(inferenceRequest, inferenceResonseListener),
-            outputListener::onFailure
-        );
-
-        buildInferenceRequest(inputPage, buildInferenceRequestListener);
+        try {
+            inferenceService.doInference(
+                buildInferenceRequest(inputPage),
+                ActionListener.wrap(
+                    inferenceResponse -> outputListener.onResponse(buildOutput(inputPage, inferenceResponse)),
+                    outputListener::onFailure
+                )
+            );
+        } catch (Exception e) {
+            outputListener.onFailure(e);
+        }
     }
 
     @Override
     protected void doClose() {
-        Releasables.closeExpectNoException(this.rerankFieldsEvaluators);
+        Releasables.closeExpectNoException(this.fieldsEvaluators);
     }
 
     @Override
@@ -143,30 +150,28 @@ public class RerankOperator extends AsyncOperator<Page> {
             + " query="
             + queryText
             + " rerank_fields="
-            + List.of(rerankFieldNames)
+            + List.of(fieldNames)
             + " score_channel="
             + scoreChannel
             + "]";
     }
 
-    private void buildOutput(Page inputPage, InferenceAction.Response inferenceResponse, ActionListener<Page> listener) {
+    private Page buildOutput(Page inputPage, InferenceAction.Response inferenceResponse) {
         if (inferenceResponse.getResults() instanceof RankedDocsResults rankedDocsResults) {
-            buildOutput(inputPage, rankedDocsResults, listener);
-            return;
+            return buildOutput(inputPage, rankedDocsResults);
+
         }
 
-        listener.onFailure(
-            new IllegalStateException(
-                "Inference result has wrong type. Got ["
-                    + inferenceResponse.getResults().getClass()
-                    + "] while expecting ["
-                    + RankedDocsResults.class
-                    + "]"
-            )
+        throw new IllegalStateException(
+            "Inference result has wrong type. Got ["
+                + inferenceResponse.getResults().getClass()
+                + "] while expecting ["
+                + RankedDocsResults.class
+                + "]"
         );
     }
 
-    private void buildOutput(Page inputPage, RankedDocsResults rankedDocsResults, ActionListener<Page> listener) {
+    private Page buildOutput(Page inputPage, RankedDocsResults rankedDocsResults) {
         int blockCount = inputPage.getBlockCount();
         Block[] blocks = new Block[blockCount];
 
@@ -179,9 +184,10 @@ public class RerankOperator extends AsyncOperator<Page> {
                     blocks[b].incRef();
                 }
             }
-            listener.onResponse(new Page(blocks));
+            return new Page(blocks);
         } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
+            throw (e);
         }
     }
 
@@ -205,51 +211,34 @@ public class RerankOperator extends AsyncOperator<Page> {
         }
     }
 
-    private void buildInferenceRequest(Page inputPage, ActionListener<InferenceAction.Request> listener) {
-
-        Block[] inputBlocks = inputBlocks(inputPage);
+    private InferenceAction.Request buildInferenceRequest(Page inputPage) {
+        Block[] inputBlocks = new Block[fieldsEvaluators.length];
 
         try {
-            String[] inputs = new String[inputPage.getPositionCount()];
-            if (inputBlocks.length > 0) for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
-                inputs[pos] = toYaml(inputBlocks, pos);
+            for (int b = 0; b < inputBlocks.length; b++) {
+                inputBlocks[b] = fieldsEvaluators[b].eval(inputPage);
             }
-            listener.onResponse(
-                InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build()
-            );
-        } catch (Exception e) {
-            listener.onFailure(e);
+
+            String[] inputs = new String[inputPage.getPositionCount()];
+            for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
+                try (XContentBuilder yamlBuilder = XContentFactory.yamlBuilder().startObject()) {
+                    for (int i = 0; i < inputBlocks.length; i++) {
+                        String fieldName = fieldNames[i];
+                        Block currentBlock = inputBlocks[i];
+                        if (currentBlock.isNull(pos)) {
+                            continue;
+                        }
+                        yamlBuilder.field(fieldName, toYaml(BlockUtils.toJavaObject(currentBlock, pos)));
+                    }
+                    inputs[pos] = Strings.toString(yamlBuilder.endObject());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build();
         } finally {
             Releasables.closeExpectNoException(inputBlocks);
-        }
-    }
-
-    private Block[] inputBlocks(Page inputPage) {
-        Block[] blocks = new Block[rerankFieldsEvaluators.length];
-
-        try {
-            for (int i = 0; i < rerankFieldsEvaluators.length; i++) {
-                blocks[i] = rerankFieldsEvaluators[i].eval(inputPage);
-            }
-
-            return blocks;
-        } catch (Exception e) {
-            Releasables.closeExpectNoException(blocks);
-            throw e;
-        }
-    }
-
-    private String toYaml(Block[] inputBlocks, int position) throws IOException {
-        try (XContentBuilder yamlBuilder = XContentFactory.yamlBuilder().startObject()) {
-            for (int i = 0; i < inputBlocks.length; i++) {
-                String fieldName = rerankFieldNames[i];
-                Block currentBlock = inputBlocks[i];
-                if (currentBlock.isNull(position)) {
-                    continue;
-                }
-                yamlBuilder.field(fieldName, toYaml(BlockUtils.toJavaObject(currentBlock, position)));
-            }
-            return Strings.toString(yamlBuilder.endObject());
         }
     }
 
@@ -262,7 +251,7 @@ public class RerankOperator extends AsyncOperator<Page> {
             };
         } catch (Error | Exception e) {
             // Swallow errors caused by invalid byteref.
-            return null;
+            return "";
         }
     }
 }

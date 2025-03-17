@@ -30,6 +30,8 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,7 +51,6 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -64,17 +65,40 @@ public class RerankOperatorTests extends OperatorTestCase {
     private static final String SIMPLE_INFERENCE_ID = "test_reranker";
     private static final String SIMPLE_QUERY = "query text";
     private ThreadPool threadPool;
-
-    private Map<String, ElementType> inputFieldTypes;
+    private Map<String, ElementType> inputChannelElementTypes;
+    private Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorFactories;
     private int scoreChannel;
 
     @Before
     private void initChannels() {
         int channelCount = randomIntBetween(2, 10);
         scoreChannel = randomIntBetween(0, channelCount - 1);
-        inputFieldTypes = IntStream.range(0, channelCount).sorted().mapToObj(i -> {
-            return i == scoreChannel ? Map.entry("_score", ElementType.DOUBLE) : Map.entry(randomIdentifier(), randomElementType());
+        inputChannelElementTypes = IntStream.range(0, channelCount).sorted().mapToObj(i -> {
+            return i == scoreChannel
+                ? Map.entry("_score", ElementType.DOUBLE)
+                : Map.entry(randomIdentifier(), randomFrom(ElementType.FLOAT, ElementType.DOUBLE, ElementType.LONG));
         }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
+
+        rerankFieldsEvaluatorFactories = randomMap(
+            1,
+            20,
+            () -> new Tuple<>(randomIdentifier(), context -> new EvalOperator.ExpressionEvaluator() {
+                private int channel = randomIntBetween(0, channelCount - 1);
+
+                @Override
+                public Block eval(Page page) {
+                    Block b = page.getBlock(channel);
+                    b.incRef();
+                    ;
+                    return b;
+                }
+
+                @Override
+                public void close() {
+
+                }
+            })
+        );
     }
 
     @Before
@@ -94,9 +118,6 @@ public class RerankOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple() {
         InferenceService inferenceService = mockedSimpleInferenceService();
-        Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorFactories = new LinkedHashMap<>();
-        rerankFieldsEvaluatorFactories.put("field1", new LoadFromPageFactory(0));
-        rerankFieldsEvaluatorFactories.put("_score", new LoadFromPageFactory(1));
 
         return new RerankOperator.Factory(
             inferenceService,
@@ -139,14 +160,18 @@ public class RerankOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return expectedToStringOfSimple();
+        return equalTo(
+            "RerankOperator[inference_id=test_reranker query=query text rerank_fields="
+                + rerankFieldsEvaluatorFactories.keySet()
+                + " score_channel="
+                + scoreChannel
+                + "]"
+        );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo(
-            "RerankOperator[inference_id=test_reranker query=query text rerank_fields=[field1, _score] score_channel=" + scoreChannel + "]"
-        );
+        return expectedDescriptionOfSimple();
     }
 
     @Override
@@ -159,14 +184,18 @@ public class RerankOperatorTests extends OperatorTestCase {
 
             @Override
             protected Page createPage(int positionOffset, int length) {
-                currentPosition += length;
-                return new Page(
-                    inputFieldTypes.values().stream().map(elementType -> randomBlock(elementType, length)).toArray(Block[]::new)
-                );
-            }
-
-            private Block randomBlock(ElementType elementType, int positionCount) {
-                return RandomBlock.randomBlock(elementType, positionCount, randomBoolean(), 0, 10, 0, 10).block();
+                try {
+                    currentPosition += length;
+                    ElementType[] elementTypes = inputChannelElementTypes.values().toArray(ElementType[]::new);
+                    Block[] blocks = new Block[inputChannelElementTypes.size()];
+                    for (int b = 0; b < elementTypes.length; b++) {
+                        blocks[b] = RandomBlock.randomBlock(blockFactory, elementTypes[b], length, randomBoolean(), 0, 10, 0, 10).block();
+                    }
+                    return new Page(blocks);
+                } catch (Exception e) {
+                    Releasables.closeExpectNoException();
+                    throw (e);
+                }
             }
         };
     }
@@ -270,24 +299,5 @@ public class RerankOperatorTests extends OperatorTestCase {
 
     <V extends Block, U> void assertByteRefsBlockContentEquals(Block input, Block result, BytesRef readBuffer) {
         assertBlockContentEquals(input, result, (BytesRefBlock b, Integer pos) -> b.getBytesRef(pos, readBuffer), BytesRefBlock.class);
-    }
-
-    record LoadFromPageFactory(int channel) implements EvalOperator.ExpressionEvaluator.Factory {
-        @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new EvalOperator.ExpressionEvaluator() {
-                @Override
-                public Block eval(Page page) {
-                    Block block = page.getBlock(channel);
-                    block.incRef();
-                    return block;
-                }
-
-                @Override
-                public void close() {
-
-                }
-            };
-        }
     }
 }

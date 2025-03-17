@@ -1026,57 +1026,47 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test_ds_patterns_1", 5L);
         testCases.put("test_ds_patterns_1::data", 5L);
         testCases.put("test_ds_patterns_1::failures", 3L);
-        testCases.put("test_ds_patterns_1::*", 8L);
         testCases.put("test_ds_patterns_2", 5L);
         testCases.put("test_ds_patterns_2::data", 5L);
         testCases.put("test_ds_patterns_2::failures", 3L);
-        testCases.put("test_ds_patterns_2::*", 8L);
 
         // Wildcard pattern with each selector
         testCases.put("test_ds_patterns*", 15L);
         testCases.put("test_ds_patterns*::data", 15L);
         testCases.put("test_ds_patterns*::failures", 9L);
-        testCases.put("test_ds_patterns*::*", 24L);
 
         // Match all pattern with each selector
         testCases.put("*", 15L);
         testCases.put("*::data", 15L);
         testCases.put("*::failures", 9L);
-        testCases.put("*::*", 24L);
 
         // Concrete multi-pattern
         testCases.put("test_ds_patterns_1,test_ds_patterns_2", 10L);
         testCases.put("test_ds_patterns_1::data,test_ds_patterns_2::data", 10L);
         testCases.put("test_ds_patterns_1::failures,test_ds_patterns_2::failures", 6L);
-        testCases.put("test_ds_patterns_1::*,test_ds_patterns_2::*", 16L);
 
         // Wildcard multi-pattern
         testCases.put("test_ds_patterns_1*,test_ds_patterns_2*", 10L);
         testCases.put("test_ds_patterns_1*::data,test_ds_patterns_2*::data", 10L);
         testCases.put("test_ds_patterns_1*::failures,test_ds_patterns_2*::failures", 6L);
-        testCases.put("test_ds_patterns_1*::*,test_ds_patterns_2*::*", 16L);
 
         // Wildcard pattern with data stream exclusions for each selector combination (data stream exclusions need * on the end to negate)
         // None (default)
         testCases.put("test_ds_patterns*,-test_ds_patterns_2*", 10L);
         testCases.put("test_ds_patterns*,-test_ds_patterns_2*::data", 10L);
         testCases.put("test_ds_patterns*,-test_ds_patterns_2*::failures", 15L);
-        testCases.put("test_ds_patterns*,-test_ds_patterns_2*::*", 10L);
         // Subtracting from ::data
         testCases.put("test_ds_patterns*::data,-test_ds_patterns_2*", 10L);
         testCases.put("test_ds_patterns*::data,-test_ds_patterns_2*::data", 10L);
         testCases.put("test_ds_patterns*::data,-test_ds_patterns_2*::failures", 15L);
-        testCases.put("test_ds_patterns*::data,-test_ds_patterns_2*::*", 10L);
         // Subtracting from ::failures
         testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*", 9L);
         testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*::data", 9L);
         testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*::failures", 6L);
-        testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*::*", 6L);
         // Subtracting from ::*
         testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*", 19L);
         testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::data", 19L);
         testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::failures", 21L);
-        testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::*", 16L);
 
         testCases.put("\"test_ds_patterns_1,test_ds_patterns_2\"::failures", 8L);
 
@@ -1094,14 +1084,11 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         Map<String, String> testCases = new HashMap<>();
         // === Errors
         // Only recognized components can be selected
-        testCases.put("testXXX::custom", "Invalid usage of :: separator, [custom] is not a recognized selector");
+        testCases.put("testXXX::custom", "invalid usage of :: separator, [custom] is not a recognized selector");
         // Spelling is important
-        testCases.put("testXXX::failres", "Invalid usage of :: separator, [failres] is not a recognized selector");
+        testCases.put("testXXX::failres", "invalid usage of :: separator, [failres] is not a recognized selector");
         // Only the match all wildcard is supported
-        testCases.put(
-            "testXXX::d*ta",
-            "Invalid usage of :: separator, [d*ta] contains a wildcard, but only the match all wildcard [*] is supported in a selector"
-        );
+        testCases.put("testXXX::d*ta", "invalid usage of :: separator, [d*ta] is not a recognized selector");
         // The first instance of :: is split upon so that you cannot chain the selector
         testCases.put("test::XXX::data", "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}");
         // Selectors must be outside of date math expressions or else they trip up the selector parsing
@@ -1109,7 +1096,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         // Only one selector separator is allowed per expression
         testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
         // Suffix case is not supported because there is no component named with the empty string
-        testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
+        testCases.put("index::", "missing {QUOTED_STRING, UNQUOTED_SOURCE} at '|'");
 
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1" }, (key, value) -> {
             logger.info(key);

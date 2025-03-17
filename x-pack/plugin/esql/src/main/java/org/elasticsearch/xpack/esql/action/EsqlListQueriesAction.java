@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlListQueriesResponse;
 
 public class EsqlListQueriesAction extends ActionType<EsqlListQueriesResponse> {
     public static final EsqlListQueriesAction INSTANCE = new EsqlListQueriesAction();
-    public static final String NAME = "cluster:monitor/data/read/esql/queries";
+    public static final String NAME = "cluster:monitor/xpack/esql/list_queries";
 
     private EsqlListQueriesAction() {
         super(NAME);

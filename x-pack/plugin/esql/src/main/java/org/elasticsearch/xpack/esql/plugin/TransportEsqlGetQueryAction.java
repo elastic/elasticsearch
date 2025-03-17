@@ -45,19 +45,7 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
                     .execute(new ActionListener<>() {
                         @Override
                         public void onResponse(ListTasksResponse response) {
-                            listener.onResponse(
-                                new EsqlGetQueryResponse(
-                                    new EsqlGetQueryResponse.DetailedQuery(
-                                        request.id(),
-                                        task.startTime(),
-                                        task.runningTimeNanos(),
-                                        task.description(),
-                                        // FIXME(gal, NOCOMMIT) This should be the coordinating node... how do I get that?
-                                        task.node(),
-                                        response.getTasks().stream().map(TaskInfo::node).distinct().toList()
-                                    )
-                                )
-                            );
+                            listener.onResponse(new EsqlGetQueryResponse(toDetailedQuery(task, response)));
                         }
 
                         @Override
@@ -72,5 +60,16 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
                 listener.onFailure(e);
             }
         });
+    }
+
+    private static EsqlGetQueryResponse.DetailedQuery toDetailedQuery(TaskInfo task, ListTasksResponse response) {
+        return new EsqlGetQueryResponse.DetailedQuery(
+            task.taskId(),
+            task.startTime(),
+            task.runningTimeNanos(),
+            task.description(), // Query
+            task.node(), // Coordinating node
+            response.getTasks().stream().map(TaskInfo::node).distinct().toList() // Data nodes
+        );
     }
 }

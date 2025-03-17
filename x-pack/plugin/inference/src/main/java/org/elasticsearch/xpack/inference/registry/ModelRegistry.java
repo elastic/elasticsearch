@@ -671,14 +671,9 @@ public class ModelRegistry implements ClusterStateListener {
                 try {
                     var projectId = clusterService.state().projectState().projectId();
                     metadataTaskQueue.submitTask(
-                            "add model [" + inferenceEntityId + "]",
-                            new AddModelMetadataTask(
-                                    projectId,
-                                    inferenceEntityId,
-                                    new MinimalServiceSettings(model),
-                                    storeListener
-                            ),
-                            timeout
+                        "add model [" + inferenceEntityId + "]",
+                        new AddModelMetadataTask(projectId, inferenceEntityId, new MinimalServiceSettings(model), storeListener),
+                        timeout
                     );
                 } catch (Exception exc) {
                     storeListener.onFailure(exc);
@@ -823,13 +818,9 @@ public class ModelRegistry implements ClusterStateListener {
                 try {
                     var projectId = clusterService.state().projectState().projectId();
                     metadataTaskQueue.submitTask(
-                            "delete models [" + inferenceEntityIds + "]",
-                            new DeleteModelMetadataTask(
-                                    projectId,
-                                    inferenceEntityIds,
-                                    clusterStateListener
-                            ),
-                            null
+                        "delete models [" + inferenceEntityIds + "]",
+                        new DeleteModelMetadataTask(projectId, inferenceEntityIds, clusterStateListener),
+                        null
                     );
                 } catch (Exception exc) {
                     clusterStateListener.onFailure(exc);

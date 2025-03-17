@@ -86,6 +86,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
     }
 
     public void testDefaultEndpoint() {
+        // Ec2ClientSettings#ENDPOINT_SETTING is not set, so the builder method shouldn't be called
         runPluginMockTest(Settings.builder(), plugin -> verify(plugin.ec2ClientBuilder, never()).endpointProvider(any()));
     }
 

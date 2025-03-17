@@ -90,6 +90,10 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
         AccessController.doPrivileged(privilegedAction);
     }
 
+    /**
+     * Adapter to allow running a {@link Ec2ImdsHttpFixture} directly rather than via a {@link @ClassRule}. Creates an HTTP handler (see
+     * {@link Ec2ImdsHttpHandler}) from the given builder, and provides the handler to the action, and then cleans up the handler.
+     */
     public static void runWithFixture(Ec2ImdsServiceBuilder ec2ImdsServiceBuilder, CheckedConsumer<Ec2ImdsHttpFixture, Exception> action) {
         final var imdsFixture = new Ec2ImdsHttpFixture(ec2ImdsServiceBuilder);
         try {
@@ -101,6 +105,8 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
             }, Description.EMPTY).evaluate();
         } catch (Throwable e) {
             throw new AssertionError(e);
+        } finally {
+            imdsFixture.stop(0);
         }
     }
 

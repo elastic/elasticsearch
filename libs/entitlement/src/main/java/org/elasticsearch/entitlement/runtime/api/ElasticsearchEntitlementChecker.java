@@ -19,7 +19,6 @@ import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -74,8 +73,8 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitor;
-import java.nio.file.Files;
 import java.nio.file.LinkOption;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -2050,16 +2049,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkCreateTempFile(callerClass);
     }
 
+    private static Path resolveLinkTarget(Path path, Path target) {
+        var parent = path.getParent();
+        return parent == null ? target : parent.resolve(target);
+    }
+
     @Override
     public void check$java_nio_file_Files$$createSymbolicLink(Class<?> callerClass, Path link, Path target, FileAttribute<?>... attrs) {
-        policyManager.checkFileRead(callerClass, target);
         policyManager.checkFileWrite(callerClass, link);
+        policyManager.checkFileRead(callerClass, resolveLinkTarget(link, target));
     }
 
     @Override
     public void check$java_nio_file_Files$$createLink(Class<?> callerClass, Path link, Path existing) {
-        policyManager.checkFileRead(callerClass, existing);
         policyManager.checkFileWrite(callerClass, link);
+        policyManager.checkFileRead(callerClass, resolveLinkTarget(link, existing));
     }
 
     @Override
@@ -2548,13 +2552,13 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void checkCreateSymbolicLink(Class<?> callerClass, FileSystemProvider that, Path link, Path target, FileAttribute<?>... attrs) {
         policyManager.checkFileWrite(callerClass, link);
-        policyManager.checkFileRead(callerClass, target);
+        policyManager.checkFileRead(callerClass, resolveLinkTarget(link, target));
     }
 
     @Override
     public void checkCreateLink(Class<?> callerClass, FileSystemProvider that, Path link, Path existing) {
         policyManager.checkFileWrite(callerClass, link);
-        policyManager.checkFileRead(callerClass, existing);
+        policyManager.checkFileRead(callerClass, resolveLinkTarget(link, existing));
     }
 
     @Override
@@ -2741,21 +2745,14 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) {
+    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) throws NoSuchFileException {
         boolean followLinks = true;
         for (LinkOption option : options) {
             if (option == LinkOption.NOFOLLOW_LINKS) {
                 followLinks = false;
             }
         }
-        if (followLinks) {
-            try {
-                policyManager.checkFileRead(callerClass, Files.readSymbolicLink(that));
-            } catch (IOException | UnsupportedOperationException e) {
-                // that is not a link, or unrelated IOException or unsupported
-            }
-        }
-        policyManager.checkFileRead(callerClass, that);
+        policyManager.checkFileRead(callerClass, that, followLinks);
     }
 
     @Override

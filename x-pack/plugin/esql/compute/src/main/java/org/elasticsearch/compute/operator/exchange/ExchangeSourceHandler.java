@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @see #addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
  */
 public final class ExchangeSourceHandler {
+
     private final ExchangeBuffer buffer;
     private final Executor fetchExecutor;
 
@@ -54,6 +55,10 @@ public final class ExchangeSourceHandler {
         this.fetchExecutor = fetchExecutor;
         this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
         this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.noop()));
+    }
+
+    public boolean isFinished() {
+        return buffer.isFinished();
     }
 
     private void checkFailure() {

@@ -9,11 +9,8 @@
 
 Divide one number by another. If either field is [multivalued](/reference/query-languages/esql/esql-multivalued-fields.md) then the result is `null`.
 
-::::{note}
-Division of two integer types will yield an integer result, rounding towards 0. If you need floating point division, [`Cast (::)`](../../../esql-functions-operators.md#esql-cast-operator) one of the arguments to a `DOUBLE`.
-::::
-
-
+:::{include} ../detailedDescription/div.md
+:::
 
 :::{include} ../types/div.md
 :::

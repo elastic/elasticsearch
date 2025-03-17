@@ -180,11 +180,13 @@ public class PolicyUtils {
     }
 
     static Entitlement mergeEntitlement(Entitlement entitlement1, Entitlement entitlement2) {
-        return switch (entitlement1) {
-            case FilesEntitlement e -> merge(e, (FilesEntitlement) entitlement2);
-            case WriteSystemPropertiesEntitlement e -> merge(e, (WriteSystemPropertiesEntitlement) entitlement2);
-            default -> entitlement1;
-        };
+        if (entitlement1 instanceof FilesEntitlement e) {
+            return merge(e, (FilesEntitlement) entitlement2);
+        }
+        if (entitlement1 instanceof WriteSystemPropertiesEntitlement e) {
+            return merge(e, (WriteSystemPropertiesEntitlement) entitlement2);
+        }
+        return entitlement1;
     }
 
     private static FilesEntitlement merge(FilesEntitlement a, FilesEntitlement b) {

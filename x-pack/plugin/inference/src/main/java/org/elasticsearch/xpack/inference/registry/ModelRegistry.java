@@ -236,26 +236,6 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     /**
-     * Retrieves all the {@link MinimalServiceSettings} associated with the provided {@code taskType}.
-     */
-    public List<ModelConfigurations> getAllMinimalServiceSettings(TaskType taskType) {
-        Set<String> duplicates = new HashSet<>();
-        List<ModelConfigurations> result = new ArrayList<>();
-        for (var entry : defaultConfigIds.entrySet()) {
-            if (duplicates.add(entry.getKey()) && taskType.isAnyOrSame(entry.getValue().settings().taskType())) {
-                result.add(entry.getValue().settings().toModelConfigurations(entry.getKey()));
-            }
-        }
-        var state = ModelRegistryMetadata.fromState(clusterService.state().projectState().metadata());
-        for (var entry : state.getModelMap().entrySet()) {
-            if (duplicates.add(entry.getKey()) && taskType.isAnyOrSame(entry.getValue().taskType())) {
-                result.add(entry.getValue().toModelConfigurations(entry.getKey()));
-            }
-        }
-        return result;
-    }
-
-    /**
      * Get a model with its secret settings
      * @param inferenceEntityId Model to get
      * @param listener Model listener
@@ -687,16 +667,22 @@ public class ModelRegistry implements ClusterStateListener {
             BulkItemResponse.Failure failure = getFirstBulkFailure(bulkItemResponses);
 
             if (failure == null) {
-                metadataTaskQueue.submitTask(
-                    "add model [" + inferenceEntityId + "]",
-                    new AddModelMetadataTask(
-                        clusterService.state().projectState().projectId(),
-                        inferenceEntityId,
-                        new MinimalServiceSettings(model),
-                        getStoreMetadataListener(inferenceEntityId, listener)
-                    ),
-                    timeout
-                );
+                var storeListener = getStoreMetadataListener(inferenceEntityId, listener);
+                try {
+                    var projectId = clusterService.state().projectState().projectId();
+                    metadataTaskQueue.submitTask(
+                            "add model [" + inferenceEntityId + "]",
+                            new AddModelMetadataTask(
+                                    projectId,
+                                    inferenceEntityId,
+                                    new MinimalServiceSettings(model),
+                                    storeListener
+                            ),
+                            timeout
+                    );
+                } catch (Exception exc) {
+                    storeListener.onFailure(exc);
+                }
                 return;
             }
 
@@ -834,15 +820,20 @@ public class ModelRegistry implements ClusterStateListener {
                         );
                     }
                 };
-                metadataTaskQueue.submitTask(
-                    "delete models [" + inferenceEntityIds + "]",
-                    new DeleteModelMetadataTask(
-                        clusterService.state().projectState().projectId(),
-                        inferenceEntityIds,
-                        clusterStateListener
-                    ),
-                    null
-                );
+                try {
+                    var projectId = clusterService.state().projectState().projectId();
+                    metadataTaskQueue.submitTask(
+                            "delete models [" + inferenceEntityIds + "]",
+                            new DeleteModelMetadataTask(
+                                    projectId,
+                                    inferenceEntityIds,
+                                    clusterStateListener
+                            ),
+                            null
+                    );
+                } catch (Exception exc) {
+                    clusterStateListener.onFailure(exc);
+                }
             }
 
             @Override

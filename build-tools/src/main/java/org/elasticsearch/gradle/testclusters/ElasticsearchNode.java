@@ -1451,14 +1451,21 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Map<String, String> jvmOptionExpansions() {
         Map<String, String> expansions = new HashMap<>();
         Version version = getVersion();
-        String heapDumpOrigin = getVersion().onOrAfter("6.3.0") ? "-XX:HeapDumpPath=data" : "-XX:HeapDumpPath=/heap/dump/path";
-        expansions.put(heapDumpOrigin, "-XX:HeapDumpPath=" + confPathLogs);
-        if (version.onOrAfter("6.2.0")) {
-            expansions.put("logs/gc.log", confPathLogs.resolve("gc.log").toString());
+        String heapDumpPathSub = "# -XX:HeapDumpPath=/heap/dump/path";
+        if (version.before("8.18.0") && version.onOrAfter("6.3.0")) {
+            heapDumpPathSub = "-XX:HeapDumpPath=/heap/dump/path";
         }
-        if (getVersion().getMajor() >= 7) {
-            expansions.put("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
+        expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + confPathLogs);
+        String gcLogSub = "gc.log";
+        if (version.before("8.18.0") && version.onOrAfter("6.2.0")) {
+            gcLogSub = "logs/gc.log";
         }
+        expansions.put(gcLogSub, confPathLogs.resolve("gc.log").toString());
+        String errorFileSub = "-XX:ErrorFile=hs_err_pid%p.log";
+        if (version.before("8.18.0") && getVersion().getMajor() >= 7) {
+            errorFileSub = "-XX:ErrorFile=logs/hs_err_pid%p.log";
+        }
+        expansions.put(errorFileSub, "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
         return expansions;
     }
 

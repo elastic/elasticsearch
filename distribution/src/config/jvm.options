@@ -77,10 +77,10 @@
 
 # specify an alternative path for heap dumps; ensure the directory exists and
 # has sufficient space
-@heap.dump.path@
+# -XX:HeapDumpPath=/heap/dump/path
 
 # specify an alternative path for JVM fatal error logs
-@error.file@
+-XX:ErrorFile=hs_err_pid%p.log
 
 ## GC logging
--Xlog:gc*,gc+age=trace,safepoint:file=@loggc@:utctime,level,pid,tags:filecount=32,filesize=64m
+-Xlog:gc*,gc+age=trace,safepoint:file=gc.log:utctime,level,pid,tags:filecount=32,filesize=64m

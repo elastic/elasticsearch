@@ -531,7 +531,6 @@ subprojects {
     final String packagingPathData = "path.data: /var/lib/elasticsearch"
     final String pathLogs = "/var/log/elasticsearch"
     final String packagingPathLogs = "path.logs: ${pathLogs}"
-    final String packagingLoggc = "${pathLogs}/gc.log"
 
     String licenseText
     if (isTestDistro) {
@@ -575,23 +574,6 @@ subprojects {
         'deb': packagingPathLogs,
         'rpm': packagingPathLogs,
         'def': '#path.logs: /path/to/logs'
-      ],
-      'loggc': [
-        'deb': packagingLoggc,
-        'rpm': packagingLoggc,
-        'def': 'logs/gc.log'
-      ],
-
-      'heap.dump.path': [
-        'deb': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-        'rpm': "-XX:HeapDumpPath=/var/lib/elasticsearch",
-        'def': "-XX:HeapDumpPath=data"
-      ],
-
-      'error.file': [
-        'deb': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
-        'rpm': "-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log",
-        'def': "-XX:ErrorFile=logs/hs_err_pid%p.log"
       ],
 
       'scripts.footer': [

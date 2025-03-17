@@ -48,6 +48,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginDescriptor;
@@ -891,6 +892,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testBatchFlag() throws Exception {
+        assumeTrue("security policy validation only available with SecurityManager", RuntimeVersionFeature.isSecurityManagerAvailable());
         installPlugin(true);
         assertThat(terminal.getErrorOutput(), containsString("WARNING: plugin requires additional permissions"));
         assertThat(terminal.getOutput(), containsString("-> Downloading"));
@@ -1529,6 +1531,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testPolicyConfirmation() throws Exception {
+        assumeTrue("security policy parsing only available with SecurityManager", RuntimeVersionFeature.isSecurityManagerAvailable());
         writePluginSecurityPolicy(pluginDir, "getClassLoader", "setFactory");
         InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
 

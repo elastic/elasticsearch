@@ -73,6 +73,11 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
         this.enabled = ENABLED_SETTING.get(settings);
     }
 
+    @Override
+    public Scope scope() {
+        return Scope.CLUSTER;
+    }
+
     public static HealthNodeTaskExecutor create(
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,

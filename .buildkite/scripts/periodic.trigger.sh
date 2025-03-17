@@ -46,4 +46,15 @@ EOF
       branch: "$BRANCH"
       commit: "$LAST_GOOD_COMMIT"
 EOF
+# Include forward compatibility tests only for the bugfix branch
+if [[ "${BRANCH}" == "${BRANCHES[2]}" ]]; then
+  cat <<EOF
+  - trigger: elasticsearch-periodic-fwc
+    label: Trigger periodic-fwc pipeline for $BRANCH
+    async: true
+    build:
+      branch: "$BRANCH"
+      commit: "$LAST_GOOD_COMMIT"
+EOF
+fi
 done

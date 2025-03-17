@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -31,8 +32,13 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
@@ -57,7 +63,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
@@ -209,15 +214,19 @@ public class ComputeService {
                         transportService.getThreadPool(),
                         cancelQueryOnFailure,
                         computeListener.acquireCompute().delegateFailure((l, profiles) -> {
-                            if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
-                                var tookTime = TimeValue.timeValueNanos(System.nanoTime() - execInfo.getRelativeStartNanos());
-                                var status = localClusterWasInterrupted.get()
-                                    ? EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                    : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                                execInfo.swapCluster(
-                                    LOCAL_CLUSTER,
-                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status).setTook(tookTime).build()
-                                );
+                            if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
+                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
+                                    var tookTime = TimeValue.timeValueNanos(System.nanoTime() - execInfo.getRelativeStartNanos());
+                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
+                                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                                        final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
+                                        var status = localClusterWasInterrupted.get() || (failedShards != null && failedShards > 0)
+                                            ? EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                            : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                                        builder.setStatus(status);
+                                    }
+                                    return builder.build();
+                                });
                             }
                             l.onResponse(profiles);
                         })
@@ -240,6 +249,7 @@ public class ComputeService {
                     );
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
+                        final var dataNodesListener = localListener.acquireCompute();
                         dataNodeComputeHandler.startComputeOnDataNodes(
                             sessionId,
                             LOCAL_CLUSTER,
@@ -250,19 +260,30 @@ public class ComputeService {
                             localOriginalIndices,
                             exchangeSource,
                             cancelQueryOnFailure,
-                            localListener.acquireCompute().map(r -> {
-                                localClusterWasInterrupted.set(execInfo.isPartial());
-                                if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
+                            ActionListener.wrap(r -> {
+                                localClusterWasInterrupted.set(execInfo.isStopped());
+                                execInfo.swapCluster(
+                                    LOCAL_CLUSTER,
+                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
+                                        .setSuccessfulShards(r.getSuccessfulShards())
+                                        .setSkippedShards(r.getSkippedShards())
+                                        .setFailedShards(r.getFailedShards())
+                                        .setFailures(r.failures)
+                                        .build()
+                                );
+                                dataNodesListener.onResponse(r.getProfiles());
+                            }, e -> {
+                                if (configuration.allowPartialResults()) {
                                     execInfo.swapCluster(
                                         LOCAL_CLUSTER,
-                                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
-                                            .setSuccessfulShards(r.getSuccessfulShards())
-                                            .setSkippedShards(r.getSkippedShards())
-                                            .setFailedShards(r.getFailedShards())
-                                            .build()
+                                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
+                                            EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                        ).setFailures(List.of(new ShardSearchFailure(e))).build()
                                     );
+                                    dataNodesListener.onResponse(List.of());
+                                } else {
+                                    dataNodesListener.onFailure(e);
                                 }
-                                return r.getProfiles();
                             })
                         );
                     }
@@ -279,45 +300,10 @@ public class ComputeService {
                         cluster,
                         cancelQueryOnFailure,
                         execInfo,
-                        computeListener.acquireCompute().map(r -> {
-                            updateExecutionInfo(execInfo, cluster.clusterAlias(), r);
-                            return r.getProfiles();
-                        })
+                        computeListener.acquireCompute()
                     );
                 }
             }
-        }
-    }
-
-    private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
-        Function<EsqlExecutionInfo.Cluster.Status, EsqlExecutionInfo.Cluster.Status> runningToSuccess = status -> {
-            if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                return executionInfo.isPartial() ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-            } else {
-                return status;
-            }
-        };
-        if (resp.getTook() != null) {
-            var tookTime = TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos());
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(tookTime)
-                    .setTotalShards(resp.getTotalShards())
-                    .setSuccessfulShards(resp.getSuccessfulShards())
-                    .setSkippedShards(resp.getSkippedShards())
-                    .setFailedShards(resp.getFailedShards())
-                    .build()
-            );
-        } else {
-            // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
-            // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(executionInfo.tookSoFar())
-                    .build()
-            );
         }
     }
 
@@ -396,7 +382,7 @@ public class ComputeService {
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.taskDescription(), context.foldCtx(), plan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plan);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }
@@ -445,5 +431,34 @@ public class ComputeService {
             LOGGER.debug("cancelling ESQL task {} on failure", task);
             transportService.getTaskManager().cancelTaskAndDescendants(task, "cancelled on failure", false, ActionListener.noop());
         });
+    }
+
+    CancellableTask createGroupTask(Task parentTask, Supplier<String> description) throws TaskCancelledException {
+        final TaskManager taskManager = transportService.getTaskManager();
+        return (CancellableTask) taskManager.register(
+            "transport",
+            "esql_compute_group",
+            new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
+        );
+    }
+
+    private static class ComputeGroupTaskRequest extends TransportRequest {
+        private final Supplier<String> parentDescription;
+
+        ComputeGroupTaskRequest(TaskId parentTask, Supplier<String> description) {
+            this.parentDescription = description;
+            setParentTask(parentTask);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            assert parentTaskId.isSet();
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        }
+
+        @Override
+        public String getDescription() {
+            return "group [" + parentDescription.get() + "]";
+        }
     }
 }

@@ -13,12 +13,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -32,7 +33,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetComponentTemplateAction extends TransportLocalClusterStateAction<
+public class TransportGetComponentTemplateAction extends TransportLocalProjectMetadataAction<
     GetComponentTemplateAction.Request,
     GetComponentTemplateAction.Response> {
 
@@ -48,14 +49,16 @@ public class TransportGetComponentTemplateAction extends TransportLocalClusterSt
     public TransportGetComponentTemplateAction(
         TransportService transportService,
         ClusterService clusterService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(
             GetComponentTemplateAction.NAME,
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
         clusterSettings = clusterService.getClusterSettings();
 
@@ -70,7 +73,7 @@ public class TransportGetComponentTemplateAction extends TransportLocalClusterSt
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetComponentTemplateAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetComponentTemplateAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
@@ -78,7 +81,7 @@ public class TransportGetComponentTemplateAction extends TransportLocalClusterSt
     protected void localClusterStateOperation(
         Task task,
         GetComponentTemplateAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetComponentTemplateAction.Response> listener
     ) {
         final var cancellableTask = (CancellableTask) task;

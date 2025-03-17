@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -1020,24 +1021,17 @@ public class InternalEngine extends Engine {
         VersionValue versionValue = getVersionFromMap(op.uid());
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
-            final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion;
-            try (Searcher searcher = acquireSearcher("load_version", SearcherScope.INTERNAL)) {
-                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                    docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
-                        searcher.getIndexReader(),
-                        op.uid(),
-                        op.id(),
-                        loadSeqNo
-                    );
-                } else {
-                    docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(
-                        searcher.getIndexReader(),
-                        op.uid(),
-                        loadSeqNo
-                    );
+            final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = performActionWithDirectoryReader(
+                SearcherScope.INTERNAL,
+                directoryReader -> {
+                    if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                        assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
+                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), op.id(), loadSeqNo);
+                    } else {
+                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
+                    }
                 }
-            }
+            );
             if (docIdAndVersion != null) {
                 versionValue = new IndexVersionValue(null, docIdAndVersion.version, docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
             }
@@ -2931,7 +2925,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> extraCommitUserData = getCommitExtraUserData();
+                final Map<String, String> extraCommitUserData = getCommitExtraUserData(localCheckpoint);
                 final Map<String, String> commitData = Maps.newMapWithExpectedSize(8 + extraCommitUserData.size());
                 commitData.putAll(extraCommitUserData);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
@@ -2979,8 +2973,10 @@ public class InternalEngine extends Engine {
     /**
      * Allows InternalEngine extenders to return custom key-value pairs which will be included in the Lucene commit user-data. Custom user
      * data keys can be overwritten by if their keys conflict keys used by InternalEngine.
+     *
+     * @param localCheckpoint the local checkpoint of the commit
      */
-    protected Map<String, String> getCommitExtraUserData() {
+    protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
         return Collections.emptyMap();
     }
 
@@ -3469,5 +3465,31 @@ public class InternalEngine extends Engine {
 
     protected long getPreCommitSegmentGeneration() {
         return preCommitSegmentGeneration.get();
+    }
+
+    <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
+        throws EngineException {
+        assert scope == SearcherScope.INTERNAL : "performActionWithDirectoryReader(...) isn't prepared for external usage";
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
+        try {
+            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
+            ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            try {
+                return action.apply(acquire);
+            } finally {
+                referenceManager.release(acquire);
+            }
+        } catch (AlreadyClosedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            maybeFailEngine("perform_action_directory_reader", ex);
+            ensureOpen(ex); // throw EngineCloseException here if we are already closed
+            logger.error("failed to perform action with directory reader", ex);
+            throw new EngineException(shardId, "failed to perform action with directory reader", ex);
+        } finally {
+            store.decRef();
+        }
     }
 }

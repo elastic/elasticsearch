@@ -36,7 +36,7 @@ public class AlibabaCloudSearchEmbeddingsAction implements ExecutableAction {
         this.model = Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         this.account = new AlibabaCloudSearchAccount(this.model.getSecretSettings().apiKey());
-        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(null, "AlibabaCloud Search text embeddings");
+        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("AlibabaCloud Search text embeddings");
         this.requestCreator = AlibabaCloudSearchEmbeddingsRequestManager.of(account, model, serviceComponents.threadPool());
     }
 

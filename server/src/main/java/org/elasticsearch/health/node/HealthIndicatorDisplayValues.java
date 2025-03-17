@@ -122,7 +122,7 @@ public class HealthIndicatorDisplayValues {
     public static Comparator<String> indicesComparatorByPriorityAndName(Metadata clusterMetadata) {
         // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
         return Comparator.comparingInt((String indexName) -> {
-            IndexMetadata indexMetadata = clusterMetadata.index(indexName);
+            IndexMetadata indexMetadata = clusterMetadata.getProject().index(indexName);
             return indexMetadata == null ? -1 : indexMetadata.priority();
         }).reversed().thenComparing(Comparator.naturalOrder());
     }

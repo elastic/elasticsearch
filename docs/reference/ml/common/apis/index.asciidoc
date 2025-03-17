@@ -1,7 +1,0 @@
-include::ml-apis.asciidoc[leveloffset=+1]
-//GET
-include::get-ml-info.asciidoc[leveloffset=+2]
-include::get-ml-memory.asciidoc[leveloffset=+2]
-//SET
-include::set-upgrade-mode.asciidoc[leveloffset=+2]
-

@@ -1,5 +1,0 @@
-pr: 120193
-summary: "Do not capture `ClusterChangedEvent` in `IndicesStore` call to #onClusterStateShardsClosed"
-area: Store
-type: bug
-issues: []

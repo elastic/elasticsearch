@@ -281,10 +281,9 @@ public class AzureOpenAiService extends SenderService {
         AzureOpenAiModel azureOpenAiModel = (AzureOpenAiModel) model;
         var actionCreator = new AzureOpenAiActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.FLOAT,
             azureOpenAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 

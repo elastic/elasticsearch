@@ -10,8 +10,11 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
+import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
@@ -36,6 +39,7 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 
 public class InstrumenterImpl implements Instrumenter {
+    private static final Logger logger = LogManager.getLogger(InstrumenterImpl.class);
 
     private final String getCheckerClassMethodDescriptor;
     private final String handleClass;
@@ -89,7 +93,7 @@ public class InstrumenterImpl implements Instrumenter {
 
     class EntitlementClassVisitor extends ClassVisitor {
 
-        private static final String ENTITLEMENT_ANNOTATION = "EntitlementInstrumented";
+        private static final String ENTITLEMENT_ANNOTATION_DESCRIPTOR = Type.getDescriptor(EntitlementInstrumented.class);
 
         private final String className;
 
@@ -108,7 +112,7 @@ public class InstrumenterImpl implements Instrumenter {
 
         @Override
         public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-            if (visible && descriptor.equals(ENTITLEMENT_ANNOTATION)) {
+            if (visible && descriptor.equals(ENTITLEMENT_ANNOTATION_DESCRIPTOR)) {
                 isAnnotationPresent = true;
                 annotationNeeded = false;
             }
@@ -155,10 +159,10 @@ public class InstrumenterImpl implements Instrumenter {
                 var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
                 var instrumentationMethod = checkMethods.get(key);
                 if (instrumentationMethod != null) {
-                    // System.out.println("Will instrument method " + key);
+                    logger.debug("Will instrument {}", key);
                     return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, isCtor, descriptor, instrumentationMethod);
                 } else {
-                    // System.out.println("Will not instrument method " + key);
+                    logger.trace("Will not instrument {}", key);
                 }
             }
             return mv;
@@ -174,7 +178,7 @@ public class InstrumenterImpl implements Instrumenter {
         private void addClassAnnotationIfNeeded() {
             if (annotationNeeded) {
                 // logger.debug("Adding {} annotation", ENTITLEMENT_ANNOTATION);
-                AnnotationVisitor av = cv.visitAnnotation(ENTITLEMENT_ANNOTATION, true);
+                AnnotationVisitor av = cv.visitAnnotation(ENTITLEMENT_ANNOTATION_DESCRIPTOR, true);
                 if (av != null) {
                     av.visitEnd();
                 }

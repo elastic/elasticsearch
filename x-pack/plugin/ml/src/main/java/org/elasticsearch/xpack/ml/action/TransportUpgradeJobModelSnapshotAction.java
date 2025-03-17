@@ -18,7 +18,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -76,7 +75,6 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         ClusterService clusterService,
         PersistentTasksService persistentTasksService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         JobConfigProvider jobConfigProvider,
         MlMemoryTracker memoryTracker,
         JobResultsProvider jobResultsProvider,
@@ -123,7 +121,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             return;
         }
 
-        PersistentTasksCustomMetadata customMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata customMetadata = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (customMetadata != null
             && (customMetadata.findTasks(
                 MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,

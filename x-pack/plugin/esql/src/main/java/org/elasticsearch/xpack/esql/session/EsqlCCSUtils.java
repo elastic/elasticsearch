@@ -369,23 +369,4 @@ public class EsqlCCSUtils {
 
         return ExceptionsHelper.isRemoteUnavailableException(e);
     }
-
-    /**
-     * Wrap a listener so that it will skip errors that are ignorable
-     */
-    public static <T> ActionListener<T> skipUnavailableListener(
-        ActionListener<T> delegate,
-        EsqlExecutionInfo executionInfo,
-        String clusterAlias,
-        EsqlExecutionInfo.Cluster.Status status
-    ) {
-        return delegate.delegateResponse((l, e) -> {
-            if (shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
-                markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, status, e);
-                l.onResponse(null);
-            } else {
-                l.onFailure(e);
-            }
-        });
-    }
 }

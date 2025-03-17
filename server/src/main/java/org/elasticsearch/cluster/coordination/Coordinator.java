@@ -52,7 +52,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -79,6 +81,7 @@ import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -88,6 +91,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -1645,18 +1649,20 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     // there is no equals on cluster state, so we just serialize it to XContent and compare Maps
     // deserialized from the resulting JSON
     private boolean assertPreviousStateConsistency(ClusterStatePublicationEvent clusterStatePublicationEvent) {
-        assert clusterStatePublicationEvent.getOldState() == coordinationState.get().getLastAcceptedState()
-            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(clusterStatePublicationEvent.getOldState()), false)
-                .equals(
-                    XContentHelper.convertToMap(
-                        JsonXContent.jsonXContent,
-                        Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())),
-                        false
-                    )
-                )
-            : Strings.toString(clusterStatePublicationEvent.getOldState())
-                + " vs "
-                + Strings.toString(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState()));
+        if (clusterStatePublicationEvent.getOldState() != coordinationState.get().getLastAcceptedState()) {
+            // compare JSON representations
+            @FixForMultiProject // this is just so the toXContent doesnt throw - we want the same contents, but dont care if it's MP or not
+            ToXContent.Params params = new ToXContent.MapParams(Map.of("multi-project", "true"));
+
+            String oldState = Strings.toString(ChunkedToXContent.wrapAsToXContent(clusterStatePublicationEvent.getOldState()), params);
+            String newState = Strings.toString(
+                ChunkedToXContent.wrapAsToXContent(clusterStateWithNoMasterBlock(coordinationState.get().getLastAcceptedState())),
+                params
+            );
+            assert XContentHelper.convertToMap(JsonXContent.jsonXContent, oldState, false)
+                .equals(XContentHelper.convertToMap(JsonXContent.jsonXContent, newState, false)) : oldState + " vs " + newState;
+        }
+
         return true;
     }
 

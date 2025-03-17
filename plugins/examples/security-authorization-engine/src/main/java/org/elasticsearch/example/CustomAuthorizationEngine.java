@@ -10,8 +10,9 @@
 package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -86,14 +87,14 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeIndexAction(
+    SubscribableListener<IndexAuthorizationResult> void authorizeIndexAction(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-        Metadata metadata,
-        ActionListener<IndexAuthorizationResult> listener
+        ProjectMetadata project
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
+            ActionListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
                 for (String name : resolvedIndices.getLocal()) {
@@ -103,8 +104,9 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                     new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));
                 listener.onResponse(new IndexAuthorizationResult(indicesAccessControl));
             }, listener::onFailure));
+            return listener;
         } else {
-            listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
+            return SubscribableListener.succcess(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
         }
     }
 

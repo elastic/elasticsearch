@@ -129,10 +129,9 @@ public class AmazonBedrockService extends SenderService {
         if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
             var maxBatchSize = getEmbeddingsMaxBatchSize(baseAmazonBedrockModel.provider());
 
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 inputs.getInputs(),
                 maxBatchSize,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT,
                 baseAmazonBedrockModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 

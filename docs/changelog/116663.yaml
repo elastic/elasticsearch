@@ -1,5 +1,0 @@
-pr: 116663
-summary: KNN vector rescoring for quantized vectors
-area: Vector Search
-type: feature
-issues: []

@@ -22,8 +22,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTaskState;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -198,10 +198,11 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
 
     private ClusterState stateWithHealthNodeSelectorTask(ClusterState clusterState) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
+        ClusterPersistentTasksCustomMetadata.Builder tasks = ClusterPersistentTasksCustomMetadata.builder();
         tasks.addTask(HealthNode.TASK_NAME, HealthNode.TASK_NAME, new HealthNodeTaskParams(), NO_NODE_FOUND);
 
-        Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
+        Metadata.Builder metadata = Metadata.builder(clusterState.metadata())
+            .putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tasks.build());
         return builder.metadata(metadata).build();
     }
 }

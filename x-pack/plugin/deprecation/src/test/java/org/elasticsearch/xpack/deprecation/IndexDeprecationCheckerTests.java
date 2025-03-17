@@ -79,7 +79,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "Old index with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+            "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html",
             "This index has version: " + OLD_VERSION.toReleaseVersion(),
             false,
             singletonMap("reindex_required", true)
@@ -103,8 +103,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "One or more Transforms write to this index with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
-                + "#breaking_90_transform_destination_index",
+            "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html#breaking_90_transform_destination_index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
                 + "] and requires action before upgrading to 9.0. "
@@ -130,8 +129,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "One or more Transforms write to this index with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
-                + "#breaking_90_transform_destination_index",
+            "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html#breaking_90_transform_destination_index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
                 + "] and requires action before upgrading to 9.0. "
@@ -161,7 +159,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "One or more Transforms write to this index with a compatibility version < 9.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html"
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
@@ -177,7 +175,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "One or more Transforms write to this index with a compatibility version < 9.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html"
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
@@ -233,7 +231,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
-                    .customs(
+                    .projectCustoms(
                         Map.of(
                             DataStreamMetadata.TYPE,
                             new DataStreamMetadata(
@@ -284,7 +282,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Old index with a compatibility version < 9.0 has been ignored",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
+            "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html",
             "This read-only index has version: " + OLD_VERSION.toReleaseVersion() + " and will be supported as read-only in 9.0",
             false,
             singletonMap("reindex_required", true)
@@ -296,6 +294,28 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         );
         assertTrue(issuesByIndex.containsKey("test"));
         assertEquals(List.of(expected), issuesByIndex.get("test"));
+    }
+
+    public void testOldSystemIndicesIgnored() {
+        // We do not want system indices coming back in the deprecation info API
+        Settings.Builder settings = settings(OLD_VERSION).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .system(true)
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+        assertThat(issuesByIndex, equalTo(Map.of()));
     }
 
     private IndexMetadata readonlyIndexMetadata(String indexName, IndexVersion indexVersion) {
@@ -313,8 +333,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "One or more Transforms write to this old index with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
-                + "#breaking_90_transform_destination_index",
+            "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html#breaking_90_transform_destination_index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
                 + "] and will be supported as a read-only index in 9.0. "
@@ -340,8 +359,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "One or more Transforms write to this old index with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
-                + "#breaking_90_transform_destination_index",
+            "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html#breaking_90_transform_destination_index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
                 + "] and will be supported as a read-only index in 9.0. "
@@ -371,7 +389,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "One or more Transforms write to this old index with a compatibility version < 9.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html"
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
@@ -387,7 +405,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "One or more Transforms write to this old index with a compatibility version < 9.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html"
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()

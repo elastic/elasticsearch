@@ -201,10 +201,10 @@ public class PolicyStepsRegistry {
      */
     private List<Step> getAllStepsForIndex(ClusterState state, Index index) {
         final Metadata metadata = state.metadata();
-        if (metadata.hasIndex(index) == false) {
+        if (metadata.getProject().hasIndex(index) == false) {
             throw new IllegalArgumentException("index " + index + " does not exist in the current cluster state");
         }
-        final IndexMetadata indexMetadata = metadata.index(index);
+        final IndexMetadata indexMetadata = metadata.getProject().index(index);
         final String policyName = indexMetadata.getLifecyclePolicyName();
         final LifecyclePolicyMetadata policyMetadata = lifecyclePolicyMap.get(policyName);
         if (policyMetadata == null) {

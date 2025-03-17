@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Map<String, List<ProcessorStat>> processorStats)
     implements
@@ -57,6 +58,11 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
      * Read from a stream.
      */
     public static IngestStats read(StreamInput in) throws IOException {
+        // while reading the processors, we're going to encounter identical name and type strings *repeatedly*
+        // it's advantageous to discard the endless copies of the same strings and canonical-ize them to keep our
+        // heap usage under control. note: this map is key to key, because of the limitations of the set interface.
+        final Map<String, String> namesAndTypesCache = new HashMap<>();
+
         var stats = readStats(in);
         var size = in.readVInt();
         if (stats == Stats.IDENTITY && size == 0) {
@@ -68,7 +74,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         for (var i = 0; i < size; i++) {
             var pipelineId = in.readString();
             var pipelineStat = readStats(in);
-            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? new ByteStats(in) : new ByteStats(0, 0);
+            var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? readByteStats(in) : ByteStats.IDENTITY;
             pipelineStats.add(new PipelineStat(pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
             var processorStatsPerPipeline = new ArrayList<ProcessorStat>(processorsSize);
@@ -76,6 +82,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
                 var processorName = in.readString();
                 var processorType = in.readString();
                 var processorStat = readStats(in);
+                // pass these name and type through the local names and types cache to canonical-ize them
+                processorName = namesAndTypesCache.computeIfAbsent(processorName, Function.identity());
+                processorType = namesAndTypesCache.computeIfAbsent(processorType, Function.identity());
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
             processorStats.put(pipelineId, Collections.unmodifiableList(processorStatsPerPipeline));
@@ -278,13 +287,21 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         }
     }
 
+    static ByteStats readByteStats(StreamInput in) throws IOException {
+        long bytesIngested = in.readVLong();
+        long bytesProduced = in.readVLong();
+        if (bytesProduced == 0L && bytesIngested == 0L) {
+            return ByteStats.IDENTITY;
+        }
+        return new ByteStats(bytesIngested, bytesProduced);
+    }
+
     /**
      * Container for ingested byte stats
      */
     public record ByteStats(long bytesIngested, long bytesProduced) implements Writeable, ToXContentFragment {
-        public ByteStats(StreamInput in) throws IOException {
-            this(in.readVLong(), in.readVLong());
-        }
+
+        public static final ByteStats IDENTITY = new ByteStats(0L, 0L);
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
@@ -308,6 +325,11 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         }
 
         static ByteStats merge(ByteStats first, ByteStats second) {
+            if (first == IDENTITY) {
+                return second;
+            } else if (second == IDENTITY) {
+                return first;
+            }
             return new ByteStats((first.bytesIngested + second.bytesIngested), first.bytesProduced + second.bytesProduced);
         }
     }

@@ -48,7 +48,6 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
     public ExecutableAction create(ElasticInferenceServiceSparseEmbeddingsModel model) {
         var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext, inputType);
         var errorMessage = constructFailedToSendRequestMessage(
-            model.uri(),
             String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
         );
         return new SenderExecutableAction(sender, requestManager, errorMessage);

@@ -19,12 +19,14 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
@@ -189,7 +191,7 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
                 );
             }
         } else {
-            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(state.metadata().getDefaultProject());
             datafeedConfigProvider.expandDatafeedIds(
                 request.getDatafeedId(),
                 request.allowNoMatch(),
@@ -501,7 +503,12 @@ public class TransportStopDatafeedAction extends TransportTasksAction<
         ActionListener<StopDatafeedAction.Response> listener,
         Set<String> movedDatafeeds
     ) {
-        persistentTasksService.waitForPersistentTasksCondition(persistentTasksCustomMetadata -> {
+        @FixForMultiProject
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasksCustomMetadata -> {
+            if (persistentTasksCustomMetadata == null) {
+                return true;
+            }
             for (PersistentTasksCustomMetadata.PersistentTask<?> originalPersistentTask : datafeedPersistentTasks) {
                 String originalPersistentTaskId = originalPersistentTask.getId();
                 PersistentTasksCustomMetadata.PersistentTask<?> currentPersistentTask = persistentTasksCustomMetadata.getTask(

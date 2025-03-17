@@ -31,8 +31,13 @@ import org.junit.Before;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -68,7 +73,6 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             clusterService,
             threadPool,
             new ActionFilters(Set.of()),
-            null,
             allocationStatsService
         );
     }
@@ -110,6 +114,52 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             assertNotNull(response.getDiskThresholdSettings());
         } else {
             assertNull(response.getDiskThresholdSettings());
+        }
+    }
+
+    public void testDeduplicatesStatsComputations() throws InterruptedException {
+        final var requestCounter = new AtomicInteger();
+        final var isExecuting = new AtomicBoolean();
+        when(allocationStatsService.stats()).thenAnswer(invocation -> {
+            try {
+                assertTrue(isExecuting.compareAndSet(false, true));
+                assertThat(Thread.currentThread().getName(), containsString("[management]"));
+                return Map.of(Integer.toString(requestCounter.incrementAndGet()), NodeAllocationStatsTests.randomNodeAllocationStats());
+            } finally {
+                Thread.yield();
+                assertTrue(isExecuting.compareAndSet(true, false));
+            }
+        });
+
+        final var threads = new Thread[between(1, 5)];
+        final var startBarrier = new CyclicBarrier(threads.length);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                safeAwait(startBarrier);
+
+                final var minRequestIndex = requestCounter.get();
+
+                final TransportGetAllocationStatsAction.Response response = safeAwait(
+                    l -> action.masterOperation(
+                        mock(Task.class),
+                        new TransportGetAllocationStatsAction.Request(
+                            TEST_REQUEST_TIMEOUT,
+                            TaskId.EMPTY_TASK_ID,
+                            EnumSet.of(Metric.ALLOCATIONS)
+                        ),
+                        ClusterState.EMPTY_STATE,
+                        l
+                    )
+                );
+
+                final var requestIndex = Integer.valueOf(response.getNodeAllocationStats().keySet().iterator().next());
+                assertThat(requestIndex, greaterThanOrEqualTo(minRequestIndex)); // did not get a stale result
+            }, "thread-" + i);
+            threads[i].start();
+        }
+
+        for (final var thread : threads) {
+            thread.join();
         }
     }
 }

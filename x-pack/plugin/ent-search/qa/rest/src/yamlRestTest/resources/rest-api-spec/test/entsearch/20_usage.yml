@@ -27,6 +27,8 @@ teardown:
 
 ---
 "xpack usage includes Enterprise Search":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
 
   - do:
       xpack.usage: { }
@@ -79,6 +81,8 @@ teardown:
                     query: "{{query_string}}"
 
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.put_behavioral_analytics:
         name: test-analytics-collection
 
@@ -113,6 +117,8 @@ teardown:
   }
 
   - do:
+      allowed_warnings:
+        - "Behavioral Analytics is deprecated and will be removed in a future release."
       search_application.delete_behavioral_analytics:
         name: test-analytics-collection
 

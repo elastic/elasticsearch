@@ -16,6 +16,7 @@ import java.nio.file.attribute.FileStoreAttributeView;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class FileStoreActions {
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

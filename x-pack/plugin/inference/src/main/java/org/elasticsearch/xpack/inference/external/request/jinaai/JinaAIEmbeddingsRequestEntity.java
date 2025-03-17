@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 
 import java.io.IOException;
@@ -19,9 +20,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings.invalidInputTypeMessage;
 
-public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddingsTaskSettings taskSettings, @Nullable String model)
-    implements
-        ToXContentObject {
+public record JinaAIEmbeddingsRequestEntity(
+    List<String> input,
+    JinaAIEmbeddingsTaskSettings taskSettings,
+    @Nullable String model,
+    @Nullable JinaAIEmbeddingType embeddingType
+) implements ToXContentObject {
 
     private static final String SEARCH_DOCUMENT = "retrieval.passage";
     private static final String SEARCH_QUERY = "retrieval.query";
@@ -30,6 +34,7 @@ public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddings
     private static final String INPUT_FIELD = "input";
     private static final String MODEL_FIELD = "model";
     public static final String TASK_TYPE_FIELD = "task";
+    static final String EMBEDDING_TYPE_FIELD = "embedding_type";
 
     public JinaAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
@@ -42,6 +47,10 @@ public record JinaAIEmbeddingsRequestEntity(List<String> input, JinaAIEmbeddings
         builder.startObject();
         builder.field(INPUT_FIELD, input);
         builder.field(MODEL_FIELD, model);
+
+        if (embeddingType != null) {
+            builder.field(EMBEDDING_TYPE_FIELD, embeddingType.toRequestString());
+        }
 
         if (taskSettings.getInputType() != null) {
             builder.field(TASK_TYPE_FIELD, convertToString(taskSettings.getInputType()));

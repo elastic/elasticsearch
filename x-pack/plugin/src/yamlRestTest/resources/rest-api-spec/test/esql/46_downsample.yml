@@ -117,3 +117,32 @@ setup:
   - match: {values.0.2: 5332018.0}
   - match: {values.0.3: 8}
 
+---
+"Render stats from downsampled index":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_rendering]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      indices.downsample:
+        index: test
+        target_index: test-downsample
+        body: >
+          {
+            "fixed_interval": "1h"
+          }
+  - is_true: acknowledged
+
+  - do:
+      esql.query:
+        body:
+          query: "FROM test-downsample | WHERE @timestamp == \"2021-04-28T19:00:00.000Z\" | KEEP k8s.pod.network.rx | LIMIT 100"
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "k8s.pod.network.rx"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {values.0.0: '{"min":530604.0,"max":530605.0,"sum":1061209.0,"value_count":2}'}

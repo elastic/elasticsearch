@@ -10,7 +10,6 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -49,7 +48,7 @@ public class TransportVersions {
         return new TransportVersion(id);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove the transport versions with which v9 will not need to interact
+    // TODO: ES-10337 we can remove all transport versions earlier than 8.18
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_1_0 = def(7_01_00_99);
@@ -57,21 +56,10 @@ public class TransportVersions {
     public static final TransportVersion V_7_3_0 = def(7_03_00_99);
     public static final TransportVersion V_7_3_2 = def(7_03_02_99);
     public static final TransportVersion V_7_4_0 = def(7_04_00_99);
-    public static final TransportVersion V_7_6_0 = def(7_06_00_99);
     public static final TransportVersion V_7_8_0 = def(7_08_00_99);
     public static final TransportVersion V_7_8_1 = def(7_08_01_99);
     public static final TransportVersion V_7_9_0 = def(7_09_00_99);
     public static final TransportVersion V_7_10_0 = def(7_10_00_99);
-    public static final TransportVersion V_7_11_0 = def(7_11_00_99);
-    public static final TransportVersion V_7_12_0 = def(7_12_00_99);
-    public static final TransportVersion V_7_13_0 = def(7_13_00_99);
-    public static final TransportVersion V_7_14_0 = def(7_14_00_99);
-    public static final TransportVersion V_7_15_0 = def(7_15_00_99);
-    public static final TransportVersion V_7_15_1 = def(7_15_01_99);
-    public static final TransportVersion V_7_16_0 = def(7_16_00_99);
-    public static final TransportVersion V_7_17_0 = def(7_17_00_99);
-    public static final TransportVersion V_7_17_1 = def(7_17_01_99);
-    public static final TransportVersion V_7_17_8 = def(7_17_08_99);
     public static final TransportVersion V_8_0_0 = def(8_00_00_99);
     public static final TransportVersion V_8_1_0 = def(8_01_00_99);
     public static final TransportVersion V_8_2_0 = def(8_02_00_99);
@@ -99,36 +87,12 @@ public class TransportVersions {
     public static final TransportVersion V_8_15_0 = def(8_702_0_02);
     public static final TransportVersion V_8_15_2 = def(8_702_0_03);
     public static final TransportVersion V_8_16_0 = def(8_772_0_01);
-    public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16 = def(8_772_0_02);
-    public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16 = def(8_772_0_03);
-    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16 = def(8_772_0_04);
-    public static final TransportVersion REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_773_0_00);
-    public static final TransportVersion REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_774_0_00);
-    public static final TransportVersion ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED = def(8_775_0_00);
-    public static final TransportVersion INFERENCE_DONT_PERSIST_ON_READ = def(8_776_0_00);
-    public static final TransportVersion SIMULATE_MAPPING_ADDITION = def(8_777_0_00);
-    public static final TransportVersion INTRODUCE_ALL_APPLICABLE_SELECTOR = def(8_778_0_00);
-    public static final TransportVersion INDEX_MODE_LOOKUP = def(8_779_0_00);
-    public static final TransportVersion INDEX_REQUEST_REMOVE_METERING = def(8_780_0_00);
-    public static final TransportVersion CPU_STAT_STRING_PARSING = def(8_781_0_00);
-    public static final TransportVersion QUERY_RULES_RETRIEVER = def(8_782_0_00);
-    public static final TransportVersion ESQL_CCS_EXEC_INFO_WITH_FAILURES = def(8_783_0_00);
-    public static final TransportVersion LOGSDB_TELEMETRY = def(8_784_0_00);
-    public static final TransportVersion LOGSDB_TELEMETRY_STATS = def(8_785_0_00);
-    public static final TransportVersion KQL_QUERY_ADDED = def(8_786_0_00);
-    public static final TransportVersion ROLE_MONITOR_STATS = def(8_787_0_00);
-    public static final TransportVersion DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK = def(8_788_0_00);
-    public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO = def(8_789_0_00);
-    public static final TransportVersion VERTEX_AI_INPUT_TYPE_ADDED = def(8_790_0_00);
-    public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE = def(8_791_0_00);
-    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES = def(8_792_0_00);
-    public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS = def(8_793_0_00);
-    public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS_REVERT = def(8_794_0_00);
-    public static final TransportVersion FAST_REFRESH_RCO_2 = def(8_795_0_00);
-    public static final TransportVersion ESQL_ENRICH_RUNTIME_WARNINGS = def(8_796_0_00);
-    public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_0_00);
-    public static final TransportVersion LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE_FIX_8_17 = def(8_797_0_01);
-    public static final TransportVersion SOURCE_MODE_TELEMETRY_FIX_8_17 = def(8_797_0_02);
+    public static final TransportVersion V_8_16_1 = def(8_772_0_04);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_5 = def(8_772_0_05);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_16_6 = def(8_772_0_06);
+    public static final TransportVersion V_8_17_0 = def(8_797_0_02);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_4 = def(8_797_0_04);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_0_00);
     public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_0_00);
     public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_0_00);
@@ -172,14 +136,26 @@ public class TransportVersions {
     public static final TransportVersion TIMEOUT_GET_PARAM_FOR_RESOLVE_CLUSTER = def(8_838_0_00);
     public static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING = def(8_839_0_00);
     public static final TransportVersion ML_INFERENCE_IBM_WATSONX_RERANK_ADDED = def(8_840_0_00);
-    public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_840_0_01);
-    public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_X = def(8_840_0_02);
-    public static final TransportVersion ELASTICSEARCH_9_0 = def(9_000_0_00);
+    public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_18 = def(8_840_0_01);
+    public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_18 = def(8_840_0_02);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_19 = def(8_841_0_00);
+    public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X = def(8_841_0_01);
+    public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19 = def(8_841_0_02);
+    public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_BACKPORT_8_19 = def(8_841_0_03);
+    public static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19 = def(8_841_0_04);
+    public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X = def(8_841_0_05);
+    public static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19 = def(8_841_0_06);
+    public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_19 = def(8_841_0_07);
+    public static final TransportVersion INFERENCE_CONTEXT_8_X = def(8_841_0_08);
+    public static final TransportVersion ML_INFERENCE_DEEPSEEK_8_19 = def(8_841_0_09);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
     public static final TransportVersion REMOVE_DESIRED_NODE_VERSION_90 = def(9_000_0_03);
     public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION_90 = def(9_000_0_04);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_9_0 = def(9_000_0_05);
+    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_90 = def(9_000_0_06);
+    public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_90 = def(9_000_0_07);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = def(9_003_0_00);
@@ -190,6 +166,26 @@ public class TransportVersions {
     public static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = def(9_008_0_00);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR = def(9_009_0_00);
     public static final TransportVersion SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = def(9_010_0_00);
+    public static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = def(9_011_0_00);
+    public static final TransportVersion REMOVE_REPOSITORY_CONFLICT_MESSAGE = def(9_012_0_00);
+    public static final TransportVersion RERANKER_FAILURES_ALLOWED = def(9_013_0_00);
+    public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = def(9_014_0_00);
+    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = def(9_015_0_00);
+    public static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = def(9_016_0_00);
+    public static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = def(9_017_0_00);
+    public static final TransportVersion MULTI_PROJECT = def(9_018_0_00);
+    public static final TransportVersion STORED_SCRIPT_CONTENT_LENGTH = def(9_019_0_00);
+    public static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_020_0_00);
+    public static final TransportVersion RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(9_021_0_00);
+    public static final TransportVersion UNASSIGENEDINFO_RESHARD_ADDED = def(9_022_0_00);
+    public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = def(9_023_0_00);
+    public static final TransportVersion MAX_OPERATION_SIZE_REJECTIONS_ADDED = def(9_024_0_00);
+    public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR = def(9_025_0_00);
+    public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = def(9_026_0_00);
+    public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
+    public static final TransportVersion INFERENCE_CONTEXT = def(9_028_0_00);
+    public static final TransportVersion ML_INFERENCE_DEEPSEEK = def(9_029_00_0);
+    public static final TransportVersion ESQL_FAILURE_FROM_REMOTE = def(9_030_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -250,7 +246,7 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    public static final TransportVersion MINIMUM_COMPATIBLE = BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
+    public static final TransportVersion MINIMUM_COMPATIBLE = INITIAL_ELASTICSEARCH_8_19;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.

@@ -71,13 +71,15 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
         }
         Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
         for (String dataStreamName : dataStreamNames) {
-            DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
-            List<DeprecationIssue> issuesForSingleDataStream = DATA_STREAM_CHECKS.stream()
-                .map(c -> c.apply(dataStream, clusterState))
-                .filter(Objects::nonNull)
-                .toList();
-            if (issuesForSingleDataStream.isEmpty() == false) {
-                dataStreamIssues.put(dataStreamName, issuesForSingleDataStream);
+            DataStream dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
+            if (dataStream.isSystem() == false) {
+                List<DeprecationIssue> issuesForSingleDataStream = DATA_STREAM_CHECKS.stream()
+                    .map(c -> c.apply(dataStream, clusterState))
+                    .filter(Objects::nonNull)
+                    .toList();
+                if (issuesForSingleDataStream.isEmpty() == false) {
+                    dataStreamIssues.put(dataStreamName, issuesForSingleDataStream);
+                }
             }
         }
         return dataStreamIssues.isEmpty() ? Map.of() : dataStreamIssues;
@@ -135,7 +137,7 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
         boolean filterToBlockedStatus
     ) {
         return backingIndices.stream()
-            .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata(), filterToBlockedStatus))
+            .filter(DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterState.metadata().getProject(), filterToBlockedStatus))
             .map(Index::getName)
             .collect(Collectors.toUnmodifiableSet());
     }

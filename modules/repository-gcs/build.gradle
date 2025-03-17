@@ -29,33 +29,33 @@ dependencies {
   runtimeOnly 'com.google.guava:guava:33.4.0-jre'
   runtimeOnly 'com.google.guava:failureaccess:1.0.2'
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
-  implementation "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
   implementation 'com.google.api:api-common:2.46.1'
   implementation 'com.google.api:gax:2.63.1'
   implementation 'org.threeten:threetenbp:1.7.0'
-  implementation "com.google.protobuf:protobuf-java-util:${versions.protobuf}" // 3.25.5 in bom
-  implementation "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  implementation 'com.google.code.gson:gson:2.12.1'
-  implementation 'com.google.api.grpc:proto-google-common-protos:2.54.1'
-  implementation 'com.google.api.grpc:proto-google-iam-v1:1.49.1'
+  runtimeOnly "com.google.protobuf:protobuf-java-util:${versions.protobuf}" // 3.25.5 in bom
+  runtimeOnly "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  runtimeOnly 'com.google.code.gson:gson:2.12.1'
+  runtimeOnly 'com.google.api.grpc:proto-google-common-protos:2.54.1'
+  runtimeOnly 'com.google.api.grpc:proto-google-iam-v1:1.49.1'
   implementation 'com.google.auth:google-auth-library-credentials:1.33.1'
   implementation 'com.google.auth:google-auth-library-oauth2-http:1.33.1'
-  implementation "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}" // 1.37.0 in bom
+  runtimeOnly "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}" // 1.37.0 in bom
   implementation 'com.google.api-client:google-api-client:2.7.2'
   implementation 'com.google.http-client:google-http-client:1.46.3'
-  implementation 'com.google.http-client:google-http-client-gson:1.46.3'
-  implementation 'com.google.http-client:google-http-client-appengine:1.46.3'
-  implementation 'com.google.http-client:google-http-client-jackson2:1.46.3'
-  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.2 in bom
-  implementation 'com.google.api:gax-httpjson:2.63.1'
-  implementation 'io.opencensus:opencensus-api:0.31.1'
-  implementation 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  runtimeOnly 'com.google.http-client:google-http-client-gson:1.46.3'
+  runtimeOnly 'com.google.http-client:google-http-client-appengine:1.46.3'
+  runtimeOnly 'com.google.http-client:google-http-client-jackson2:1.46.3'
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.2 in bom
+  runtimeOnly 'com.google.api:gax-httpjson:2.63.1'
+  runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
+  runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'
   implementation 'org.checkerframework:checker-qual:3.49.0'
-  implementation 'io.opentelemetry:opentelemetry-api:1.47.0'
-  implementation 'io.opentelemetry:opentelemetry-context:1.47.0'
-  implementation 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
-  implementation 'io.grpc:grpc-api:1.70.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.47.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.47.0'
+  runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
+  runtimeOnly 'io.grpc:grpc-api:1.70.0'
 
   testImplementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   testImplementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"

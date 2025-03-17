@@ -91,6 +91,10 @@ public enum ReferenceDocs {
 
     record LinkComponents(String path, String fragment) {
         static LinkComponents ofLink(String link) {
+            if (link.indexOf('?') != -1) {
+                throw new IllegalStateException("ReferenceDocs does not support links containing pre-existing query parameters: " + link);
+            }
+
             final var fragmentIndex = link.indexOf('#');
             if (fragmentIndex == -1) {
                 return new LinkComponents(link, "");

@@ -185,6 +185,19 @@ public class ReferenceDocsTests extends ESTestCase {
         );
     }
 
+    public void testRejectsQueryPart() {
+        final var targetLine = between(0, ReferenceDocs.values().length - 1);
+        assertThat(
+            expectThrows(
+                IllegalStateException.class,
+                () -> ReferenceDocs.readLinksBySymbol(
+                    getResourceStream((i, l) -> i == targetLine ? l.replace(TEST_LINK_PLACEHOLDER, "foo/bar?baz=quux") : l)
+                )
+            ).getMessage(),
+            equalTo("ReferenceDocs does not support links containing pre-existing query parameters: foo/bar?baz=quux")
+        );
+    }
+
     // for manual verification
     public void testShowAllLinks() {
         for (final var link : ReferenceDocs.values()) {

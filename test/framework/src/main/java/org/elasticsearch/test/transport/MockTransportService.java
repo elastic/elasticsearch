@@ -314,7 +314,7 @@ public class MockTransportService extends TransportService {
         this.original = transport.getDelegate();
         this.testExecutor = EsExecutors.newScaling(
             "mock-transport",
-            0,
+            1,
             4,
             30,
             TimeUnit.SECONDS,

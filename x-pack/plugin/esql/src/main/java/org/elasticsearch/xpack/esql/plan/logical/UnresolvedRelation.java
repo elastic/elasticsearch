@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -178,7 +179,10 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     @Override
     public List<Object> nodeProperties() {
-        return List.of(qualifier, indexPattern);
+        List<Object> properties = new ArrayList<>(2);
+        properties.add(qualifier);
+        properties.add(indexPattern);
+        return properties;
     }
 
     @Override

@@ -114,9 +114,16 @@ setup:
           - { "index": { } }
           - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275226, "color": "red" }
 ---
-shadowing is not allowed:
+shadowing of previous attributes is not allowed:
   - do:
       catch: /qualified attribute \[main data\] already exists/
       esql.query:
         body:
           query: 'from test main | eval main data = 10'
+
+internal shadowing is not allowed:
+  - do:
+      catch: /qualified attribute \[main data\] already exists/
+      esql.query:
+        body:
+          query: 'row x = 0 | eval qualified y = 1, qualified y = 2 * qualified y'

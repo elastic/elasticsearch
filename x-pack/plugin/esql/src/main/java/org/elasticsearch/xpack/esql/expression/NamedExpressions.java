@@ -35,9 +35,10 @@ public class NamedExpressions {
      * As a general rule, child output will come first in the list, followed by the new fields.
      * In case of name collisions, only the last entry is preserved (previous expressions with the same name are discarded)
      * and the new attributes have precedence over the child output.
+     * Attributes with qualifiers do not allow for name collisions.
      * @param fields the fields added by the command
      * @param childOutput the command input that has to be propagated as output
-     * @return
+     * @return the output of the command taking into account shadowing of unqualified fields
      */
     public static List<NamedExpression> mergeOutputExpressions(
         List<? extends NamedExpression> fields,
@@ -45,18 +46,21 @@ public class NamedExpressions {
     ) {
         Map<String, Integer> lastPositions = Maps.newHashMapWithExpectedSize(fields.size());
         for (int i = 0; i < fields.size(); i++) {
-            lastPositions.put(fields.get(i).name(), i);
+            NamedExpression field = fields.get(i);
+            if (field.qualifier() == null) {
+                lastPositions.put(field.name(), i);
+            }
         }
         List<NamedExpression> output = new ArrayList<>(childOutput.size() + fields.size());
         for (NamedExpression childAttr : childOutput) {
-            if (lastPositions.containsKey(childAttr.name()) == false) {
+            if (childAttr.qualifier() != null || lastPositions.containsKey(childAttr.name()) == false) {
                 output.add(childAttr);
             }
         }
-        // do not add duplicate fields multiple times, only last one matters as output
+        // do not add unqualified duplicate fields multiple times, only last one matters as output
         for (int i = 0; i < fields.size(); i++) {
             NamedExpression field = fields.get(i);
-            if (lastPositions.get(field.name()) == i) {
+            if (field.qualifier() != null || lastPositions.get(field.name()) == i) {
                 output.add(field);
             }
         }

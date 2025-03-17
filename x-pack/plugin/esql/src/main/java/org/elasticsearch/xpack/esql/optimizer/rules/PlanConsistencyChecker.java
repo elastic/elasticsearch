@@ -50,16 +50,20 @@ public class PlanConsistencyChecker {
             checkMissing(p, p.references(), p.inputSet(), "missing references", failures);
         }
 
-        Set<String> outputAttributeNames = new HashSet<>();
+        Set<QualifiedName> outputAttributeNames = new HashSet<>();
         Set<NameId> outputAttributeIds = new HashSet<>();
         for (Attribute outputAttr : p.output()) {
-            if (outputAttributeNames.add(outputAttr.name()) == false || outputAttributeIds.add(outputAttr.id()) == false) {
+            QualifiedName qualifiedName = new QualifiedName(outputAttr.qualifier(), outputAttr.name());
+            if (outputAttributeNames.add(qualifiedName) == false || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())
                 );
             }
         }
     }
+
+    // TODO: Consider making this a nested class inside NamedExpression and the return value of qualifiedName()
+    private record QualifiedName(String qualifier, String name) {}
 
     private static void checkMissingBinary(
         QueryPlan<?> plan,

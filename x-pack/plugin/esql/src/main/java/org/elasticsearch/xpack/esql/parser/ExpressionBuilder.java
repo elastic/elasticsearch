@@ -819,8 +819,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     private Alias visitField(EsqlBaseParser.FieldContext ctx, Source source) {
         UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
         Expression value = expression(ctx.booleanExpression());
-        String name = id == null ? source.text() : id.name();
-        return new Alias(source, null, name, value);
+        String qualifier = (id == null) ? null : id.qualifier();
+        String name = (id == null) ? source.text() : id.name();
+        return new Alias(source, qualifier, name, value);
     }
 
     @Override

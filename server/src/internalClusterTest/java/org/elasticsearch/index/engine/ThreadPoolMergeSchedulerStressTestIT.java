@@ -250,12 +250,18 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             indexingThreads[i].start();
         }
         // wait for merges to enqueue or backlog
-        assertBusy(() -> assertThat(ENQUEUED_MERGES_SET.size(), greaterThanOrEqualTo(WAIT_MERGES_ENQUEUED_COUNT)), 1, TimeUnit.MINUTES);
+        assertBusy(() -> {
+            assertThat(RUN_MERGE_SEMAPHORE.getQueueLength(), is(MERGE_EXECUTOR_THREAD_COUNT));
+            // also wait for all the merge threads to be blocked at the semaphore,
+            // in order to be sure there's definitely no merging going on beyond this point
+            assertThat(ENQUEUED_MERGES_SET.size(), greaterThanOrEqualTo(WAIT_MERGES_ENQUEUED_COUNT));
+        }, 1, TimeUnit.MINUTES);
         // finish up indexing
         indexingDone.set(true);
         for (Thread indexingThread : indexingThreads) {
             indexingThread.join();
         }
+        // get the segments count before unblocking the merge threads
         var segmentsBefore = getSegmentsCountForAllShards("index");
         // even though indexing is done, merging can itself trigger further merging
         // don't let this test be bothered by that, let any merging run un-hindered

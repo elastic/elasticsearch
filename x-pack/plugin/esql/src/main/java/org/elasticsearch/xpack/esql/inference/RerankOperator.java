@@ -233,7 +233,7 @@ public class RerankOperator extends AsyncOperator<Page> {
             }
 
             return blocks;
-        } catch(Exception e) {
+        } catch (Exception e) {
             Releasables.closeExpectNoException(blocks);
             throw e;
         }

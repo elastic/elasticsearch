@@ -218,7 +218,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
 
     private final class TransportAddressesCache extends SingleObjectCache<List<TransportAddress>> {
 
-        TransportAddressesCache(TimeValue refreshInterval) {
+        protected TransportAddressesCache(TimeValue refreshInterval) {
             super(refreshInterval, new ArrayList<>());
         }
 

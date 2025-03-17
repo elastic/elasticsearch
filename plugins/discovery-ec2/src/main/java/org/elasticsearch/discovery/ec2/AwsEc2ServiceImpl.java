@@ -51,26 +51,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         httpClientBuilder.socketTimeout(Duration.of(clientSettings.readTimeoutMillis, ChronoUnit.MILLIS));
 
         if (Strings.hasText(clientSettings.proxyHost)) {
-            // TODO: remove this leniency, these settings should exist together and be validated
-            final var uriBuilder = new URIBuilder();
-            uriBuilder.setScheme(clientSettings.proxyScheme.getSchemeString())
-                .setHost(clientSettings.proxyHost)
-                .setPort(clientSettings.proxyPort);
-            final URI proxyUri;
-            try {
-                proxyUri = uriBuilder.build();
-            } catch (URISyntaxException e) {
-                throw new IllegalArgumentException(e);
-            }
-
-            httpClientBuilder.proxyConfiguration(
-                ProxyConfiguration.builder()
-                    .endpoint(proxyUri)
-                    .scheme(clientSettings.proxyScheme.getSchemeString())
-                    .username(clientSettings.proxyUsername)
-                    .password(clientSettings.proxyPassword)
-                    .build()
-            );
+            applyProxyConfiguration(clientSettings, httpClientBuilder);
         }
 
         final var ec2ClientBuilder = getEc2ClientBuilder();
@@ -86,6 +67,29 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             ec2ClientBuilder.endpointProvider(endpointParams -> CompletableFuture.completedFuture(endpoint));
         }
         return SocketAccess.doPrivileged(ec2ClientBuilder::build);
+    }
+
+    private static void applyProxyConfiguration(Ec2ClientSettings clientSettings, ApacheHttpClient.Builder httpClientBuilder) {
+        // TODO: remove this leniency, these settings should exist together and be validated
+        final var uriBuilder = new URIBuilder();
+        uriBuilder.setScheme(clientSettings.proxyScheme.getSchemeString())
+            .setHost(clientSettings.proxyHost)
+            .setPort(clientSettings.proxyPort);
+        final URI proxyUri;
+        try {
+            proxyUri = uriBuilder.build();
+        } catch (URISyntaxException e) {
+            throw new IllegalArgumentException(e);
+        }
+
+        httpClientBuilder.proxyConfiguration(
+            ProxyConfiguration.builder()
+                .endpoint(proxyUri)
+                .scheme(clientSettings.proxyScheme.getSchemeString())
+                .username(clientSettings.proxyUsername)
+                .password(clientSettings.proxyPassword)
+                .build()
+        );
     }
 
     // exposed for tests
@@ -121,8 +125,8 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     }
 
     /**
-     * Refreshes the settings for the AmazonEC2 client. The new client will be built using these new settings. The old client is usable
-     * until released. On release it will be destroyed instead of being returned to the cache.
+     * Refreshes the settings for the {@link Ec2Client} client. The new client will be built using these new settings. The old client is
+     * usable until released. On release it will be destroyed instead of being returned to the cache.
      */
     @Override
     public void refreshAndClearCache(Ec2ClientSettings clientSettings) {

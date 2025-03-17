@@ -34,8 +34,8 @@ public class AmazonEc2Reference extends AbstractRefCounted implements Releasable
     }
 
     /**
-     * Returns the underlying `AmazonEC2` client. All method calls are permitted BUT
-     * NOT close. Shutdown is called when reference count reaches 0.
+     * Returns the underlying {@link Ec2Client} client. All method calls are permitted EXCEPT {@link Ec2Client#close}, which is called
+     * automatically when this object's reference count reaches 0.
      */
     public Ec2Client client() {
         return client;

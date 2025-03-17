@@ -17,9 +17,11 @@ import org.elasticsearch.common.Strings;
 import java.time.Duration;
 
 class AwsEc2Utils {
+    private static final Duration IMDS_CONNECTION_TIMEOUT = Duration.ofSeconds(2);
+
     static String getInstanceMetadata(String metadataPath) {
         final var httpClientBuilder = ApacheHttpClient.builder();
-        httpClientBuilder.connectionTimeout(Duration.ofSeconds(2));
+        httpClientBuilder.connectionTimeout(IMDS_CONNECTION_TIMEOUT);
         try (var ec2Client = SocketAccess.doPrivileged(Ec2MetadataClient.builder().httpClient(httpClientBuilder)::build)) {
             final var metadataValue = SocketAccess.doPrivileged(() -> ec2Client.get(metadataPath)).asString();
             if (Strings.hasText(metadataValue) == false) {

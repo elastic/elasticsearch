@@ -79,10 +79,12 @@ final class Ec2ClientSettings {
     /** The password of a proxy to connect to EC2 through. */
     static final Setting<SecureString> PROXY_PASSWORD_SETTING = SecureSetting.secureString("discovery.ec2.proxy.password", null);
 
+    private static final TimeValue DEFAULT_READ_TIMEOUT = TimeValue.timeValueSeconds(50);
+
     /** The socket timeout for connecting to EC2. */
     static final Setting<TimeValue> READ_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.ec2.read_timeout",
-        TimeValue.timeValueSeconds(50),
+        DEFAULT_READ_TIMEOUT,
         Property.NodeScope
     );
 

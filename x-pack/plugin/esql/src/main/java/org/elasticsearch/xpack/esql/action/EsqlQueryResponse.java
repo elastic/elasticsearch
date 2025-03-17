@@ -375,6 +375,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             this.drivers.addAll(other.drivers);
             this.plannerProfile.addAll(other.plannerProfile);
         }
+
         public List<DriverProfile> getDriverProfiles() {
             return drivers;
         }
@@ -382,6 +383,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         public List<PlannerProfile> getPlannerProfiles() {
             return plannerProfile;
         }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);

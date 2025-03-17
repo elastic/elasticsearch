@@ -43,7 +43,9 @@ final class ComputeListener implements Releasable {
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
         this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
             responseHeaders.finish();
-            delegate.onResponse(new EsqlQueryResponse.Profile(collectedProfiles.stream().toList(), collectedPlannerProfiles.stream().toList()));
+            delegate.onResponse(
+                new EsqlQueryResponse.Profile(collectedProfiles.stream().toList(), collectedPlannerProfiles.stream().toList())
+            );
         }));
     }
 

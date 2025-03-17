@@ -213,6 +213,7 @@ public class EntitlementInitialization {
                     new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
+            new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
             new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
             new Scope(

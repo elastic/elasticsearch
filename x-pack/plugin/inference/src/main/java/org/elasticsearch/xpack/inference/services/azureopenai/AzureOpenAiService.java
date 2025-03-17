@@ -266,7 +266,6 @@ public class AzureOpenAiService extends SenderService {
     }
 
     @Override
-    @Override
     protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
         ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
     }

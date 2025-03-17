@@ -808,7 +808,7 @@ public final class ServiceUtils {
     public static void validateInputTypeIsUnspecifiedOrInternal(InputType inputType, ValidationException validationException) {
         if (inputType != null && inputType != InputType.UNSPECIFIED && VALID_INTERNAL_INPUT_TYPE_VALUES.contains(inputType) == false) {
             validationException.addValidationError(
-                Strings.format("Invalid input_type [%s]. The input_type option is not supported by this service")
+                Strings.format("Invalid input_type [%s]. The input_type option is not supported by this service", inputType)
             );
         }
     }

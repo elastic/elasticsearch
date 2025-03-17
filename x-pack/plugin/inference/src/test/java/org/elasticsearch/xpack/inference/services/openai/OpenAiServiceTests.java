@@ -900,7 +900,7 @@ public class OpenAiServiceTests extends ESTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                is("Validation Failed: 1: Invalid value [ingest] received. [input_type] is not allowed;")
+                is("Validation Failed: 1: Invalid input_type [ingest]. The input_type option is not supported by this service;")
             );
 
             verify(factory, times(1)).createSender();

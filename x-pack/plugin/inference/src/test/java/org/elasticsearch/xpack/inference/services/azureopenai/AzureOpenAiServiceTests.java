@@ -769,7 +769,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 List.of(""),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -825,7 +825,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -842,7 +842,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(requestMap.size(), Matchers.is(3));
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
-            assertThat(requestMap.get("input_type"), Matchers.is("ingest"));
+            assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
         }
     }
 
@@ -1289,7 +1289,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1364,7 +1364,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 null,
                 List.of("a", "bb"),
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1405,7 +1405,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(requestMap.size(), Matchers.is(3));
             assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
-            assertThat(requestMap.get("input_type"), Matchers.is("ingest"));
+            assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
         }
     }
 

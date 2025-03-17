@@ -280,7 +280,7 @@ public class NodeDeprecationChecks {
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Realm that start with [" + RESERVED_REALM_AND_DOMAIN_NAME_PREFIX + "] will not be permitted in a future major release.",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
+                "https://ela.st/es-deprecation-7-realm-prefix",
                 String.format(
                     Locale.ROOT,
                     "Found realm "

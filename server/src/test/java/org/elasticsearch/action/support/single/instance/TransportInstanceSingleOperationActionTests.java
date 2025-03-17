@@ -91,10 +91,6 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
     public static class Response extends ActionResponse {
         public Response() {}
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {}
     }

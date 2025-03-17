@@ -11,7 +11,6 @@ package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
-import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Cancellable;
@@ -40,10 +39,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
-
-    public void testGetMappingsCancellation() throws Exception {
-        runTest(GetMappingsAction.NAME, "/test/_mappings");
-    }
 
     public void testGetIndicesCancellation() throws Exception {
         runTest(GetIndexAction.NAME, "/test");

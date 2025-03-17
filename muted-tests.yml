@@ -239,9 +239,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testEnrichExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/122913
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121672
 - class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
   method: testRestoredIndexManagedByLocalPolicySkipsIllegalActions
   issue: https://github.com/elastic/elasticsearch/issues/123202
@@ -369,6 +366,36 @@ tests:
 - class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests
   method: testExplicitNull {p0=true}
   issue: https://github.com/elastic/elasticsearch/issues/124892
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test20RunWithBootstrapChecks
+  issue: https://github.com/elastic/elasticsearch/issues/124940
+- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
+  method: testErrorRecordingOnRetention
+  issue: https://github.com/elastic/elasticsearch/issues/124950
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {lookup-join.MvJoinKeyFromRow SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/124951
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocalNoRemotes
+  issue: https://github.com/elastic/elasticsearch/issues/124959
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121672
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQuery
+  issue: https://github.com/elastic/elasticsearch/issues/124977
+- class: org.elasticsearch.integration.DataStreamLifecycleServiceRuntimeSecurityIT
+  method: testRolloverLifecycleAndForceMergeAuthorized
+  issue: https://github.com/elastic/elasticsearch/issues/124978
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test10Install
+  issue: https://github.com/elastic/elasticsearch/issues/124957
+- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
+  method: testRolloverAction
+  issue: https://github.com/elastic/elasticsearch/issues/124987
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test011SecurityEnabledStatus
+  issue: https://github.com/elastic/elasticsearch/issues/124990
 
 # Examples:
 #

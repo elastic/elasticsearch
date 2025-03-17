@@ -886,7 +886,12 @@ public class EsqlCapabilities {
         /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */
-        TO_LOWER_MV;
+        TO_LOWER_MV,
+
+        /**
+         * Use double parameter markers to represent field or function names.
+         */
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot());
 
         private final boolean enabled;
 

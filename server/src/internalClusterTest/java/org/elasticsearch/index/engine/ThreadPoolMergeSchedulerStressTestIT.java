@@ -52,11 +52,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
 
-    private static final AtomicReference<ThreadPoolMergeExecutorService> THREAD_POOL_MERGE_EXECUTOR_SERVICE_ATOMIC_REFERENCE =
-        new AtomicReference<>();
+    private static final AtomicReference<ThreadPoolMergeExecutorService> MERGE_EXECUTOR_SERVICE_REFERENCE = new AtomicReference<>();
     private static final Set<OneMerge> ENQUEUED_MERGES_SET = ConcurrentCollections.newConcurrentSet();
     private static final Set<OneMerge> RUNNING_MERGES_SET = ConcurrentCollections.newConcurrentSet();
-    private static int WAIT_MERGES_ENQUEUED;
+    private static int WAIT_MERGES_ENQUEUED_COUNT;
     private static Semaphore RUN_MERGE_SEMAPHORE;
 
     private static final int MERGE_SCHEDULER_MAX_CONCURRENCY = 3;
@@ -64,7 +63,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
 
     @BeforeClass
     public static void beforeTests() {
-        WAIT_MERGES_ENQUEUED = randomIntBetween(50, 100);
+        WAIT_MERGES_ENQUEUED_COUNT = randomIntBetween(50, 100);
         // maybe let a few merges run at the start
         RUN_MERGE_SEMAPHORE = new Semaphore(randomIntBetween(0, 5));
     }
@@ -89,7 +88,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
     public static class TestEnginePlugin extends Plugin implements EnginePlugin {
 
         static class TestInternalEngine extends org.elasticsearch.index.engine.InternalEngine {
-            public TestInternalEngine(EngineConfig engineConfig) {
+            TestInternalEngine(EngineConfig engineConfig) {
                 super(engineConfig);
             }
 
@@ -105,8 +104,8 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
                 );
                 assertThat(mergeScheduler, instanceOf(ThreadPoolMergeScheduler.class));
                 // assert there is a single merge executor service for all shards
-                THREAD_POOL_MERGE_EXECUTOR_SERVICE_ATOMIC_REFERENCE.compareAndSet(null, threadPoolMergeExecutorService);
-                assertThat(THREAD_POOL_MERGE_EXECUTOR_SERVICE_ATOMIC_REFERENCE.get(), is(threadPoolMergeExecutorService));
+                MERGE_EXECUTOR_SERVICE_REFERENCE.compareAndSet(null, threadPoolMergeExecutorService);
+                assertThat(MERGE_EXECUTOR_SERVICE_REFERENCE.get(), is(threadPoolMergeExecutorService));
                 return new TestMergeScheduler((ThreadPoolMergeScheduler) mergeScheduler);
             }
         }
@@ -151,7 +150,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
                                 if (nextMerge != null) {
                                     assertTrue(ENQUEUED_MERGES_SET.add(nextMerge));
                                     // avoid excess merges piling up
-                                    if (ENQUEUED_MERGES_SET.size() > WAIT_MERGES_ENQUEUED) {
+                                    if (ENQUEUED_MERGES_SET.size() > WAIT_MERGES_ENQUEUED_COUNT) {
                                         RUN_MERGE_SEMAPHORE.release();
                                     }
                                 }
@@ -251,7 +250,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             indexingThreads[i].start();
         }
         // wait for merges to enqueue or backlog
-        assertBusy(() -> assertThat(ENQUEUED_MERGES_SET.size(), greaterThanOrEqualTo(WAIT_MERGES_ENQUEUED)), 1, TimeUnit.MINUTES);
+        assertBusy(() -> assertThat(ENQUEUED_MERGES_SET.size(), greaterThanOrEqualTo(WAIT_MERGES_ENQUEUED_COUNT)), 1, TimeUnit.MINUTES);
         // finish up indexing
         indexingDone.set(true);
         for (Thread indexingThread : indexingThreads) {
@@ -261,15 +260,30 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         // even though indexing is done, merging can itself trigger further merging
         // don't let this test be bothered by that, let any merging run un-hindered
         RUN_MERGE_SEMAPHORE.release(999999);
+        // await all merging to catch up
         assertBusy(() -> {
             assertThat(RUNNING_MERGES_SET.size(), is(0));
             assertThat(ENQUEUED_MERGES_SET.size(), is(0));
-            THREAD_POOL_MERGE_EXECUTOR_SERVICE_ATOMIC_REFERENCE.get().allDone();
+            MERGE_EXECUTOR_SERVICE_REFERENCE.get().allDone();
         }, 1, TimeUnit.MINUTES);
         // refresh, otherwise we'd be still seeing the old merged-away segments
         assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());
         var segmentsAfter = getSegmentsCountForAllShards("index");
+        // there should be way fewer segments after merging completed
         assertThat(segmentsBefore, greaterThan(segmentsAfter));
+        // let's also run a force-merge
+        assertAllSuccessful(indicesAdmin().prepareForceMerge("index").setMaxNumSegments(1).get());
+        assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());
+        // assert one segment per shard
+        {
+            IndicesSegmentResponse indicesSegmentResponse = indicesAdmin().prepareSegments("index").get();
+            Iterator<IndexShardSegments> indexShardSegmentsIterator = indicesSegmentResponse.getIndices().get("index").iterator();
+            while (indexShardSegmentsIterator.hasNext()) {
+                for (ShardSegments segments : indexShardSegmentsIterator.next()) {
+                    assertThat(segments.getSegments().size(), is(1));
+                }
+            }
+        }
     }
 
     private int getSegmentsCountForAllShards(String indexName) {

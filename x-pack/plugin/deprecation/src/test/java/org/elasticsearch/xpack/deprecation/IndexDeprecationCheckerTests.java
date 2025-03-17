@@ -447,7 +447,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "translog retention settings are ignored",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
+                    "https://ela.st/es-deprecation-7-translog-retention",
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored "
                         + "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
                     false,

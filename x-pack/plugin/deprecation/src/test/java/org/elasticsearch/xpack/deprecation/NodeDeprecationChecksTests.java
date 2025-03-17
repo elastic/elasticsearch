@@ -778,7 +778,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Setting [xpack.eql.enabled] is deprecated",
-            "https://ela.st/es-deprecation-8-eql-enabled-setting",
+            "https://ela.st/es-deprecation-7-eql-enabled-setting",
             "Remove the [xpack.eql.enabled] setting. As of 7.9.2 basic license level features are always enabled.",
             false,
             null

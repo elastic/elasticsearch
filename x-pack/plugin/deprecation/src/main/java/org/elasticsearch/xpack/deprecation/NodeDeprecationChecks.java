@@ -971,7 +971,7 @@ public class NodeDeprecationChecks {
             Setting.Property.NodeScope,
             Setting.Property.DeprecatedWarning
         );
-        String url = "https://ela.st/es-deprecation-8-eql-enabled-setting";
+        String url = "https://ela.st/es-deprecation-7-eql-enabled-setting";
         return checkRemovedSetting(
             clusterState.metadata().settings(),
             settings,

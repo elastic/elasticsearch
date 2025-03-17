@@ -97,7 +97,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
                         modelSnapshot.getJobId(),
                         modelSnapshot.getMinVersion()
                     ),
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-upgrade-job-model-snapshot.html",
+                    "https://ela.st/es-deprecation-8-model-snapshot-version",
                     details.toString(),
                     false,
                     Map.of("job_id", modelSnapshot.getJobId(), "snapshot_id", modelSnapshot.getSnapshotId())

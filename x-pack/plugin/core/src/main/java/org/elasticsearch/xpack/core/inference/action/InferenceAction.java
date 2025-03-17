@@ -404,7 +404,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 results = in.readNamedWriteable(InferenceServiceResults.class);
             } else {

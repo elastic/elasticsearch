@@ -76,10 +76,14 @@ public abstract sealed class IndexReshardingState implements Writeable, ToXConte
         }
 
         @Override
-        public int shardCountBefore() { return 1; }
+        public int shardCountBefore() {
+            return 1;
+        }
 
         @Override
-        public int shardCountAfter() { return 1; }
+        public int shardCountAfter() {
+            return 1;
+        }
     }
 
     public static final class Split extends IndexReshardingState {

@@ -300,8 +300,8 @@ public abstract class DocsV3Support {
         // Old-style links to Query DSL pages
         if (key.startsWith("query-dsl-")) {
             // <<query-dsl-match-query,match query>>
-            // [`match`](/reference/query-languages/query-dsl-match-query.md)
-            return makeLink(key, "query-dsl-", "/reference/query-languages/query-dsl-match-query.md");
+            // [`match`](/reference/query-languages/query-dsl/query-dsl-match-query.md)
+            return makeLink(key, "query-dsl-", "/reference/query-languages/query-dsl/query-dsl-match-query.md");
         }
         // Known links to mapping-reference
         if (knownMapping.containsKey(parts[0])) {

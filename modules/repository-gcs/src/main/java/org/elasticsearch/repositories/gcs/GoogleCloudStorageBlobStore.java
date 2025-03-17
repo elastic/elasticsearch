@@ -75,9 +75,9 @@ import static org.elasticsearch.core.Strings.format;
 class GoogleCloudStorageBlobStore implements BlobStore {
 
     /**
-     * see com.google.cloud.BaseWriteChannel#DEFAULT_CHUNK_SIZE
+     * see {@link com.google.cloud.storage.BaseStorageWriteChannel#chunkSize}
      */
-    static final int SDK_DEFAULT_CHUNK_SIZE = 60 * 256 * 1024;
+    static final int SDK_DEFAULT_CHUNK_SIZE = Math.toIntExact(ByteSizeValue.ofMb(16).getBytes());
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStore.class);
 

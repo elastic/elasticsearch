@@ -328,8 +328,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
     }
 
     public void testWriteLargeBlob() throws IOException {
-        // See {@link com.google.cloud.storage.BaseStorageWriteChannel.BaseStorageWriteChannel}
-        final int defaultChunkSize = Math.toIntExact(ByteSizeValue.ofMb(16).getBytes());
+        final int defaultChunkSize = GoogleCloudStorageBlobStore.SDK_DEFAULT_CHUNK_SIZE;
         final int nbChunks = randomIntBetween(3, 5);
         final int lastChunkSize = randomIntBetween(1, defaultChunkSize - 1);
         final int totalChunks = nbChunks + 1;

@@ -135,7 +135,6 @@ public class PutSearchApplicationAction {
         final DocWriteResponse.Result result;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             result = DocWriteResponse.Result.readFrom(in);
         }
 

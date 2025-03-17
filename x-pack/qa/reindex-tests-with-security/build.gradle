@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 tasks.named("yamlRestTest") {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

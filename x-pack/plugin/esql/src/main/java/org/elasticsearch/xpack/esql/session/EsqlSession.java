@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.index.MappingException;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
@@ -130,7 +131,7 @@ public class EsqlSession {
         EnrichPolicyResolver enrichPolicyResolver,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
-        LogicalPlanOptimizer logicalPlanOptimizer,
+        LogicalOptimizerContext logicalOptimizerContext,
         Mapper mapper,
         Verifier verifier,
         PlanTelemetry planTelemetry,
@@ -145,10 +146,10 @@ public class EsqlSession {
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
         this.mapper = mapper;
-        this.logicalPlanOptimizer = logicalPlanOptimizer;
-        this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
-        this.planTelemetry = planTelemetry;
         this.plannerProfile = new PlannerProfile(false);
+        this.logicalPlanOptimizer = new LogicalPlanOptimizer(logicalOptimizerContext, this.plannerProfile);
+        this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration), this.plannerProfile);
+        this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.preMapper = new PreMapper(services);
     }
@@ -345,7 +346,7 @@ public class EsqlSession {
         Function<PreAnalysisResult, LogicalPlan> analyzeAction = (l) -> {
             Analyzer analyzer = new Analyzer(
                 new AnalyzerContext(configuration, functionRegistry, l.indices, l.lookupIndices, l.enrichResolution),
-                verifier
+                verifier, plannerProfile
             );
             LogicalPlan plan = analyzer.analyze(parsed);
             plan.setAnalyzed();

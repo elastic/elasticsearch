@@ -293,7 +293,7 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
         var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG, FoldContext.small()));
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
-            TEST_VERIFIER
+            TEST_VERIFIER,
         );
         return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
     }

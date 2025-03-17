@@ -59,7 +59,7 @@ public final class AnalyzerTestUtils {
                 defaultLookupResolution(),
                 defaultEnrichResolution()
             ),
-            verifier
+            verifier,
         );
     }
 
@@ -72,14 +72,14 @@ public final class AnalyzerTestUtils {
                 lookupResolution,
                 defaultEnrichResolution()
             ),
-            verifier
+            verifier,
         );
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, Configuration config) {
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultLookupResolution(), defaultEnrichResolution()),
-            verifier
+            verifier,
         );
     }
 
@@ -92,7 +92,7 @@ public final class AnalyzerTestUtils {
                 defaultLookupResolution(),
                 defaultEnrichResolution()
             ),
-            verifier
+            verifier,
         );
     }
 

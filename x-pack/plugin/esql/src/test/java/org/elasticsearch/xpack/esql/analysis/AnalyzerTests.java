@@ -1627,7 +1627,7 @@ public class AnalyzerTests extends ESTestCase {
         enrichResolution.addError("foo", Enrich.Mode.ANY, "foo-error-101");
 
         AnalyzerContext context = new AnalyzerContext(configuration("from test"), new EsqlFunctionRegistry(), testIndex, enrichResolution);
-        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER, );
         {
             LogicalPlan plan = analyze("from test | EVAL x = to_string(languages) | ENRICH _coordinator:languages ON x", analyzer);
             List<Enrich> resolved = new ArrayList<>();
@@ -1777,7 +1777,7 @@ public class AnalyzerTests extends ESTestCase {
             )
         );
         AnalyzerContext context = new AnalyzerContext(configuration(query), new EsqlFunctionRegistry(), testIndex, enrichResolution);
-        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER);
+        Analyzer analyzer = new Analyzer(context, TEST_VERIFIER, );
         LogicalPlan plan = analyze(query, analyzer);
         var limit = as(plan, Limit.class);
         assertThat(Expressions.names(limit.output()), contains("language_name", "language_code"));
@@ -2174,7 +2174,7 @@ public class AnalyzerTests extends ESTestCase {
                 Map.of("foobar", missingLookupIndex),
                 defaultEnrichResolution()
             ),
-            TEST_VERIFIER
+            TEST_VERIFIER,
         );
 
         String query = "FROM test | LOOKUP JOIN foobar ON last_name";

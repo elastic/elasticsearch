@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -466,7 +467,11 @@ public class CsvTests extends ESTestCase {
     private LogicalPlan analyzedPlan(LogicalPlan parsed, CsvTestsDataLoader.MultiIndexTestDataset datasets) {
         var indexResolution = loadIndexResolution(datasets);
         var enrichPolicies = loadEnrichPolicies();
-        var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies), TEST_VERIFIER);
+        var analyzer = new Analyzer(
+            new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies),
+            TEST_VERIFIER,
+            new PlannerProfile(false)
+        );
         LogicalPlan plan = analyzer.analyze(parsed);
         plan.setAnalyzed();
         LOGGER.debug("Analyzed plan:\n{}", plan);
@@ -536,7 +541,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             functionRegistry,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),
+            new LogicalOptimizerContext(configuration, foldCtx),
             mapper,
             TEST_VERIFIER,
             new PlanTelemetry(functionRegistry),
@@ -670,7 +675,10 @@ public class CsvTests extends ESTestCase {
         drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
         if (dataNodePlan != null) {
             var searchStats = new DisabledSearchStats();
-            var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+            var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
+                new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats),
+                new PlannerProfile(true)
+            );
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
                 new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats)
             );

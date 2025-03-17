@@ -138,14 +138,27 @@ public class PlannerUtils {
         List<SearchExecutionContext> searchContexts,
         Configuration configuration,
         FoldContext foldCtx,
-        PhysicalPlan plan
+        PhysicalPlan plan,
+        PlannerProfile profile
     ) {
-        return localPlan(configuration, foldCtx, plan, SearchContextStats.from(searchContexts));
+        return localPlan(configuration, foldCtx, plan, SearchContextStats.from(searchContexts), profile);
     }
 
-    public static PhysicalPlan localPlan(Configuration configuration, FoldContext foldCtx, PhysicalPlan plan, SearchStats searchStats) {
-        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
-        var physicalOptimizer = new LocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats));
+    public static PhysicalPlan localPlan(
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        PlannerProfile profile
+    ) {
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(
+            new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats),
+            profile
+        );
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(configuration, foldCtx, searchStats),
+            profile
+        );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer);
     }

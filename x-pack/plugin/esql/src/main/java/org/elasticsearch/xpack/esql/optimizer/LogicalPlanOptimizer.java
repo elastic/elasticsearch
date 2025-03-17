@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogateP
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.SubstituteSurrogates;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateMetricsAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 
 import java.util.List;
@@ -94,8 +95,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     private final LogicalVerifier verifier = LogicalVerifier.INSTANCE;
 
-    public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext) {
-        super(optimizerContext);
+    public LogicalPlanOptimizer(LogicalOptimizerContext optimizerContext, PlannerProfile profile) {
+        super(optimizerContext, profile);
     }
 
     public LogicalPlan optimize(LogicalPlan verified) {

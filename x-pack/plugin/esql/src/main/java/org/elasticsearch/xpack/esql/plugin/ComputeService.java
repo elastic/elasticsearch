@@ -173,12 +173,7 @@ public class ComputeService {
             try (
                 var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
                     updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                    return new Result(
-                        physicalPlan.output(),
-                        collectedPages,
-                        profiles,
-                        execInfo
-                    );
+                    return new Result(physicalPlan.output(), collectedPages, profiles, execInfo);
                 }))
             ) {
                 runCompute(rootTask, computeContext, coordinatorPlan, computeListener.acquireCompute());
@@ -385,7 +380,13 @@ public class ComputeService {
 
             LOGGER.debug("Received physical plan:\n{}", plan);
 
-            plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration(), context.foldCtx(), plan);
+            plan = PlannerUtils.localPlan(
+                context.searchExecutionContexts(),
+                context.configuration(),
+                context.foldCtx(),
+                plan,
+                localPlannerProfile
+            );
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation

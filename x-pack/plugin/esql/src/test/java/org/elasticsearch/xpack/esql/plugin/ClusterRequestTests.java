@@ -192,7 +192,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
         var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
-            TEST_VERIFIER
+            TEST_VERIFIER,
         );
         return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
     }

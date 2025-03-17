@@ -46,7 +46,7 @@ public class ParsingTests extends ESTestCase {
     private final IndexResolution defaultIndex = loadIndexResolution("mapping-basic.json");
     private final Analyzer defaultAnalyzer = new Analyzer(
         new AnalyzerContext(TEST_CFG, new EsqlFunctionRegistry(), defaultIndex, emptyPolicyResolution()),
-        TEST_VERIFIER
+        TEST_VERIFIER,
     );
 
     public void testCaseFunctionInvalidInputs() {

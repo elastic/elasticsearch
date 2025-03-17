@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.rule;
 
 import org.elasticsearch.xpack.esql.core.tree.Node;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.util.function.Function;
 
@@ -15,7 +16,7 @@ public abstract class ParameterizedRuleExecutor<TreeType extends Node<TreeType>,
 
     private final Context context;
 
-    protected ParameterizedRuleExecutor(Context context) {
+    protected ParameterizedRuleExecutor(Context context, PlannerProfile profile) {
         this.context = context;
     }
 

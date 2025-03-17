@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
@@ -99,7 +100,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
-            TEST_VERIFIER
+            TEST_VERIFIER,
         );
     }
 
@@ -403,13 +404,13 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
-            TEST_VERIFIER
+            TEST_VERIFIER,
         );
 
         var analyzed = analyzer.analyze(parser.createStatement(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
-        var plan = new LocalLogicalPlanOptimizer(localContext).localOptimize(optimized);
+        var plan = new LocalLogicalPlanOptimizer(localContext, new PlannerProfile(true)).localOptimize(optimized);
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(10));
@@ -560,7 +561,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         // System.out.println(plan);
-        var localPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(plan);
+        var localPlan = new LocalLogicalPlanOptimizer(localContext, new PlannerProfile(true)).localOptimize(plan);
         // System.out.println(localPlan);
         return localPlan;
     }

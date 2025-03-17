@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -63,7 +64,7 @@ public class TestPlannerOptimizer {
         // individually hence why here the plan is kept as is
 
         var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
-            new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats)
+            new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats), new PlannerProfile(true)
         );
         var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(config, FoldContext.small(), searchStats),

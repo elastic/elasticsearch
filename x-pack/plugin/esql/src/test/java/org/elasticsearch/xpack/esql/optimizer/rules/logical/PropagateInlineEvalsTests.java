@@ -65,7 +65,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
                 defaultLookupResolution(),
                 new EnrichResolution()
             ),
-            TEST_VERIFIER
+            TEST_VERIFIER,
         );
     }
 

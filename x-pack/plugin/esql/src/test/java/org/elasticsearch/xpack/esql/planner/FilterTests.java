@@ -84,7 +84,7 @@ public class FilterTests extends ESTestCase {
 
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
-            TEST_VERIFIER
+            TEST_VERIFIER,
         );
     }
 

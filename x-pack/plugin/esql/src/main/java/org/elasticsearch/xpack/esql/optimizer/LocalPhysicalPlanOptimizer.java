@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSource
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -36,8 +37,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
-    public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
-        super(context);
+    public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context, PlannerProfile profile) {
+        super(context, profile);
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {

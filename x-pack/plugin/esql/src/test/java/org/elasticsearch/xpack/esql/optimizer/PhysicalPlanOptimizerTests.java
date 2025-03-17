@@ -130,6 +130,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -356,7 +357,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResult = IndexResolution.valid(index);
         Analyzer analyzer = new Analyzer(
             new AnalyzerContext(config, functionRegistry, getIndexResult, lookupResolution, enrichResolution),
-            TEST_VERIFIER
+            TEST_VERIFIER,
         );
         return new TestDataSource(mapping, index, analyzer, stats);
     }
@@ -7651,7 +7652,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // The TopN needs an estimated row size for the planner to work
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
-        plan = PlannerUtils.localPlan(List.of(), config, FoldContext.small(), plan);
+        plan = PlannerUtils.localPlan(List.of(), config, FoldContext.small(), plan, new PlannerProfile(true));
         ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
@@ -7920,7 +7921,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         // individually hence why here the plan is kept as is
 
         var l = p.transformUp(FragmentExec.class, fragment -> {
-            var localPlan = PlannerUtils.localPlan(config, FoldContext.small(), fragment, searchStats);
+            var localPlan = PlannerUtils.localPlan(config, FoldContext.small(), fragment, searchStats, new PlannerProfile(true));
             return EstimatesRowSize.estimateRowSize(fragment.estimatedRowSize(), localPlan);
         });
 

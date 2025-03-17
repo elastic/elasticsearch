@@ -73,7 +73,7 @@ public class PlanExecutor {
             enrichPolicyResolver,
             preAnalyzer,
             functionRegistry,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg, foldContext)),
+            new LogicalOptimizerContext(cfg, foldContext),
             mapper,
             verifier,
             planTelemetry,

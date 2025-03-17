@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagate
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceMissingFieldWithNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceTopNWithLimitAndSort;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
@@ -33,8 +34,8 @@ import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer.operat
  */
 public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan, LocalLogicalOptimizerContext> {
 
-    public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext) {
-        super(localLogicalOptimizerContext);
+    public LocalLogicalPlanOptimizer(LocalLogicalOptimizerContext localLogicalOptimizerContext, PlannerProfile profile) {
+        super(localLogicalOptimizerContext, profile);
     }
 
     @Override

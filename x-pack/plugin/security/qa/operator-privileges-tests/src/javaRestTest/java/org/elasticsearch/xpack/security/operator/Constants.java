@@ -386,6 +386,8 @@ public class Constants {
         "cluster:monitor/xpack/enrich/coordinator_stats",
         "cluster:monitor/xpack/enrich/stats",
         "cluster:monitor/xpack/eql/stats/dist",
+        "cluster:monitor/xpack/esql/get_queries",
+        "cluster:monitor/xpack/esql/list_queries",
         "cluster:monitor/xpack/esql/stats/dist",
         "cluster:monitor/xpack/inference/post",
         "cluster:monitor/xpack/inference/get",

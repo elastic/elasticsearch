@@ -160,8 +160,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
-        final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+        final String expectedUrl = "https://ela.st/es-deprecation-7-shared-data-path";
         assertThat(
             issues,
             contains(

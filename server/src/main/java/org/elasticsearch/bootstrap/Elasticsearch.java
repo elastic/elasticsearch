@@ -36,7 +36,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
-import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -78,13 +79,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils.POLICY_OVERRIDE_PREFIX;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
  * This class starts elasticsearch.
  */
 class Elasticsearch {
+
+    private static final String PLUGIN_POLICY_OVERRIDE_PREFIX = "es.entitlements.policy.";
+    private static final String SERVER_POLICY_OVERRIDE = "es.entitlements.server_policy";
 
     /**
      * Main entry point for starting elasticsearch.
@@ -245,13 +248,20 @@ class Elasticsearch {
 
             var pluginData = Stream.concat(
                 modulesBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
                 pluginsBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
 
-            var policyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
-            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData, policyOverrides, Build.current().version());
+            var pluginPolicyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
+            var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyOverrides, Build.current().version());
+            var serverPolicyPatch = PolicyUtils.parseEncodedPolicyIfExists(
+                System.getProperty(SERVER_POLICY_OVERRIDE),
+                Build.current().version(),
+                false,
+                "server",
+                PolicyManager.SERVER_LAYER_MODULES.stream().map(Module::getName).collect(Collectors.toUnmodifiableSet())
+            );
 
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
@@ -259,6 +269,7 @@ class Elasticsearch {
             Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
                 .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
             EntitlementBootstrap.bootstrap(
+                serverPolicyPatch,
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
                 nodeEnv.settings()::getValues,
@@ -329,8 +340,8 @@ class Elasticsearch {
         var systemProperties = BootstrapInfo.getSystemProperties();
         systemProperties.keys().asIterator().forEachRemaining(key -> {
             var value = systemProperties.get(key);
-            if (key instanceof String k && k.startsWith(POLICY_OVERRIDE_PREFIX) && value instanceof String v) {
-                policyOverrides.put(k.substring(POLICY_OVERRIDE_PREFIX.length()), v);
+            if (key instanceof String k && k.startsWith(PLUGIN_POLICY_OVERRIDE_PREFIX) && value instanceof String v) {
+                policyOverrides.put(k.substring(PLUGIN_POLICY_OVERRIDE_PREFIX.length()), v);
             }
         });
         var pluginNames = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())

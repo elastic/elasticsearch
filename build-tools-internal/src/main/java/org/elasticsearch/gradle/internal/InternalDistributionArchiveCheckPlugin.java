@@ -121,7 +121,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
                         actualLines = Files.readAllLines(noticePath.get());
                         for (final String expectedLine : expectedLines) {
                             if (actualLines.contains(expectedLine) == false) {
-                                throw new GradleException("expected [" + noticePath + " to contain [" + expectedLine + "] but it did not");
+                                throw new GradleException("expected [" + noticePath.get() + " to contain [" + expectedLine + "] but it did not");
                             }
                         }
                     } catch (IOException ioException) {

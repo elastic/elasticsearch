@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -79,6 +80,9 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     protected FieldExtractorTestCase(MappedFieldType.FieldExtractPreference preference) {
         this.preference = preference;
+        if (preference != null) {
+            assumeTrue("Requires pragma", Build.current().isSnapshot());
+        }
     }
 
     @Before

@@ -269,6 +269,7 @@ public class ComputeService {
                                         .setSuccessfulShards(r.getSuccessfulShards())
                                         .setSkippedShards(r.getSkippedShards())
                                         .setFailedShards(r.getFailedShards())
+                                        .setFailures(r.failures)
                                         .build()
                                 );
                                 dataNodesListener.onResponse(r.getProfiles());

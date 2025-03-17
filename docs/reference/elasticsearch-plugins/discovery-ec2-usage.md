@@ -29,7 +29,7 @@ bin/elasticsearch-keystore add discovery.ec2.access_key
 bin/elasticsearch-keystore add discovery.ec2.secret_key
 ```
 
-All **secure** settings of this plugin are reloadable, allowing you to update the secure settings for this plugin without needing to restart each node. For more information about secure and reloadable settings, go to [](docs-content://deploy-manage/security/secure-settings.md)
+All **secure** settings of this plugin are reloadable, allowing you to update the secure settings for this plugin without needing to restart each node. For more information about secure and reloadable settings, go to [Secure your settings](docs-content://deploy-manage/security/secure-settings.md).
 
 The available settings for the EC2 discovery plugin are as follows.
 

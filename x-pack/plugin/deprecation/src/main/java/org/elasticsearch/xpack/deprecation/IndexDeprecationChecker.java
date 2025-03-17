@@ -134,9 +134,11 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             } else if (cldrIncompatibleFieldMappings.isEmpty() == false) {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "Mappings with incompatible format patterns in index with a compatibility version < 8.0 ",
+                    "Field mappings with incompatible date format patterns in old index",
                     "https://www.elastic.co/blog/locale-changes-elasticsearch-8-16-jdk-23",
-                    String.join(", ", cldrIncompatibleFieldMappings),
+                    "This index has a compatibility version < 8.0 and field mappings with format patterns that are incompatible "
+                        + "with Elasticsearch 9.0. Manual reindexing may be required. "
+                        + String.join(", ", cldrIncompatibleFieldMappings),
                     false,
                     null
                 );
@@ -433,12 +435,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
     private String cldrIncompatibleFormatPattern(String type, Map.Entry<?, ?> entry) {
         Map<?, ?> value = (Map<?, ?>) entry.getValue();
         final String formatFieldValue = (String) value.get("format");
-        return "Field ["
-            + entry.getKey()
-            + "] format ["
-            + formatFieldValue
-            + "] "
-            + "contains patterns potentially incompatible with CLDR locale provider.";
+        return "Field [" + entry.getKey() + "] with format pattern [" + formatFieldValue + "].";
     }
 
     private boolean isDateFieldWithCamelCasePattern(Map<?, ?> property) {

@@ -87,7 +87,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        long batchSizeInBytes = randomLongBetween(0, ByteSizeValue.ofKb(1).getBytes());
+        long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
         return Settings.builder()
             .put(otherSettings)
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")

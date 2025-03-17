@@ -220,7 +220,8 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "Field mappings with incompatible date format patterns in old index",
             "https://www.elastic.co/blog/locale-changes-elasticsearch-8-16-jdk-23",
-            "This index has a compatibility version < 8.0 and field mappings with format patterns that are incompatible with Elasticsearch 9.0. Manual reindexing may be required. Field [date] with format pattern [qqqq yyyy].",
+            "This index has a compatibility version < 8.0 and field mappings with format patterns that are incompatible with "
+                + "Elasticsearch 9.0. Manual reindexing may be required. Field [date] with format pattern [qqqq yyyy].",
             false,
             null
         );

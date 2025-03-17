@@ -185,6 +185,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
     public static final TransportVersion INFERENCE_CONTEXT = def(9_028_0_00);
     public static final TransportVersion ML_INFERENCE_DEEPSEEK = def(9_029_00_0);
+    public static final TransportVersion ESQL_FAILURE_FROM_REMOTE = def(9_030_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

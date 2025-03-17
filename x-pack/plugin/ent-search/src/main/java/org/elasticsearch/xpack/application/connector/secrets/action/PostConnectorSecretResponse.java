@@ -26,7 +26,6 @@ public class PostConnectorSecretResponse extends ActionResponse implements ToXCo
     }
 
     public PostConnectorSecretResponse(StreamInput in) throws IOException {
-        super(in);
         this.id = in.readString();
     }
 

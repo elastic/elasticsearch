@@ -90,7 +90,7 @@ public class AlibabaCloudSearchSparseRequestTests extends ESTestCase {
 
     public void testCreateRequest_RequestInputTypeTakesPrecedence() throws IOException {
         var requestInputType = InputTypeTests.randomSearchAndIngestWithNull();
-        var taskSettingInputType = InputTypeTests.randomSearchAndIngestWithNull();
+        var taskSettingInputType = InputTypeTests.randomSearchAndIngestWithNullWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
             requestInputType,

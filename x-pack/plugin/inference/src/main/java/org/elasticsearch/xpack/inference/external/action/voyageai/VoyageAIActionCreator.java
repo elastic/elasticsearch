@@ -56,7 +56,11 @@ public class VoyageAIActionCreator implements VoyageAIActionVisitor {
             serviceComponents.threadPool(),
             overriddenModel,
             EMBEDDINGS_HANDLER,
-            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(embeddingsInput.getInputs(), embeddingsInput.getInputType(), overriddenModel),
+            (embeddingsInput) -> new VoyageAIEmbeddingsRequest(
+                embeddingsInput.getInputs(),
+                embeddingsInput.getInputType(),
+                overriddenModel
+            ),
             EmbeddingsInput.class
         );
 

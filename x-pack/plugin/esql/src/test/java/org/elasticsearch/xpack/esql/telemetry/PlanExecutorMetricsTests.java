@@ -92,10 +92,10 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             Settings.EMPTY,
             new HashSet<>(
                 Arrays.asList(
-                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING,
-                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING,
-                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING,
+                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
+                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
+                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
+                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                     EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING
                 )
             )

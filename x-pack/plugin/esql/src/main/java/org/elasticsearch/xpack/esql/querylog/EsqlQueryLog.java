@@ -23,10 +23,10 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING;
+import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_WARN_SETTING;
 
 public final class EsqlQueryLog {
 
@@ -53,10 +53,10 @@ public final class EsqlQueryLog {
     private volatile boolean includeUser;
 
     public EsqlQueryLog(ClusterSettings settings, SlowLogFieldProvider slowLogFieldProvider) {
-        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
-        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING, this::setQueryInfoThreshold);
-        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING, this::setQueryDebugThreshold);
-        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING, this::setQueryTraceThreshold);
+        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_WARN_SETTING, this::setQueryWarnThreshold);
+        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_INFO_SETTING, this::setQueryInfoThreshold);
+        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING, this::setQueryDebugThreshold);
+        settings.initializeAndWatch(ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING, this::setQueryTraceThreshold);
         settings.initializeAndWatch(ESQL_QUERYLOG_INCLUDE_USER_SETTING, this::setIncludeUser);
 
         this.additionalFields = slowLogFieldProvider.create();

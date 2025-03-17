@@ -83,13 +83,13 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
 
         Map<Level, String> levels = Map.of(
             Level.WARN,
-            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(),
+            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_WARN_SETTING.getKey(),
             Level.INFO,
-            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(),
+            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING.getKey(),
             Level.DEBUG,
-            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(),
+            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING.getKey(),
             Level.TRACE,
-            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey()
+            EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING.getKey()
         );
         testAllLevels(
             levels,

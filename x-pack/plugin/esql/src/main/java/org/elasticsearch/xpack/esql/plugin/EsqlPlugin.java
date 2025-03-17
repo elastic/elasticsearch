@@ -110,8 +110,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING = Setting.timeSetting(
-        "esql.querylog.threshold.query.warn",
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_WARN_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.warn",
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
@@ -119,8 +119,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING = Setting.timeSetting(
-        "esql.querylog.threshold.query.info",
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_INFO_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.info",
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
@@ -128,8 +128,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING = Setting.timeSetting(
-        "esql.querylog.threshold.query.debug",
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.debug",
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
@@ -137,8 +137,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
-    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING = Setting.timeSetting(
-        "esql.querylog.threshold.query.trace",
+    public static final Setting<TimeValue> ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING = Setting.timeSetting(
+        "esql.querylog.threshold.trace",
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(-1),
         TimeValue.timeValueMillis(Integer.MAX_VALUE),
@@ -211,10 +211,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             QUERY_RESULT_TRUNCATION_DEFAULT_SIZE,
             QUERY_RESULT_TRUNCATION_MAX_SIZE,
             QUERY_ALLOW_PARTIAL_RESULTS,
-            ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING,
-            ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-            ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING,
-            ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
+            ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
             ESQL_QUERYLOG_INCLUDE_USER_SETTING
         );
     }

@@ -47,19 +47,19 @@ import static org.hamcrest.Matchers.nullValue;
 public class EsqlQueryLogTests extends ESTestCase {
     private static ClusterSettings settings = new ClusterSettings(
         Settings.builder()
-            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40ms")
-            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING.getKey(), "30ms")
-            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING.getKey(), "20ms")
-            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING.getKey(), "10ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_WARN_SETTING.getKey(), "40ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING.getKey(), "30ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING.getKey(), "20ms")
+            .put(EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING.getKey(), "10ms")
             .put(EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING.getKey(), true)
 
             .build(),
         new HashSet<>(
             Arrays.asList(
-                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_WARN_SETTING,
-                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_INFO_SETTING,
-                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_QUERY_TRACE_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
+                EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
                 EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING
             )
         )

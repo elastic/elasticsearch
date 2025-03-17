@@ -66,8 +66,8 @@ required_capability: join_lookup_v12
 required_capability: name_qualifiers
 
 FROM employees main
-| WHERE emp_no == 10001
-| EVAL language_code = languages
+| WHERE main emp_no == 10001
+| EVAL language_code = main languages
 | LOOKUP JOIN languages_lookup right ON language_code
 | KEEP main emp_no, main language_code, right language_code, right language_name
 ;

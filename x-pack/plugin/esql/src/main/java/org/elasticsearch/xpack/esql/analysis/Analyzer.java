@@ -981,18 +981,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<NamedExpression> unresolved = new ArrayList<>(renamingsCount);
             Map<String, String> reverseAliasing = new HashMap<>(renamingsCount); // `| rename a as x` => map(a: x)
 
-            Set<String> toRenameAttributes = rename.renamings()
-                .stream()
-                .map(Alias::child)
-                .filter(v -> v instanceof UnresolvedAttribute)
-                .map(attr -> ((UnresolvedAttribute) attr).name())
-                .collect(Collectors.toSet());
-
             rename.renamings().forEach(alias -> {
                 // skip NOPs: `| rename a as a`
                 if (alias.child() instanceof UnresolvedAttribute ua && alias.name().equals(ua.name()) == false) {
                     // remove attributes overwritten by a renaming: `| keep a, b, c | rename a as b`
-                    projections.removeIf(x -> x.name().equals(alias.name()) && toRenameAttributes.contains(x.name()) == false);
+                    projections.removeIf(x -> x.name().equals(alias.name()));
+                    childrenOutput.removeIf(x -> x.name().equals(alias.name()));
 
                     var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {

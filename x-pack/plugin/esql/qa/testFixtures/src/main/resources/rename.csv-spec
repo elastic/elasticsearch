@@ -223,9 +223,9 @@ FROM employees
 | LIMIT 2
 ;
 
-last_name:keyword   | name:keyword
-Georgi              | Facello
-Bezalel             | Simmel
+name:keyword
+Georgi
+Bezalel
 ;
 
 complexSwappingNames
@@ -236,7 +236,57 @@ FROM employees
 | LIMIT 2
 ;
 
-last_name:keyword   | emp_no:keyword    | first_name:INTEGER
-Georgi              | Facello           | 10001
-Bezalel             | Simmel            | 10002
+first_name:keyword
+Georgi
+Bezalel
+;
+
+
+reuseRenamedAlias
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name
+| LIMIT 2
+| RENAME first_name AS x, x AS y, last_name as x
+;
+
+y:keyword   | x:keyword
+Georgi      | Facello
+Bezalel     | Simmel
+;
+
+
+multipleRenamesToSameAliasLastOnePrevails
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name
+| LIMIT 2
+| RENAME first_name AS x, last_name as x
+;
+
+x:keyword
+Facello
+Simmel
+;
+
+
+swapNames
+ROW a="keyword", b=5
+| RENAME a AS temp, b AS a, temp AS b
+;
+
+b:keyword | a:integer
+keyword   | 5
+;
+
+
+multipleRenames
+ROW a="keyword", b=5, c=null
+| RENAME a AS c, b AS a
+| RENAME c AS b
+| RENAME a AS b, b AS a
+;
+
+a:integer
+5
 ;

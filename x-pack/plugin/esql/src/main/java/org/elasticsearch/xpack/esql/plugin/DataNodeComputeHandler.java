@@ -99,7 +99,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         ActionListener<ComputeResponse> outListener
     ) {
         final boolean allowPartialResults = configuration.allowPartialResults();
-        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask, allowPartialResults) {
+        DataNodeRequestSender sender = new DataNodeRequestSender(
+            transportService,
+            esqlExecutor,
+            clusterAlias,
+            parentTask,
+            allowPartialResults
+        ) {
             @Override
             protected void sendRequest(
                 DiscoveryNode node,

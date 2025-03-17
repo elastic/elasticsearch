@@ -98,7 +98,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
             List<String> cldrIncompatibleFieldMappings = new ArrayList<>();
             fieldLevelMappingIssue(
                 indexMetadata,
@@ -165,7 +165,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
     ) {
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
             var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
             if (transforms.isEmpty() == false) {
                 return new DeprecationIssue(

@@ -11,9 +11,11 @@ package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -70,7 +72,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
 
     record CheckAction(
-        CheckedRunnable<Exception> action,
+        CheckedConsumer<Environment, Exception> action,
         EntitlementTest.ExpectedAccess expectedAccess,
         Class<? extends Exception> expectedExceptionIfDenied,
         Integer fromJavaVersion
@@ -79,15 +81,15 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
          * These cannot be granted to plugins, so our test plugins cannot test the "allowed" case.
          */
         static CheckAction deniedToPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, SERVER_ONLY, NotEntitledException.class, null);
+            return new CheckAction(env -> action.run(), SERVER_ONLY, NotEntitledException.class, null);
         }
 
         static CheckAction forPlugins(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, PLUGINS, NotEntitledException.class, null);
+            return new CheckAction(env -> action.run(), PLUGINS, NotEntitledException.class, null);
         }
 
         static CheckAction alwaysDenied(CheckedRunnable<Exception> action) {
-            return new CheckAction(action, ALWAYS_DENIED, NotEntitledException.class, null);
+            return new CheckAction(env -> action.run(), ALWAYS_DENIED, NotEntitledException.class, null);
         }
     }
 
@@ -135,7 +137,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry(
                 "createInetAddressResolverProvider",
                 new CheckAction(
-                    VersionSpecificNetworkChecks::createInetAddressResolverProvider,
+                    env -> VersionSpecificNetworkChecks.createInetAddressResolverProvider(),
                     SERVER_ONLY,
                     NotEntitledException.class,
                     18
@@ -217,6 +219,12 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Entry::getKey, Entry::getValue));
 
+    private final Environment environment;
+
+    public RestEntitlementsCheckAction(Environment environment) {
+        this.environment = environment;
+    }
+
     @SuppressForbidden(reason = "Need package private methods so we don't have to make them all public")
     private static Method[] getDeclaredMethods(Class<?> clazz) {
         return clazz.getDeclaredMethods();
@@ -232,13 +240,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             if (Modifier.isStatic(method.getModifiers()) == false) {
                 throw new AssertionError("Entitlement test method [" + method + "] must be static");
             }
-            if (method.getParameterTypes().length != 0) {
-                throw new AssertionError("Entitlement test method [" + method + "] must not have parameters");
-            }
-
-            CheckedRunnable<Exception> runnable = () -> {
+            final CheckedConsumer<Environment, Exception> call = createConsumerForMethod(method);
+            CheckedConsumer<Environment, Exception> runnable = env -> {
                 try {
-                    method.invoke(null);
+                    call.accept(env);
                 } catch (IllegalAccessException e) {
                     throw new AssertionError(e);
                 } catch (InvocationTargetException e) {
@@ -258,6 +263,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             );
         }
         return entries.stream();
+    }
+
+    private static CheckedConsumer<Environment, Exception> createConsumerForMethod(Method method) {
+        Class<?>[] parameters = method.getParameterTypes();
+        if (parameters.length == 0) {
+            return env -> method.invoke(null);
+        }
+        if (parameters.length == 1 && parameters[0].equals(Environment.class)) {
+            return env -> method.invoke(null, env);
+        }
+        throw new AssertionError("Entitlement test method [" + method + "] must have no parameters or 1 parameter (Environment)");
     }
 
     private static void createURLStreamHandlerProvider() {
@@ -423,6 +439,14 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             .collect(Collectors.toSet());
     }
 
+    public static Set<String> getAlwaysAllowedCheckActions() {
+        return checkActions.entrySet()
+            .stream()
+            .filter(kv -> kv.getValue().expectedAccess().equals(ALWAYS_ALLOWED))
+            .map(Entry::getKey)
+            .collect(Collectors.toSet());
+    }
+
     public static Set<String> getDeniableCheckActions() {
         return checkActions.entrySet()
             .stream()
@@ -457,7 +481,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             logger.info("Calling check action [{}]", actionName);
             RestResponse response;
             try {
-                checkAction.action().run();
+                checkAction.action().accept(environment);
                 response = new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName));
             } catch (Exception e) {
                 var statusCode = checkAction.expectedExceptionIfDenied.isInstance(e)
@@ -470,5 +494,4 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             channel.sendResponse(response);
         };
     }
-
 }

@@ -13,6 +13,9 @@ import org.apache.lucene.index.MergePolicy.OneMerge;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.MergeTrigger;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -31,6 +34,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -39,6 +43,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -58,9 +64,9 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
 
     @BeforeClass
     public static void beforeTests() {
-        WAIT_MERGES_ENQUEUED = randomIntBetween(100, 200);
-        // maybe let a few merges run at the beginning
-        RUN_MERGE_SEMAPHORE = new Semaphore(randomIntBetween(0, 10));
+        WAIT_MERGES_ENQUEUED = randomIntBetween(50, 100);
+        // maybe let a few merges run at the start
+        RUN_MERGE_SEMAPHORE = new Semaphore(randomIntBetween(0, 5));
     }
 
     @Override
@@ -202,7 +208,7 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         }
     }
 
-    public void testStressMergeQueue() throws Exception {
+    public void testMergingFallsBehindAndThenCatchesUp() throws Exception {
         createIndex(
             "index",
             // stress test merging across multiple shards
@@ -251,13 +257,30 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         for (Thread indexingThread : indexingThreads) {
             indexingThread.join();
         }
+        var segmentsBefore = getSegmentsCountForAllShards("index");
         // even though indexing is done, merging can itself trigger further merging
         // don't let this test be bothered by that, let any merging run un-hindered
-        RUN_MERGE_SEMAPHORE.release(Integer.MAX_VALUE);
+        RUN_MERGE_SEMAPHORE.release(999999);
         assertBusy(() -> {
             assertThat(RUNNING_MERGES_SET.size(), is(0));
             assertThat(ENQUEUED_MERGES_SET.size(), is(0));
             THREAD_POOL_MERGE_EXECUTOR_SERVICE_ATOMIC_REFERENCE.get().allDone();
         }, 1, TimeUnit.MINUTES);
+        // refresh, otherwise we'd be still seeing the old merged-away segments
+        assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());
+        var segmentsAfter = getSegmentsCountForAllShards("index");
+        assertThat(segmentsBefore, greaterThan(segmentsAfter));
+    }
+
+    private int getSegmentsCountForAllShards(String indexName) {
+        int count = 0;
+        IndicesSegmentResponse indicesSegmentResponse = indicesAdmin().prepareSegments(indexName).get();
+        Iterator<IndexShardSegments> indexShardSegmentsIterator = indicesSegmentResponse.getIndices().get(indexName).iterator();
+        while (indexShardSegmentsIterator.hasNext()) {
+            for (ShardSegments segments : indexShardSegmentsIterator.next()) {
+                count += segments.getSegments().size();
+            }
+        }
+        return count;
     }
 }

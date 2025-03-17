@@ -70,7 +70,6 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     }
 
     private static void applyProxyConfiguration(Ec2ClientSettings clientSettings, ApacheHttpClient.Builder httpClientBuilder) {
-        // TODO: remove this leniency, these settings should exist together and be validated
         final var uriBuilder = new URIBuilder();
         uriBuilder.setScheme(clientSettings.proxyScheme.getSchemeString())
             .setHost(clientSettings.proxyHost)

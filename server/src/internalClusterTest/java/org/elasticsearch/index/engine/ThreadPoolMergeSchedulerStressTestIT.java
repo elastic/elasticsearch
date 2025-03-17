@@ -41,6 +41,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -257,12 +258,15 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             indexingThreads[i].start();
         }
         TestEnginePlugin testEnginePlugin = getTestEnginePlugin();
+        // get the segments count before unblocking the merge threads
+        AtomicInteger segmentsCountBefore = new AtomicInteger();
         assertBusy(() -> {
             // wait for merges to enqueue or backlog
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), greaterThanOrEqualTo(testEnginePlugin.waitMergesEnqueuedCount));
+            segmentsCountBefore.set(getSegmentsCountForAllShards("index"));
+            // there are at least 2 segments for each outstanding merge
+            assertThat(segmentsCountBefore.get(), greaterThan(2 * testEnginePlugin.waitMergesEnqueuedCount));
         }, 1, TimeUnit.MINUTES);
-        // get the segments count before unblocking the merge threads
-        var segmentsBefore = getSegmentsCountForAllShards("index");
         // finish up indexing
         indexingDone.set(true);
         for (Thread indexingThread : indexingThreads) {
@@ -276,11 +280,9 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), is(0));
             testEnginePlugin.mergeExecutorServiceReference.get().allDone();
         }, 1, TimeUnit.MINUTES);
-        // refresh, otherwise we'd be still seeing the old merged-away segments
-        assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());
-        var segmentsAfter = getSegmentsCountForAllShards("index");
+        var segmentsCountAfter = getSegmentsCountForAllShards("index");
         // there should be way fewer segments after merging completed
-        assertThat(segmentsBefore, greaterThan(segmentsAfter));
+        assertThat(segmentsCountBefore.get(), greaterThan(segmentsCountAfter));
         // let's also run a force-merge
         assertAllSuccessful(indicesAdmin().prepareForceMerge("index").setMaxNumSegments(1).get());
         assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());
@@ -297,6 +299,8 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
     }
 
     private int getSegmentsCountForAllShards(String indexName) {
+        // refresh, otherwise we'd be still seeing the old merged-away segments
+        assertAllSuccessful(indicesAdmin().prepareRefresh(indexName).get());
         int count = 0;
         IndicesSegmentResponse indicesSegmentResponse = indicesAdmin().prepareSegments(indexName).get();
         Iterator<IndexShardSegments> indexShardSegmentsIterator = indicesSegmentResponse.getIndices().get(indexName).iterator();

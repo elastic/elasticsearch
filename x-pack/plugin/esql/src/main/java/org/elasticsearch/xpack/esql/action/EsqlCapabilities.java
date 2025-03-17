@@ -890,6 +890,11 @@ public class EsqlCapabilities {
         TO_LOWER_MV,
 
         /**
+         * Use double parameter markers to represent field or function names.
+         */
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+
+        /**
          * Index component selector syntax (my-data-stream-name::failures)
          */
         INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled());

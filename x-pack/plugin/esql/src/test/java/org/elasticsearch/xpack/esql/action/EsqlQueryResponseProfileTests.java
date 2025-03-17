@@ -26,12 +26,15 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     @Override
     protected EsqlQueryResponse.Profile createTestInstance() {
-        return new EsqlQueryResponse.Profile(randomDriverProfiles());
+        return randomDriverProfiles();
     }
 
     @Override
     protected EsqlQueryResponse.Profile mutateInstance(EsqlQueryResponse.Profile instance) {
-        return new EsqlQueryResponse.Profile(randomValueOtherThan(instance.drivers(), this::randomDriverProfiles));
+        return new EsqlQueryResponse.Profile(
+            randomValueOtherThan(instance.drivers(), () -> randomDriverProfiles().getDriverProfiles()),
+            List.of()
+        );
     }
 
     @Override
@@ -39,8 +42,10 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         return new NamedWriteableRegistry(List.of(AbstractPageMappingOperator.Status.ENTRY));
     }
 
-    private List<DriverProfile> randomDriverProfiles() {
-        return randomList(10, this::randomDriverProfile);
+    // TODO: this method is duplicated in ComputeListenerTests
+    private EsqlQueryResponse.Profile randomDriverProfiles() {
+        // NOCOMMIT - test planner profiles too
+        return new EsqlQueryResponse.Profile(randomList(10, this::randomDriverProfile), List.of());
     }
 
     private DriverProfile randomDriverProfile() {

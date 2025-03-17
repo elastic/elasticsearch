@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -35,6 +34,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 
 import java.util.ArrayList;
@@ -236,9 +236,9 @@ abstract class DataNodeRequestSender {
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
-        final ActionListener<List<DriverProfile>> listener = computeListener.acquireCompute();
+        final ActionListener<EsqlQueryResponse.Profile> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
-            void onAfter(List<DriverProfile> profiles) {
+            void onAfter(EsqlQueryResponse.Profile profiles) {
                 nodePermits.get(request.node).release();
                 if (concurrentRequests != null) {
                     concurrentRequests.release();
@@ -269,7 +269,7 @@ abstract class DataNodeRequestSender {
                     trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
                 }
-                onAfter(List.of());
+                onAfter(EsqlQueryResponse.Profile.EMPTY);
             }
 
             @Override
@@ -278,7 +278,7 @@ abstract class DataNodeRequestSender {
                 if (rootTask.isCancelled()) {
                     onFailure(new TaskCancelledException("null"), true);
                 } else {
-                    onResponse(new DataNodeComputeResponse(List.of(), Map.of()));
+                    onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of()));
                 }
             }
         });

@@ -17,7 +17,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -28,6 +27,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
@@ -119,6 +120,7 @@ public class EsqlSession {
     private final Mapper mapper;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanTelemetry planTelemetry;
+    private final PlannerProfile plannerProfile;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
 
     public EsqlSession(
@@ -146,6 +148,7 @@ public class EsqlSession {
         this.logicalPlanOptimizer = logicalPlanOptimizer;
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planTelemetry = planTelemetry;
+        this.plannerProfile = new PlannerProfile(false);
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.preMapper = new PreMapper(services);
     }
@@ -241,7 +244,7 @@ public class EsqlSession {
         // TODO: merge into one method
         if (subplans.size() > 0) {
             // code-path to execute subplans
-            executeSubPlan(new ArrayList<>(), physicalPlan, iterator, executionInfo, runner, listener);
+            executeSubPlan(new EsqlQueryResponse.Profile(), physicalPlan, iterator, executionInfo, runner, listener);
         } else {
             // execute main plan
             runner.run(physicalPlan, listener);
@@ -249,7 +252,7 @@ public class EsqlSession {
     }
 
     private void executeSubPlan(
-        List<DriverProfile> profileAccumulator,
+        EsqlQueryResponse.Profile profileAccumulator,
         PhysicalPlan plan,
         Iterator<PlanTuple> subPlanIterator,
         EsqlExecutionInfo executionInfo,
@@ -257,10 +260,12 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         PlanTuple tuple = subPlanIterator.next();
+        List<PlannerProfile> plannerProfiles = new ArrayList<>();
+        plannerProfiles.add(plannerProfile);
 
         runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
             try {
-                profileAccumulator.addAll(result.profiles());
+                profileAccumulator.merge(result.profile());
                 LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
 
                 // replace the original logical plan with the backing result
@@ -295,8 +300,9 @@ public class EsqlSession {
                 });
 
                 if (subPlanIterator.hasNext() == false) {
+                    // In the production path, this is runner.run calls ComputeService.execute
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
-                        profileAccumulator.addAll(finalResult.profiles());
+                        profileAccumulator.merge(finalResult.profile());
                         finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo));
                     }));
                 } else {

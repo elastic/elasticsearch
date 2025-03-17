@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
@@ -42,6 +41,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -280,7 +281,7 @@ public class ComputeService {
                                             EsqlExecutionInfo.Cluster.Status.PARTIAL
                                         ).setFailures(List.of(new ShardSearchFailure(e))).build()
                                     );
-                                    dataNodesListener.onResponse(List.of());
+                                    dataNodesListener.onResponse(EsqlQueryResponse.Profile.EMPTY);
                                 } else {
                                     dataNodesListener.onFailure(e);
                                 }
@@ -340,7 +341,7 @@ public class ComputeService {
         }
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<List<DriverProfile>> listener) {
+    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<EsqlQueryResponse.Profile> listener) {
         listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
         for (int i = 0; i < context.searchContexts().size(); i++) {
@@ -359,6 +360,7 @@ public class ComputeService {
             );
         }
         final List<Driver> drivers;
+        final PlannerProfile localPlannerProfile = new PlannerProfile(true);
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),
@@ -397,9 +399,9 @@ public class ComputeService {
         }
         ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
             if (context.configuration().profile()) {
-                return drivers.stream().map(Driver::profile).toList();
+                return new EsqlQueryResponse.Profile(drivers.stream().map(Driver::profile).toList(), List.of(localPlannerProfile));
             } else {
-                return List.of();
+                return EsqlQueryResponse.Profile.EMPTY;
             }
         });
         listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));

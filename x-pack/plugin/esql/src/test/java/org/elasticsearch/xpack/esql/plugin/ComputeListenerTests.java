@@ -20,6 +20,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.junit.After;
 import org.junit.Before;
 
@@ -56,7 +57,7 @@ public class ComputeListenerTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    private List<DriverProfile> randomProfiles() {
+    private EsqlQueryResponse.Profile randomProfiles() {
         int numProfiles = randomIntBetween(0, 2);
         List<DriverProfile> profiles = new ArrayList<>(numProfiles);
         for (int i = 0; i < numProfiles; i++) {
@@ -75,20 +76,22 @@ public class ComputeListenerTests extends ESTestCase {
                 )
             );
         }
-        return profiles;
+        // NOCOMMIT - add random planner profiles?
+        return new EsqlQueryResponse.Profile(profiles, List.of());
     }
 
     public void testEmpty() {
-        PlainActionFuture<List<DriverProfile>> results = new PlainActionFuture<>();
+        PlainActionFuture<EsqlQueryResponse.Profile> results = new PlainActionFuture<>();
         try (var ignored = new ComputeListener(threadPool, () -> {}, results)) {
             assertFalse(results.isDone());
         }
         assertTrue(results.isDone());
-        assertThat(results.actionGet(10, TimeUnit.SECONDS), empty());
+        assertThat(results.actionGet(10, TimeUnit.SECONDS).getDriverProfiles(), empty());
+        assertThat(results.actionGet(10, TimeUnit.SECONDS).getPlannerProfiles(), empty());
     }
 
     public void testCollectComputeResults() {
-        PlainActionFuture<List<DriverProfile>> future = new PlainActionFuture<>();
+        PlainActionFuture<EsqlQueryResponse.Profile> future = new PlainActionFuture<>();
         List<DriverProfile> allProfiles = new ArrayList<>();
         AtomicInteger onFailure = new AtomicInteger();
         try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, future)) {
@@ -103,8 +106,8 @@ public class ComputeListenerTests extends ESTestCase {
                     );
                 } else {
                     var profiles = randomProfiles();
-                    allProfiles.addAll(profiles);
-                    ActionListener<List<DriverProfile>> subListener = computeListener.acquireCompute();
+                    allProfiles.addAll(profiles.getDriverProfiles());
+                    ActionListener<EsqlQueryResponse.Profile> subListener = computeListener.acquireCompute();
                     threadPool.schedule(
                         ActionRunnable.wrap(subListener, l -> l.onResponse(profiles)),
                         TimeValue.timeValueNanos(between(0, 100)),
@@ -113,9 +116,10 @@ public class ComputeListenerTests extends ESTestCase {
                 }
             }
         }
-        List<DriverProfile> profiles = future.actionGet(10, TimeUnit.SECONDS);
+        EsqlQueryResponse.Profile profiles = future.actionGet(10, TimeUnit.SECONDS);
         assertThat(
-            profiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+            // TODO: Test planner profiles here?
+            profiles.getDriverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
             equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
         );
         assertThat(onFailure.get(), equalTo(0));
@@ -129,11 +133,11 @@ public class ComputeListenerTests extends ESTestCase {
             );
         int successTasks = between(1, 50);
         int failedTasks = between(1, 100);
-        PlainActionFuture<List<DriverProfile>> rootListener = new PlainActionFuture<>();
+        PlainActionFuture<EsqlQueryResponse.Profile> rootListener = new PlainActionFuture<>();
         final AtomicInteger onFailure = new AtomicInteger();
         try (var computeListener = new ComputeListener(threadPool, onFailure::incrementAndGet, rootListener)) {
             for (int i = 0; i < successTasks; i++) {
-                ActionListener<List<DriverProfile>> subListener = computeListener.acquireCompute();
+                ActionListener<EsqlQueryResponse.Profile> subListener = computeListener.acquireCompute();
                 threadPool.schedule(
                     ActionRunnable.wrap(subListener, l -> l.onResponse(randomProfiles())),
                     TimeValue.timeValueNanos(between(0, 100)),
@@ -162,11 +166,12 @@ public class ComputeListenerTests extends ESTestCase {
     public void testCollectWarnings() throws Exception {
         List<DriverProfile> allProfiles = new ArrayList<>();
         Map<String, Set<String>> allWarnings = new HashMap<>();
-        ActionListener<List<DriverProfile>> rootListener = new ActionListener<>() {
+        ActionListener<EsqlQueryResponse.Profile> rootListener = new ActionListener<>() {
             @Override
-            public void onResponse(List<DriverProfile> result) {
+            public void onResponse(EsqlQueryResponse.Profile result) {
                 assertThat(
-                    result.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
+                    // TODO: test planner profiles here?
+                    result.getDriverProfiles().stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)),
                     equalTo(allProfiles.stream().collect(Collectors.toMap(p -> p, p -> 1, Integer::sum)))
                 );
                 Map<String, Set<String>> responseHeaders = threadPool.getThreadContext()
@@ -202,7 +207,7 @@ public class ComputeListenerTests extends ESTestCase {
                     );
                 } else {
                     var resp = randomProfiles();
-                    allProfiles.addAll(resp);
+                    allProfiles.addAll(resp.getDriverProfiles());
                     int numWarnings = randomIntBetween(1, 5);
                     Map<String, String> warnings = new HashMap<>();
                     for (int i = 0; i < numWarnings; i++) {

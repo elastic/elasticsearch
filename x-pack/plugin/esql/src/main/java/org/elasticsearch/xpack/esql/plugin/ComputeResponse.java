@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,7 +23,7 @@ import java.util.List;
  * The compute result of {@link DataNodeRequest} or {@link ClusterComputeRequest}
  */
 final class ComputeResponse extends TransportResponse {
-    private final List<DriverProfile> profiles;
+    private final EsqlQueryResponse.Profile profiles;
 
     // for use with ClusterComputeRequests (cross-cluster searches)
     private final TimeValue took;  // overall took time for a specific cluster in a cross-cluster search
@@ -32,12 +33,12 @@ final class ComputeResponse extends TransportResponse {
     public final int failedShards;
     public final List<ShardSearchFailure> failures;
 
-    ComputeResponse(List<DriverProfile> profiles) {
+    ComputeResponse(EsqlQueryResponse.Profile profiles) {
         this(profiles, null, null, null, null, null, List.of());
     }
 
     ComputeResponse(
-        List<DriverProfile> profiles,
+        EsqlQueryResponse.Profile profiles,
         TimeValue took,
         Integer totalShards,
         Integer successfulShards,
@@ -57,7 +58,11 @@ final class ComputeResponse extends TransportResponse {
     ComputeResponse(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             if (in.readBoolean()) {
-                profiles = in.readCollectionAsImmutableList(DriverProfile::readFrom);
+                if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                    profiles = new EsqlQueryResponse.Profile(in);
+                } else {
+                    profiles = new EsqlQueryResponse.Profile(in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of());
+                }
             } else {
                 profiles = null;
             }
@@ -91,7 +96,11 @@ final class ComputeResponse extends TransportResponse {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeCollection(profiles);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PLANNER_PROFILE)) {
+                    profiles.writeTo(out);
+                } else {
+                    out.writeCollection(profiles.getDriverProfiles());
+                }
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
@@ -106,7 +115,7 @@ final class ComputeResponse extends TransportResponse {
         }
     }
 
-    public List<DriverProfile> getProfiles() {
+    public EsqlQueryResponse.Profile getProfiles() {
         return profiles;
     }
 

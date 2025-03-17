@@ -304,9 +304,7 @@ public class EsqlSession {
                     // In the production path, this is runner.run calls ComputeService.execute
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.merge(finalResult.profile());
-                        finalListener.onResponse(
-                            new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo)
-                        );
+                        finalListener.onResponse(new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo));
                     }));
                 } else {
                     // continue executing the subplans

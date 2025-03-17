@@ -360,12 +360,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testIndexTemplateSwapsILMForDataStreamLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/124886
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests
-  method: testExplicitNull {p0=false}
-  issue: https://github.com/elastic/elasticsearch/issues/124891
-- class: org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests
-  method: testExplicitNull {p0=true}
-  issue: https://github.com/elastic/elasticsearch/issues/124892
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/124940
@@ -399,6 +393,12 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testLifecycleAppliedToFailureStore
   issue: https://github.com/elastic/elasticsearch/issues/124999
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search/610_function_score/Random}
+  issue: https://github.com/elastic/elasticsearch/issues/125010
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test010Install
+  issue: https://github.com/elastic/elasticsearch/issues/119441
 
 # Examples:
 #

@@ -105,10 +105,11 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
     ) {
         TaskProvider<Task> checkMlCppNoticeTask = project.getTasks().register("checkMlCppNotice", task -> {
             task.dependsOn(checkExtraction);
-            final Provider<Path> noticePath = checkExtraction.map(c ->
-                c.getDestinationDir()
-                .toPath()
-                .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/modules/x-pack-ml/NOTICE.txt"));
+            final Provider<Path> noticePath = checkExtraction.map(
+                c -> c.getDestinationDir()
+                    .toPath()
+                    .resolve("elasticsearch-" + VersionProperties.getElasticsearch() + "/modules/x-pack-ml/NOTICE.txt")
+            );
             ListProperty<String> expectedMlLicenses = extension.expectedMlLicenses;
             task.doLast(new Action<Task>() {
                 @Override
@@ -121,7 +122,9 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
                         actualLines = Files.readAllLines(noticePath.get());
                         for (final String expectedLine : expectedLines) {
                             if (actualLines.contains(expectedLine) == false) {
-                                throw new GradleException("expected [" + noticePath.get() + " to contain [" + expectedLine + "] but it did not");
+                                throw new GradleException(
+                                    "expected [" + noticePath.get() + " to contain [" + expectedLine + "] but it did not"
+                                );
                             }
                         }
                     } catch (IOException ioException) {

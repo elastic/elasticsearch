@@ -34,7 +34,7 @@ class ArrowJsonXContentParser extends AbstractXContentParser {
 
     ArrowJsonXContentParser(XContentParserConfiguration config, JsonParser parser) {
         super(config.registry(), config.deprecationHandler(), config.restApiVersion());
-        //this.parser = ((XContentParserConfigurationImpl) config).filter(parser);
+        // this.parser = ((XContentParserConfigurationImpl) config).filter(parser);
         this.parser = parser;
     }
 

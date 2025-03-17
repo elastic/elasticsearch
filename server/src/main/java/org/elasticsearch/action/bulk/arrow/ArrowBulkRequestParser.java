@@ -70,20 +70,22 @@ public class ArrowBulkRequestParser extends AbstractBulkRequestParser {
         Consumer<UpdateRequest> updateRequestConsumer,
         Consumer<DeleteRequest> deleteRequestConsumer
     ) throws IOException {
-        try(IncrementalParser parser = incrementalParser(
-            defaultIndex,
-            defaultRouting,
-            defaultFetchSourceContext,
-            defaultPipeline,
-            defaultRequireAlias,
-            defaultRequireDataStream,
-            defaultListExecutedPipelines,
-            allowExplicitIndex,
-            xContentType,
-            indexRequestConsumer,
-            updateRequestConsumer,
-            deleteRequestConsumer
-        )) {
+        try (
+            IncrementalParser parser = incrementalParser(
+                defaultIndex,
+                defaultRouting,
+                defaultFetchSourceContext,
+                defaultPipeline,
+                defaultRequireAlias,
+                defaultRequireDataStream,
+                defaultListExecutedPipelines,
+                allowExplicitIndex,
+                xContentType,
+                indexRequestConsumer,
+                updateRequestConsumer,
+                deleteRequestConsumer
+            )
+        ) {
             parser.parse(data, true);
         }
     }

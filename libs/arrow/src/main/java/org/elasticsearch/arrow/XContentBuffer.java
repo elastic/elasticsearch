@@ -10,7 +10,6 @@
 package org.elasticsearch.arrow;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.util.TokenBuffer;
 
@@ -56,8 +55,7 @@ public class XContentBuffer implements XContentGenerator {
     }
 
     @Override
-    public final void usePrettyPrint() {
-    }
+    public final void usePrettyPrint() {}
 
     @Override
     public boolean isPrettyPrint() {
@@ -65,8 +63,7 @@ public class XContentBuffer implements XContentGenerator {
     }
 
     @Override
-    public void usePrintLineFeedAtEnd() {
-    }
+    public void usePrintLineFeedAtEnd() {}
 
     @Override
     public void writeStartObject() throws IOException {

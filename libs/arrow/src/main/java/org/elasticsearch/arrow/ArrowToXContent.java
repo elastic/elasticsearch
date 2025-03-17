@@ -60,9 +60,8 @@ public class ArrowToXContent {
      * @param dictionaries to look up values for dictionary-encoded vectors
      * @param generator XContent output
      */
-    public static void writeField(
-        ValueVector vector, int position, Map<Long, Dictionary> dictionaries, XContentGenerator generator
-    ) throws IOException {
+    public static void writeField(ValueVector vector, int position, Map<Long, Dictionary> dictionaries, XContentGenerator generator)
+        throws IOException {
         generator.writeFieldName(vector.getName());
         writeValue(vector, position, dictionaries, generator);
     }
@@ -75,9 +74,8 @@ public class ArrowToXContent {
      * @param dictionaries to look up values for dictionary-encoded vectors
      * @param generator XContent output
      */
-    public static void writeValue(
-        ValueVector vector, int position, Map<Long, Dictionary> dictionaries, XContentGenerator generator
-    ) throws IOException {
+    public static void writeValue(ValueVector vector, int position, Map<Long, Dictionary> dictionaries, XContentGenerator generator)
+        throws IOException {
         if (vector.isNull(position)) {
             generator.writeNull();
             return;
@@ -88,53 +86,53 @@ public class ArrowToXContent {
             // Note: to improve performance and reduce GC thrashing, we could eagerly convert dictionary
             // VarCharVectors to String arrays (likely the most frequent use of dictionaries)
             Dictionary dictionary = dictionaries.get(dictEncoding.getId());
-            position = (int) ((BaseIntVector)vector).getValueAsLong(position);
+            position = (int) ((BaseIntVector) vector).getValueAsLong(position);
             vector = dictionary.getVector();
         }
 
         Void x = switch (vector.getMinorType()) {
 
-            //----- Primitive values
+            // ----- Primitive values
 
             case BIT -> {
-                generator.writeBoolean(((BitVector)vector).get(position) != 0);
+                generator.writeBoolean(((BitVector) vector).get(position) != 0);
                 yield null;
             }
 
             case TINYINT, SMALLINT, INT, BIGINT, UINT1, UINT2, UINT4, UINT8 -> {
-                generator.writeNumber(((BaseIntVector)vector).getValueAsLong(position));
+                generator.writeNumber(((BaseIntVector) vector).getValueAsLong(position));
                 yield null;
             }
 
             case FLOAT2, FLOAT4, FLOAT8 -> {
-                generator.writeNumber(((FloatingPointVector)vector).getValueAsDouble(position));
+                generator.writeNumber(((FloatingPointVector) vector).getValueAsDouble(position));
                 yield null;
             }
 
-            //----- strings and bytes
+            // ----- strings and bytes
 
             case VARCHAR, LARGEVARCHAR, VIEWVARCHAR -> {
-                var bytesVector = (VariableWidthFieldVector)vector;
+                var bytesVector = (VariableWidthFieldVector) vector;
                 generator.writeString(new String(bytesVector.get(position), StandardCharsets.UTF_8));
                 yield null;
             }
 
             case VARBINARY, LARGEVARBINARY, VIEWVARBINARY -> {
-                var bytesVector = (VariableWidthFieldVector)vector;
+                var bytesVector = (VariableWidthFieldVector) vector;
                 generator.writeBinary(bytesVector.get(position));
                 yield null;
             }
 
             case FIXEDSIZEBINARY -> {
-                var bytesVector = (FixedSizeBinaryVector)vector;
+                var bytesVector = (FixedSizeBinaryVector) vector;
                 generator.writeBinary(bytesVector.get(position));
                 yield null;
             }
 
-            //----- lists
+            // ----- lists
 
             case LIST, FIXED_SIZE_LIST, LISTVIEW -> {
-                var listVector = (BaseListVector)vector;
+                var listVector = (BaseListVector) vector;
                 var valueVector = listVector.getChildrenFromFields().get(0);
                 int start = listVector.getElementStartIndex(position);
                 int end = listVector.getElementEndIndex(position);
@@ -147,7 +145,7 @@ public class ArrowToXContent {
                 yield null;
             }
 
-            //----- Time & Timestamp (time + timezone)
+            // ----- Time & Timestamp (time + timezone)
 
             // Timestamps are the elapsed time since the Epoch, with an optional timezone that
             // can be used for timezome-aware operations or display. Since ES date fields
@@ -156,44 +154,44 @@ public class ArrowToXContent {
             // and https://www.elastic.co/guide/en/elasticsearch/reference/current/date.html
 
             case TIMESEC, TIMESTAMPSEC -> {
-                var tsVector = (TimeStampVector)vector;
-                generator.writeNumber(tsVector.get(position)*1000);
+                var tsVector = (TimeStampVector) vector;
+                generator.writeNumber(tsVector.get(position) * 1000);
                 yield null;
             }
 
             case TIMEMILLI, TIMESTAMPMILLI -> {
-                var tsVector = (TimeStampVector)vector;
+                var tsVector = (TimeStampVector) vector;
                 generator.writeNumber(tsVector.get(position));
                 yield null;
             }
 
             case TIMEMICRO, TIMESTAMPMICRO -> {
-                var tsVector = (TimeStampVector)vector;
-                generator.writeNumber(tsVector.get(position)/1000);
+                var tsVector = (TimeStampVector) vector;
+                generator.writeNumber(tsVector.get(position) / 1000);
                 yield null;
             }
 
             case TIMENANO, TIMESTAMPNANO -> {
-                var tsVector = (TimeStampVector)vector;
-                generator.writeNumber(tsVector.get(position)/1_000_000);
+                var tsVector = (TimeStampVector) vector;
+                generator.writeNumber(tsVector.get(position) / 1_000_000);
                 yield null;
             }
 
-            //----- Composite types
+            // ----- Composite types
 
             case MAP -> {
                 // A map is a container vector composed of a list of struct values with "key" and "value" fields. The MapVector
                 // is nullable, but if a map is set at a given index, there must be an entry. In other words, the StructVector data is
                 // non-nullable. Also for a given entry, the "key" is non-nullable, however the "value" can be null.
 
-                var mapVector = (MapVector)vector;
-                var structVector = (StructVector)mapVector.getChildrenFromFields().get(0);
+                var mapVector = (MapVector) vector;
+                var structVector = (StructVector) mapVector.getChildrenFromFields().get(0);
                 var kVector = structVector.getChildrenFromFields().get(0);
                 if (STRING_TYPES.contains(kVector.getMinorType()) == false) {
                     throw new ArrowFormatException("Arrow maps must have string keys to be converted to JSON");
                 }
 
-                var keyVector = (VarCharVector)kVector;
+                var keyVector = (VarCharVector) kVector;
                 var valueVector = structVector.getChildrenFromFields().get(1);
 
                 int start = mapVector.getElementStartIndex(position);
@@ -213,9 +211,9 @@ public class ArrowToXContent {
             }
 
             case STRUCT -> {
-                var structVector = (StructVector)vector;
+                var structVector = (StructVector) vector;
                 generator.writeStartObject();
-                for (var field: structVector.getChildrenFromFields()) {
+                for (var field : structVector.getChildrenFromFields()) {
                     generator.writeFieldName(field.getName());
                     writeValue(field, position, dictionaries, generator);
                 }
@@ -224,7 +222,7 @@ public class ArrowToXContent {
             }
 
             case DENSEUNION -> {
-                var unionVector = (DenseUnionVector)vector;
+                var unionVector = (DenseUnionVector) vector;
                 var typeId = unionVector.getTypeId(position);
                 var valueVector = unionVector.getVectorByType(typeId);
                 var valuePosition = unionVector.getOffset(position);
@@ -234,7 +232,7 @@ public class ArrowToXContent {
             }
 
             case UNION -> { // sparse union
-                var unionVector = (UnionVector)vector;
+                var unionVector = (UnionVector) vector;
                 var typeId = unionVector.getTypeValue(position);
                 var valueVector = unionVector.getVectorByType(typeId);
 
@@ -248,22 +246,9 @@ public class ArrowToXContent {
             }
 
             // TODO
-            case DATEDAY,
-                 DATEMILLI,
-                 INTERVALDAY,
-                 INTERVALMONTHDAYNANO,
-                 DURATION,
-                 INTERVALYEAR,
-                 DECIMAL,
-                 DECIMAL256,
-                 LARGELIST,
-                 LARGELISTVIEW,
-                 TIMESTAMPSECTZ,
-                 TIMESTAMPMILLITZ,
-                 TIMESTAMPMICROTZ,
-                 TIMESTAMPNANOTZ,
-                 EXTENSIONTYPE,
-                 RUNENDENCODED -> throw new ArrowFormatException(
+            case DATEDAY, DATEMILLI, INTERVALDAY, INTERVALMONTHDAYNANO, DURATION, INTERVALYEAR, DECIMAL, DECIMAL256, LARGELIST,
+                LARGELISTVIEW, TIMESTAMPSECTZ, TIMESTAMPMILLITZ, TIMESTAMPMICROTZ, TIMESTAMPNANOTZ, EXTENSIONTYPE, RUNENDENCODED ->
+                throw new ArrowFormatException(
                     "Arrow type [" + vector.getMinorType() + "] not supported for field [" + vector.getName() + "]"
                 );
         };

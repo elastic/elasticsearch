@@ -99,7 +99,7 @@ public class BulkArrowIT extends ESRestTestCase {
                 .map();
 
             assertEquals(Boolean.FALSE, result.get("errors"));
-            assertEquals(batchCount * rowCount, ((List<?>)result.get("items")).size());
+            assertEquals(batchCount * rowCount, ((List<?>) result.get("items")).size());
         }
 
         {
@@ -116,7 +116,7 @@ public class BulkArrowIT extends ESRestTestCase {
 
     public void testDictionary() throws Exception {
 
-        //DictionaryEncoding encoding = new DictionaryEncoding()
+        // DictionaryEncoding encoding = new DictionaryEncoding()
 
         // Create a dataframe with two columns: integer and string
         Field intField = new Field("ints", FieldType.nullable(new ArrowType.Int(32, true)), null);
@@ -165,7 +165,7 @@ public class BulkArrowIT extends ESRestTestCase {
                 .map();
 
             assertEquals(Boolean.FALSE, result.get("errors"));
-            assertEquals(batchCount * rowCount, ((List<?>)result.get("items")).size());
+            assertEquals(batchCount * rowCount, ((List<?>) result.get("items")).size());
         }
 
         {

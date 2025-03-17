@@ -509,7 +509,8 @@ public final class BulkRequestParser extends AbstractBulkRequestParser {
                         .setRequireAlias(requireAlias)
                         .setRequireDataStream(requireDataStream)
                         .setListExecutedPipelines(currentListExecutedPipelines)
-                    .setIncludeSourceOnError(config.includeSourceOnError());if ("create".equals(action)) {
+                        .setIncludeSourceOnError(config.includeSourceOnError());
+                    if ("create".equals(action)) {
                         indexRequest = indexRequest.create(true);
                     } else if (opType != null) {
                         indexRequest = indexRequest.create("create".equals(opType));
@@ -576,9 +577,8 @@ public final class BulkRequestParser extends AbstractBulkRequestParser {
     }
 
     @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove lenient parsing in V8 BWC mode
-    private static void checkBulkActionIsProperlyClosed(
-        XContentParser parser, XContentParserConfiguration config, int line
-    ) throws IOException {
+    private static void checkBulkActionIsProperlyClosed(XContentParser parser, XContentParserConfiguration config, int line)
+        throws IOException {
         XContentParser.Token token;
         try {
             token = parser.nextToken();
@@ -629,9 +629,8 @@ public final class BulkRequestParser extends AbstractBulkRequestParser {
         }
     }
 
-    private static XContentParser createParser(
-        XContent xContent, XContentParserConfiguration config, BytesReference data
-    ) throws IOException {
+    private static XContentParser createParser(XContent xContent, XContentParserConfiguration config, BytesReference data)
+        throws IOException {
         if (data.hasArray()) {
             return parseBytesArray(xContent, config, data, 0, data.length());
         } else {
@@ -642,7 +641,11 @@ public final class BulkRequestParser extends AbstractBulkRequestParser {
     // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
     // otherwise.
     private static XContentParser createParser(
-        XContent xContent, XContentParserConfiguration config, BytesReference data, int from, int nextMarker
+        XContent xContent,
+        XContentParserConfiguration config,
+        BytesReference data,
+        int from,
+        int nextMarker
     ) throws IOException {
         if (data.hasArray()) {
             return parseBytesArray(xContent, config, data, from, nextMarker);
@@ -658,7 +661,11 @@ public final class BulkRequestParser extends AbstractBulkRequestParser {
     }
 
     private static XContentParser parseBytesArray(
-        XContent xContent, XContentParserConfiguration config, BytesReference array, int from, int nextMarker
+        XContent xContent,
+        XContentParserConfiguration config,
+        BytesReference array,
+        int from,
+        int nextMarker
     ) throws IOException {
         assert array.hasArray();
         final int offset = array.arrayOffset();

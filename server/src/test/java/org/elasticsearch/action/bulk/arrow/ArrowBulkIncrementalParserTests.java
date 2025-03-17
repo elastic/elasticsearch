@@ -49,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ArrowBulkIncrementalParserTests extends ESTestCase {
 
-    //----- Test Arrow batches and incremental parsing
+    // ----- Test Arrow batches and incremental parsing
 
     public void testBatchingAndChunking() throws IOException {
         checkBatchingAndChunking(1, 10, false);
@@ -95,12 +95,13 @@ public class ArrowBulkIncrementalParserTests extends ESTestCase {
         var operations = new ArrayList<DocWriteRequest<?>>();
         try (var parser = createParser("test", operations)) {
             parse(parser, payload, incremental);
-        };
+        }
+        ;
 
         assertEquals(batchCount * rowCount, operations.size());
 
         for (int i = 0; i < operations.size(); i++) {
-            IndexRequest operation = (IndexRequest)operations.get(i);
+            IndexRequest operation = (IndexRequest) operations.get(i);
 
             assertEquals(DocWriteRequest.OpType.INDEX, operation.opType());
             assertEquals("test", operation.index());
@@ -171,27 +172,28 @@ public class ArrowBulkIncrementalParserTests extends ESTestCase {
         var operations = new ArrayList<DocWriteRequest<?>>();
         try (var parser = createParser("defaultIndex", operations)) {
             parse(parser, payload, false);
-        };
+        }
+        ;
 
-        IndexRequest operation = (IndexRequest)operations.get(0);
+        IndexRequest operation = (IndexRequest) operations.get(0);
         assertEquals("defaultIndex", operation.index());
         assertEquals(null, operation.id());
 
-        operation = (IndexRequest)operations.get(1);
+        operation = (IndexRequest) operations.get(1);
         assertEquals("defaultIndex", operation.index());
         assertEquals("id1", operation.id());
 
-        operation = (IndexRequest)operations.get(2);
+        operation = (IndexRequest) operations.get(2);
         assertEquals("index2", operation.index());
         assertEquals(null, operation.id());
 
-        operation = (IndexRequest)operations.get(3);
+        operation = (IndexRequest) operations.get(3);
         assertEquals("index3", operation.index());
         assertEquals("id3", operation.id());
 
     }
 
-    //----- Test action decoding
+    // ----- Test action decoding
 
     /** Action as a map of (string, string) */
     public void testActionsAsStringMap() throws Exception {
@@ -351,7 +353,7 @@ public class ArrowBulkIncrementalParserTests extends ESTestCase {
         }
     }
 
-    //----- Dictionary encoding
+    // ----- Dictionary encoding
     public void testDictionaryEncoding() throws Exception {
 
         ByteArrayOutputStream payload = new ByteArrayOutputStream();
@@ -403,17 +405,18 @@ public class ArrowBulkIncrementalParserTests extends ESTestCase {
             var operations = new ArrayList<DocWriteRequest<?>>();
             try (var parser = createParser("defaultIndex", operations)) {
                 parse(parser, payload.toByteArray(), false);
-            };
+            }
+            ;
 
             // Check that dictionary-encoded values were correctly decoded
-            assertEquals("bb", ((IndexRequest)operations.get(0)).sourceAsMap().get("data_field"));
-            assertEquals("bb", ((IndexRequest)operations.get(1)).sourceAsMap().get("data_field"));
-            assertEquals("cc", ((IndexRequest)operations.get(2)).sourceAsMap().get("data_field"));
-            assertEquals("aa", ((IndexRequest)operations.get(3)).sourceAsMap().get("data_field"));
+            assertEquals("bb", ((IndexRequest) operations.get(0)).sourceAsMap().get("data_field"));
+            assertEquals("bb", ((IndexRequest) operations.get(1)).sourceAsMap().get("data_field"));
+            assertEquals("cc", ((IndexRequest) operations.get(2)).sourceAsMap().get("data_field"));
+            assertEquals("aa", ((IndexRequest) operations.get(3)).sourceAsMap().get("data_field"));
         }
     }
 
-    //----- Utilities
+    // ----- Utilities
 
     private static ArrowBulkIncrementalParser createParser(String defaultIndex, List<DocWriteRequest<?>> requests) {
 

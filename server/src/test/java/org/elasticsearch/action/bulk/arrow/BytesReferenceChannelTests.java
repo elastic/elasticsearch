@@ -32,12 +32,12 @@ public class BytesReferenceChannelTests extends ESTestCase {
                 chunk = new byte[0x10];
                 chunks.add(new BytesArray(chunk));
             }
-            chunk[i % 0x10] = (byte)i;
+            chunk[i % 0x10] = (byte) i;
         }
 
         var bytesref = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
 
-        try(var channel = new BytesReferenceChannel(bytesref)) {
+        try (var channel = new BytesReferenceChannel(bytesref)) {
             var in = Channels.newInputStream(channel);
 
             for (int i = 0; i < 0x100; i++) {

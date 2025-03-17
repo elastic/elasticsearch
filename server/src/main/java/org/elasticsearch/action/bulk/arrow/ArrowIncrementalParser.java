@@ -154,6 +154,6 @@ public class ArrowIncrementalParser implements Closeable {
             }
         }
 
-        return (int)(reader.bytesRead() - initialBytesRead);
+        return (int) (reader.bytesRead() - initialBytesRead);
     }
 }

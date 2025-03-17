@@ -25,9 +25,7 @@ public class ArrowToXContentTests extends ESTestCase {
 
     private static void checkPosition(ValueVector vector, int position, String json) throws IOException {
         var out = new ByteArrayOutputStream();
-        try (
-            var generator = XContentType.JSON.xContent().createGenerator(out)
-        ) {
+        try (var generator = XContentType.JSON.xContent().createGenerator(out)) {
             generator.writeStartObject();
             ArrowToXContent.writeField(vector, position, null, generator);
             generator.writeEndObject();
@@ -95,9 +93,7 @@ public class ArrowToXContentTests extends ESTestCase {
     }
 
     public void testWriteNullVector() throws Exception {
-        try (
-            NullVector vector = new NullVector("nullField", 1);
-        ) {
+        try (NullVector vector = new NullVector("nullField", 1);) {
             checkPosition(vector, 0, "{\"nullField\":null}");
         }
     }

@@ -49,7 +49,6 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-
 class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalParser {
 
     /** XContent format used to encode source documents */
@@ -109,25 +108,22 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
         // FIXME: hard-coded limit to 100 MiB per record batch. Should we add an AllocationListener that calls ES memory management?
         this.allocator = Arrow.rootAllocator().newChildAllocator("bulk-ingestion", 0, 100 * 1024 * 1024);
 
-        this.arrowParser = new ArrowIncrementalParser(
-            new RootAllocator(),
-            new ArrowIncrementalParser.Listener() {
-                @Override
-                public void startStream(VectorSchemaRoot schemaRoot) throws IOException {
-                    startArrowStream(schemaRoot);
-                }
-
-                @Override
-                public void nextBatch(Map<Long, Dictionary> dictionary) throws IOException {
-                    nextArrowBatch(dictionary);
-                }
-
-                @Override
-                public void endStream() throws IOException {
-                    endArrowStream();
-                }
+        this.arrowParser = new ArrowIncrementalParser(new RootAllocator(), new ArrowIncrementalParser.Listener() {
+            @Override
+            public void startStream(VectorSchemaRoot schemaRoot) throws IOException {
+                startArrowStream(schemaRoot);
             }
-        );
+
+            @Override
+            public void nextBatch(Map<Long, Dictionary> dictionary) throws IOException {
+                nextArrowBatch(dictionary);
+            }
+
+            @Override
+            public void endStream() throws IOException {
+                endArrowStream();
+            }
+        });
     }
 
     @Override
@@ -197,14 +193,15 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
                 case DeleteRequest dr -> {
                     deleteRequestConsumer.accept(dr);
                 }
-                default -> {}
+                default -> {
+                }
             }
         }
     }
 
     protected BytesReference generateSource(int position) throws IOException {
         var output = new BytesReferenceOutputStream();
-        try(var generator = SOURCE_XCONTENT.createGenerator(output)) {
+        try (var generator = SOURCE_XCONTENT.createGenerator(output)) {
             generator.writeStartObject();
             int rowCount = schemaRoot.getRowCount();
             for (int i = 0; i < rowCount; i++) {
@@ -286,13 +283,13 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
         if (vector instanceof MapVector mapVector) {
             // A Map is a variable-size list of structs with two fields, key and value (in this order)
             var data = mapVector.getDataVector();
-            var keyVec = (VarCharVector)data.getChildrenFromFields().get(0);
+            var keyVec = (VarCharVector) data.getChildrenFromFields().get(0);
             var valueVec = data.getChildrenFromFields().get(1);
 
             var key = new Text();
             for (int pos = mapVector.getElementStartIndex(position); pos < mapVector.getElementEndIndex(position); pos++) {
                 keyVec.read(pos, key);
-                if (Arrays.equals(nameBytes, 0, nameBytes.length, key.getBytes(), 0, (int)key.getLength())) {
+                if (Arrays.equals(nameBytes, 0, nameBytes.length, key.getBytes(), 0, (int) key.getLength())) {
                     return getString(valueVec, pos);
                 }
             }
@@ -305,7 +302,7 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
             return childVector == null ? null : getString(childVector, position);
         }
 
-        for (var child: vector.getChildrenFromFields()) {
+        for (var child : vector.getChildrenFromFields()) {
             if (child instanceof ValueVector valueVector && valueVector.getName().equals(name)) {
                 return getString(valueVector, position);
             }
@@ -319,18 +316,19 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
         }
 
         return switch (vector.getMinorType()) {
-            case TINYINT, SMALLINT, INT, BIGINT, UINT1, UINT2, UINT4, UINT8 ->
-                String.valueOf(((BaseIntVector)vector).getValueAsLong(position));
+            case TINYINT, SMALLINT, INT, BIGINT, UINT1, UINT2, UINT4, UINT8 -> String.valueOf(
+                ((BaseIntVector) vector).getValueAsLong(position)
+            );
 
             case VARCHAR, LARGEVARCHAR, VIEWVARCHAR -> {
-                var bytesVector = (VariableWidthFieldVector)vector;
+                var bytesVector = (VariableWidthFieldVector) vector;
                 yield new String(bytesVector.get(position), StandardCharsets.UTF_8);
             }
 
             case UNION -> {
-                UnionVector unionVector = (UnionVector)vector;
+                UnionVector unionVector = (UnionVector) vector;
                 // Find the child field that isn't null, which is the active variant.
-                for (var variantVec: unionVector.getChildrenFromFields()) {
+                for (var variantVec : unionVector.getChildrenFromFields()) {
                     if (variantVec.isNull(position) == false) {
                         yield getString(variantVec, position);
                     }
@@ -339,9 +337,7 @@ class ArrowBulkIncrementalParser extends BulkRequestParser.XContentIncrementalPa
             }
 
             default -> {
-                throw new ArrowFormatException(
-                    "Arrow type [" + vector.getMinorType() + "] cannot be converted to string"
-                );
+                throw new ArrowFormatException("Arrow type [" + vector.getMinorType() + "] cannot be converted to string");
             }
         };
     }

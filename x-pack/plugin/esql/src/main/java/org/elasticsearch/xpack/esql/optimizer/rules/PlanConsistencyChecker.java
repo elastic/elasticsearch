@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.physical.BinaryExec;
@@ -50,10 +51,10 @@ public class PlanConsistencyChecker {
             checkMissing(p, p.references(), p.inputSet(), "missing references", failures);
         }
 
-        Set<QualifiedName> outputAttributeNames = new HashSet<>();
+        Set<NamedExpression.QualifiedName> outputAttributeNames = new HashSet<>();
         Set<NameId> outputAttributeIds = new HashSet<>();
         for (Attribute outputAttr : p.output()) {
-            QualifiedName qualifiedName = new QualifiedName(outputAttr.qualifier(), outputAttr.name());
+            NamedExpression.QualifiedName qualifiedName = new NamedExpression.QualifiedName(outputAttr.qualifier(), outputAttr.name());
             if (outputAttributeNames.add(qualifiedName) == false || outputAttributeIds.add(outputAttr.id()) == false) {
                 failures.add(
                     fail(p, "Plan [{}] optimized incorrectly due to duplicate output attribute {}", p.nodeString(), outputAttr.toString())
@@ -61,9 +62,6 @@ public class PlanConsistencyChecker {
             }
         }
     }
-
-    // TODO: Consider making this a nested class inside NamedExpression and the return value of qualifiedName()
-    private record QualifiedName(String qualifier, String name) {}
 
     private static void checkMissingBinary(
         QueryPlan<?> plan,

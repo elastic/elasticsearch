@@ -52,11 +52,13 @@ required_capability: name_qualifiers
 
 FROM sample_data
 | SORT event_duration
+| LIMIT 1
 | RENAME message AS main message
-| KEEP * message, event_duration
+| KEEP main message, event_duration
 ;
 
-main message:keyword, event_duration:long
+main message:keyword | event_duration:long
+Connection error     | 725448
 ;
 
 lookupJoin

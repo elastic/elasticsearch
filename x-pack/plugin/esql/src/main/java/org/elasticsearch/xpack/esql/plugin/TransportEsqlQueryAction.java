@@ -309,7 +309,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
         List<ColumnInfoImpl> columns = result.schema()
             .stream()
-            .map(c -> new ColumnInfoImpl(c.qualifiedName(), c.dataType().outputType()))
+            .map(c -> new ColumnInfoImpl(c.qualifiedName().toString(), c.dataType().outputType()))
             .toList();
         EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");

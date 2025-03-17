@@ -550,7 +550,7 @@ public class CsvTests extends ESTestCase {
                 // Wrap so we can capture the warnings in the calling thread
                 (next, result) -> next.onResponse(
                     new ActualResults(
-                        result.schema().stream().map(Attribute::qualifiedName).toList(),
+                        result.schema().stream().map(attr -> attr.qualifiedName().toString()).toList(),
                         result.schema().stream().map(a -> Type.asType(a.dataType().nameUpper())).toList(),
                         result.schema().stream().map(Attribute::dataType).toList(),
                         result.pages(),

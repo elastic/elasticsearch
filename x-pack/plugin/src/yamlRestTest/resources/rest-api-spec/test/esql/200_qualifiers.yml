@@ -120,10 +120,17 @@ shadowing of previous attributes is not allowed:
       esql.query:
         body:
           query: 'from test main | eval main data = 10'
-
+---
 internal shadowing is not allowed:
   - do:
-      catch: /qualified attribute \[main data\] already exists/
+      catch: /qualified attribute \[qualified y\] already exists/
       esql.query:
         body:
           query: 'row x = 0 | eval qualified y = 1, qualified y = 2 * qualified y'
+---
+shadowing in rename is not allowed:
+  - do:
+      catch: /qualified attribute \[qualified y\] already exists/
+      esql.query:
+        body:
+          query: 'row x = 0, qualified y | rename x as qualified y'

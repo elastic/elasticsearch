@@ -24,6 +24,7 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
     private final String name;
     private final NameId id;
     private final boolean synthetic;
+    private QualifiedName lazyQualifiedName;
 
     public NamedExpression(Source source, @Nullable String qualifier, String name, List<Expression> children, @Nullable NameId id) {
         this(source, qualifier, name, children, id, false);
@@ -53,8 +54,18 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
         return name;
     }
 
-    public String qualifiedName() {
-        return qualifier == null ? name : (qualifier + " " + name);
+    public record QualifiedName(@Nullable String qualifier, String name) {
+        @Override
+        public String toString() {
+            return qualifier == null ? name : (qualifier + " " + name);
+        }
+    }
+
+    public QualifiedName qualifiedName() {
+        if (lazyQualifiedName == null) {
+            lazyQualifiedName = new QualifiedName(qualifier, name);
+        }
+        return lazyQualifiedName;
     }
 
     public NameId id() {

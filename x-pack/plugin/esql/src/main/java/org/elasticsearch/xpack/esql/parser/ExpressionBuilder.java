@@ -791,7 +791,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             throw new ParsingException(src, "Using wildcards [*] in RENAME is not allowed [{}]", src.text());
         }
 
-        return new Alias(src, null, newName.name(), oldName);
+        return new Alias(src, newName.qualifier(), newName.name(), oldName);
     }
 
     @Override

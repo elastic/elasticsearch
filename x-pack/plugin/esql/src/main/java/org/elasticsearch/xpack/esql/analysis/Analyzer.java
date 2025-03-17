@@ -947,28 +947,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             int renamingsCount = rename.renamings().size();
             List<NamedExpression> unresolved = new ArrayList<>(renamingsCount);
-            Map<String, String> reverseAliasing = new HashMap<>(renamingsCount); // `| rename a as x` => map(a: x)
+            // For an alias like `| rename a as x` keep track fo what we renamed `a` to (namely `x`).
+            Map<NamedExpression.QualifiedName, NamedExpression.QualifiedName> reverseAliasing = new HashMap<>(renamingsCount);
 
             rename.renamings().forEach(alias -> {
                 // skip NOPs: `| rename a as a`
-                if (alias.child() instanceof UnresolvedAttribute ua && alias.name().equals(ua.name()) == false) {
+                if (alias.child() instanceof UnresolvedAttribute ua && alias.qualifiedName().equals(ua.qualifiedName()) == false) {
                     // remove attributes overwritten by a renaming: `| keep a, b, c | rename a as b`
-                    projections.removeIf(x -> x.name().equals(alias.name()));
+                    if (alias.qualifier() == null) {
+                        projections.removeIf(x -> x.qualifier() == null && x.name().equals(alias.name()));
+                    }
 
                     var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
                         var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
                         childrenOutput.removeIf(x -> x.equals(resolved));
-                        reverseAliasing.put(resolved.name(), alias.name());
+                        reverseAliasing.put(resolved.qualifiedName(), alias.qualifiedName());
                     } else { // remained UnresolvedAttribute
                         // is the current alias referencing a previously declared alias?
                         boolean updated = false;
-                        if (reverseAliasing.containsValue(resolved.name())) {
+                        if (reverseAliasing.containsValue(resolved.qualifiedName())) {
                             for (var li = projections.listIterator(); li.hasNext();) {
                                 // does alias still exist? i.e. it hasn't been renamed again (`| rename a as b, b as c, b as d`)
                                 if (li.next() instanceof Alias a && a.name().equals(resolved.name())) {
-                                    reverseAliasing.put(resolved.name(), alias.name());
+                                    reverseAliasing.put(resolved.qualifiedName(), alias.qualifiedName());
                                     // update aliased projection in place
                                     li.set(alias.replaceChildren(a.children()));
                                     updated = true;
@@ -978,7 +981,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         }
                         if (updated == false) {
                             var u = resolved;
-                            var previousAliasName = reverseAliasing.get(resolved.name());
+                            var previousAliasName = reverseAliasing.get(resolved.qualifiedName());
                             if (previousAliasName != null) {
                                 String message = format(
                                     null,
@@ -1063,7 +1066,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             ua,
             matches,
             attrList,
-            list -> UnresolvedAttribute.errorMessage(ua.qualifiedName(), list)
+            list -> UnresolvedAttribute.errorMessage(ua.qualifiedName().toString(), list)
         );
     }
 
@@ -1080,12 +1083,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         if (matches.isEmpty()) {
             Set<String> names = new HashSet<>(attrList.size());
             for (var a : attrList) {
-                String nameCandidate = a.qualifiedName();
+                String nameCandidate = a.qualifiedName().toString();
                 if (DataType.isPrimitive(a.dataType())) {
                     names.add(nameCandidate);
                 }
             }
-            var name = ua.qualifiedName();
+            String name = ua.qualifiedName().toString();
             UnresolvedAttribute unresolved = ua.withUnresolvedMessage(messageProducer.apply(StringUtils.findSimilar(name, names)));
             matches = singletonList(unresolved);
         }

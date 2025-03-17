@@ -52,7 +52,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     ) {
         super(source, qualifier, name, id);
         this.customMessage = unresolvedMessage != null;
-        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName(), null) : unresolvedMessage;
+        this.unresolvedMsg = unresolvedMessage == null ? errorMessage(qualifiedName().toString(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;
     }
 

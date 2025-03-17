@@ -58,28 +58,31 @@ import static org.mockito.Mockito.when;
  */
 public class Ec2DiscoveryPluginTests extends ESTestCase {
 
-    private static void assertNodeAttributes(Settings settings, String expected) {
-        final var availabilityZoneNodeAttributeSettings = Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(
-            Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true).put(settings).build()
-        );
-        if (expected == null) {
-            assertTrue(availabilityZoneNodeAttributeSettings.isEmpty());
-        } else {
-            assertEquals(expected, availabilityZoneNodeAttributeSettings.get(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone"));
-        }
+    public void testNodeAttributesDisabledByDefault() {
+        assertTrue(Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(Settings.EMPTY).isEmpty());
     }
 
     public void testNodeAttributesDisabled() {
-        assertNodeAttributes(Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), false).build(), null);
+        assertTrue(
+            Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(
+                Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), false).build()
+            ).isEmpty()
+        );
     }
 
-    public void testNodeAttributes() {
+    public void testNodeAttributesEnabled() {
         final var availabilityZone = randomIdentifier();
         Ec2ImdsHttpFixture.runWithFixture(
             new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).availabilityZoneSupplier(() -> availabilityZone),
             ec2ImdsHttpFixture -> {
                 try (var ignored = Ec2ImdsHttpFixture.withEc2MetadataServiceEndpointOverride(ec2ImdsHttpFixture.getAddress())) {
-                    assertNodeAttributes(Settings.EMPTY, availabilityZone);
+                    final var availabilityZoneNodeAttributeSettings = Ec2DiscoveryPlugin.getAvailabilityZoneNodeAttributes(
+                        Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true).build()
+                    );
+                    assertEquals(
+                        availabilityZone,
+                        availabilityZoneNodeAttributeSettings.get(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone")
+                    );
                 }
             }
         );

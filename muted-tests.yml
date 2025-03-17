@@ -405,6 +405,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequestTests
   method: testCreateRequest_TaskSettingsInputType
   issue: https://github.com/elastic/elasticsearch/issues/125059
+- class: org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTests
+  method: testCreateRequest_WithEntraIdDefined
+  issue: https://github.com/elastic/elasticsearch/issues/125061
 
 # Examples:
 #

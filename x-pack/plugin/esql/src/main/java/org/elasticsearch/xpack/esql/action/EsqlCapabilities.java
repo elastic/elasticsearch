@@ -932,7 +932,12 @@ public class EsqlCapabilities {
         /**
          * Support for sorting when aggregate_metric_doubles are present
          */
-        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
+        AGGREGATE_METRIC_DOUBLE_SORTING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support and enable partial results by default
+         */
+        ESQL_PARTIAL_RESULTS;
 
         private final boolean enabled;
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.ccq;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -87,6 +88,9 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
 
     @Override
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        if (requestObject.allowPartialResults() != null) {
+            assumeTrue("require allow_partial_results on local cluster", Clusters.localClusterVersion().equals(Version.V_8_19_0));
+        }
         requestObject.includeCCSMetadata(true);
         return super.runEsql(requestObject);
     }

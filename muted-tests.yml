@@ -399,6 +399,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/119441
+- class: org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiEmbeddingsActionTests
+  method: testExecute_ReturnsSuccessfulResponse
+  issue: https://github.com/elastic/elasticsearch/issues/125057
 
 # Examples:
 #

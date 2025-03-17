@@ -14,7 +14,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.util.Objects;
 
 /**
- * Represents an error that occurred when starting compute on a remote node.
+ * Represents an error that occurred on a remote node.
  * It allows capturing some context such as the cluster alias that encountered the error.
  */
 public class RemoteComputeException extends ElasticsearchException {

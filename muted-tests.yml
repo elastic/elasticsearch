@@ -402,6 +402,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiEmbeddingsActionTests
   method: testExecute_ReturnsSuccessfulResponse
   issue: https://github.com/elastic/elasticsearch/issues/125057
+- class: org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequestTests
+  method: testCreateRequest_TaskSettingsInputType
+  issue: https://github.com/elastic/elasticsearch/issues/125059
 
 # Examples:
 #

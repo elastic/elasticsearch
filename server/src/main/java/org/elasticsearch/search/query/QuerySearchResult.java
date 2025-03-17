@@ -88,7 +88,6 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * @param delayedAggregations whether to use delayed aggregations or not
      */
     public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
-        super(in);
         isNull = in.readBoolean();
         if (isNull == false) {
             ShardSearchContextId id = new ShardSearchContextId(in);

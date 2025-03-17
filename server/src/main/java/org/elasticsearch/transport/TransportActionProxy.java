@@ -101,7 +101,6 @@ public final class TransportActionProxy {
         final ReleasableBytesReference bytes;
 
         BytesTransportResponse(StreamInput in) throws IOException {
-            super(in);
             this.bytes = in.readAllToReleasableBytesReference();
         }
 

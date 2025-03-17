@@ -94,6 +94,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexVersions.DEFAULT_DENSE_VECTOR_TO_INT8_HNSW;
+import static org.elasticsearch.search.vectors.KnnSearchBuilder.NUM_CANDS_FIELD;
 
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
@@ -102,6 +103,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     private static final float EPS = 1e-3f;
     public static final int BBQ_MIN_DIMS = 64;
+    public static final int NUM_CANDS_LIMIT = 10_000;
 
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
@@ -120,7 +122,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to
                                                                         // vector
     public static final int MAGNITUDE_BYTES = 4;
-    public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -210,6 +211,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     ? new Int8HnswIndexOptions(
                         Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN,
                         Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH,
+                        NUM_CANDS_LIMIT,
                         null
                     )
                     : null,
@@ -1236,6 +1238,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException(type.name + " only supports even dimensions; provided=" + dim);
         }
 
+        public void validateNumCandidates(int numCands) {
+
+        }
+
+        public int maxSearchEf() {
+            return Integer.MAX_VALUE;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -1272,25 +1282,32 @@ public class DenseVectorFieldMapper extends FieldMapper {
     abstract static class AbstractHnswIndexOptions extends IndexOptions {
         protected final int m;
         protected final int efConstruction;
+        protected final int maxSearchEf;
 
-        AbstractHnswIndexOptions(VectorIndexType type, int m, int efConstruction) {
+        AbstractHnswIndexOptions(VectorIndexType type, int m, int efConstruction, int maxSearchEf) {
             super(type);
             this.m = m;
             this.efConstruction = efConstruction;
+            this.maxSearchEf = maxSearchEf;
         }
 
-        public int getM() {
-            return m;
+        @Override
+        public void validateNumCandidates(int numCands) {
+            if (numCands > maxSearchEf) {
+                throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + maxSearchEf + "]");
+            }
         }
 
-        public int getEfConstruction() {
-            return efConstruction;
+        @Override
+        public int maxSearchEf() {
+            return maxSearchEf;
         }
 
         @Override
         public XContentBuilder innerXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
+            builder.field("max_search_ef", maxSearchEf);
             innerHnswXContent(builder, params);
             return builder;
         }
@@ -1301,18 +1318,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public boolean doEquals(IndexOptions o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            HnswIndexOptions that = (HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction;
+            AbstractHnswIndexOptions that = (AbstractHnswIndexOptions) o;
+            return m == that.m && efConstruction == that.efConstruction && maxSearchEf == that.maxSearchEf;
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction);
+            return Objects.hash(m, efConstruction, maxSearchEf);
         }
 
         @Override
         public String toString() {
-            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + "}";
+            return "{type=" + type + ", m=" + m + ", ef_construction=" + efConstruction + ", max_search_ef=" + "}";
         }
     }
 
@@ -1322,16 +1339,22 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object maxSearchEfNode = indexOptionsMap.remove("max_search_ef");
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
                 }
                 if (efConstructionNode == null) {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
+                if (maxSearchEfNode == null) {
+                    maxSearchEfNode = NUM_CANDS_LIMIT;
+                }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                int maxSearchEf = XContentMapValues.nodeIntegerValue(maxSearchEfNode);
+
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new HnswIndexOptions(m, efConstruction);
+                return new HnswIndexOptions(m, efConstruction, maxSearchEf);
             }
 
             @Override
@@ -1349,6 +1372,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object maxSearchEfNode = indexOptionsMap.remove("max_search_ef");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
@@ -1356,14 +1380,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (efConstructionNode == null) {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
+                if (maxSearchEfNode == null) {
+                    maxSearchEfNode = NUM_CANDS_LIMIT;
+                }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                int maxSearchEf = XContentMapValues.nodeIntegerValue(maxSearchEfNode);
                 Float confidenceInterval = null;
                 if (confidenceIntervalNode != null) {
                     confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval);
+                return new Int8HnswIndexOptions(m, efConstruction, maxSearchEf, confidenceInterval);
             }
 
             @Override
@@ -1380,6 +1408,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object maxSearchEfNode = indexOptionsMap.remove("max_search_ef");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
@@ -1387,14 +1416,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (efConstructionNode == null) {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
+                if (maxSearchEfNode == null) {
+                    maxSearchEfNode = NUM_CANDS_LIMIT;
+                }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                int maxSearchEf = XContentMapValues.nodeIntegerValue(maxSearchEfNode);
                 Float confidenceInterval = null;
                 if (confidenceIntervalNode != null) {
                     confidenceInterval = (float) XContentMapValues.nodeDoubleValue(confidenceIntervalNode);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new Int4HnswIndexOptions(m, efConstruction, confidenceInterval);
+                return new Int4HnswIndexOptions(m, efConstruction, maxSearchEf, confidenceInterval);
             }
 
             @Override
@@ -1473,16 +1506,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
+                Object maxSearchEfNode = indexOptionsMap.remove("max_search_ef");
                 if (mNode == null) {
                     mNode = Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
                 }
                 if (efConstructionNode == null) {
                     efConstructionNode = Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
                 }
+                if (maxSearchEfNode == null) {
+                    maxSearchEfNode = NUM_CANDS_LIMIT;
+                }
                 int m = XContentMapValues.nodeIntegerValue(mNode);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode);
+                int maxSearchEf = XContentMapValues.nodeIntegerValue(maxSearchEfNode);
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQHnswIndexOptions(m, efConstruction);
+                return new BBQHnswIndexOptions(m, efConstruction, maxSearchEf);
             }
 
             @Override
@@ -1622,8 +1660,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     static class Int4HnswIndexOptions extends AbstractHnswIndexOptions {
         private final float confidenceInterval;
 
-        Int4HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
-            super(VectorIndexType.INT4_HNSW, m, efConstruction);
+        Int4HnswIndexOptions(int m, int efConstruction, int maxSearchEf, Float confidenceInterval) {
+            super(VectorIndexType.INT4_HNSW, m, efConstruction, maxSearchEf);
             // The default confidence interval for int4 is dynamic quantiles, this provides the best relevancy and is
             // effectively required for int4 to behave well across a wide range of data.
             this.confidenceInterval = confidenceInterval == null ? 0f : confidenceInterval;
@@ -1731,8 +1769,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
     static class Int8HnswIndexOptions extends AbstractHnswIndexOptions {
         private final Float confidenceInterval;
 
-        Int8HnswIndexOptions(int m, int efConstruction, Float confidenceInterval) {
-            super(VectorIndexType.INT8_HNSW, m, efConstruction);
+        Int8HnswIndexOptions(int m, int efConstruction, int maxSearchEf, Float confidenceInterval) {
+            super(VectorIndexType.INT8_HNSW, m, efConstruction, maxSearchEf);
             this.confidenceInterval = confidenceInterval;
         }
 
@@ -1793,8 +1831,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     static class HnswIndexOptions extends AbstractHnswIndexOptions {
 
-        HnswIndexOptions(int m, int efConstruction) {
-            super(VectorIndexType.HNSW, m, efConstruction);
+        HnswIndexOptions(int m, int efConstruction, int maxSearchEf) {
+            super(VectorIndexType.HNSW, m, efConstruction, maxSearchEf);
         }
 
         @Override
@@ -1826,8 +1864,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     static class BBQHnswIndexOptions extends AbstractHnswIndexOptions {
 
-        BBQHnswIndexOptions(int m, int efConstruction) {
-            super(VectorIndexType.BBQ_HNSW, m, efConstruction);
+        BBQHnswIndexOptions(int m, int efConstruction, int maxSearchEf) {
+            super(VectorIndexType.BBQ_HNSW, m, efConstruction, maxSearchEf);
         }
 
         @Override
@@ -2036,6 +2074,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
+
+            indexOptions.validateNumCandidates(numCands);
+
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(queryVector.asByteVector(), k, numCands, filter, similarityThreshold, parentFilter);
                 case FLOAT -> createKnnFloatQuery(
@@ -2137,7 +2178,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean rescore = needsRescore(oversample);
             if (rescore) {
                 // Will get k * oversample for rescoring, and get the top k
-                adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
+                adjustedK = Math.min((int) Math.ceil(k * oversample), indexOptions.maxSearchEf());
                 numCands = Math.max(adjustedK, numCands);
             }
             Query knnQuery = parentFilter != null

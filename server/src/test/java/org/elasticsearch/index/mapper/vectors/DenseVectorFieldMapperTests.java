@@ -937,6 +937,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
                 .field("type", "int8_hnsw")
                 .field("m", 16)
                 .field("ef_construction", 100)
+                .field("max_search_ef", DenseVectorFieldMapper.NUM_CANDS_LIMIT)
                 .endObject();
             b.endObject();
         });

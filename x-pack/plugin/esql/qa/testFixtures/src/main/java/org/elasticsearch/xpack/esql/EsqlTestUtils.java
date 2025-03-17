@@ -11,6 +11,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -149,6 +150,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public final class EsqlTestUtils {
@@ -377,8 +380,21 @@ public final class EsqlTestUtils {
         mock(ClusterService.class),
         mock(IndexNameExpressionResolver.class),
         null,
-        mock(InferenceService.class)
+        mockInferenceService()
     );
+
+    @SuppressWarnings("unchecked")
+    private static InferenceService mockInferenceService() {
+        InferenceService inferenceService = mock(InferenceService.class);
+        doAnswer(
+            i -> {
+                i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
+                return null;
+            }
+        ).when(inferenceService).resolveInferences(any(), any());
+
+        return inferenceService;
+    }
 
     private EsqlTestUtils() {}
 

@@ -20,8 +20,12 @@ $$$action-destructive-requires-name$$$
 $$$cluster-indices-close-enable$$$
 
 `cluster.indices.close.enable` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Enables [closing of open indices](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-close) in {{es}}. If `false`, you cannot close open indices. Defaults to `true`.
+:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Enables [closing of open indices](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-close) in {{es}}. If `false`, you cannot close open indices. Defaults to `true` for versions 7.2.0 and later, and to `false` for previous versions. In versions 7.1 and below, closed indices represent a data loss risk: if you close an index, it is not included in snapshots and you will not be able to restore the data. Similarly, closed indices are not included when you make cluster configuration changes, such as scaling to a different capacity, failover, and many other operations. Lastly, closed indices can lead to inaccurate disk space counts.
 
+    ::::{warning}
+    For versions 7.1 and below, closed indices represent a data loss risk. Enable this setting only temporarily for these versions.
+    ::::
+    
     ::::{note}
     Closed indices still consume a significant amount of disk space.
     ::::

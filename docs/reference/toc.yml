@@ -30,7 +30,6 @@ toc:
       - file: elasticsearch/configuration-reference/transforms-settings.md
       - file: elasticsearch/configuration-reference/thread-pool-settings.md
       - file: elasticsearch/configuration-reference/watcher-settings.md
-      - file: elasticsearch/configuration-reference/elastic-cloud-hosted-elasticsearch-settings.md
       - file: elasticsearch/configuration-reference/elasticsearch-settings.md
       - file: elasticsearch/configuration-reference/elastic-cloud-serverless-elasticsearch-settings.md
   - file: elasticsearch/jvm-settings.md

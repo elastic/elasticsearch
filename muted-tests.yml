@@ -393,6 +393,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
   method: testRolloverAction
   issue: https://github.com/elastic/elasticsearch/issues/124987
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test011SecurityEnabledStatus
+  issue: https://github.com/elastic/elasticsearch/issues/124990
 
 # Examples:
 #

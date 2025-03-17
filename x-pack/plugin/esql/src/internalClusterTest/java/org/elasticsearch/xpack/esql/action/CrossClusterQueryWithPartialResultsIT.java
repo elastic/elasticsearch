@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -37,11 +38,13 @@ import java.util.stream.Stream;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterTestCase {
 
@@ -70,6 +73,14 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         assertClusterPartial(resp, clusterAlias, cluster.okShards + cluster.failingShards, cluster.okShards);
     }
 
+    private void assertClusterFailure(EsqlQueryResponse resp, String clusterAlias, String reason) {
+        EsqlExecutionInfo.Cluster info = resp.getExecutionInfo().getCluster(clusterAlias);
+        assertThat(info.getFailures(), not(empty()));
+        for (ShardSearchFailure f : info.getFailures()) {
+            assertThat(f.reason(), containsString(reason));
+        }
+    }
+
     private void assertClusterPartial(EsqlQueryResponse resp, String clusterAlias, int totalShards, int okShards) {
         EsqlExecutionInfo.Cluster clusterInfo = resp.getExecutionInfo().getCluster(clusterAlias);
         assertThat(clusterInfo.getTotalShards(), equalTo(totalShards));
@@ -83,6 +94,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         assertThat(clusterInfo.getSuccessfulShards(), equalTo(numShards));
         assertThat(clusterInfo.getFailedShards(), equalTo(0));
         assertThat(clusterInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+        assertThat(clusterInfo.getFailures(), empty());
     }
 
     public void testPartialResults() throws Exception {
@@ -110,10 +122,12 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 assertTrue(returnedIds.add(id));
                 assertThat(id, is(in(allIds)));
             }
-
             assertClusterPartial(resp, LOCAL_CLUSTER, local);
             assertClusterPartial(resp, REMOTE_CLUSTER_1, remote1);
             assertClusterPartial(resp, REMOTE_CLUSTER_2, remote2);
+            for (String cluster : List.of(LOCAL_CLUSTER, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)) {
+                assertClusterFailure(resp, cluster, "Accessing failing field");
+            }
         }
     }
 
@@ -139,6 +153,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
             assertClusterSuccess(resp, REMOTE_CLUSTER_1, remote1.okShards);
             assertClusterPartial(resp, REMOTE_CLUSTER_2, remote2.failingShards, 0);
+            assertClusterFailure(resp, REMOTE_CLUSTER_2, "Accessing failing field");
         }
     }
 
@@ -191,9 +206,9 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 }
                 assertThat(returnedIds, equalTo(Sets.union(local.okIds, remote1.okIds)));
                 assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
-
                 EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
                 assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+                assertClusterFailure(resp, REMOTE_CLUSTER_1, simulatedFailure.getMessage());
             }
         } finally {
             for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
@@ -239,9 +254,9 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 }
                 assertThat(returnedIds, equalTo(local.okIds));
                 assertClusterSuccess(resp, LOCAL_CLUSTER, local.okShards);
-
                 EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
                 assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+                assertClusterFailure(resp, REMOTE_CLUSTER_1, simulatedFailure.getMessage());
             }
         } finally {
             for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
@@ -286,8 +301,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 assertThat(returnedIds, equalTo(remote1.okIds));
                 EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
                 assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-
-                assertClusterSuccess(resp, REMOTE_CLUSTER_1, remote1.okShards);
+                assertClusterFailure(resp, LOCAL_CLUSTER, simulatedFailure.getMessage());
             }
         } finally {
             for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.voyageai;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
@@ -103,5 +102,5 @@ public abstract class VoyageAIModel extends RateLimitGroupingModel {
         return uri;
     }
 
-    public abstract ExecutableAction accept(VoyageAIActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(VoyageAIActionVisitor creator, Map<String, Object> taskSettings);
 }

@@ -1289,7 +1289,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return false;
             }
             IndexOptions otherOptions = (IndexOptions) other;
-            return Objects.equals(type, otherOptions.type) && Objects.equals(rescoreVector, otherOptions.rescoreVector) && doEquals(otherOptions);
+            return Objects.equals(type, otherOptions.type)
+                && Objects.equals(rescoreVector, otherOptions.rescoreVector)
+                && doEquals(otherOptions);
         }
 
         @Override
@@ -2265,8 +2267,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // By default utilize the quantized oversample is configured
             // allow the user provided at query time overwrite
             Float oversample = queryOversample;
-            if (oversample == null
-                && indexOptions.rescoreVector != null) {
+            if (oversample == null && indexOptions.rescoreVector != null) {
                 oversample = indexOptions.rescoreVector.oversample;
             }
             boolean rescore = needsRescore(oversample);

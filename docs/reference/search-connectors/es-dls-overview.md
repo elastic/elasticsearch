@@ -307,6 +307,6 @@ The API key can be invalidated using the [Invalidate API Key API](https://www.el
 
 ### Learn more [es-dls-overview-search-time-learn-more]
 
-* [DLS in Search Applications](/reference/ingestion-tools/search-connectors/es-dls-e2e-guide.md)
+* [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md)
 * [Elasticsearch Document Level Security^](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/controlling-access-at-document-field-level.md)
 

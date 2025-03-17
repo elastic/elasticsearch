@@ -7,17 +7,17 @@ mapped_pages:
 # Elastic Salesforce connector reference [es-connectors-salesforce]
 
 
-The *Elastic Salesforce connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [Salesforce](https://www.salesforce.com/) data sources.
+The *Elastic Salesforce connector* is a [connector](/reference/search-connectors/index.md) for [Salesforce](https://www.salesforce.com/) data sources.
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector reference** [es-connectors-salesforce-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-salesforce-client-availability-prerequisites]
 
-This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.10.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.10.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Compatibility [es-connectors-salesforce-client-compatability]
@@ -105,7 +105,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 To use this connector as a **self-managed connector**, use the **Connector** workflow in the Kibana UI.
 
-For additional operations, see [connectors usage](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [connectors usage](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 ::::{note}
 You need to create an Salesforce connected app with OAuth2.0 enabled to authenticate with Salesforce.
@@ -166,7 +166,7 @@ To create a new profile:
     * User
 
         ::::{tip}
-        If using [advanced sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-advanced) you’ll need to assign `Read` access for that specific object in the profile.
+        If using [advanced sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-advanced) you’ll need to assign `Read` access for that specific object in the profile.
 
         ::::
 
@@ -291,7 +291,7 @@ Your Client ID and Client Secret should now be visible at the top of the page.
 
 ### Document level security (DLS) [es-connectors-salesforce-client-dls]
 
-[Document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md) enables you to restrict access to documents based on a user'­s permissions. This feature is available by default for the Salesforce connector and supports both **standard and custom objects**.
+[Document level security (DLS)](/reference/search-connectors/document-level-security.md) enables you to restrict access to documents based on a user'­s permissions. This feature is available by default for the Salesforce connector and supports both **standard and custom objects**.
 
 Salesforce allows users to set permissions in the following ways:
 
@@ -332,13 +332,13 @@ Once the permissions are set, assign the Profiles, Permission Set or Permission 
 
 *Basic* sync rules are identical for all connectors and are available by default.
 
-For more information read [sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-types).
+For more information read [sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-types).
 
 
 #### Advanced sync rules [es-connectors-salesforce-client-sync-rules-advanced]
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
@@ -460,8 +460,8 @@ The connector syncs the following Salesforce objects:
 The connector will not ingest any objects that it does not have permissions to query.
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. Use the [self-managed local extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
-* Permissions are not synced by default. You must enable [document level security](/reference/ingestion-tools/search-connectors/document-level-security.md). Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+* Content from files bigger than 10 MB won’t be extracted by default. Use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Permissions are not synced by default. You must enable [document level security](/reference/search-connectors/document-level-security.md). Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::
 
@@ -469,9 +469,9 @@ The connector will not ingest any objects that it does not have permissions to q
 
 #### Sync types [es-connectors-salesforce-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Content Extraction [es-connectors-salesforce-client-content-extraction]
@@ -485,7 +485,7 @@ This means that the connector will not ingest any Content Documents you have tha
 
 If a single Content Document is attached to multiple supported objects, only one Elastic document will be created for it. This document will retain links to every object that it was connected to in the `related_ids` field.
 
-See [content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md) for more specifics on content extraction.
+See [content extraction](/reference/search-connectors/es-connectors-content-extraction.md) for more specifics on content extraction.
 
 
 ### Known issues [es-connectors-salesforce-client-known-issues]
@@ -500,7 +500,7 @@ See [content extraction](/reference/ingestion-tools/search-connectors/es-connect
 
 ### Security [es-connectors-salesforce-client-security]
 
-See [connectors security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [connectors security](/reference/search-connectors/es-connectors-security.md).
 
 
 ### Framework and source [es-connectors-salesforce-client-source]

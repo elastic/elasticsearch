@@ -107,7 +107,7 @@ The response shows how the ingest-processor has replaced the `geocell` field wit
 }
 ```
 
-![Kibana map with showing the geotile at 4/8/5 and its four child cells](../../../images/geogrid_tile.png "")
+![Kibana map with showing the geotile at 4/8/5 and its four child cells](../../images/geogrid_tile.png "")
 
 
 ## Example: Hexagonal geohex with polygon in WKT format [_example_hexagonal_geohex_with_polygon_in_wkt_format]
@@ -139,7 +139,7 @@ The response shows how the ingest-processor has replaced the `geocell` field wit
 }
 ```
 
-![Kibana map with showing an H3 cell](../../../images/geogrid_h3.png "")
+![Kibana map with showing an H3 cell](../../images/geogrid_h3.png "")
 
 
 ## Example: Enriched tile details [_example_enriched_tile_details]
@@ -217,6 +217,6 @@ The response from this index request:
 
 This additional information will then enable, for example, creating a visualization of the H3 cell, its children and its intersecting non-children cells.
 
-![Kibana map with three H3 layers: cell](../../../images/geogrid_h3_children.png "")
+![Kibana map with three H3 layers: cell](../../images/geogrid_h3_children.png "")
 
 

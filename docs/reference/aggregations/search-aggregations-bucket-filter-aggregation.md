@@ -83,7 +83,7 @@ POST /sales/_search?size=0&filter_path=aggregations
 
 ## Use the `filters` aggregation for multiple filters [use-filters-agg-for-multiple-filters]
 
-To group documents using multiple filters, use the [`filters` aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-filters-aggregation.md). This is faster than multiple `filter` aggregations.
+To group documents using multiple filters, use the [`filters` aggregation](/reference/aggregations/search-aggregations-bucket-filters-aggregation.md). This is faster than multiple `filter` aggregations.
 
 For example, use this:
 

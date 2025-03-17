@@ -7,12 +7,12 @@ mapped_pages:
 # Elastic network drive connector reference [es-connectors-network-drive]
 
 
-The *Elastic network drive connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for network drive data sources. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
+The *Elastic network drive connector* is a [connector](/reference/search-connectors/index.md) for network drive data sources. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/network_drive.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector** [es-connectors-network-drive-connector-client-reference]
@@ -21,12 +21,12 @@ As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer avai
 
 This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.6.0+**.
 
-To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Usage [es-connectors-network-drive-client-usage]
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md)For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md)For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Configuration [es-connectors-network-drive-client-configuration]
@@ -190,9 +190,9 @@ The connector syncs folders as separate documents in Elasticsearch. The followin
 
 #### Sync types [es-connectors-network-drive-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Document level security [es-connectors-network-drive-client-dls]
@@ -200,7 +200,7 @@ This connector also supports [incremental syncs](/reference/ingestion-tools/sear
 Document Level Security (DLS) enables you to restrict access to documents based on a user’s permissions. DLS facilitates the syncing of folder and file permissions, including both user and group level permissions.
 
 ::::{note}
-**Note:** Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connectors/es-dls-e2e-guide.md) to learn how to search data with DLS enabled, when building a search application.
+**Note:** Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to search data with DLS enabled, when building a search application.
 
 ::::
 
@@ -214,13 +214,13 @@ Document Level Security (DLS) enables you to restrict access to documents based 
 
 ### Sync rules [es-connectors-network-drive-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 
 #### Advanced sync rules [es-connectors-network-drive-client-sync-rules-advanced]
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
@@ -283,12 +283,12 @@ $$$es-connectors-network-drive-client-excluding-files-and-folders-that-match-a-p
 
 ### Content extraction [es-connectors-network-drive-client-content-extraction]
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### End-to-end tests [es-connectors-network-drive-client-tests]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To execute a functional test for the Network Drive self-managed connector, run the following command:
 
@@ -312,9 +312,9 @@ See [Known issues](/release-notes/known-issues.md) for any issues affecting all 
 
 ### Troubleshooting [es-connectors-network-drive-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-network-drive-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).

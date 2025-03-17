@@ -10,7 +10,7 @@ mapped_pages:
 The Notion connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/notion.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector reference** [es-connectors-notion-connector-client-reference]
@@ -19,10 +19,10 @@ As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer avai
 
 This connector was introduced in Elastic **8.13.0**, available as a **self-managed** self-managed connector.
 
-To use this connector, satisfy all [self-managed connector prerequisites](/reference/ingestion-tools/search-connectors/self-managed-connectors.md). Importantly, you must deploy the connectors service on your own infrastructure. You have two deployment options:
+To use this connector, satisfy all [self-managed connector prerequisites](/reference/search-connectors/self-managed-connectors.md). Importantly, you must deploy the connectors service on your own infrastructure. You have two deployment options:
 
-* [Run connectors service from source](/reference/ingestion-tools/search-connectors/es-connectors-run-from-source.md). Use this option if you’re comfortable working with Python and want to iterate quickly locally.
-* [Run connectors service in Docker](/reference/ingestion-tools/search-connectors/es-connectors-run-from-docker.md). Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
+* [Run connectors service from source](/reference/search-connectors/es-connectors-run-from-source.md). Use this option if you’re comfortable working with Python and want to iterate quickly locally.
+* [Run connectors service in Docker](/reference/search-connectors/es-connectors-run-from-docker.md). Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
 
 ::::{note}
 This connector is in **beta** and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Beta features are not subject to the support SLA of official GA features.
@@ -35,7 +35,7 @@ This connector is in **beta** and is subject to change. The design and code is l
 
 To use this connector in the UI, select the **Notion** tile when creating a new connector under **Search → Connectors**.
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Create a Notion connector [es-connectors-notion-create-connector-client]
@@ -227,7 +227,7 @@ Enabling comment indexing could impact connector performance due to increased ne
 
 #### Content Extraction [es-connectors-notion-client-connector-content-extraction]
 
-Refer to [content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+Refer to [content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### Documents and syncs [es-connectors-notion-client-connector-documents-and-syncs]
@@ -266,13 +266,13 @@ The connector syncs the following objects and entities:
 
 ### Sync rules [es-connectors-notion-client-connector-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 
 ### Advanced sync rules [es-connectors-notion-client-connector-advanced-sync-rules]
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
@@ -457,7 +457,7 @@ In this example the `filter` object syntax for `database_query_filters` is defin
 
 The connector framework enables operators to run functional tests against a real data source, using Docker Compose. You don’t need a running Elasticsearch instance or Notion source to run this test.
 
-Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the Notion connector, run the following command:
 
@@ -494,10 +494,10 @@ Refer to [Known issues](/release-notes/known-issues.md) for a list of known issu
 
 ### Troubleshooting [es-connectors-notion-client-connector-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-notion-client-connector-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 

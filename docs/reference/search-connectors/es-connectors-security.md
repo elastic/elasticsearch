@@ -25,21 +25,21 @@ Credentials for the data source â€” such as API keys or username/password pairâ€
 
 Document-level security is available for a subset of connectors. DLS is available by default for the following connectors:
 
-* [Confluence](/reference/ingestion-tools/search-connectors/es-connectors-confluence.md)
-* [Dropbox](/reference/ingestion-tools/search-connectors/es-connectors-dropbox.md)
-* [Jira](/reference/ingestion-tools/search-connectors/es-connectors-jira.md) (including Jira Data Center)
-* [GitHub](/reference/ingestion-tools/search-connectors/es-connectors-github.md)
-* [Gmail](/reference/ingestion-tools/search-connectors/es-connectors-gmail.md)
-* [Google Drive](/reference/ingestion-tools/search-connectors/es-connectors-google-drive.md)
-* [Network Drive](/reference/ingestion-tools/search-connectors/es-connectors-network-drive.md)
-* [OneDrive](/reference/ingestion-tools/search-connectors/es-connectors-onedrive.md)
-* [Outlook](/reference/ingestion-tools/search-connectors/es-connectors-outlook.md)
-* [Salesforce](/reference/ingestion-tools/search-connectors/es-connectors-salesforce.md)
-* [SharePoint Online](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint-online.md)
-* [SharePoint Server](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint.md)
-* [ServiceNow](/reference/ingestion-tools/search-connectors/es-connectors-servicenow.md)
+* [Confluence](/reference/search-connectors/es-connectors-confluence.md)
+* [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)
+* [Jira](/reference/search-connectors/es-connectors-jira.md) (including Jira Data Center)
+* [GitHub](/reference/search-connectors/es-connectors-github.md)
+* [Gmail](/reference/search-connectors/es-connectors-gmail.md)
+* [Google Drive](/reference/search-connectors/es-connectors-google-drive.md)
+* [Network Drive](/reference/search-connectors/es-connectors-network-drive.md)
+* [OneDrive](/reference/search-connectors/es-connectors-onedrive.md)
+* [Outlook](/reference/search-connectors/es-connectors-outlook.md)
+* [Salesforce](/reference/search-connectors/es-connectors-salesforce.md)
+* [SharePoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)
+* [SharePoint Server](/reference/search-connectors/es-connectors-sharepoint.md)
+* [ServiceNow](/reference/search-connectors/es-connectors-servicenow.md)
 
-Learn more about this feature in [*Document level security*](/reference/ingestion-tools/search-connectors/document-level-security.md), including availability and prerequisites.
+Learn more about this feature in [*Document level security*](/reference/search-connectors/document-level-security.md), including availability and prerequisites.
 
 
 ## Access to documents [es-native-connectors-security-deployment]

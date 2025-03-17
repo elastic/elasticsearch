@@ -6,17 +6,17 @@ mapped_pages:
 
 # Elastic S3 connector reference [es-connectors-s3]
 
-The *Elastic S3 connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [Amazon S3](https://aws.amazon.com/s3/) data sources.
+The *Elastic S3 connector* is a [connector](/reference/search-connectors/index.md) for [Amazon S3](https://aws.amazon.com/s3/) data sources.
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector reference** [es-connectors-s3-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-s3-client-prerequisites]
 
-This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.6.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.6.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a Amazon S3 connector [es-connectors-s3-create-connector-client]
@@ -94,9 +94,9 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 ### Usage [es-connectors-s3-client-usage]
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md).
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 S3 users will also need to [Create an IAM identity](#es-connectors-s3-client-usage-create-iam)
 
@@ -233,7 +233,7 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 ### Documents and syncs [es-connectors-s3-client-documents-syncs]
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::
@@ -242,13 +242,13 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 ### Sync rules [es-connectors-s3-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 
 #### Advanced sync rules [es-connectors-s3-client-sync-rules-advanced]
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
@@ -306,12 +306,12 @@ $$$es-connectors-s3-client-sync-rules-advanced-examples$$$
 
 ### Content extraction [es-connectors-s3-client-content-extraction]
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### End-to-end testing [es-connectors-s3-client-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To execute a functional test for the Amazon S3 **self-managed connector**, run the following command:
 
@@ -335,12 +335,12 @@ See [Known issues](/release-notes/known-issues.md) for any issues affecting all 
 
 ### Troubleshooting [es-connectors-s3-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-s3-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 
 
 ### Framework and source [es-connectors-s3-client-source]

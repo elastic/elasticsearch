@@ -12,14 +12,14 @@ The Zoom connector is written in Python using the [Elastic connector framework](
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/zoom.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector reference** [es-connectors-zoom-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-zoom-client-connector-availability-and-prerequisites]
 
-This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector prerequisites](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector prerequisites](/reference/search-connectors/self-managed-connectors.md).
 
 ::::{note}
 This connector is in **technical preview** and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
@@ -107,7 +107,7 @@ To use this connector in the UI, select the **Teams** tile when creating a new c
 
 If you’re already familiar with how connectors work, you can also use the [Connector APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector).
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Connecting to Zoom [es-connectors-zoom-client-connector-connecting-to-zoom]
@@ -248,7 +248,7 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 #### Content Extraction [es-connectors-zoom-client-connector-content-extraction]
 
-Refer to [content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+Refer to [content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### Documents and syncs [es-connectors-zoom-client-connector-documents-and-syncs]
@@ -265,7 +265,7 @@ The connector syncs the following objects and entities:
 * **Chat Files**
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::
@@ -274,14 +274,14 @@ The connector syncs the following objects and entities:
 
 #### Sync types [es-connectors-zoom-client-connector-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Sync rules [es-connectors-zoom-client-connector-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 
 ### Advanced Sync Rules [es-connectors-zoom-client-connector-advanced-sync-rules]
@@ -294,7 +294,7 @@ Advanced sync rules are not available for this connector in the present version.
 
 #### End-to-end Testing [es-connectors-zoom-client-connector-end-to-end-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the Zoom connector, run the following command:
 
@@ -318,9 +318,9 @@ Refer to [Known issues](/release-notes/known-issues.md) for a list of known issu
 
 ### Troubleshooting [es-connectors-zoom-client-connector-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-zoom-client-connector-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).

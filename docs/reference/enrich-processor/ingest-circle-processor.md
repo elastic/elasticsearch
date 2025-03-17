@@ -24,7 +24,7 @@ $$$circle-processor-options$$$
 | `on_failure` | no | - | Handle failures for the processor. See [Handling pipeline failures](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md#handling-pipeline-failures). |
 | `tag` | no | - | Identifier for the processor. Useful for debugging and metrics. |
 
-![error distance](../../../images/error_distance.png "")
+![error distance](../../images/error_distance.png "")
 
 ```console
 PUT circles

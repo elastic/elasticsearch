@@ -7,12 +7,12 @@ mapped_pages:
 # Elastic OneDrive connector reference [es-connectors-onedrive]
 
 
-The *Elastic OneDrive connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for OneDrive. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
+The *Elastic OneDrive connector* is a [connector](/reference/search-connectors/index.md) for OneDrive. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/onedrive.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector** [es-connectors-onedrive-connector-client-reference]
@@ -23,7 +23,7 @@ This connector is available as a self-managed connector.
 
 This self-managed connector is compatible with Elastic versions **8.10.0+**.
 
-To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a OneDrive connector [es-connectors-onedrive-create-connector-client]
@@ -101,7 +101,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 ### Usage [es-connectors-onedrive-client-usage]
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 #### Connecting to OneDrive [es-connectors-onedrive-client-usage-connection]
@@ -224,7 +224,7 @@ The following configuration fields are **required**:
 :   The number of retry attempts after failed request to OneDrive. Default value is `3`.
 
 `use_document_level_security`
-:   Toggle to enable [document level security](/reference/ingestion-tools/search-connectors/document-level-security.md). When enabled:
+:   Toggle to enable [document level security](/reference/search-connectors/document-level-security.md). When enabled:
 
     * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
     * Access control syncs will fetch users' access control lists and store them in a separate index.
@@ -236,12 +236,12 @@ The following configuration fields are **required**:
 
 
 `use_text_extraction_service`
-:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that ingest pipeline settings disable text extraction. Default value is `False`.
+:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that ingest pipeline settings disable text extraction. Default value is `False`.
 
 
 ### Content Extraction [es-connectors-onedrive-client-usage-content-extraction]
 
-Refer to [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md) for more details.
+Refer to [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md) for more details.
 
 
 ### Documents and syncs [es-connectors-onedrive-client-documents-syncs]
@@ -255,7 +255,7 @@ The connector syncs the following objects and entities:
 * **Folders**
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permissions are not synced by default. You must first enable [DLS](#es-connectors-onedrive-client-dls). Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::
@@ -264,19 +264,19 @@ The connector syncs the following objects and entities:
 
 #### Sync types [es-connectors-onedrive-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Document level security [es-connectors-onedrive-client-dls]
 
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions. This feature is available by default for the OneDrive connector. See [Configuration](#es-connectors-onedrive-client-usage-configuration) for how to enable DLS for this connector.
 
-Refer to [document level security](/reference/ingestion-tools/search-connectors/document-level-security.md) for more details about this feature.
+Refer to [document level security](/reference/search-connectors/document-level-security.md) for more details about this feature.
 
 ::::{note}
-Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data with DLS enabled, when building a search application.
+Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data with DLS enabled, when building a search application.
 
 ::::
 
@@ -284,15 +284,15 @@ Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connecto
 
 ### Sync rules [es-connectors-onedrive-client-documents-sync-rules]
 
-*Basic* sync rules are identical for all connectors and are available by default. For more information read [Types of sync rule](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-types).
+*Basic* sync rules are identical for all connectors and are available by default. For more information read [Types of sync rule](/reference/search-connectors/es-sync-rules.md#es-sync-rules-types).
 
 
 #### Advanced sync rules [es-connectors-onedrive-client-sync-rules-advanced]
 
-This connector supports [advanced sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for remote filtering. These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules. Advanced sync rules are defined through a source-specific DSL JSON snippet.
+This connector supports [advanced sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for remote filtering. These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules. Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
@@ -391,7 +391,7 @@ This example contains two rules. The first rule indexes all files owned by `user
 
 ### Content Extraction [es-connectors-onedrive-client-content-extraction]
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### Self-managed connector operations [es-connectors-onedrive-client-connector-client-operations]
@@ -399,7 +399,7 @@ See [Content extraction](/reference/ingestion-tools/search-connectors/es-connect
 
 ### End-to-end testing [es-connectors-onedrive-client-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the GitHub connector, run the following command:
 
@@ -426,9 +426,9 @@ Refer to [Known issues](/release-notes/known-issues.md) for a list of known issu
 
 ### Troubleshooting [es-connectors-onedrive-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-onedrive-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).

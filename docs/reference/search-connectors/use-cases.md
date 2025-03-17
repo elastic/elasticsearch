@@ -9,6 +9,6 @@ mapped_pages:
 
 Learn how to use connectors for your use case.
 
-* [Internal knowledge search](/reference/ingestion-tools/search-connectors/es-connectors-overview-architecture.md)
+* [Internal knowledge search](/reference/search-connectors/es-connectors-overview-architecture.md)
 
 

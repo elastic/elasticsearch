@@ -329,7 +329,7 @@ Returns this:
 
 ## Using the attachment processor with arrays [attachment-with-arrays]
 
-To use the attachment processor within an array of attachments the [foreach processor](/reference/ingestion-tools/enrich-processor/foreach-processor.md) is required. This enables the attachment processor to be run on the individual elements of the array.
+To use the attachment processor within an array of attachments the [foreach processor](/reference/enrich-processor/foreach-processor.md) is required. This enables the attachment processor to be run on the individual elements of the array.
 
 For example, given the following source:
 

@@ -20,13 +20,13 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService.VALID_INPUT_TYPE_VALUES;
 
 /**
  * Defines the task settings for the alibabacloud search text sparse embeddings service.
@@ -42,7 +42,6 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
     public static final AlibabaCloudSearchSparseTaskSettings EMPTY_SETTINGS = new AlibabaCloudSearchSparseTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
     static final String RETURN_TOKEN = "return_token";
-    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(InputType.INGEST, InputType.SEARCH);
 
     public static AlibabaCloudSearchSparseTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
@@ -56,7 +55,7 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
             INPUT_TYPE,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
-            VALID_REQUEST_VALUES,
+            VALID_INPUT_TYPE_VALUES,
             validationException
         );
 
@@ -79,15 +78,13 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
      *
      * @param originalSettings    the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
-     * @param requestInputType    the input type passed in the request parameters
      * @return a constructed {@link AlibabaCloudSearchSparseTaskSettings}
      */
     public static AlibabaCloudSearchSparseTaskSettings of(
         AlibabaCloudSearchSparseTaskSettings originalSettings,
-        AlibabaCloudSearchSparseTaskSettings requestTaskSettings,
-        InputType requestInputType
+        AlibabaCloudSearchSparseTaskSettings requestTaskSettings
     ) {
-        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings, requestInputType);
+        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings);
         var returnToken = requestTaskSettings.isReturnToken() != null
             ? requestTaskSettings.isReturnToken()
             : originalSettings.isReturnToken();
@@ -96,14 +93,11 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
 
     private static InputType getValidInputType(
         AlibabaCloudSearchSparseTaskSettings originalSettings,
-        AlibabaCloudSearchSparseTaskSettings requestTaskSettings,
-        InputType requestInputType
+        AlibabaCloudSearchSparseTaskSettings requestTaskSettings
     ) {
         InputType inputTypeToUse = originalSettings.inputType;
 
-        if (VALID_REQUEST_VALUES.contains(requestInputType)) {
-            inputTypeToUse = requestInputType;
-        } else if (requestTaskSettings.inputType != null) {
+        if (requestTaskSettings.inputType != null) {
             inputTypeToUse = requestTaskSettings.inputType;
         }
 
@@ -128,7 +122,7 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
             return;
         }
 
-        assert VALID_REQUEST_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
+        assert VALID_INPUT_TYPE_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
     }
 
     @Override
@@ -193,6 +187,6 @@ public class AlibabaCloudSearchSparseTaskSettings implements TaskSettings {
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         AlibabaCloudSearchSparseTaskSettings updatedSettings = fromMap(new HashMap<>(newSettings));
-        return of(this, updatedSettings, updatedSettings.getInputType() != null ? updatedSettings.getInputType() : this.inputType);
+        return of(this, updatedSettings);
     }
 }

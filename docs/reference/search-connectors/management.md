@@ -7,10 +7,10 @@ mapped_pages:
 
 Refer to the following sections:
 
-* [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md)
-* [Logs](/reference/ingestion-tools/search-connectors/es-connectors-logs.md)
-* [Scalability](/reference/ingestion-tools/search-connectors/es-connectors-scalability.md)
-* [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md)
+* [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md)
+* [Logs](/reference/search-connectors/es-connectors-logs.md)
+* [Scalability](/reference/search-connectors/es-connectors-scalability.md)
+* [Security](/reference/search-connectors/es-connectors-security.md)
 
 
 

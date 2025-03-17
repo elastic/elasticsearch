@@ -2,7 +2,7 @@
 navigation_title: "API tutorial"
 applies_to:
   stack: ga
-  serverless: 
+  serverless:
     elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-tutorial-api.html
@@ -21,7 +21,7 @@ If you’re just getting started with {{es}}, this tutorial might be a bit advan
 
 If you’re just getting started with connectors, you might want to start in the UI first. Check out this tutorial that focuses on managing connectors using the UI:
 
-* [Self-managed connector tutorial](/reference/ingestion-tools/search-connectors/es-postgresql-connector-client-tutorial.md). Set up a self-managed PostgreSQL connector.
+* [Self-managed connector tutorial](/reference/search-connectors/es-postgresql-connector-client-tutorial.md). Set up a self-managed PostgreSQL connector.
 
 ::::
 

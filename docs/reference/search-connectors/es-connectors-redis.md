@@ -7,17 +7,17 @@ mapped_pages:
 # Redis connector reference [es-connectors-redis]
 
 
-The Redis connector is built with the Elastic connectors Python framework and is available as a self-managed [self-managed connector](/reference/ingestion-tools/search-connectors/self-managed-connectors.md). View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/redis.py) (branch *main*, compatible with Elastic *9.0*).
+The Redis connector is built with the Elastic connectors Python framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md). View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/redis.py) (branch *main*, compatible with Elastic *9.0*).
 
 
 ## Availability and prerequisites [es-connectors-redis-connector-availability-and-prerequisites]
 
 This connector was introduced in Elastic **8.13.0**, available as a **self-managed** self-managed connector.
 
-To use this connector, satisfy all [self-managed connector prerequisites](/reference/ingestion-tools/search-connectors/self-managed-connectors.md). Importantly, you must deploy the connectors service on your own infrastructure. You have two deployment options:
+To use this connector, satisfy all [self-managed connector prerequisites](/reference/search-connectors/self-managed-connectors.md). Importantly, you must deploy the connectors service on your own infrastructure. You have two deployment options:
 
-* [Run connectors service from source](/reference/ingestion-tools/search-connectors/es-connectors-run-from-source.md). Use this option if you’re comfortable working with Python and want to iterate quickly locally.
-* [Run connectors service in Docker](/reference/ingestion-tools/search-connectors/es-connectors-run-from-docker.md). Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
+* [Run connectors service from source](/reference/search-connectors/es-connectors-run-from-source.md). Use this option if you’re comfortable working with Python and want to iterate quickly locally.
+* [Run connectors service in Docker](/reference/search-connectors/es-connectors-run-from-docker.md). Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
 
 ::::{note}
 This connector is in **technical preview** and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
@@ -30,7 +30,7 @@ This connector is in **technical preview** and is subject to change. The design 
 
 To set up this connector in the UI, select the **Redis** tile when creating a new connector under **Search → Connectors**.
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ## Deploy with Docker [es-connectors-redis-connector-docker]
@@ -172,12 +172,12 @@ The connector syncs the following objects and entities:
 
 ## Sync rules [es-connectors-redis-connector-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 
 ## Advanced Sync Rules [es-connectors-redis-connector-advanced-sync-rules]
 
-[Advanced sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-advanced) are defined through a source-specific DSL JSON snippet.
+[Advanced sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-advanced) are defined through a source-specific DSL JSON snippet.
 
 Use advanced sync rules to filter data at the Redis source, without needing to index all data into Elasticsearch.
 
@@ -312,7 +312,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
 
 The connector framework enables operators to run functional tests against a real data source, using Docker Compose. You don’t need a running Elasticsearch instance or Redis source to run this test.
 
-Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the Redis connector, run the following command:
 
@@ -338,10 +338,10 @@ Refer to [Known issues](/release-notes/known-issues.md) for a list of known issu
 
 ## Troubleshooting [es-connectors-redis-connector-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ## Security [es-connectors-redis-connector-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 

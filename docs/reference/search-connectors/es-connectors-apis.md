@@ -1,7 +1,7 @@
 ---
 applies_to:
   stack: ga
-  serverless: 
+  serverless:
     elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-apis.html
@@ -15,7 +15,7 @@ In 8.12 we introduced a set of APIs to create and manage Elastic connectors and 
 * [Sync job APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector#sync-job-apis)
 
 ::::{admonition} Connector API tutorial
-Check out this concrete [tutorial](/reference/ingestion-tools/search-connectors/api-tutorial.md) to get started with the Connector APIs.
+Check out this concrete [tutorial](/reference/search-connectors/api-tutorial.md) to get started with the Connector APIs.
 
 ::::
 

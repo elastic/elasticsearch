@@ -16,7 +16,7 @@ When not customized, the filter creates 1-character edge n-grams by default.
 This filter uses Lucene’s [EdgeNGramTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ngram/EdgeNGramTokenFilter.md).
 
 ::::{note}
-The `edge_ngram` filter is similar to the [`ngram` token filter](/reference/data-analysis/text-analysis/analysis-ngram-tokenizer.md). However, the `edge_ngram` only outputs n-grams that start at the beginning of a token. These edge n-grams are useful for [search-as-you-type](/reference/elasticsearch/mapping-reference/search-as-you-type.md) queries.
+The `edge_ngram` filter is similar to the [`ngram` token filter](/reference/text-analysis/analysis-ngram-tokenizer.md). However, the `edge_ngram` only outputs n-grams that start at the beginning of a token. These edge n-grams are useful for [search-as-you-type](/reference/elasticsearch/mapping-reference/search-as-you-type.md) queries.
 
 ::::
 
@@ -122,7 +122,7 @@ The `edge_ngram` filter’s `max_gram` value limits the character length of toke
 
 For example, if the `max_gram` is `3`, searches for `apple` won’t match the indexed term `app`.
 
-To account for this, you can use the [`truncate`](/reference/data-analysis/text-analysis/analysis-truncate-tokenfilter.md) filter with a search analyzer to shorten search terms to the `max_gram` character length. However, this could return irrelevant results.
+To account for this, you can use the [`truncate`](/reference/text-analysis/analysis-truncate-tokenfilter.md) filter with a search analyzer to shorten search terms to the `max_gram` character length. However, this could return irrelevant results.
 
 For example, if the `max_gram` is `3` and search terms are truncated to three characters, the search term `apple` is shortened to `app`. This means searches for `apple` return any indexed terms matching `app`, such as `apply`, `snapped`, and `apple`.
 

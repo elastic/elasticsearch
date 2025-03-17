@@ -7,19 +7,19 @@ mapped_pages:
 # Elastic Microsoft SQL connector reference [es-connectors-ms-sql]
 
 
-The *Elastic Microsoft SQL connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [Microsoft SQL](https://learn.microsoft.com/en-us/sql/) databases. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
+The *Elastic Microsoft SQL connector* is a [connector](/reference/search-connectors/index.md) for [Microsoft SQL](https://learn.microsoft.com/en-us/sql/) databases. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/mssql.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector** [es-connectors-ms-sql-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-ms-sql-client-availability-prerequisites]
 
-This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a Microsoft SQL connector [es-connectors-{{service_type}}-create-connector-client]
@@ -99,7 +99,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 Users require the `sysadmin` server role. Note that SQL Server Authentication is required. Windows Authentication is not supported.
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Compatibility [es-connectors-ms-sql-client-compatability]
@@ -277,15 +277,15 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 ### Sync rules [es-connectors-ms-sql-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default. For more information read [sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-types).
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default. For more information read [sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-types).
 
 
 #### Advanced sync rules [es-connectors-ms-sql-client-sync-rules-advanced]
 
-This connector supports [advanced sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for remote filtering. These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules. Advanced sync rules are defined through a source-specific DSL JSON snippet.
+This connector supports [advanced sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for remote filtering. These rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules. Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
@@ -371,7 +371,7 @@ When using advanced rules, a query can bypass the configuration field `tables`. 
 
 ### End-to-end testing [es-connectors-ms-sql-client-client-operations-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the Microsoft SQL connector, run the following command:
 
@@ -393,12 +393,12 @@ There are no known issues for this connector. See [Known issues](/release-notes/
 
 ### Troubleshooting [es-connectors-ms-sql-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-ms-sql-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector uses the [generic database connector source code](https://github.com/elastic/connectors-python/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*).
 

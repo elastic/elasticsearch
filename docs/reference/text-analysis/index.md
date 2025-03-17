@@ -10,8 +10,8 @@ Refer to [the text analysis overview](docs-content://manage-data/data-store/text
 
 This section contains reference information for text analysis components features, including:
 
-* [Analyzers](/reference/data-analysis/text-analysis/analyzer-reference.md)
-* [Tokenizers](/reference/data-analysis/text-analysis/tokenizer-reference.md)
-* [Token filters](/reference/data-analysis/text-analysis/token-filter-reference.md)
-* [Character filters](/reference/data-analysis/text-analysis/character-filter-reference.md)
-* [Normalizers](/reference/data-analysis/text-analysis/normalizers.md)
+* [Analyzers](/reference/text-analysis/analyzer-reference.md)
+* [Tokenizers](/reference/text-analysis/tokenizer-reference.md)
+* [Token filters](/reference/text-analysis/token-filter-reference.md)
+* [Character filters](/reference/text-analysis/character-filter-reference.md)
+* [Normalizers](/reference/text-analysis/normalizers.md)

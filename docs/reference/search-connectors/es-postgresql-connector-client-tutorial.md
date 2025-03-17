@@ -7,11 +7,11 @@ mapped_pages:
 # PostgreSQL self-managed connector tutorial [es-postgresql-connector-client-tutorial]
 
 
-This tutorial walks you through the process of creating a self-managed connector for a PostgreSQL data source. You’ll be using the [self-managed connector](/reference/ingestion-tools/search-connectors/self-managed-connectors.md) workflow in the Kibana UI. This means you’ll be deploying the connector on your own infrastructure. Refer to the [Elastic PostgreSQL connector reference](/reference/ingestion-tools/search-connectors/es-connectors-postgresql.md) for more information about this connector.
+This tutorial walks you through the process of creating a self-managed connector for a PostgreSQL data source. You’ll be using the [self-managed connector](/reference/search-connectors/self-managed-connectors.md) workflow in the Kibana UI. This means you’ll be deploying the connector on your own infrastructure. Refer to the [Elastic PostgreSQL connector reference](/reference/search-connectors/es-connectors-postgresql.md) for more information about this connector.
 
 In this exercise, you’ll be working in both the terminal (or your IDE) and the Kibana UI.
 
-If you want to deploy a self-managed connector for another data source, use this tutorial as a blueprint. Refer to the list of available [connectors](/reference/ingestion-tools/search-connectors/index.md).
+If you want to deploy a self-managed connector for another data source, use this tutorial as a blueprint. Refer to the list of available [connectors](/reference/search-connectors/index.md).
 
 ::::{tip}
 Want to get started quickly testing a self-managed connector using Docker Compose? Refer to this [guide](https://github.com/elastic/connectors/tree/main/scripts/stack#readme) in the `elastic/connectors` repo for more information.
@@ -22,7 +22,7 @@ Want to get started quickly testing a self-managed connector using Docker Compos
 
 ### Elastic prerequisites [es-postgresql-connector-client-tutorial-prerequisites-elastic]
 
-First, ensure you satisfy the [prerequisites](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-prerequisites) for self-managed connectors.
+First, ensure you satisfy the [prerequisites](/reference/search-connectors/self-managed-connectors.md#es-build-connector-prerequisites) for self-managed connectors.
 
 
 ### PostgreSQL prerequisites [es-postgresql-connector-client-tutorial-postgresql-prerequisites]
@@ -201,7 +201,7 @@ If you’re happy with the results, set a recurring sync schedule in the **Sched
 
 ## Learn more [es-postgresql-connector-client-tutorial-learn-more]
 
-* [Overview of self-managed connectors and frameworks](/reference/ingestion-tools/search-connectors/self-managed-connectors.md)
+* [Overview of self-managed connectors and frameworks](/reference/search-connectors/self-managed-connectors.md)
 * [Elastic connector framework repository](https://github.com/elastic/connectors/tree/main)
-* [Elastic PostgreSQL connector reference](/reference/ingestion-tools/search-connectors/es-connectors-postgresql.md)
-* [Overview of all Elastic connectors](/reference/ingestion-tools/search-connectors/index.md)
+* [Elastic PostgreSQL connector reference](/reference/search-connectors/es-connectors-postgresql.md)
+* [Overview of all Elastic connectors](/reference/search-connectors/index.md)

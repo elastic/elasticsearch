@@ -7,17 +7,17 @@ mapped_pages:
 # Google Cloud Storage Connector [es-connectors-google-cloud]
 
 
-The *Elastic Google Cloud Storage connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [Google Cloud Storage](https://cloud.google.com/storage) data sources.
+The *Elastic Google Cloud Storage connector* is a [connector](/reference/search-connectors/index.md) for [Google Cloud Storage](https://cloud.google.com/storage) data sources.
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector reference** [es-connectors-google-cloud-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-google-cloud-client-availability-prerequisites]
 
-This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.6.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.6.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Usage [es-connectors-google-cloud-client-usage]
@@ -129,7 +129,7 @@ The connector will fetch all buckets and paths the service account has access to
 The `Owner` field is not fetched as `read_only` scope doesn’t allow the connector to fetch IAM information.
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permission are not synced. All documents indexed to an Elastic deployment will be visible to all users with access to that Elastic Deployment.
 
 ::::
@@ -138,26 +138,26 @@ The `Owner` field is not fetched as `read_only` scope doesn’t allow the connec
 
 #### Sync types [es-connectors-google-cloud-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Sync rules [es-connectors-google-cloud-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version. Currently filtering is controlled by ingest pipelines.
 
 
 ### Content extraction [es-connectors-google-cloud-client-content-extraction]
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### End-to-end testing [es-connectors-google-cloud-client-client-operations-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the Google Cloud Storage connector, run the following command:
 
@@ -179,12 +179,12 @@ There are currently no known issues for this connector.
 
 ### Troubleshooting [es-connectors-google-cloud-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-google-cloud-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 
 
 ### Framework and source [es-connectors-google-cloud-client-source]

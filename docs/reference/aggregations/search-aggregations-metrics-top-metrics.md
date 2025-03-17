@@ -44,7 +44,7 @@ Which returns:
 }
 ```
 
-`top_metrics` is fairly similar to [`top_hits`](/reference/data-analysis/aggregations/search-aggregations-metrics-top-hits-aggregation.md) in spirit but because it is more limited it is able to do its job using less memory and is often faster.
+`top_metrics` is fairly similar to [`top_hits`](/reference/aggregations/search-aggregations-metrics-top-hits-aggregation.md) in spirit but because it is more limited it is able to do its job using less memory and is often faster.
 
 ## `sort` [_sort]
 
@@ -268,7 +268,7 @@ If `size` is more than `1` the `top_metrics` aggregation can’t be the **target
 
 ### Use with terms [search-aggregations-metrics-top-metrics-example-terms]
 
-This aggregation should be quite useful inside of [`terms`](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md) aggregation, to, say, find the last value reported by each server.
+This aggregation should be quite useful inside of [`terms`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md) aggregation, to, say, find the last value reported by each server.
 
 $$$search-aggregations-metrics-top-metrics-terms$$$
 

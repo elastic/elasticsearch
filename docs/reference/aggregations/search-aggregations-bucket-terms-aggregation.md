@@ -69,7 +69,7 @@ By default, you cannot run a `terms` aggregation on a `text` field. Use a `keywo
 
 By default, the `terms` aggregation returns the top ten terms with the most documents. Use the `size` parameter to return more terms, up to the [search.max_buckets](/reference/elasticsearch/configuration-reference/search-settings.md#search-settings-max-buckets) limit.
 
-If your data contains 100 or 1000 unique terms, you can increase the `size` of the `terms` aggregation to return them all. If you have more unique terms and you need them all, use the [composite aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-composite-aggregation.md) instead.
+If your data contains 100 or 1000 unique terms, you can increase the `size` of the `terms` aggregation to return them all. If you have more unique terms and you need them all, use the [composite aggregation](/reference/aggregations/search-aggregations-bucket-composite-aggregation.md) instead.
 
 Larger values of `size` use more memory to compute and, push the whole aggregation close to the `max_buckets` limit. You’ll know you’ve gone too large if the request fails with a message about `max_buckets`.
 
@@ -133,7 +133,7 @@ By default, the `terms` aggregation orders terms by descending document `_count`
 You can use the `order` parameter to specify a different sort order, but we don’t recommend it.  It is extremely easy to create a terms ordering that will just return wrong results, and not obvious to see when you have done so. Change this only with caution.
 
 ::::{warning}
-Especially avoid using `"order": { "_count": "asc" }`. If you need to find rare terms, use the [`rare_terms`](/reference/data-analysis/aggregations/search-aggregations-bucket-rare-terms-aggregation.md) aggregation instead. Due to the way the `terms` aggregation [gets terms from shards](#search-aggregations-bucket-terms-aggregation-shard-size), sorting by ascending doc count often produces inaccurate results.
+Especially avoid using `"order": { "_count": "asc" }`. If you need to find rare terms, use the [`rare_terms`](/reference/aggregations/search-aggregations-bucket-rare-terms-aggregation.md) aggregation instead. Due to the way the `terms` aggregation [gets terms from shards](#search-aggregations-bucket-terms-aggregation-shard-size), sorting by ascending doc count often produces inaccurate results.
 ::::
 
 
@@ -216,7 +216,7 @@ GET /_search
 ::::{admonition} Pipeline aggs cannot be used for sorting
 :class: note
 
-[Pipeline aggregations](/reference/data-analysis/aggregations/pipeline.md) are run during the reduce phase after all other aggregations have already completed. For this reason, they cannot be used for ordering.
+[Pipeline aggregations](/reference/aggregations/pipeline.md) are run during the reduce phase after all other aggregations have already completed. For this reason, they cannot be used for ordering.
 
 ::::
 
@@ -448,7 +448,7 @@ GET /_search
 
 In the above example, buckets will be created for all the tags that has the word `sport` in them, except those starting with `water_` (so the tag `water_sports` will not be aggregated). The `include` regular expression will determine what values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
 
-The syntax is the same as [regexp queries](/reference/query-languages/regexp-syntax.md).
+The syntax is the same as [regexp queries](/reference/query-languages/query-dsl/regexp-syntax.md).
 
 
 ### Filtering Values with exact values [_filtering_values_with_exact_values_2]
@@ -548,7 +548,7 @@ There are three approaches that you can use to perform a `terms` agg across mult
 [`copy_to` field](/reference/elasticsearch/mapping-reference/copy-to.md)
 :   If you know ahead of time that you want to collect the terms from two or more fields, then use `copy_to` in your mapping to create a new dedicated field at index time which contains the values from both fields. You can aggregate on this single field, which will benefit from the global ordinals optimization.
 
-[`multi_terms` aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-multi-terms-aggregation.md)
+[`multi_terms` aggregation](/reference/aggregations/search-aggregations-bucket-multi-terms-aggregation.md)
 :   Use multi_terms aggregation to combine terms from multiple fields into a compound key. This also disables the global ordinals and will be slower than collecting terms from a single field. It is faster but less flexible than using a script.
 
 

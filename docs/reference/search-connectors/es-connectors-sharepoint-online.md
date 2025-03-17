@@ -8,26 +8,26 @@ mapped_pages:
 
 
 ::::{tip}
-Looking for the SharePoint **Server** connector? See [SharePoint Server reference](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint.md).
+Looking for the SharePoint **Server** connector? See [SharePoint Server reference](/reference/search-connectors/es-connectors-sharepoint.md).
 
 ::::
 
 
-The *Elastic SharePoint Online connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [Microsoft SharePoint Online](https://www.microsoft.com/en-ww/microsoft-365/sharepoint/).
+The *Elastic SharePoint Online connector* is a [connector](/reference/search-connectors/index.md) for [Microsoft SharePoint Online](https://www.microsoft.com/en-ww/microsoft-365/sharepoint/).
 
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_online.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector** [es-connectors-sharepoint-online-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-sharepoint-online-client-availability-prerequisites]
 
-This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 ::::{note}
 This connector requires a subscription. View the requirements for this feature under the **Elastic Search** section of the [Elastic Stack subscriptions](https://www.elastic.co/subscriptions) page.
@@ -35,7 +35,7 @@ This connector requires a subscription. View the requirements for this feature u
 
 ### Usage [es-connectors-sharepoint-online-client-usage]
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md) For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md) For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### SharePoint prerequisites [es-connectors-sharepoint-online-client-sharepoint-prerequisites]
@@ -254,10 +254,10 @@ Use the following configuration fields to set up the connector:
 :   Whether sub-sites of the configured site(s) should be automatically fetched. This option is only available when not enumerating all sites (see above).
 
 `use_text_extraction_service`
-:   Toggle to enable local text extraction service for documents. Requires a separate deployment of the [Elastic Text Extraction Service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that ingest pipeline settings disable text extraction. Default value is `False`.
+:   Toggle to enable local text extraction service for documents. Requires a separate deployment of the [Elastic Text Extraction Service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that ingest pipeline settings disable text extraction. Default value is `False`.
 
 `use_document_level_security`
-:   Toggle to enable [document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md). When enabled, full and incremental syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs will fetch users' access control lists and store them in a separate index.
+:   Toggle to enable [document level security (DLS)](/reference/search-connectors/document-level-security.md). When enabled, full and incremental syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs will fetch users' access control lists and store them in a separate index.
 
     Once enabled, the following granular permissions toggles will be available:
 
@@ -365,8 +365,8 @@ We recommend setting `isHtmlString` to **True** for all Web Parts that need to b
 
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. Use the [self-managed local extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
-* Permissions are not synced by default. Enable [document-level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md) to sync permissions.
+* Content from files bigger than 10 MB won’t be extracted by default. Use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Permissions are not synced by default. Enable [document-level security (DLS)](/reference/search-connectors/document-level-security.md) to sync permissions.
 
 ::::
 
@@ -379,20 +379,20 @@ We recommend setting `isHtmlString` to **True** for all Web Parts that need to b
 
 ### Sync rules [es-connectors-sharepoint-online-client-sync-rules]
 
-*Basic* sync rules are identical for all connectors and are available by default. For more information read [Types of sync rule](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-types).
+*Basic* sync rules are identical for all connectors and are available by default. For more information read [Types of sync rule](/reference/search-connectors/es-sync-rules.md#es-sync-rules-types).
 
 
 #### Advanced sync rules [es-connectors-sharepoint-online-client-sync-rules-advanced]
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
 
 The following section describes **advanced sync rules** for this connector. Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
-[Advanced rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for the Sharepoint Online connector enable you to avoid extracting and syncing older data that might no longer be relevant for search.
+[Advanced rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for the Sharepoint Online connector enable you to avoid extracting and syncing older data that might no longer be relevant for search.
 
 Example:
 
@@ -407,7 +407,7 @@ This rule will not extract content of any drive items (files in document librari
 $$$es-connectors-sharepoint-online-client-sync-rules-limitations$$$
 **Limitations of sync rules with incremental syncs**
 
-Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+Changing sync rules after Sharepoint Online content has already been indexed can bring unexpected results, when using [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 Incremental syncs ensure *updates* from 3rd-party system, but do not modify existing documents in the index.
 
@@ -523,7 +523,7 @@ Document-level security (DLS) enables you to restrict access to documents based 
 Refer to [configuration](#es-connectors-sharepoint-online-client-configuration) on this page for how to enable DLS for this connector.
 
 ::::{tip}
-Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from SharePoint Online with DLS enabled, when building a search application.
+Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from SharePoint Online with DLS enabled, when building a search application.
 
 ::::
 
@@ -536,7 +536,7 @@ Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connecto
 
 The default content extraction service is powered by the default ingest pipeline. (See [Ingest pipelines for Search indices](docs-content://solutions/search/ingest-for-search.md).)
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 #### Local content extraction (for large files) [es-connectors-sharepoint-online-client-content-extraction-local]
@@ -546,12 +546,12 @@ The SharePoint Online self-managed connector supports large file content extract
 * A self-managed deployment of the Elastic Text Extraction Service.
 * Text extraction to be *disabled* in the default ingest pipeline settings.
 
-Refer to [local content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) for more information.
+Refer to [local content extraction](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) for more information.
 
 
 ### End-to-end testing [es-connectors-sharepoint-online-client-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the SharePoint Online connector, run the following command:
 
@@ -598,9 +598,9 @@ Refer to [Known issues](/release-notes/known-issues.md) for a list of known issu
 
 ### Troubleshooting [es-connectors-sharepoint-online-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-sharepoint-online-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).

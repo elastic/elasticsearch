@@ -37,7 +37,7 @@ The `keyword` analyzer is not configurable.
 The `keyword` analyzer consists of:
 
 Tokenizer
-:   * [Keyword Tokenizer](/reference/data-analysis/text-analysis/analysis-keyword-tokenizer.md)
+:   * [Keyword Tokenizer](/reference/text-analysis/analysis-keyword-tokenizer.md)
 
 
 If you need to customize the `keyword` analyzer then you need to recreate it as a `custom` analyzer and modify it, usually by adding token filters. Usually, you should prefer the [Keyword type](/reference/elasticsearch/mapping-reference/keyword.md) when you want strings that are not split into tokens, but just in case you need it, this would recreate the built-in `keyword` analyzer and you can use it as a starting point for further customization:

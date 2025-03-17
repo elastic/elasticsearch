@@ -7,7 +7,7 @@ mapped_pages:
 # Geo-distance aggregation [search-aggregations-bucket-geodistance-aggregation]
 
 
-A multi-bucket aggregation that works on `geo_point` fields and conceptually works very similar to the [range](/reference/data-analysis/aggregations/search-aggregations-bucket-range-aggregation.md) aggregation. The user can define a point of origin and a set of distance range buckets. The aggregation evaluates the distance of each document value from the origin point and determines the buckets it belongs to based on the ranges (a document belongs to a bucket if the distance between the document and the origin falls within the distance range of the bucket).
+A multi-bucket aggregation that works on `geo_point` fields and conceptually works very similar to the [range](/reference/aggregations/search-aggregations-bucket-range-aggregation.md) aggregation. The user can define a point of origin and a set of distance range buckets. The aggregation evaluates the distance of each document value from the origin point and determines the buckets it belongs to based on the ranges (a document belongs to a bucket if the distance between the document and the origin falls within the distance range of the bucket).
 
 $$$geodistance-aggregation-example$$$
 

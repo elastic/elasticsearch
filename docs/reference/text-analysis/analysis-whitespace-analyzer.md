@@ -37,7 +37,7 @@ The `whitespace` analyzer is not configurable.
 It consists of:
 
 Tokenizer
-:   * [Whitespace Tokenizer](/reference/data-analysis/text-analysis/analysis-whitespace-tokenizer.md)
+:   * [Whitespace Tokenizer](/reference/text-analysis/analysis-whitespace-tokenizer.md)
 
 
 If you need to customize the `whitespace` analyzer then you need to recreate it as a `custom` analyzer and modify it, usually by adding token filters. This would recreate the built-in `whitespace` analyzer and you can use it as a starting point for further customization:

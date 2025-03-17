@@ -375,7 +375,7 @@ By default `sum` mode is used.
 
 ## Relationship between bucket sizes and rate [_relationship_between_bucket_sizes_and_rate]
 
-The `rate` aggregation supports all rate that can be used [calendar_intervals parameter](/reference/data-analysis/aggregations/search-aggregations-bucket-datehistogram-aggregation.md#calendar_intervals) of `date_histogram` aggregation. The specified rate should compatible with the `date_histogram` aggregation interval, i.e. it should be possible to convert the bucket size into the rate. By default the interval of the `date_histogram` is used.
+The `rate` aggregation supports all rate that can be used [calendar_intervals parameter](/reference/aggregations/search-aggregations-bucket-datehistogram-aggregation.md#calendar_intervals) of `date_histogram` aggregation. The specified rate should compatible with the `date_histogram` aggregation interval, i.e. it should be possible to convert the bucket size into the rate. By default the interval of the `date_histogram` is used.
 
 `"rate": "second"`
 :   compatible with all intervals

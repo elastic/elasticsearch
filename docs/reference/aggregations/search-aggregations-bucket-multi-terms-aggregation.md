@@ -7,9 +7,9 @@ mapped_pages:
 # Multi Terms aggregation [search-aggregations-bucket-multi-terms-aggregation]
 
 
-A multi-bucket value source based aggregation where buckets are dynamically built - one per unique set of values. The multi terms aggregation is very similar to the [`terms aggregation`](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order), however in most cases it will be slower than the terms aggregation and will consume more memory. Therefore, if the same set of fields is constantly used, it would be more efficient to index a combined key for this fields as a separate field and use the terms aggregation on this field.
+A multi-bucket value source based aggregation where buckets are dynamically built - one per unique set of values. The multi terms aggregation is very similar to the [`terms aggregation`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order), however in most cases it will be slower than the terms aggregation and will consume more memory. Therefore, if the same set of fields is constantly used, it would be more efficient to index a combined key for this fields as a separate field and use the terms aggregation on this field.
 
-The multi_term aggregations are the most useful when you need to sort by a number of document or a metric aggregation on a composite key and get top N results. If sorting is not required and all values are expected to be retrieved using nested terms aggregation or [`composite aggregations`](/reference/data-analysis/aggregations/search-aggregations-bucket-composite-aggregation.md) will be a faster and more memory efficient solution.
+The multi_term aggregations are the most useful when you need to sort by a number of document or a metric aggregation on a composite key and get top N results. If sorting is not required and all values are expected to be retrieved using nested terms aggregation or [`composite aggregations`](/reference/aggregations/search-aggregations-bucket-composite-aggregation.md) will be a faster and more memory efficient solution.
 
 Example:
 
@@ -32,7 +32,7 @@ GET /products/_search
 }
 ```
 
-1. `multi_terms` aggregation can work with the same field types as a [`terms aggregation`](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order) and supports most of the terms aggregation parameters.
+1. `multi_terms` aggregation can work with the same field types as a [`terms aggregation`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order) and supports most of the terms aggregation parameters.
 
 
 Response:
@@ -93,7 +93,7 @@ By default, the `multi_terms` aggregation will return the buckets for the top te
 
 ## Aggregation Parameters [search-aggregations-bucket-multi-terms-aggregation-parameters]
 
-The following parameters are supported. See [`terms aggregation`](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order) for more detailed explanation of these parameters.
+The following parameters are supported. See [`terms aggregation`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order) for more detailed explanation of these parameters.
 
 size
 :   Optional. Defines how many term buckets should be returned out of the overall terms list. Defaults to 10.

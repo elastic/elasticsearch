@@ -178,7 +178,7 @@ The response would be something like the following:
 
 ## Non-keyed Response [non-keyed-response]
 
-By default, the named filters aggregation returns the buckets as an object. But in some sorting cases, such as [bucket sort](/reference/data-analysis/aggregations/search-aggregations-pipeline-bucket-sort-aggregation.md), the JSON doesn’t guarantee the order of elements in the object. You can use the `keyed` parameter to specify the buckets as an array of objects. The value of this parameter can be as follows:
+By default, the named filters aggregation returns the buckets as an object. But in some sorting cases, such as [bucket sort](/reference/aggregations/search-aggregations-pipeline-bucket-sort-aggregation.md), the JSON doesn’t guarantee the order of elements in the object. You can use the `keyed` parameter to specify the buckets as an array of objects. The value of this parameter can be as follows:
 
 `true`
 :   (Default) Returns the buckets as an object

@@ -15,7 +15,7 @@ The `remove_duplicates` filter uses Lucene’s [RemoveDuplicatesTokenFilter](htt
 
 To see how the `remove_duplicates` filter works, you first need to produce a token stream containing duplicate tokens in the same position.
 
-The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the [`keyword_repeat`](/reference/data-analysis/text-analysis/analysis-keyword-repeat-tokenfilter.md) and [`stemmer`](/reference/data-analysis/text-analysis/analysis-stemmer-tokenfilter.md) filters to create stemmed and unstemmed tokens for `jumping dog`.
+The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the [`keyword_repeat`](/reference/text-analysis/analysis-keyword-repeat-tokenfilter.md) and [`stemmer`](/reference/text-analysis/analysis-stemmer-tokenfilter.md) filters to create stemmed and unstemmed tokens for `jumping dog`.
 
 ```console
 GET _analyze

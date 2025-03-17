@@ -16,7 +16,7 @@ The framework ensures compatibility, makes it easier for our team to review PRs,
 
 The framework serves two distinct, but related use cases:
 
-* Customizing an existing Elastic [self-managed connector](/reference/ingestion-tools/search-connectors/self-managed-connectors.md)
+* Customizing an existing Elastic [self-managed connector](/reference/search-connectors/self-managed-connectors.md)
 * Building a new self-managed connector
 
 

@@ -58,7 +58,7 @@ The `pattern` analyzer accepts the following parameters:
 `stopwords_path`
 :   The path to a file containing stop words.
 
-See the [Stop Token Filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) for more information about stop word configuration.
+See the [Stop Token Filter](/reference/text-analysis/analysis-stop-tokenfilter.md) for more information about stop word configuration.
 
 
 ## Example configuration [_example_configuration_3]
@@ -150,12 +150,12 @@ The regex above is easier to understand as:
 The `pattern` analyzer consists of:
 
 Tokenizer
-:   * [Pattern Tokenizer](/reference/data-analysis/text-analysis/analysis-pattern-tokenizer.md)
+:   * [Pattern Tokenizer](/reference/text-analysis/analysis-pattern-tokenizer.md)
 
 
 Token Filters
-:   * [Lower Case Token Filter](/reference/data-analysis/text-analysis/analysis-lowercase-tokenfilter.md)
-* [Stop Token Filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) (disabled by default)
+:   * [Lower Case Token Filter](/reference/text-analysis/analysis-lowercase-tokenfilter.md)
+* [Stop Token Filter](/reference/text-analysis/analysis-stop-tokenfilter.md) (disabled by default)
 
 
 If you need to customize the `pattern` analyzer beyond the configuration parameters then you need to recreate it as a `custom` analyzer and modify it, usually by adding token filters. This would recreate the built-in `pattern` analyzer and you can use it as a starting point for further customization:

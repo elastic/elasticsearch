@@ -7,12 +7,12 @@ mapped_pages:
 # Elastic Confluence connector reference [es-connectors-confluence]
 
 
-The *Elastic Confluence connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [Atlassian Confluence](https://www.atlassian.com/software/confluence). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
+The *Elastic Confluence connector* is a [connector](/reference/search-connectors/index.md) for [Atlassian Confluence](https://www.atlassian.com/software/confluence). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/confluence.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector** [es-connectors-confluence-connector-client-reference]
@@ -27,7 +27,7 @@ Confluence Data Center support was added in 8.13.0 in technical preview and is s
 ::::
 
 
-To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a Confluence connector [es-connectors-confluence-create-connector-client]
@@ -105,7 +105,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 ### Usage [es-connectors-confluence-client-usage]
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Compatibility [es-connectors-confluence-client-compatability]
@@ -180,7 +180,7 @@ The following configuration fields are required to set up the connector:
 :   The number of concurrent downloads for fetching the attachment content. This speeds up the content extraction of attachments. Defaults to `50`.
 
 `use_document_level_security`
-:   Toggle to enable [document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md).
+:   Toggle to enable [document level security (DLS)](/reference/search-connectors/document-level-security.md).
 
     When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs will fetch users' access control lists and store them in a separate index.
 
@@ -285,16 +285,16 @@ The connector syncs the following Confluence object types:
 
 #### Sync types [es-connectors-confluence-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Sync rules [es-connectors-confluence-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
-This connector supports [advanced sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for remote filtering. These rules cover complex query-and-filter scenarios that cannot be expressed with <basic sync rules. Advanced sync rules are defined through a source-specific DSL JSON snippet.
+This connector supports [advanced sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for remote filtering. These rules cover complex query-and-filter scenarios that cannot be expressed with <basic sync rules. Advanced sync rules are defined through a source-specific DSL JSON snippet.
 
 
 #### Advanced sync rules examples [es-connectors-confluence-client-sync-rules-examples]
@@ -356,7 +356,7 @@ When the `data_source` is set to Confluence Data Center or Server, the connector
 
 
 ::::{note}
-Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.
+Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 
 ::::
 
@@ -364,7 +364,7 @@ Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connecto
 
 ### Content Extraction [es-connectors-confluence-client-content-extraction]
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### Self-managed connector operations [es-connectors-confluence-client-connector-client-operations]
@@ -372,7 +372,7 @@ See [Content extraction](/reference/ingestion-tools/search-connectors/es-connect
 
 ### End-to-end testing [es-connectors-confluence-client-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the Confluence connector, run the following command:
 
@@ -394,9 +394,9 @@ There are currently no known issues for this connector. Refer to [Known issues](
 
 ### Troubleshooting [es-connectors-confluence-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-confluence-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).

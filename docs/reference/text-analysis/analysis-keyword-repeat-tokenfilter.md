@@ -9,7 +9,7 @@ mapped_pages:
 
 Outputs a keyword version of each token in a stream. These keyword tokens are not stemmed.
 
-The `keyword_repeat` filter assigns keyword tokens a `keyword` attribute of `true`. Stemmer token filters, such as [`stemmer`](/reference/data-analysis/text-analysis/analysis-stemmer-tokenfilter.md) or [`porter_stem`](/reference/data-analysis/text-analysis/analysis-porterstem-tokenfilter.md), skip tokens with a `keyword` attribute of `true`.
+The `keyword_repeat` filter assigns keyword tokens a `keyword` attribute of `true`. Stemmer token filters, such as [`stemmer`](/reference/text-analysis/analysis-stemmer-tokenfilter.md) or [`porter_stem`](/reference/text-analysis/analysis-porterstem-tokenfilter.md), skip tokens with a `keyword` attribute of `true`.
 
 You can use the `keyword_repeat` filter with a stemmer token filter to output a stemmed and unstemmed version of each token in a stream.
 
@@ -18,7 +18,7 @@ To work properly, the `keyword_repeat` filter must be listed before any stemmer 
 
 Stemming does not affect all tokens. This means streams could contain duplicate tokens in the same position, even after stemming.
 
-To remove these duplicate tokens, add the [`remove_duplicates`](/reference/data-analysis/text-analysis/analysis-remove-duplicates-tokenfilter.md) filter after the stemmer filter in the analyzer configuration.
+To remove these duplicate tokens, add the [`remove_duplicates`](/reference/text-analysis/analysis-remove-duplicates-tokenfilter.md) filter after the stemmer filter in the analyzer configuration.
 
 ::::
 

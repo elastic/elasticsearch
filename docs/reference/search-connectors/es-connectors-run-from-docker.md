@@ -6,12 +6,12 @@ mapped_pages:
 # Running from a Docker container [es-connectors-run-from-docker]
 
 ::::{tip}
-Use our [Docker Compose quickstart](/reference/ingestion-tools/search-connectors/es-connectors-docker-compose-quickstart.md) to quickly get started with a full Elastic Stack deployment using Connectors.
+Use our [Docker Compose quickstart](/reference/search-connectors/es-connectors-docker-compose-quickstart.md) to quickly get started with a full Elastic Stack deployment using Connectors.
 ::::
 
 Instead of running the Connectors Service from source, you can use the official Docker image to run the service in a container.
 
-As a prerequisite, you need to have an Elasticsearch and Kibana instance running. From inside your Kibana UI, You will need to [follow the initial setup](/reference/ingestion-tools/search-connectors/es-connectors-run-from-source.md#es-connectors-run-from-source-setup-kibana) in the same manner as if you are running the service from source.
+As a prerequisite, you need to have an Elasticsearch and Kibana instance running. From inside your Kibana UI, You will need to [follow the initial setup](/reference/search-connectors/es-connectors-run-from-source.md#es-connectors-run-from-source-setup-kibana) in the same manner as if you are running the service from source.
 
 When you are ready to run Connectors:
 

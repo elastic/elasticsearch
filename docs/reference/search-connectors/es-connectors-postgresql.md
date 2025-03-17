@@ -12,14 +12,14 @@ The *Elastic PostgreSQL connector* is a connector for [PostgreSQL](https://www.p
 This connector uses the [generic database connector source code](https://github.com/elastic/connectors/blob/master/connectors/sources/generic_database.py) (branch *main*, compatible with Elastic *9.0*). View the specific [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/postgresql.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector** [es-connectors-postgresql-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-postgresql-client-availability-prerequisites]
 
-This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a PostgreSQL connector [es-connectors-postgresql-create-connector-client]
@@ -97,7 +97,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 ### Usage [es-connectors-postgresql-client-usage]
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md).
 
 ::::{tip}
 Users must set `track_commit_timestamp` to `on`. To do this, run `ALTER SYSTEM SET track_commit_timestamp = on;` in PostgreSQL server.
@@ -108,7 +108,7 @@ Users must set `track_commit_timestamp` to `on`. To do this, run `ALTER SYSTEM S
 For additional operations, see.
 
 ::::{note}
-For an end-to-end example of the self-managed connector workflow, see [Tutorial](/reference/ingestion-tools/search-connectors/es-postgresql-connector-client-tutorial.md).
+For an end-to-end example of the self-managed connector workflow, see [Tutorial](/reference/search-connectors/es-postgresql-connector-client-tutorial.md).
 
 ::::
 
@@ -407,7 +407,7 @@ When using advanced rules, a query can bypass the configuration field `tables`. 
 
 ### End-to-end testing [es-connectors-postgresql-client-client-operations-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the PostgreSQL connector, run the following command:
 
@@ -429,9 +429,9 @@ There are no known issues for this connector. Refer to [Known issues](/release-n
 
 ### Troubleshooting [es-connectors-postgresql-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-postgresql-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).

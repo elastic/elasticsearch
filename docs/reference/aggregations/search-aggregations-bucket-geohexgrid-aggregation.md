@@ -88,7 +88,7 @@ Response:
 
 ## High-precision requests [geohexgrid-high-precision]
 
-When requesting detailed buckets (typically for displaying a "zoomed in" map), a filter like [geo_bounding_box](/reference/query-languages/query-dsl-geo-bounding-box-query.md) should be applied to narrow the subject area. Otherwise, potentially millions of buckets will be created and returned.
+When requesting detailed buckets (typically for displaying a "zoomed in" map), a filter like [geo_bounding_box](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md) should be applied to narrow the subject area. Otherwise, potentially millions of buckets will be created and returned.
 
 $$$geohexgrid-high-precision-ex$$$
 
@@ -150,7 +150,7 @@ Response:
 
 ## Requests with additional bounding box filtering [geohexgrid-addtl-bounding-box-filtering]
 
-The `geohex_grid` aggregation supports an optional `bounds` parameter that restricts the cells considered to those that intersect the provided bounds. The `bounds` parameter accepts the same [bounding box formats](/reference/query-languages/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats) as the geo-bounding box query. This bounding box can be used with or without an additional `geo_bounding_box` query for filtering the points prior to aggregating. It is an independent bounding box that can intersect with, be equal to, or be disjoint to any additional `geo_bounding_box` queries defined in the context of the aggregation.
+The `geohex_grid` aggregation supports an optional `bounds` parameter that restricts the cells considered to those that intersect the provided bounds. The `bounds` parameter accepts the same [bounding box formats](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats) as the geo-bounding box query. This bounding box can be used with or without an additional `geo_bounding_box` query for filtering the points prior to aggregating. It is an independent bounding box that can intersect with, be equal to, or be disjoint to any additional `geo_bounding_box` queries defined in the context of the aggregation.
 
 $$$geohexgrid-aggregation-with-bounds$$$
 
@@ -204,9 +204,9 @@ Response:
 Aggregating on [Geoshape](/reference/elasticsearch/mapping-reference/geo-shape.md) fields works almost as it does for points. There are two key differences:
 
 * When aggregating over `geo_point` data, points are considered within a hexagonal tile if they lie within the edges defined by great circles. In other words the calculation is done using spherical coordinates. However, when aggregating over `geo_shape` data, the shapes are considered within a hexagon if they lie within the edges defined as straight lines on an equirectangular projection. The reason is that Elasticsearch and Lucene treat edges using the equirectangular projection at index and search time. In order to ensure that search results and aggregation results are aligned, we therefore also use equirectangular projection in aggregations. For most data, the difference is subtle or not noticed. However, for low zoom levels (low precision), especially far from the equator,  this can be noticeable. For example, if the same point data is indexed as `geo_point` and `geo_shape`, it is possible  to get different results when aggregating at lower resolutions.
-* As is the case with [`geotile_grid`](/reference/data-analysis/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md#geotilegrid-aggregating-geo-shape), a single shape can be counted for in multiple tiles. A shape will contribute to the count of matching values if any part of its shape intersects with that tile. Below is an image that demonstrates this:
+* As is the case with [`geotile_grid`](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md#geotilegrid-aggregating-geo-shape), a single shape can be counted for in multiple tiles. A shape will contribute to the count of matching values if any part of its shape intersects with that tile. Below is an image that demonstrates this:
 
-![geoshape hexgrid](../../../images/geoshape_hexgrid.png "")
+![geoshape hexgrid](../../images/geoshape_hexgrid.png "")
 
 
 ## Options [_options_4]
@@ -218,7 +218,7 @@ precision
 :   (Optional, integer) Integer zoom of the key used to define cells/buckets in the results. Defaults to `6`. Values outside of [`0`,`15`] will be rejected.
 
 bounds
-:   (Optional, object) Bounding box used to filter the geo-points or geo-shapes in each bucket. Accepts the same bounding box formats as the [geo-bounding box query](/reference/query-languages/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats).
+:   (Optional, object) Bounding box used to filter the geo-points or geo-shapes in each bucket. Accepts the same bounding box formats as the [geo-bounding box query](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats).
 
 size
 :   (Optional, integer) Maximum number of buckets to return. Defaults to 10,000. When results are trimmed, buckets are prioritized based on the volume of documents they contain.

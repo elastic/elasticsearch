@@ -7,7 +7,7 @@ mapped_pages:
 # Flatten graph token filter [analysis-flatten-graph-tokenfilter]
 
 
-Flattens a [token graph](docs-content://manage-data/data-store/text-analysis/token-graphs.md) produced by a graph token filter, such as [`synonym_graph`](/reference/data-analysis/text-analysis/analysis-synonym-graph-tokenfilter.md) or [`word_delimiter_graph`](/reference/data-analysis/text-analysis/analysis-word-delimiter-graph-tokenfilter.md).
+Flattens a [token graph](docs-content://manage-data/data-store/text-analysis/token-graphs.md) produced by a graph token filter, such as [`synonym_graph`](/reference/text-analysis/analysis-synonym-graph-tokenfilter.md) or [`word_delimiter_graph`](/reference/text-analysis/analysis-word-delimiter-graph-tokenfilter.md).
 
 Flattening a token graph containing [multi-position tokens](docs-content://manage-data/data-store/text-analysis/token-graphs.md#token-graphs-multi-position-tokens) makes the graph suitable for [indexing](docs-content://manage-data/data-store/text-analysis/index-search-analysis.md). Otherwise, indexing does not support token graphs containing multi-position tokens.
 
@@ -43,7 +43,7 @@ GET /_analyze
 
 The filter produces the following token graph with `internet phonebook` as a multi-position token.
 
-:::{image} ../../../images/token-graph-dns-synonym-ex2.svg
+:::{image} ../../images/token-graph-dns-synonym-ex2.svg
 :alt: token graph dns synonym example
 :::
 
@@ -68,7 +68,7 @@ GET /_analyze
 
 The filter produces the following flattened token graph, which is suitable for indexing.
 
-:::{image} ../../../images/token-graph-dns-synonym-flattened-ex2.svg
+:::{image} ../../images/token-graph-dns-synonym-flattened-ex2.svg
 :alt: token graph dns flattened example
 :::
 

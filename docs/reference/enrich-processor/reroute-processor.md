@@ -22,7 +22,7 @@ It’s not possible to change the `type` of the data stream with the `reroute` p
 ::::
 
 
-After a `reroute` processor has been executed, all the other processors of the current pipeline are skipped, including the final pipeline. If the current pipeline is executed in the context of a [Pipeline](/reference/ingestion-tools/enrich-processor/pipeline-processor.md), the calling pipeline will be skipped, too. This means that at most one `reroute` processor is ever executed within a pipeline, allowing to define mutually exclusive routing conditions, similar to a if, else-if, else-if, … condition.
+After a `reroute` processor has been executed, all the other processors of the current pipeline are skipped, including the final pipeline. If the current pipeline is executed in the context of a [Pipeline](/reference/enrich-processor/pipeline-processor.md), the calling pipeline will be skipped, too. This means that at most one `reroute` processor is ever executed within a pipeline, allowing to define mutually exclusive routing conditions, similar to a if, else-if, else-if, … condition.
 
 The reroute processor ensures that the `data_stream.<type|dataset|namespace>` fields are set according to the new target. If the document contains a `event.dataset` value, it will be updated to reflect the same value as `data_stream.dataset`.
 

@@ -156,7 +156,7 @@ POST /sales/_search?size=0
 }
 ```
 
-When aggregating ranges, buckets are based on the values of the returned documents. This means the response may include buckets outside of a query’s range. For example, if your query looks for values greater than 100, and you have a range covering 50 to 150, and an interval of 50, that document will land in 3 buckets - 50, 100, and 150. In general, it’s best to think of the query and aggregation steps as independent - the query selects a set of documents, and then the aggregation buckets those documents without regard to how they were selected. See [note on bucketing range fields](/reference/data-analysis/aggregations/search-aggregations-bucket-range-field-note.md) for more information and an example.
+When aggregating ranges, buckets are based on the values of the returned documents. This means the response may include buckets outside of a query’s range. For example, if your query looks for values greater than 100, and you have a range covering 50 to 150, and an interval of 50, that document will land in 3 buckets - 50, 100, and 150. In general, it’s best to think of the query and aggregation steps as independent - the query selects a set of documents, and then the aggregation buckets those documents without regard to how they were selected. See [note on bucketing range fields](/reference/aggregations/search-aggregations-bucket-range-field-note.md) for more information and an example.
 
 $$$search-aggregations-bucket-histogram-aggregation-hard-bounds$$$
 The `hard_bounds` is a counterpart of `extended_bounds` and can limit the range of buckets in the histogram. It is particularly useful in the case of open [data ranges](/reference/elasticsearch/mapping-reference/range.md) that can result in a very large number of buckets.
@@ -191,7 +191,7 @@ In this example even though the range specified in the query is up to 500, the h
 
 ## Order [_order_2]
 
-By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controlled using the `order` setting. Supports the same `order` functionality as the [`Terms Aggregation`](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order).
+By default the returned buckets are sorted by their `key` ascending, though the order behaviour can be controlled using the `order` setting. Supports the same `order` functionality as the [`Terms Aggregation`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order).
 
 
 ## Offset [_offset]

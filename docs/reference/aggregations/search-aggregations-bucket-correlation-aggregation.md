@@ -12,7 +12,7 @@ A sibling pipeline aggregation which executes a correlation function on the conf
 ## Parameters [bucket-correlation-agg-syntax]
 
 `buckets_path`
-:   (Required, string) Path to the buckets that contain one set of values to correlate. For syntax, see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax).
+:   (Required, string) Path to the buckets that contain one set of values to correlate. For syntax, see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax).
 
 `function`
 :   (Required, object) The correlation function to execute.
@@ -76,7 +76,7 @@ A `bucket_correlation` aggregation looks like this in isolation:
 
 ## Example [bucket-correlation-agg-example]
 
-The following snippet correlates the individual terms in the field `version` with the `latency` metric. Not shown is the pre-calculation of the `latency` indicator values, which was done utilizing the [percentiles](/reference/data-analysis/aggregations/search-aggregations-metrics-percentile-aggregation.md) aggregation.
+The following snippet correlates the individual terms in the field `version` with the `latency` metric. Not shown is the pre-calculation of the `latency` indicator values, which was done utilizing the [percentiles](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md) aggregation.
 
 This example is only using the 10s percentiles.
 

@@ -7,7 +7,7 @@ mapped_pages:
 # IP range aggregation [search-aggregations-bucket-iprange-aggregation]
 
 
-Just like the dedicated [date](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md) range aggregation, there is also a dedicated range aggregation for IP typed fields:
+Just like the dedicated [date](/reference/aggregations/search-aggregations-bucket-daterange-aggregation.md) range aggregation, there is also a dedicated range aggregation for IP typed fields:
 
 Example:
 

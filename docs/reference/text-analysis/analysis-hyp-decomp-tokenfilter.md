@@ -53,7 +53,7 @@ For example FOP XML hyphenation pattern files, refer to:
 `word_list`
 :   (Required*, array of strings) A list of subwords. Subwords found using the hyphenation pattern but not in this list are excluded from the token output.
 
-You can use the [`dictionary_decompounder`](/reference/data-analysis/text-analysis/analysis-dict-decomp-tokenfilter.md) filter to test the quality of word lists before implementing them.
+You can use the [`dictionary_decompounder`](/reference/text-analysis/analysis-dict-decomp-tokenfilter.md) filter to test the quality of word lists before implementing them.
 
 Either this parameter or `word_list_path` must be specified.
 
@@ -63,7 +63,7 @@ Either this parameter or `word_list_path` must be specified.
 
 This path must be absolute or relative to the `config` location, and the file must be UTF-8 encoded. Each token in the file must be separated by a line break.
 
-You can use the [`dictionary_decompounder`](/reference/data-analysis/text-analysis/analysis-dict-decomp-tokenfilter.md) filter to test the quality of word lists before implementing them.
+You can use the [`dictionary_decompounder`](/reference/text-analysis/analysis-dict-decomp-tokenfilter.md) filter to test the quality of word lists before implementing them.
 
 Either this parameter or `word_list` must be specified.
 

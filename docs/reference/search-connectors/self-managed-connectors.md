@@ -13,7 +13,7 @@ Self-managed connectors were initially known as "connector clients". You might f
 
 ::::
 
-Self-managed [Elastic connectors](/reference/ingestion-tools/search-connectors/index.md) are run on your own infrastructure. This means they run outside of your Elastic deployment.
+Self-managed [Elastic connectors](/reference/search-connectors/index.md) are run on your own infrastructure. This means they run outside of your Elastic deployment.
 
 ## Availability and Elastic prerequisites [es-build-connector-prerequisites]
 
@@ -76,16 +76,16 @@ The connector service is a Python application that you must run on your own infr
 
 You can run the connector service from source or use Docker:
 
-* [Run the connectors from source](/reference/ingestion-tools/search-connectors/es-connectors-run-from-source.md). Use this option if you’re comfortable working with Python and want to iterate quickly locally.
-* [Run the connectors from Docker](/reference/ingestion-tools/search-connectors/es-connectors-run-from-docker.md). Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
+* [Run the connectors from source](/reference/search-connectors/es-connectors-run-from-source.md). Use this option if you’re comfortable working with Python and want to iterate quickly locally.
+* [Run the connectors from Docker](/reference/search-connectors/es-connectors-run-from-docker.md). Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
 
-    * Refer to our [Docker Compose quickstart](/reference/ingestion-tools/search-connectors/es-connectors-docker-compose-quickstart.md) for a quick way to spin up all the required services at once.
+    * Refer to our [Docker Compose quickstart](/reference/search-connectors/es-connectors-docker-compose-quickstart.md) for a quick way to spin up all the required services at once.
 
 
 ## Tutorials [es-build-connector-example]
 
-* Follow our [UI-based tutorial](/reference/ingestion-tools/search-connectors/es-postgresql-connector-client-tutorial.md) to learn how run the self-managed connector service and a set up a self-managed connector, **using the UI**.
-* Follow our [API-based tutorial](/reference/ingestion-tools/search-connectors/api-tutorial.md) to learn how to set up a self-managed connector **using the** [**connector APIs**](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector).
+* Follow our [UI-based tutorial](/reference/search-connectors/es-postgresql-connector-client-tutorial.md) to learn how run the self-managed connector service and a set up a self-managed connector, **using the UI**.
+* Follow our [API-based tutorial](/reference/search-connectors/api-tutorial.md) to learn how to set up a self-managed connector **using the** [**connector APIs**](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-connector).
 
 These examples use the PostgreSQL connector but the basic process is the same for all self-managed connectors.
 
@@ -105,7 +105,7 @@ The Elastic connector framework enables you to:
 * Customize existing self-managed connectors.
 * Build your own self-managed connectors.
 
-Refer to [Build and customize connectors](/reference/ingestion-tools/search-connectors/build-customize-connectors.md) for more information.
+Refer to [Build and customize connectors](/reference/search-connectors/build-customize-connectors.md) for more information.
 
 
 

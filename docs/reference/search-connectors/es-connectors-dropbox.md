@@ -7,12 +7,12 @@ mapped_pages:
 # Elastic Dropbox connector reference [es-connectors-dropbox]
 
 
-The *Elastic Dropbox connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [Dropbox](https://www.dropbox.com). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
+The *Elastic Dropbox connector* is a [connector](/reference/search-connectors/index.md) for [Dropbox](https://www.dropbox.com). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/dropbox.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector** [es-connectors-dropbox-connector-client-reference]
@@ -23,7 +23,7 @@ This connector is available as a self-managed connector.
 
 This self-managed connector is compatible with Elastic versions **8.9.0**+.
 
-To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-prerequisites).
+To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md#es-build-connector-prerequisites).
 
 
 ### Create a Dropbox connector [es-connectors-dropbox-create-connector-client]
@@ -106,7 +106,7 @@ Before you can configure your connector, you’ll need to:
 * [Create a Dropbox OAuth app](#es-connectors-dropbox-client-create-dropbox-oauth-app)
 * [Generate a refresh token](#es-connectors-dropbox-client-refresh-token)
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md) Once set up, for additional usage operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md) Once set up, for additional usage operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Dropbox API Authorization [es-connectors-dropbox-client-dropbox-api-authorization]
@@ -180,7 +180,7 @@ The following configuration fields are required to set up the connector:
 :   The refresh token to authenticate your Dropbox application.
 
 use_document_level_security
-:   Toggle to enable [document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md). When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs will fetch users' access control lists and store them in a separate index.
+:   Toggle to enable [document level security (DLS)](/reference/search-connectors/document-level-security.md). When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs will fetch users' access control lists and store them in a separate index.
 
 `retry_count`
 :   The number of retry attempts after a failed request to Dropbox. Default value is `3`.
@@ -189,10 +189,10 @@ use_document_level_security
 :   The number of concurrent downloads for fetching attachment content. This can help speed up content extraction of attachments. Defaults to `100`.
 
 `use_text_extraction_service`
-:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that pipeline settings disable text extraction. Default value is `False`.
+:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that pipeline settings disable text extraction. Default value is `False`.
 
 `use_document_level_security`
-:   Toggle to enable [document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md). When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs will fetch users' access control lists and store them in a separate index.
+:   Toggle to enable [document level security (DLS)](/reference/search-connectors/document-level-security.md). When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. Access control syncs will fetch users' access control lists and store them in a separate index.
 
 `include_inherited_users_and_groups`
 :   Depends on document level security being enabled. Include groups and inherited users when indexing permissions.
@@ -293,9 +293,9 @@ Due to a Dropbox issue, metadata updates to Paper files from Dropbox Paper are n
 
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Currently, the connector doesn’t retrieve files from shared Team folders.
-* Permissions are not synced by default. If [document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md) is not enabled **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+* Permissions are not synced by default. If [document level security (DLS)](/reference/search-connectors/document-level-security.md) is not enabled **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::
 
@@ -303,25 +303,25 @@ Due to a Dropbox issue, metadata updates to Paper files from Dropbox Paper are n
 
 #### Sync types [es-connectors-dropbox-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Sync rules [es-connectors-dropbox-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 
 #### Advanced sync rules [es-connectors-dropbox-client-sync-rules-advanced]
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
 
-The following section describes [advanced sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for this connector.
+The following section describes [advanced sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for this connector.
 
 Advanced sync rules for Dropbox allow you to sync Dropbox files based on a query that matches strings in the filename. You can optionally filter the results of the query by `file_extensions` or `file_categories`. When both are provided, priority is given to `file_categories`. We have some examples below for illustration.
 
@@ -385,7 +385,7 @@ $$$es-connectors-dropbox-client-sync-rules-advanced-limitations$$$
 
 ### End-to-end Testing [es-connectors-dropbox-client-end-to-end-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the Dropbox connector, run the following command:
 
@@ -407,15 +407,15 @@ Refer to [Known issues](/release-notes/known-issues.md) for a list of known issu
 
 ### Troubleshooting [es-connectors-dropbox-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md) for a list of troubleshooting tips for all connectors.
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md) for a list of troubleshooting tips for all connectors.
 
 
 ### Security [es-connectors-dropbox-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md) for a list of security tips for all connectors.
+See [Security](/reference/search-connectors/es-connectors-security.md) for a list of security tips for all connectors.
 
 
 ### Content extraction [es-connectors-dropbox-client-content-extraction]
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 

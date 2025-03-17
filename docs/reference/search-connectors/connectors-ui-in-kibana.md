@@ -1,7 +1,7 @@
 ---
 applies_to:
   stack: ga
-  serverless: 
+  serverless:
     elasticsearch: ga
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-usage.html
@@ -24,7 +24,7 @@ In 8.12 we introduced a set of [Connector APIs](https://www.elastic.co/docs/api/
 
 You connector writes data to an {{es}} index.
 
-To create self-managed [**self-managed connector**](/reference/ingestion-tools/search-connectors/self-managed-connectors.md), use the buttons under **Search > Content > Connectors**. Once you’ve chosen the data source type you’d like to sync, you’ll be prompted to create an {{es}} index.
+To create self-managed [**self-managed connector**](/reference/search-connectors/self-managed-connectors.md), use the buttons under **Search > Content > Connectors**. Once you’ve chosen the data source type you’d like to sync, you’ll be prompted to create an {{es}} index.
 
 ## Manage connector indices [es-connectors-usage-indices]
 
@@ -192,16 +192,16 @@ Then choose the index to view.
 
 Choose the **Documents** tab to view the synced documents. Choose the **Index Mappings** tab to view the index mappings that were created by the connector.
 
-When setting up a new connector, ensure you are getting the documents and fields you were expecting from the data source. If not, see [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md) for help.
+When setting up a new connector, ensure you are getting the documents and fields you were expecting from the data source. If not, see [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md) for help.
 
 These operations require access to Kibana and the `read` and `manage` [indices privileges^](/reference/elasticsearch/security-privileges.md) for the index containing the documents.
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md) for security details.
+See [Security](/reference/search-connectors/es-connectors-security.md) for security details.
 
 
 ## Manage sync rules [es-connectors-usage-sync-rules]
 
-Use [sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md) to limit which documents are fetched from the data source, or limit which fetched documents are stored in Elastic.
+Use [sync rules](/reference/search-connectors/es-sync-rules.md) to limit which documents are fetched from the data source, or limit which fetched documents are stored in Elastic.
 
 In the {{kib}} UI, navigate to **Search > Content > Elasticsearch indices** from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
 

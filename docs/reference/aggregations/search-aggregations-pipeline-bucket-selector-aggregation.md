@@ -38,8 +38,8 @@ $$$bucket-selector-params$$$
 | Parameter Name | Description | Required | Default Value |
 | --- | --- | --- | --- |
 | `script` | The script to run for this aggregation. The script can be inline, file or indexed. (see [Scripting](docs-content://explore-analyze/scripting.md)for more details) | Required |  |
-| `buckets_path` | A map of script variables and their associated path to the buckets we wish to use for the variable(see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
-| `gap_policy` | The policy to apply when gaps are found in the data (see [Dealing with gaps in the data](/reference/data-analysis/aggregations/pipeline.md#gap-policy) for more details) | Optional | `skip` |
+| `buckets_path` | A map of script variables and their associated path to the buckets we wish to use for the variable(see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
+| `gap_policy` | The policy to apply when gaps are found in the data (see [Dealing with gaps in the data](/reference/aggregations/pipeline.md#gap-policy) for more details) | Optional | `skip` |
 
 The following snippet only retains buckets where the total sales for the month is more than 200:
 

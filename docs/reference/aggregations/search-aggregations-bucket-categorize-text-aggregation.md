@@ -10,7 +10,7 @@ mapped_pages:
 A multi-bucket aggregation that groups semi-structured text into buckets. Each `text` field is re-analyzed using a custom analyzer. The resulting tokens are then categorized creating buckets of similarly formatted text values. This aggregation works best with machine generated text like system logs. Only the first 100 analyzed tokens are used to categorize the text.
 
 ::::{note}
-If you have considerable memory allocated to your JVM but are receiving circuit breaker exceptions from this aggregation, you may be attempting to categorize text that is poorly formatted for categorization. Consider adding `categorization_filters` or running under [sampler](/reference/data-analysis/aggregations/search-aggregations-bucket-sampler-aggregation.md), [diversified sampler](/reference/data-analysis/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md), or [random sampler](/reference/data-analysis/aggregations/search-aggregations-random-sampler-aggregation.md) to explore the created categories.
+If you have considerable memory allocated to your JVM but are receiving circuit breaker exceptions from this aggregation, you may be attempting to categorize text that is poorly formatted for categorization. Consider adding `categorization_filters` or running under [sampler](/reference/aggregations/search-aggregations-bucket-sampler-aggregation.md), [diversified sampler](/reference/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md), or [random sampler](/reference/aggregations/search-aggregations-random-sampler-aggregation.md) to explore the created categories.
 ::::
 
 
@@ -24,14 +24,14 @@ The algorithm used for categorization was completely changed in version 8.3.0. A
 `categorization_analyzer`
 :   (Optional, object or string) The categorization analyzer specifies how the text is analyzed and tokenized before being categorized. The syntax is very similar to that used to define the `analyzer` in the [Analyze endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze). This property cannot be used at the same time as `categorization_filters`.
 
-    The `categorization_analyzer` field can be specified either as a string or as an object. If it is a string it must refer to a [built-in analyzer](/reference/data-analysis/text-analysis/analyzer-reference.md) or one added by another plugin. If it is an object it has the following properties:
+    The `categorization_analyzer` field can be specified either as a string or as an object. If it is a string it must refer to a [built-in analyzer](/reference/text-analysis/analyzer-reference.md) or one added by another plugin. If it is an object it has the following properties:
 
     :::::{dropdown} Properties of `categorization_analyzer`
     `char_filter`
-    :   (array of strings or objects) One or more [character filters](/reference/data-analysis/text-analysis/character-filter-reference.md). In addition to the built-in character filters, other plugins can provide more character filters. This property is optional. If it is not specified, no character filters are applied prior to categorization. If you are customizing some other aspect of the analyzer and you need to achieve the equivalent of `categorization_filters` (which are not permitted when some other aspect of the analyzer is customized), add them here as [pattern replace character filters](/reference/data-analysis/text-analysis/analysis-pattern-replace-charfilter.md).
+    :   (array of strings or objects) One or more [character filters](/reference/text-analysis/character-filter-reference.md). In addition to the built-in character filters, other plugins can provide more character filters. This property is optional. If it is not specified, no character filters are applied prior to categorization. If you are customizing some other aspect of the analyzer and you need to achieve the equivalent of `categorization_filters` (which are not permitted when some other aspect of the analyzer is customized), add them here as [pattern replace character filters](/reference/text-analysis/analysis-pattern-replace-charfilter.md).
 
     `tokenizer`
-    :   (string or object) The name or definition of the [tokenizer](/reference/data-analysis/text-analysis/tokenizer-reference.md) to use after character filters are applied. This property is compulsory if `categorization_analyzer` is specified as an object. Machine learning provides a tokenizer called `ml_standard` that tokenizes in a way that has been determined to produce good categorization results on a variety of log file formats for logs in English. If you want to use that tokenizer but change the character or token filters, specify `"tokenizer": "ml_standard"` in your `categorization_analyzer`. Additionally, the `ml_classic` tokenizer is available, which tokenizes in the same way as the non-customizable tokenizer in old versions of the product (before 6.2). `ml_classic` was the default categorization tokenizer in versions 6.2 to 7.13, so if you need categorization identical to the default for jobs created in these versions, specify `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
+    :   (string or object) The name or definition of the [tokenizer](/reference/text-analysis/tokenizer-reference.md) to use after character filters are applied. This property is compulsory if `categorization_analyzer` is specified as an object. Machine learning provides a tokenizer called `ml_standard` that tokenizes in a way that has been determined to produce good categorization results on a variety of log file formats for logs in English. If you want to use that tokenizer but change the character or token filters, specify `"tokenizer": "ml_standard"` in your `categorization_analyzer`. Additionally, the `ml_classic` tokenizer is available, which tokenizes in the same way as the non-customizable tokenizer in old versions of the product (before 6.2). `ml_classic` was the default categorization tokenizer in versions 6.2 to 7.13, so if you need categorization identical to the default for jobs created in these versions, specify `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
 
     ::::{note}
     From {{es}} 8.10.0,  a new version number is used to track the configuration and state changes in the {{ml}} plugin. This new version number is decoupled from the product version and will increment independently.
@@ -39,7 +39,7 @@ The algorithm used for categorization was completely changed in version 8.3.0. A
 
 
     `filter`
-    :   (array of strings or objects) One or more [token filters](/reference/data-analysis/text-analysis/token-filter-reference.md). In addition to the built-in token filters, other plugins can provide more token filters. This property is optional. If it is not specified, no token filters are applied prior to categorization.
+    :   (array of strings or objects) One or more [token filters](/reference/text-analysis/token-filter-reference.md). In addition to the built-in token filters, other plugins can provide more token filters. This property is optional. If it is not specified, no token filters are applied prior to categorization.
 
     :::::
 
@@ -90,7 +90,7 @@ The algorithm used for categorization was completely changed in version 8.3.0. A
 ## Basic use [_basic_use]
 
 ::::{warning}
-Re-analyzing *large* result sets will require a lot of time and memory. This aggregation should be used in conjunction with [Async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit). Additionally, you may consider using the aggregation as a child of either the [sampler](/reference/data-analysis/aggregations/search-aggregations-bucket-sampler-aggregation.md) or [diversified sampler](/reference/data-analysis/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md) aggregation. This will typically improve speed and memory use.
+Re-analyzing *large* result sets will require a lot of time and memory. This aggregation should be used in conjunction with [Async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit). Additionally, you may consider using the aggregation as a child of either the [sampler](/reference/aggregations/search-aggregations-bucket-sampler-aggregation.md) or [diversified sampler](/reference/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md) aggregation. This will typically improve speed and memory use.
 ::::
 
 

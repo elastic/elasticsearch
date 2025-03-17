@@ -7,7 +7,7 @@ mapped_pages:
 # UAX URL email tokenizer [analysis-uaxurlemail-tokenizer]
 
 
-The `uax_url_email` tokenizer is like the [`standard` tokenizer](/reference/data-analysis/text-analysis/analysis-standard-tokenizer.md) except that it recognises URLs and email addresses as single tokens.
+The `uax_url_email` tokenizer is like the [`standard` tokenizer](/reference/text-analysis/analysis-standard-tokenizer.md) except that it recognises URLs and email addresses as single tokens.
 
 
 ## Example output [_example_output_18]

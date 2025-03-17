@@ -12,11 +12,11 @@ Keeps or removes tokens of a specific type. For example, you can use this filter
 ::::{admonition} Token types
 :class: note
 
-Token types are set by the [tokenizer](/reference/data-analysis/text-analysis/tokenizer-reference.md) when converting characters to tokens. Token types can vary between tokenizers.
+Token types are set by the [tokenizer](/reference/text-analysis/tokenizer-reference.md) when converting characters to tokens. Token types can vary between tokenizers.
 
-For example, the [`standard`](/reference/data-analysis/text-analysis/analysis-standard-tokenizer.md) tokenizer can produce a variety of token types, including `<ALPHANUM>`, `<HANGUL>`, and `<NUM>`. Simpler analyzers, like the [`lowercase`](/reference/data-analysis/text-analysis/analysis-lowercase-tokenizer.md) tokenizer, only produce the `word` token type.
+For example, the [`standard`](/reference/text-analysis/analysis-standard-tokenizer.md) tokenizer can produce a variety of token types, including `<ALPHANUM>`, `<HANGUL>`, and `<NUM>`. Simpler analyzers, like the [`lowercase`](/reference/text-analysis/analysis-lowercase-tokenizer.md) tokenizer, only produce the `word` token type.
 
-Certain token filters can also add token types. For example, the [`synonym`](/reference/data-analysis/text-analysis/analysis-synonym-tokenfilter.md) filter can add the `<SYNONYM>` token type.
+Certain token filters can also add token types. For example, the [`synonym`](/reference/text-analysis/analysis-synonym-tokenfilter.md) filter can add the `<SYNONYM>` token type.
 
 Some tokenizers don’t support this token filter, for example keyword, simple_pattern, and simple_pattern_split tokenizers, as they don’t support setting the token type attribute.
 

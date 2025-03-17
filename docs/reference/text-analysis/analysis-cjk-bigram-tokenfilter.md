@@ -9,7 +9,7 @@ mapped_pages:
 
 Forms [bigrams](https://en.wikipedia.org/wiki/Bigram) out of CJK (Chinese, Japanese, and Korean) tokens.
 
-This filter is included in {{es}}'s built-in [CJK language analyzer](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md#cjk-analyzer). It uses Lucene’s [CJKBigramFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/cjk/CJKBigramFilter.md).
+This filter is included in {{es}}'s built-in [CJK language analyzer](/reference/text-analysis/analysis-lang-analyzer.md#cjk-analyzer). It uses Lucene’s [CJKBigramFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/cjk/CJKBigramFilter.md).
 
 ## Example [analysis-cjk-bigram-tokenfilter-analyze-ex]
 

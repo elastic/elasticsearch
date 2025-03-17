@@ -42,7 +42,7 @@ $$$bucket-sort-params$$$
 | `sort` | The list of fields to sort on. See [`sort`](/reference/elasticsearch/rest-apis/sort-search-results.md) for more details. | Optional |  |
 | `from` | Buckets in positions prior to the set value will be truncated. | Optional | `0` |
 | `size` | The number of buckets to return. Defaults to all buckets of the parent aggregation. | Optional |  |
-| `gap_policy` | The policy to apply when gaps are found in the data (see [Dealing with gaps in the data](/reference/data-analysis/aggregations/pipeline.md#gap-policy) for more details) | Optional | `skip` |
+| `gap_policy` | The policy to apply when gaps are found in the data (see [Dealing with gaps in the data](/reference/aggregations/pipeline.md#gap-policy) for more details) | Optional | `skip` |
 
 The following snippet returns the buckets corresponding to the 3 months with the highest total sales in descending order:
 

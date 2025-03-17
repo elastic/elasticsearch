@@ -27,10 +27,10 @@ $$$moving-fn-params$$$
 
 | Parameter Name | Description | Required | Default Value |
 | --- | --- | --- | --- |
-| `buckets_path` | Path to the metric of interest (see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for more details | Required |  |
+| `buckets_path` | Path to the metric of interest (see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax) for more details | Required |  |
 | `window` | The size of window to "slide" across the histogram. | Required |  |
 | `script` | The script that should be executed on each window of data | Required |  |
-| `gap_policy` | The policy to apply when gaps are found in the data. See [Dealing with gaps in the data](/reference/data-analysis/aggregations/pipeline.md#gap-policy). | Optional | `skip` |
+| `gap_policy` | The policy to apply when gaps are found in the data. See [Dealing with gaps in the data](/reference/aggregations/pipeline.md#gap-policy). | Optional | `skip` |
 | `shift` | [Shift](#shift-parameter) of window position. | Optional | 0 |
 
 `moving_fn` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation. They can be embedded like any other metric aggregation:
@@ -67,7 +67,7 @@ POST /_search
 3. Finally, we specify a `moving_fn` aggregation which uses "the_sum" metric as its input.
 
 
-Moving averages are built by first specifying a `histogram` or `date_histogram` over a field. You can then optionally add numeric metrics, such as a `sum`, inside of that histogram. Finally, the `moving_fn` is embedded inside the histogram. The `buckets_path` parameter is then used to "point" at one of the sibling metrics inside of the histogram (see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for a description of the syntax for `buckets_path`.
+Moving averages are built by first specifying a `histogram` or `date_histogram` over a field. You can then optionally add numeric metrics, such as a `sum`, inside of that histogram. Finally, the `moving_fn` is embedded inside the histogram. The `buckets_path` parameter is then used to "point" at one of the sibling metrics inside of the histogram (see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax) for a description of the syntax for `buckets_path`.
 
 An example response from the above aggregation may look like:
 

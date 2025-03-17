@@ -7,7 +7,7 @@ mapped_pages:
 # Leverage document-level security from connectors in Search Applications [es-dls-e2e-guide]
 
 
-This guide explains how to ensure document-level security (DLS) for documents ingested by [Elastic connectors](/reference/ingestion-tools/search-connectors/index.md), when building a search application.
+This guide explains how to ensure document-level security (DLS) for documents ingested by [Elastic connectors](/reference/search-connectors/index.md), when building a search application.
 
 In this example we will:
 
@@ -19,18 +19,18 @@ In this example we will:
 
 ## Set up connector to sync data with access control [es-dls-e2e-guide-connector-setup]
 
-You can run SharePoint Online connector in Elastic Cloud (native) or on a self-managed deployment (self-managed connector). Refer to [SharePoint Online connector](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint-online.md) to learn how to set up the SharePoint Online connector and enable DLS.
+You can run SharePoint Online connector in Elastic Cloud (native) or on a self-managed deployment (self-managed connector). Refer to [SharePoint Online connector](/reference/search-connectors/es-connectors-sharepoint-online.md) to learn how to set up the SharePoint Online connector and enable DLS.
 
-To run the self-managed connector, you’ll need to run the **connectors service** in addition to your Elastic deployment. Refer to [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md) for details on how to set up a self-managed connector and run the connectors service.
+To run the self-managed connector, you’ll need to run the **connectors service** in addition to your Elastic deployment. Refer to [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md) for details on how to set up a self-managed connector and run the connectors service.
 
 ::::{tip}
-This guide assumes you already have an Elastic deployment, that satisfies the [prerequisites](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-prerequisites) for running the connectors service. If you don’t have an Elastic deployment, sign up for a [free Elastic Cloud trial](https://cloud.elastic.co/registration).
+This guide assumes you already have an Elastic deployment, that satisfies the [prerequisites](/reference/search-connectors/self-managed-connectors.md#es-build-connector-prerequisites) for running the connectors service. If you don’t have an Elastic deployment, sign up for a [free Elastic Cloud trial](https://cloud.elastic.co/registration).
 
 ::::
 
 
 ::::{note}
-We use the SharePoint Online connector in this concrete example. Refer to [Document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md) for a list of connectors that support DLS.
+We use the SharePoint Online connector in this concrete example. Refer to [Document level security (DLS)](/reference/search-connectors/document-level-security.md) for a list of connectors that support DLS.
 
 ::::
 
@@ -375,7 +375,7 @@ If you’re building a frontend application, use the `encoded` field to pass the
 
 Here’s what this workflow looks like in a sequence diagram:
 
-:::{image} ../../../images/dls-api-key-workflow.png
+:::{image} ../../images/dls-api-key-workflow.png
 :alt: DLS API key and search application client workflow
 :class: screenshot
 :::
@@ -411,7 +411,7 @@ Learn how to use the Search Application client to query your Search Application.
 
 ## Learn more [es-dls-e2e-guide-learn-more]
 
-* [Elastic connectors](/reference/ingestion-tools/search-connectors/index.md)
-* [Document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md)
+* [Elastic connectors](/reference/search-connectors/index.md)
+* [Document level security (DLS)](/reference/search-connectors/document-level-security.md)
 * [Search Applications](docs-content://solutions/search/search-applications.md)
 

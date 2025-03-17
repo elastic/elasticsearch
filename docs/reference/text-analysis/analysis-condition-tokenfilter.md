@@ -13,7 +13,7 @@ This filter uses Lucene’s [ConditionalTokenFilter](https://lucene.apache.org/c
 
 ## Example [analysis-condition-analyze-ex]
 
-The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the `condition` filter to match tokens with fewer than 5 characters in `THE QUICK BROWN FOX`. It then applies the [`lowercase`](/reference/data-analysis/text-analysis/analysis-lowercase-tokenfilter.md) filter to those matching tokens, converting them to lowercase.
+The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the `condition` filter to match tokens with fewer than 5 characters in `THE QUICK BROWN FOX`. It then applies the [`lowercase`](/reference/text-analysis/analysis-lowercase-tokenfilter.md) filter to those matching tokens, converting them to lowercase.
 
 ```console
 GET /_analyze
@@ -58,7 +58,7 @@ For valid parameters, see [*How to write scripts*](docs-content://explore-analyz
 
 To customize the `condition` filter, duplicate it to create the basis for a new custom token filter. You can modify the filter using its configurable parameters.
 
-For example, the following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses a custom `condition` filter to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md). The custom `condition` filter matches the first token in a stream. It then reverses that matching token using the [`reverse`](/reference/data-analysis/text-analysis/analysis-reverse-tokenfilter.md) filter.
+For example, the following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses a custom `condition` filter to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md). The custom `condition` filter matches the first token in a stream. It then reverses that matching token using the [`reverse`](/reference/text-analysis/analysis-reverse-tokenfilter.md) filter.
 
 ```console
 PUT /palindrome_list

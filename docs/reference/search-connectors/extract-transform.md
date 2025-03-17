@@ -11,7 +11,7 @@ Elastic connectors offer a number of tools for extracting, filtering, and transf
 
 The following diagram provides an overview of how content extraction, sync rules, and ingest pipelines can be orchestrated in your connector’s data pipeline.
 
-:::{image} ../../../images/pipelines-extraction-sync-rules.png
+:::{image} ../../images/pipelines-extraction-sync-rules.png
 :alt: Architecture diagram of data pipeline with content extraction
 :class: screenshot
 :::
@@ -29,9 +29,9 @@ Learn more in the following documentation links.
 
 ## Content extraction [es-connectors-filter-extract-transform-content-extraction]
 
-Connectors have a default content extraction service, plus the [self-hosted extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) for advanced use cases.
+Connectors have a default content extraction service, plus the [self-hosted extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) for advanced use cases.
 
-Refer to [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md) for details.
+Refer to [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md) for details.
 
 
 ## Sync rules [es-connectors-filter-extract-transform-sync-rules]
@@ -41,7 +41,7 @@ Use sync rules to help control which documents are synced between the third-part
 * **Basic** sync rules are identical for all connectors.
 * **Advanced sync rules** are data source-specific. They cover complex query-and-filter scenarios, defined in a DSL JSON snippet.
 
-Refer to [Sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md) for details.
+Refer to [Sync rules](/reference/search-connectors/es-sync-rules.md) for details.
 
 
 ## Ingest pipelines [es-connectors-filter-extract-transform-ingest-pipelines]

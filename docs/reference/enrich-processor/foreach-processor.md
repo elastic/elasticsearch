@@ -134,7 +134,7 @@ After processing the result is:
 }
 ```
 
-For another array of objects example, refer to the [attachment processor documentation](/reference/ingestion-tools/enrich-processor/attachment.md#attachment-with-arrays).
+For another array of objects example, refer to the [attachment processor documentation](/reference/enrich-processor/attachment.md#attachment-with-arrays).
 
 
 ### Object [foreach-object-ex]

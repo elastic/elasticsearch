@@ -8,9 +8,9 @@ mapped_pages:
 
 
 ::::{warning}
-We recommend using the [`word_delimiter_graph`](/reference/data-analysis/text-analysis/analysis-word-delimiter-graph-tokenfilter.md) instead of the `word_delimiter` filter.
+We recommend using the [`word_delimiter_graph`](/reference/text-analysis/analysis-word-delimiter-graph-tokenfilter.md) instead of the `word_delimiter` filter.
 
-The `word_delimiter` filter can produce invalid token graphs. See [Differences between `word_delimiter_graph` and `word_delimiter`](/reference/data-analysis/text-analysis/analysis-word-delimiter-graph-tokenfilter.md#analysis-word-delimiter-graph-differences).
+The `word_delimiter` filter can produce invalid token graphs. See [Differences between `word_delimiter_graph` and `word_delimiter`](/reference/text-analysis/analysis-word-delimiter-graph-tokenfilter.md#analysis-word-delimiter-graph-differences).
 
 The `word_delimiter` filter also uses Lucene’s [WordDelimiterFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/WordDelimiterFilter.md), which is marked as deprecated.
 
@@ -26,9 +26,9 @@ Splits tokens at non-alphanumeric characters. The `word_delimiter` filter also p
 * Remove the English possessive (`'s`) from the end of each token. For example: `Neil's` → `Neil`
 
 ::::{tip}
-The `word_delimiter` filter was designed to remove punctuation from complex identifiers, such as product IDs or part numbers. For these use cases, we recommend using the `word_delimiter` filter with the [`keyword`](/reference/data-analysis/text-analysis/analysis-keyword-tokenizer.md) tokenizer.
+The `word_delimiter` filter was designed to remove punctuation from complex identifiers, such as product IDs or part numbers. For these use cases, we recommend using the `word_delimiter` filter with the [`keyword`](/reference/text-analysis/analysis-keyword-tokenizer.md) tokenizer.
 
-Avoid using the `word_delimiter` filter to split hyphenated words, such as `wi-fi`. Because users often search for these words both with and without hyphens, we recommend using the [`synonym_graph`](/reference/data-analysis/text-analysis/analysis-synonym-graph-tokenfilter.md) filter instead.
+Avoid using the `word_delimiter` filter to split hyphenated words, such as `wi-fi`. Because users often search for these words both with and without hyphens, we recommend using the [`synonym_graph`](/reference/text-analysis/analysis-synonym-graph-tokenfilter.md) filter instead.
 
 ::::
 
@@ -74,7 +74,7 @@ PUT /my-index-000001
 ```
 
 ::::{warning}
-Avoid using the `word_delimiter` filter with tokenizers that remove punctuation, such as the [`standard`](/reference/data-analysis/text-analysis/analysis-standard-tokenizer.md) tokenizer. This could prevent the `word_delimiter` filter from splitting tokens correctly. It can also interfere with the filter’s configurable parameters, such as `catenate_all` or `preserve_original`. We recommend using the [`keyword`](/reference/data-analysis/text-analysis/analysis-keyword-tokenizer.md) or [`whitespace`](/reference/data-analysis/text-analysis/analysis-whitespace-tokenizer.md) tokenizer instead.
+Avoid using the `word_delimiter` filter with tokenizers that remove punctuation, such as the [`standard`](/reference/text-analysis/analysis-standard-tokenizer.md) tokenizer. This could prevent the `word_delimiter` filter from splitting tokens correctly. It can also interfere with the filter’s configurable parameters, such as `catenate_all` or `preserve_original`. We recommend using the [`keyword`](/reference/text-analysis/analysis-keyword-tokenizer.md) or [`whitespace`](/reference/text-analysis/analysis-whitespace-tokenizer.md) tokenizer instead.
 
 ::::
 
@@ -86,7 +86,7 @@ Avoid using the `word_delimiter` filter with tokenizers that remove punctuation,
 :   (Optional, Boolean) If `true`, the filter produces catenated tokens for chains of alphanumeric characters separated by non-alphabetic delimiters. For example: `super-duper-xl-500` → [ `super`, **`superduperxl500`**, `duper`, `xl`, `500` ]. Defaults to `false`.
 
 ::::{warning}
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -96,7 +96,7 @@ When used for search analysis, catenated tokens can cause problems for the [`mat
 :   (Optional, Boolean) If `true`, the filter produces catenated tokens for chains of numeric characters separated by non-alphabetic delimiters. For example: `01-02-03` → [ `01`, **`010203`**, `02`, `03` ]. Defaults to `false`.
 
 ::::{warning}
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -106,7 +106,7 @@ When used for search analysis, catenated tokens can cause problems for the [`mat
 :   (Optional, Boolean) If `true`, the filter produces catenated tokens for chains of alphabetical characters separated by non-alphabetic delimiters. For example: `super-duper-xl` → [ `super`, **`superduperxl`**, `duper`, `xl` ]. Defaults to `false`.
 
 ::::{warning}
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 

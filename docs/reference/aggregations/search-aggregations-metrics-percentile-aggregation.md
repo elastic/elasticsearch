@@ -175,7 +175,7 @@ GET latency/_search
 
 ## Percentiles are (usually) approximate [search-aggregations-metrics-percentile-aggregation-approximation]
 
-:::{include} /reference/data-analysis/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
+:::{include} /reference/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
 :::
 
 ::::{warning}

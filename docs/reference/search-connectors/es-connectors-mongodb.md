@@ -7,19 +7,19 @@ mapped_pages:
 # Elastic MongoDB connector reference [es-connectors-mongodb]
 
 
-The *Elastic MongoDB connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [MongoDB](https://www.mongodb.com) data sources. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
+The *Elastic MongoDB connector* is a [connector](/reference/search-connectors/index.md) for [MongoDB](https://www.mongodb.com) data sources. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/mongodb.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector** [es-connectors-mongodb-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-mongodb-client-prerequisites]
 
-This connector is also available as a **self-managed connector** from the **Elastic connector framework**. To use this connector as a self-managed connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is also available as a **self-managed connector** from the **Elastic connector framework**. To use this connector as a self-managed connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Compatibility [es-connectors-mongodb-client-compatibility]
@@ -164,7 +164,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 ### Usage [es-connectors-mongodb-client-usage]
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Known issues [es-connectors-mongodb-client-known-issues]
@@ -254,12 +254,12 @@ See [Known issues](/release-notes/known-issues.md) for any issues affecting all 
 
 ### Troubleshooting [es-connectors-mongodb-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-mongodb-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 
 
 ### Deployment using Docker [es-connectors-mongodb-client-docker]
@@ -336,7 +336,7 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 ### Documents and syncs [es-connectors-mongodb-client-syncs]
 
-The following describes the default syncing behavior for this connector. Use [sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md) and [ingest pipelines](docs-content://solutions/search/ingest-for-search.md) to customize syncing for specific indices.
+The following describes the default syncing behavior for this connector. Use [sync rules](/reference/search-connectors/es-sync-rules.md) and [ingest pipelines](docs-content://solutions/search/ingest-for-search.md) to customize syncing for specific indices.
 
 All documents in the configured MongoDB database and collection are extracted and transformed into documents in your Elasticsearch index.
 
@@ -367,11 +367,11 @@ This is recursive, because embedded documents can themselves contain embedded do
 
 ### Sync rules [es-connectors-mongodb-client-sync-rules]
 
-The following sections describe [Sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md) for this connector.
+The following sections describe [Sync rules](/reference/search-connectors/es-sync-rules.md) for this connector.
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
-[Advanced rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for MongoDB can be used to express either `find` queries or aggregation pipelines. They can also be used to tune options available when issuing these queries/pipelines.
+[Advanced rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-advanced) for MongoDB can be used to express either `find` queries or aggregation pipelines. They can also be used to tune options available when issuing these queries/pipelines.
 
 
 #### `find` queries [es-connectors-mongodb-client-sync-rules-find]

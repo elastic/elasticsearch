@@ -7,24 +7,24 @@ mapped_pages:
 # Elastic Google Drive connector reference [es-connectors-google-drive]
 
 
-The *Elastic Google Drive connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [Google Drive](https://www.google.com/drive). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
+The *Elastic Google Drive connector* is a [connector](/reference/search-connectors/index.md) for [Google Drive](https://www.google.com/drive). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/google_drive.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
-:::: 
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
+::::
 
 ## **Self-managed connector** [es-connectors-google-drive-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-google-drive-client-availability-and-prerequisites]
 
-This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Usage [es-connectors-google-drive-client-usage]
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Connector authentication prerequisites [es-connectors-google-drive-client-connector-authentication-prerequisites]
@@ -101,7 +101,7 @@ The following configuration fields are required:
 :   Required when domain-wide delegation for data sync is enabled. Provide the Google Workspace user email for discovery and syncing of shared drives. Only the shared drives this user has access to will be synced.
 
 `use_document_level_security`
-:   Toggle to enable [document level security (DLS](/reference/ingestion-tools/search-connectors/document-level-security.md). DLS is supported for the Google Drive connector. When enabled:
+:   Toggle to enable [document level security (DLS](/reference/search-connectors/document-level-security.md). DLS is supported for the Google Drive connector. When enabled:
 
     * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
     * Access control syncs will fetch users' access control lists and store them in a separate index.
@@ -114,7 +114,7 @@ The following configuration fields are required:
 :   The maximum number of concurrent HTTP requests to the Google Drive API. Increasing this value can improve data retrieval speed, but it may also place higher demands on system resources and network bandwidth.
 
 `use_text_extraction_service`
-:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that pipeline settings disable text extraction. Default value is `False`.
+:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that pipeline settings disable text extraction. Default value is `False`.
 
 
 ### Deployment using Docker [es-connectors-google-drive-client-deployment-using-docker]
@@ -205,14 +205,14 @@ It will attempt to extract the content from Google Suite documents (Google Docs,
 
 #### Sync types [es-connectors-google-drive-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Sync rules [es-connectors-google-drive-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version. Currently filtering is controlled via ingest pipelines.
 
@@ -222,7 +222,7 @@ Advanced sync rules are not available for this connector in the present version.
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions. Refer to [configuration](#es-connectors-google-drive-client-configuration) on this page for how to enable DLS for this connector.
 
 ::::{note}
-Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.
+Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 
 ::::
 
@@ -230,12 +230,12 @@ Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connecto
 
 ### Content extraction [es-connectors-google-drive-client-content-extraction]
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md) for more information.
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md) for more information.
 
 
 ### End-to-end testing [es-connectors-google-drive-client-end-to-end-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the Google Drive connector, run the following command:
 
@@ -257,10 +257,10 @@ There are currently no known issues for this connector.
 
 ### Troubleshooting [es-connectors-google-drive-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-google-drive-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 

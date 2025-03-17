@@ -37,7 +37,7 @@ This filter uses Lucene’s [MinHashFilter](https://lucene.apache.org/core/10_0_
 
 ## Tips for configuring the `min_hash` filter [analysis-minhash-tokenfilter-configuration-tips]
 
-* `min_hash` filter input tokens should typically be k-words shingles produced from [shingle token filter](/reference/data-analysis/text-analysis/analysis-shingle-tokenfilter.md). You should choose `k` large enough so that the probability of any given shingle occurring in a document is low. At the same time, as internally each shingle is hashed into to 128-bit hash, you should choose `k` small enough so that all possible different k-words shingles can be hashed to 128-bit hash with minimal collision.
+* `min_hash` filter input tokens should typically be k-words shingles produced from [shingle token filter](/reference/text-analysis/analysis-shingle-tokenfilter.md). You should choose `k` large enough so that the probability of any given shingle occurring in a document is low. At the same time, as internally each shingle is hashed into to 128-bit hash, you should choose `k` small enough so that all possible different k-words shingles can be hashed to 128-bit hash with minimal collision.
 * We recommend you test different arguments for the `hash_count`, `bucket_count` and `hash_set_size` parameters:
 
     * To improve precision, increase the `bucket_count` or `hash_set_size` arguments. Higher `bucket_count` and `hash_set_size` values increase the likelihood that different tokens are indexed to different buckets.
@@ -64,7 +64,7 @@ To customize the `min_hash` filter, duplicate it to create the basis for a new c
 
 For example, the following [create index API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-create) request uses the following custom token filters to configure a new [custom analyzer](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md):
 
-* `my_shingle_filter`, a custom [`shingle` filter](/reference/data-analysis/text-analysis/analysis-shingle-tokenfilter.md). `my_shingle_filter` only outputs five-word shingles.
+* `my_shingle_filter`, a custom [`shingle` filter](/reference/text-analysis/analysis-shingle-tokenfilter.md). `my_shingle_filter` only outputs five-word shingles.
 * `my_minhash_filter`, a custom `min_hash` filter. `my_minhash_filter` hashes each five-word shingle once. It then assigns the hashes into 512 buckets, keeping only the smallest hash from each bucket.
 
 The request also assigns the custom analyzer to the `fingerprint` field mapping.

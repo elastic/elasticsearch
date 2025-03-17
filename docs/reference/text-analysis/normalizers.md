@@ -12,7 +12,7 @@ Elasticsearch ships with a `lowercase` built-in normalizer. For other forms of n
 
 ## Custom normalizers [_custom_normalizers]
 
-Custom normalizers take a list of [character filters](/reference/data-analysis/text-analysis/character-filter-reference.md) and a list of [token filters](/reference/data-analysis/text-analysis/token-filter-reference.md).
+Custom normalizers take a list of [character filters](/reference/text-analysis/character-filter-reference.md) and a list of [token filters](/reference/text-analysis/token-filter-reference.md).
 
 ```console
 PUT index

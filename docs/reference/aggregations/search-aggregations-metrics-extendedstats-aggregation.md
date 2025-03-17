@@ -9,7 +9,7 @@ mapped_pages:
 
 A `multi-value` metrics aggregation that computes stats over numeric values extracted from the aggregated documents.
 
-The `extended_stats` aggregations is an extended version of the [`stats`](/reference/data-analysis/aggregations/search-aggregations-metrics-stats-aggregation.md) aggregation, where additional metrics are added such as `sum_of_squares`, `variance`, `std_deviation` and `std_deviation_bounds`.
+The `extended_stats` aggregations is an extended version of the [`stats`](/reference/aggregations/search-aggregations-metrics-stats-aggregation.md) aggregation, where additional metrics are added such as `sum_of_squares`, `variance`, `std_deviation` and `std_deviation_bounds`.
 
 Assuming the data consists of documents representing exams grades (between 0 and 100) of students
 

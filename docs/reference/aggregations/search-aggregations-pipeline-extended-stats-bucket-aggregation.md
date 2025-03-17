@@ -27,8 +27,8 @@ $$$extended-stats-bucket-params$$$
 
 | Parameter Name | Description | Required | Default Value |
 | --- | --- | --- | --- |
-| `buckets_path` | The path to the buckets we wish to calculate stats for (see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
-| `gap_policy` | The policy to apply when gaps are found in the data (see [Dealing with gaps in the data](/reference/data-analysis/aggregations/pipeline.md#gap-policy) for more details) | Optional | `skip` |
+| `buckets_path` | The path to the buckets we wish to calculate stats for (see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
+| `gap_policy` | The policy to apply when gaps are found in the data (see [Dealing with gaps in the data](/reference/aggregations/pipeline.md#gap-policy) for more details) | Optional | `skip` |
 | `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.html) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
 | `sigma` | The number of standard deviations above/below the mean to display | Optional | 2 |
 

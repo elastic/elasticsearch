@@ -7,7 +7,7 @@ mapped_pages:
 # Rare terms aggregation [search-aggregations-bucket-rare-terms-aggregation]
 
 
-A multi-bucket value source based aggregation which finds "rare" terms — terms that are at the long-tail of the distribution and are not frequent. Conceptually, this is like a `terms` aggregation that is sorted by `_count` ascending. As noted in the [terms aggregation docs](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order), actually ordering a `terms` agg by count ascending has unbounded error. Instead, you should use the `rare_terms` aggregation
+A multi-bucket value source based aggregation which finds "rare" terms — terms that are at the long-tail of the distribution and are not frequent. Conceptually, this is like a `terms` aggregation that is sorted by `_count` ascending. As noted in the [terms aggregation docs](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order), actually ordering a `terms` agg by count ascending has unbounded error. Instead, you should use the `rare_terms` aggregation
 
 ## Syntax [_syntax_3]
 
@@ -152,21 +152,21 @@ The X-axis shows the number of distinct values the aggregation has seen, and the
 
 This first chart shows precision `0.01`:
 
-![accuracy 01](../../../images/accuracy_01.png "")
+![accuracy 01](../../images/accuracy_01.png "")
 
 And precision `0.001` (the default):
 
-![accuracy 001](../../../images/accuracy_001.png "")
+![accuracy 001](../../images/accuracy_001.png "")
 
 And finally `precision 0.0001`:
 
-![accuracy 0001](../../../images/accuracy_0001.png "")
+![accuracy 0001](../../images/accuracy_0001.png "")
 
 The default precision of `0.001` maintains an accuracy of < 2.5% for the tested conditions, and accuracy slowly degrades in a controlled, linear fashion as the number of distinct values increases.
 
 The default precision of `0.001` has a memory profile of `1.748⁻⁶ * n` bytes, where `n` is the number of distinct values the aggregation has seen (it can also be roughly eyeballed, e.g. 20 million unique values is about 30mb of memory). The memory usage is linear to the number of distinct values regardless of which precision is chosen, the precision only affects the slope of the memory profile as seen in this chart:
 
-![memory](../../../images/memory.png "")
+![memory](../../images/memory.png "")
 
 For comparison, an equivalent terms aggregation at 20 million buckets would be roughly `20m * 69b == ~1.38gb` (with 69 bytes being a very optimistic estimate of an empty bucket cost, far lower than what the circuit breaker accounts for). So although the `rare_terms` agg is relatively heavy, it is still orders of magnitude smaller than the equivalent terms aggregation
 
@@ -196,7 +196,7 @@ GET /_search
 
 In the above example, buckets will be created for all the tags that starts with `swi`, except those starting with `electro` (so the tag `swing` will be aggregated but not `electro_swing`). The `include` regular expression will determine what values are "allowed" to be aggregated, while the `exclude` determines the values that should not be aggregated. When both are defined, the `exclude` has precedence, meaning, the `include` is evaluated first and only then the `exclude`.
 
-The syntax is the same as [regexp queries](/reference/query-languages/regexp-syntax.md).
+The syntax is the same as [regexp queries](/reference/query-languages/query-dsl/regexp-syntax.md).
 
 
 ### Filtering Values with exact values [_filtering_values_with_exact_values]

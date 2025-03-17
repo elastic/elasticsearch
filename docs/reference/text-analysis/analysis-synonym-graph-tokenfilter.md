@@ -14,7 +14,7 @@ In order to properly handle multi-word synonyms this token filter creates a [gra
 ::::{note}
 :name: synonym-graph-index-note
 
-This token filter is designed to be used as part of a search analyzer only. If you want to apply synonyms during indexing please use the standard [synonym token filter](/reference/data-analysis/text-analysis/analysis-synonym-tokenfilter.md).
+This token filter is designed to be used as part of a search analyzer only. If you want to apply synonyms during indexing please use the standard [synonym token filter](/reference/text-analysis/analysis-synonym-tokenfilter.md).
 
 ::::
 
@@ -178,12 +178,12 @@ Order is important for your token filters. Text will be processed first through 
 
 Because entries in the synonym map cannot have stacked positions, some token filters may cause issues here. Token filters that produce multiple versions of a token may choose which version of the token to emit when parsing synonyms. For example, `asciifolding` will only produce the folded version of the token. Others, like `multiplexer`, `word_delimiter_graph` or `ngram` will throw an error.
 
-If you need to build analyzers that include both multi-token filters and synonym filters, consider using the [multiplexer](/reference/data-analysis/text-analysis/analysis-multiplexer-tokenfilter.md) filter, with the multi-token filters in one branch and the synonym filter in the other.
+If you need to build analyzers that include both multi-token filters and synonym filters, consider using the [multiplexer](/reference/text-analysis/analysis-multiplexer-tokenfilter.md) filter, with the multi-token filters in one branch and the synonym filter in the other.
 
 
 ### Synonyms and `stop` token filters [synonym-graph-tokenizer-stop-token-filter]
 
-Synonyms and [stop token filters](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) interact with each other in the following ways:
+Synonyms and [stop token filters](/reference/text-analysis/analysis-stop-tokenfilter.md) interact with each other in the following ways:
 
 
 #### Stop token filter **before** synonym token filter [_stop_token_filter_before_synonym_token_filter_2]

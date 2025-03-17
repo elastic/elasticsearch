@@ -7,13 +7,13 @@ mapped_pages:
 # Elastic Outlook connector reference [es-connectors-outlook]
 
 
-The Elastic Outlook connector is built with the Elastic connector framework and is available as a self-managed [self-managed connector](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+The Elastic Outlook connector is built with the Elastic connector framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md).
 
 ## **Self-managed connector reference** [es-connectors-outlook-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-outlook-client-availability-and-prerequisites]
 
-This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector prerequisites](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector prerequisites](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a Outlook connector [es-connectors-outlook-create-connector-client]
@@ -93,7 +93,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 To use this connector as a **self-managed connector**, use the **Outlook** tile from the connectors list OR **Customized connector** workflow.
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Connecting to Outlook [es-connectors-outlook-client-connecting-to-outlook]
@@ -170,10 +170,10 @@ You can now use the Client ID, Tenant ID, and Client Secret you’ve noted to co
 
 
 `use_text_extraction_service`
-:   Use [self-hosted content extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-data-extraction-service). Default value is `False`.
+:   Use [self-hosted content extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-data-extraction-service). Default value is `False`.
 
 `document_level_security`
-:   Toggle to enable [Document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md). When enabled:
+:   Toggle to enable [Document level security (DLS)](/reference/search-connectors/document-level-security.md). When enabled:
 
     * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
     * Access control syncs fetch users' access control lists and store them in a separate index.
@@ -256,7 +256,7 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 ### Content Extraction [es-connectors-outlook-client-content-extraction]
 
-Refer to [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+Refer to [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### Documents and syncs [es-connectors-outlook-client-documents-and-syncs]
@@ -281,7 +281,7 @@ The connector syncs the following objects and entities:
 
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Content from files bigger than 10 MB won’t be extracted by default. You can use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
 * Permissions are not synced. **All documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::
@@ -290,9 +290,9 @@ The connector syncs the following objects and entities:
 
 #### Sync types [es-connectors-outlook-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Document level security [es-connectors-outlook-client-document-level-security]
@@ -300,7 +300,7 @@ This connector also supports [incremental syncs](/reference/ingestion-tools/sear
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions. Refer to [configuration](#es-connectors-outlook-client-configuration) on this page for how to enable DLS for this connector.
 
 ::::{note}
-Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.
+Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 
 ::::
 
@@ -308,7 +308,7 @@ Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connecto
 
 ### Sync rules [es-connectors-outlook-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 
 ### Advanced Sync Rules [es-connectors-outlook-client-advanced-sync-rules]
@@ -331,12 +331,12 @@ There are currently no known issues for this connector. Refer to [Known issues](
 
 ### Troubleshooting [es-connectors-outlook-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-outlook-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 
 
 ### Framework and source [es-connectors-outlook-client-source]

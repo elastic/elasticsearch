@@ -13,12 +13,12 @@ A set of analyzers aimed at analyzing specific language text. The following type
 
 ### Stopwords [_stopwords]
 
-All analyzers support setting custom `stopwords` either internally in the config, or by using an external stopwords file by setting `stopwords_path`. Check [Stop Analyzer](/reference/data-analysis/text-analysis/analysis-stop-analyzer.md) for more details.
+All analyzers support setting custom `stopwords` either internally in the config, or by using an external stopwords file by setting `stopwords_path`. Check [Stop Analyzer](/reference/text-analysis/analysis-stop-analyzer.md) for more details.
 
 
 ### Excluding words from stemming [_excluding_words_from_stemming]
 
-The `stem_exclusion` parameter allows you to specify an array of lowercase words that should not be stemmed. Internally, this functionality is implemented by adding the [`keyword_marker` token filter](/reference/data-analysis/text-analysis/analysis-keyword-marker-tokenfilter.md) with the `keywords` set to the value of the `stem_exclusion` parameter.
+The `stem_exclusion` parameter allows you to specify an array of lowercase words that should not be stemmed. Internally, this functionality is implemented by adding the [`keyword_marker` token filter](/reference/text-analysis/analysis-keyword-marker-tokenfilter.md) with the `keywords` set to the value of the `stem_exclusion` parameter.
 
 The following analyzers support setting custom `stem_exclusion` list: `arabic`, `armenian`, `basque`, `bengali`, `bulgarian`, `catalan`, `czech`, `dutch`, `english`, `finnish`, `french`, `galician`, `german`, `hindi`, `hungarian`, `indonesian`, `irish`, `italian`, `latvian`, `lithuanian`, `norwegian`, `portuguese`, `romanian`, `russian`, `serbian`, `sorani`, `spanish`, `swedish`, `turkish`.
 

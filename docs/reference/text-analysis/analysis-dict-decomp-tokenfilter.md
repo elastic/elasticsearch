@@ -8,7 +8,7 @@ mapped_pages:
 
 
 ::::{note}
-In most cases, we recommend using the faster [`hyphenation_decompounder`](/reference/data-analysis/text-analysis/analysis-hyp-decomp-tokenfilter.md) token filter in place of this filter. However, you can use the `dictionary_decompounder` filter to check the quality of a word list before implementing it in the `hyphenation_decompounder` filter.
+In most cases, we recommend using the faster [`hyphenation_decompounder`](/reference/text-analysis/analysis-hyp-decomp-tokenfilter.md) token filter in place of this filter. However, you can use the `dictionary_decompounder` filter to check the quality of a word list before implementing it in the `hyphenation_decompounder` filter.
 
 ::::
 

@@ -7,7 +7,7 @@ mapped_pages:
 # Auto-interval date histogram aggregation [search-aggregations-bucket-autodatehistogram-aggregation]
 
 
-A multi-bucket aggregation similar to the [Date histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-datehistogram-aggregation.md) except instead of providing an interval to use as the width of each bucket, a target number of buckets is provided indicating the number of buckets needed and the interval of the buckets is automatically chosen to best achieve that target. The number of buckets returned will always be less than or equal to this target number.
+A multi-bucket aggregation similar to the [Date histogram](/reference/aggregations/search-aggregations-bucket-datehistogram-aggregation.md) except instead of providing an interval to use as the width of each bucket, a target number of buckets is provided indicating the number of buckets needed and the interval of the buckets is automatically chosen to best achieve that target. The number of buckets returned will always be less than or equal to this target number.
 
 The buckets field is optional, and will default to 10 buckets if not specified.
 
@@ -55,7 +55,7 @@ POST /sales/_search?size=0
 }
 ```
 
-1. Supports expressive date [format pattern](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
+1. Supports expressive date [format pattern](/reference/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
 
 
 Response:

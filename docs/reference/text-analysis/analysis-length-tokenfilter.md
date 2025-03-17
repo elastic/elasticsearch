@@ -12,7 +12,7 @@ Removes tokens shorter or longer than specified character lengths. For example, 
 This filter uses Lucene’s [LengthFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/LengthFilter.md).
 
 ::::{tip}
-The `length` filter removes entire tokens. If you’d prefer to shorten tokens to a specific length, use the [`truncate`](/reference/data-analysis/text-analysis/analysis-truncate-tokenfilter.md) filter.
+The `length` filter removes entire tokens. If you’d prefer to shorten tokens to a specific length, use the [`truncate`](/reference/text-analysis/analysis-truncate-tokenfilter.md) filter.
 
 ::::
 

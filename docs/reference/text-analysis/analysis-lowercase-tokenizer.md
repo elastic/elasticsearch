@@ -7,7 +7,7 @@ mapped_pages:
 # Lowercase tokenizer [analysis-lowercase-tokenizer]
 
 
-The `lowercase` tokenizer, like the [`letter` tokenizer](/reference/data-analysis/text-analysis/analysis-letter-tokenizer.md) breaks text into terms whenever it encounters a character which is not a letter, but it also lowercases all terms. It is functionally equivalent to the [`letter` tokenizer](/reference/data-analysis/text-analysis/analysis-letter-tokenizer.md) combined with the [`lowercase` token filter](/reference/data-analysis/text-analysis/analysis-lowercase-tokenfilter.md), but is more efficient as it performs both steps in a single pass.
+The `lowercase` tokenizer, like the [`letter` tokenizer](/reference/text-analysis/analysis-letter-tokenizer.md) breaks text into terms whenever it encounters a character which is not a letter, but it also lowercases all terms. It is functionally equivalent to the [`letter` tokenizer](/reference/text-analysis/analysis-letter-tokenizer.md) combined with the [`lowercase` token filter](/reference/text-analysis/analysis-lowercase-tokenfilter.md), but is more efficient as it performs both steps in a single pass.
 
 
 ## Example output [_example_output_12]

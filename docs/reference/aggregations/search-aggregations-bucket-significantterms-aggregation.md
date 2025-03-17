@@ -524,13 +524,13 @@ Use of background filters will slow the query as each term’s postings must be 
 
 ### Filtering Values [_filtering_values_2]
 
-It is possible (although rarely required) to filter the values for which buckets will be created. This can be done using the `include` and `exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features described in the [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md) documentation.
+It is possible (although rarely required) to filter the values for which buckets will be created. This can be done using the `include` and `exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features described in the [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md) documentation.
 
 
 
 ## Collect mode [_collect_mode]
 
-To avoid memory issues, the `significant_terms` aggregation always computes child aggregations in `breadth_first` mode. A description of the different collection modes can be found in the [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-collect) documentation.
+To avoid memory issues, the `significant_terms` aggregation always computes child aggregations in `breadth_first` mode. A description of the different collection modes can be found in the [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-collect) documentation.
 
 
 ## Execution hint [_execution_hint_2]

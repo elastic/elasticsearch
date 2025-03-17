@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -50,7 +51,7 @@ public class ExplainResponseTests extends AbstractXContentSerializingTestCase<Ex
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), explanationParser, ExplainResponse.EXPLANATION);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> GetResult.fromXContentEmbedded(p),
+            (p, c) -> GetResultTests.parseInstanceFromEmbedded(p),
             ExplainResponse.GET
         );
     }

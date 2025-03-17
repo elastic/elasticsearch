@@ -7,7 +7,7 @@ mapped_pages:
 # Date histogram aggregation [search-aggregations-bucket-datehistogram-aggregation]
 
 
-This multi-bucket aggregation is similar to the normal [histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md), but it can only be used with date or date range values. Because dates are represented internally in Elasticsearch as long values, it is possible, but not as accurate, to use the normal `histogram` on dates as well. The main difference in the two APIs is that here the interval can be specified using date/time expressions. Time-based data requires special support because time-based intervals are not always a fixed length.
+This multi-bucket aggregation is similar to the normal [histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md), but it can only be used with date or date range values. Because dates are represented internally in Elasticsearch as long values, it is possible, but not as accurate, to use the normal `histogram` on dates as well. The main difference in the two APIs is that here the interval can be specified using date/time expressions. Time-based data requires special support because time-based intervals are not always a fixed length.
 
 Like the histogram, values are rounded **down** into the closest bucket. For example, if the interval is a calendar day, `2020-01-03T07:00:01Z` is rounded to `2020-01-03T00:00:00Z`. Values are rounded as follows:
 
@@ -236,7 +236,7 @@ POST /sales/_search?size=0
 }
 ```
 
-1. Supports expressive date [format pattern](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
+1. Supports expressive date [format pattern](/reference/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
 
 
 Response:
@@ -600,7 +600,7 @@ POST /sales/_search?size=0
 
 ## Parameters [date-histogram-params]
 
-You can control the order of the returned buckets using the `order` settings and filter the returned buckets based on a `min_doc_count` setting (by default all buckets between the first bucket that matches documents and the last one are returned). This histogram also supports the `extended_bounds` setting, which enables extending the bounds of the histogram beyond the data itself, and `hard_bounds` that limits the histogram to specified bounds. For more information, see [`Extended Bounds`](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md#search-aggregations-bucket-histogram-aggregation-extended-bounds) and [`Hard Bounds`](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md#search-aggregations-bucket-histogram-aggregation-hard-bounds).
+You can control the order of the returned buckets using the `order` settings and filter the returned buckets based on a `min_doc_count` setting (by default all buckets between the first bucket that matches documents and the last one are returned). This histogram also supports the `extended_bounds` setting, which enables extending the bounds of the histogram beyond the data itself, and `hard_bounds` that limits the histogram to specified bounds. For more information, see [`Extended Bounds`](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md#search-aggregations-bucket-histogram-aggregation-extended-bounds) and [`Hard Bounds`](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md#search-aggregations-bucket-histogram-aggregation-hard-bounds).
 
 ### Missing value [date-histogram-missing-value]
 
@@ -629,7 +629,7 @@ POST /sales/_search?size=0
 
 ### Order [date-histogram-order]
 
-By default the returned buckets are sorted by their `key` ascending, but you can control the order using the `order` setting. This setting supports the same `order` functionality as [`Terms Aggregation`](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order).
+By default the returned buckets are sorted by their `key` ascending, but you can control the order using the `order` setting. This setting supports the same `order` functionality as [`Terms Aggregation`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-order).
 
 
 ### Using a script to aggregate by day of the week [date-histogram-aggregate-scripts]

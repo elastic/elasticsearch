@@ -9,7 +9,7 @@ mapped_pages:
 
 Marks specified tokens as keywords, which are not stemmed.
 
-The `keyword_marker` filter assigns specified tokens a `keyword` attribute of `true`. Stemmer token filters, such as [`stemmer`](/reference/data-analysis/text-analysis/analysis-stemmer-tokenfilter.md) or [`porter_stem`](/reference/data-analysis/text-analysis/analysis-porterstem-tokenfilter.md), skip tokens with a `keyword` attribute of `true`.
+The `keyword_marker` filter assigns specified tokens a `keyword` attribute of `true`. Stemmer token filters, such as [`stemmer`](/reference/text-analysis/analysis-stemmer-tokenfilter.md) or [`porter_stem`](/reference/text-analysis/analysis-porterstem-tokenfilter.md), skip tokens with a `keyword` attribute of `true`.
 
 ::::{important}
 To work properly, the `keyword_marker` filter must be listed before any stemmer token filters in the [analyzer configuration](docs-content://manage-data/data-store/text-analysis/create-custom-analyzer.md).
@@ -23,7 +23,7 @@ The `keyword_marker` filter uses Lucene’s [KeywordMarkerFilter](https://lucene
 
 To see how the `keyword_marker` filter works, you first need to produce a token stream containing stemmed tokens.
 
-The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the [`stemmer`](/reference/data-analysis/text-analysis/analysis-stemmer-tokenfilter.md) filter to create stemmed tokens for `fox running and jumping`.
+The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the [`stemmer`](/reference/text-analysis/analysis-stemmer-tokenfilter.md) filter to create stemmed tokens for `fox running and jumping`.
 
 ```console
 GET /_analyze

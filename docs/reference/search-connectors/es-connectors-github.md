@@ -7,12 +7,12 @@ mapped_pages:
 # Elastic GitHub connector reference [es-connectors-github]
 
 
-The *Elastic GitHub connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [GitHub](https://www.github.com). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
+The *Elastic GitHub connector* is a [connector](/reference/search-connectors/index.md) for [GitHub](https://www.github.com). This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/github.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 
@@ -24,7 +24,7 @@ This connector is available as a self-managed connector.
 
 This self-managed connector is compatible with Elastic versions **8.10.0+**.
 
-To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a GitHub connector [es-connectors-github-create-connector-client]
@@ -102,7 +102,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 ### Usage [es-connectors-github-client-usage]
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md) For additional usage operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 #### GitHub personal access token [es-connectors-github-client-personal-access-token]
@@ -220,13 +220,13 @@ This field can be bypassed by advanced sync rules.
 
 
 `use_document_level_security`
-:   Toggle to enable [document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md). When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. DLS is only available when `Repository Type` is set to `Organization`.
+:   Toggle to enable [document level security (DLS)](/reference/search-connectors/document-level-security.md). When enabled, full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field. DLS is only available when `Repository Type` is set to `Organization`.
 
 `retry_count`
 :   The number of retry attempts after failed request to GitHub. Default value is `3`.
 
 `use_text_extraction_service`
-:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that pipeline settings disable text extraction. Default value is `False`.
+:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that pipeline settings disable text extraction. Default value is `False`.
 
 
 ### Deployment using Docker [es-connectors-github-client-docker]
@@ -326,20 +326,20 @@ Only the following file extensions are ingested:
 
 #### Sync types [es-connectors-github-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Sync rules [es-connectors-github-client-sync-rules]
 
-*Basic* sync rules are identical for all connectors and are available by default. For more information read [Types of sync rule](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-types).
+*Basic* sync rules are identical for all connectors and are available by default. For more information read [Types of sync rule](/reference/search-connectors/es-sync-rules.md#es-sync-rules-types).
 
 
 #### Advanced sync rules [es-connectors-github-client-sync-rules-advanced]
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
@@ -441,7 +441,7 @@ If `GitHub App` is selected as the authentication method, the  "OWNER/" portion 
 
 ### Content Extraction [es-connectors-github-client-content-extraction]
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### Self-managed connector operations [es-connectors-github-client-connector-client-operations]
@@ -449,7 +449,7 @@ See [Content extraction](/reference/ingestion-tools/search-connectors/es-connect
 
 ### End-to-end testing [es-connectors-github-client-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the GitHub connector, run the following command:
 
@@ -471,9 +471,9 @@ There are currently no known issues for this connector. Refer to [Known issues](
 
 ### Troubleshooting [es-connectors-github-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-github-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).

@@ -10,7 +10,7 @@ mapped_pages:
 
 ### Availability and prerequisites [es-connectors-oracle-client-availability-prerequisites]
 
-This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.6.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. This self-managed connector is compatible with Elastic versions **8.6.0+**. To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a Oracle connector [es-connectors-oracle-create-connector-client]
@@ -88,7 +88,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 ### Usage [es-connectors-oracle-client-usage]
 
-To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+To use this connector as a **self-managed connector**, see [*Self-managed connectors*](/reference/search-connectors/self-managed-connectors.md).
 
 The database user requires `CONNECT` and `DBA` privileges and must be the owner of the tables to be indexed.
 
@@ -126,7 +126,7 @@ Follow these steps:
 
 For more information, refer to this [Amazon RDS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html) about Oracle SSL. Oracle docs: [https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070](https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070).
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Compatibility [es-connectors-oracle-client-compatability]
@@ -273,7 +273,7 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 ### Sync rules [es-connectors-oracle-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 Advanced sync rules are not available for this connector in the present version. Currently, filtering is controlled by ingest pipelines.
 
@@ -283,7 +283,7 @@ Advanced sync rules are not available for this connector in the present version.
 
 #### End-to-end testing [es-connectors-oracle-client-operations-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To execute a functional test for the Oracle connector, run the following command:
 
@@ -307,12 +307,12 @@ See [Known issues](/release-notes/known-issues.md) for any issues affecting all 
 
 ### Troubleshooting [es-connectors-oracle-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-oracle-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 
 
 ### Framework and source [es-connectors-oracle-client-source]

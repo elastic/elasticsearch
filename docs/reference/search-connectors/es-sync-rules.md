@@ -13,7 +13,7 @@ Use connector sync rules to help control which documents are synced between the 
 
 In Elastic versions **8.8.0 and later** all connectors have support for *basic* sync rules.
 
-Some connectors support *advanced* sync rules. Learn more in the [individual connector’s reference documentation](/reference/ingestion-tools/search-connectors/index.md).
+Some connectors support *advanced* sync rules. Learn more in the [individual connector’s reference documentation](/reference/search-connectors/index.md).
 
 
 ## Types of sync rule [es-sync-rules-types]
@@ -23,7 +23,7 @@ There are two types of sync rule:
 * **Basic sync rules** - these rules are represented in a table-like view. Basic sync rules are identical for all connectors.
 * **Advanced sync rules** - these rules cover complex query-and-filter scenarios that cannot be expressed with basic sync rules. Advanced sync rules are defined through a *source-specific* DSL JSON snippet.
 
-:::{image} ../../../images/filtering-rules-zero-state.png
+:::{image} ../../images/filtering-rules-zero-state.png
 :alt: Sync rules tab
 :class: screenshot
 :::
@@ -33,7 +33,7 @@ There are two types of sync rule:
 
 Before discussing sync rules, it’s important to establish a basic understanding of *data filtering* concepts. The following diagram shows that data filtering can occur in several different processes/locations.
 
-:::{image} ../../../images/filtering-general-diagram.png
+:::{image} ../../images/filtering-general-diagram.png
 :alt: Filtering
 :class: screenshot
 :::
@@ -129,7 +129,7 @@ For example, if a value of `[A-Z]{{2}}` might make sense for a `regex` rule, but
 
 Exclude all documents that have an `ID` field with the value greater than 1000.
 
-:::{image} ../../../images/simple-rule-greater.png
+:::{image} ../../images/simple-rule-greater.png
 :alt: Simple greater than rule
 :class: screenshot
 :::
@@ -139,7 +139,7 @@ Exclude all documents that have an `ID` field with the value greater than 1000.
 
 Exclude all documents that have a `state` field that matches a specified regex.
 
-:::{image} ../../../images/simple-rule-regex.png
+:::{image} ../../images/simple-rule-regex.png
 :alt: Simple regex rule
 :class: screenshot
 :::
@@ -158,14 +158,14 @@ The following diagrams illustrate the concept of pagination. A huge data set may
 
 This diagram illustrates an entire dataset being extracted at once:
 
-:::{image} ../../../images/sync-rules-extract-all-at-once.png
+:::{image} ../../images/sync-rules-extract-all-at-once.png
 :alt: Extract whole dataset at once
 :class: screenshot
 :::
 
 By comparison, this diagram illustrates a paginated dataset:
 
-:::{image} ../../../images/sync-rules-pagination.png
+:::{image} ../../images/sync-rules-pagination.png
 :alt: Pagination
 :class: screenshot
 :::
@@ -183,22 +183,22 @@ Advanced sync rules are only used in remote filtering. You can think of advanced
 
 The following connectors support advanced sync rules:
 
-* [Confluence Online & Server](/reference/ingestion-tools/search-connectors/es-connectors-confluence.md)
-* [Dropbox](/reference/ingestion-tools/search-connectors/es-connectors-dropbox.md)
-* [Gmail](/reference/ingestion-tools/search-connectors/es-connectors-gmail.md)
-* [GitHub](/reference/ingestion-tools/search-connectors/es-connectors-github.md)
-* [Jira Online & Server](/reference/ingestion-tools/search-connectors/es-connectors-jira.md)
-* [MongoDB](/reference/ingestion-tools/search-connectors/es-connectors-mongodb.md)
-* [MS SQL Server](/reference/ingestion-tools/search-connectors/es-connectors-ms-sql.md)
-* [MySQL](/reference/ingestion-tools/search-connectors/es-connectors-mysql.md)
-* [Network Drive](/reference/ingestion-tools/search-connectors/es-connectors-network-drive.md)
-* [PostgreSQL](/reference/ingestion-tools/search-connectors/es-connectors-postgresql.md)
-* [S3](/reference/ingestion-tools/search-connectors/es-connectors-s3.md)
-* [Salesforce](/reference/ingestion-tools/search-connectors/es-connectors-salesforce.md)
-* [ServiceNow](/reference/ingestion-tools/search-connectors/es-connectors-servicenow.md)
-* [SharePoint Online](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint-online.md)
+* [Confluence Online & Server](/reference/search-connectors/es-connectors-confluence.md)
+* [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)
+* [Gmail](/reference/search-connectors/es-connectors-gmail.md)
+* [GitHub](/reference/search-connectors/es-connectors-github.md)
+* [Jira Online & Server](/reference/search-connectors/es-connectors-jira.md)
+* [MongoDB](/reference/search-connectors/es-connectors-mongodb.md)
+* [MS SQL Server](/reference/search-connectors/es-connectors-ms-sql.md)
+* [MySQL](/reference/search-connectors/es-connectors-mysql.md)
+* [Network Drive](/reference/search-connectors/es-connectors-network-drive.md)
+* [PostgreSQL](/reference/search-connectors/es-connectors-postgresql.md)
+* [S3](/reference/search-connectors/es-connectors-s3.md)
+* [Salesforce](/reference/search-connectors/es-connectors-salesforce.md)
+* [ServiceNow](/reference/search-connectors/es-connectors-servicenow.md)
+* [SharePoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)
 
-Each connector supporting advanced sync rules provides its own DSL to specify rules. Refer to the documentation for [each connector](/reference/ingestion-tools/search-connectors/index.md) for details.
+Each connector supporting advanced sync rules provides its own DSL to specify rules. Refer to the documentation for [each connector](/reference/search-connectors/index.md) for details.
 
 
 ## Combining basic and advanced sync rules [es-interplay-basic-rules-advanced-rules]
@@ -207,7 +207,7 @@ You can also use basic sync rules and advanced sync rules together to filter a d
 
 The following diagram provides an overview of the order in which advanced sync rules, basic sync rules, and pipeline filtering, are applied to your documents:
 
-:::{image} ../../../images/sync-rules-time-dimension.png
+:::{image} ../../images/sync-rules-time-dimension.png
 :alt: Sync Rules: What is applied when?
 :class: screenshot
 :::
@@ -249,14 +249,14 @@ The first 3 conditions can be handled by basic sync rules, but we’ll need to u
 
 To create a new basic sync rule, navigate to the *Sync Rules* tab and select **Draft new sync rules**:
 
-:::{image} ../../../images/sync-rules-draft-new-rules.png
+:::{image} ../../images/sync-rules-draft-new-rules.png
 :alt: Draft new rules
 :class: screenshot
 :::
 
 Afterwards you need to press the *Save and validate draft* button to validate these rules. Note that when saved the rules will be in *draft* state. They won’t be executed in the next sync unless they are *applied*.
 
-:::{image} ../../../images/sync-rules-save-and-validate-draft.png
+:::{image} ../../images/sync-rules-save-and-validate-draft.png
 :alt: Save and validate draft
 :class: screenshot
 :::
@@ -269,7 +269,7 @@ These following conditions can be covered by basic sync rules:
 2. Every apartment should have at least three bedrooms
 3. The apartments should not be more expensive than 1000/month
 
-:::{image} ../../../images/sync-rules-rules-fulfilling-properties.png
+:::{image} ../../images/sync-rules-rules-fulfilling-properties.png
 :alt: Save and validate draft
 :class: screenshot
 :::
@@ -306,21 +306,21 @@ Let’s assume that the apartment data is stored inside a MongoDB instance. For 
 
 To create these advanced sync rules navigate to the sync rules creation dialog and select the *Advanced rules* tab. You can now paste your aggregation pipeline into the input field under `aggregate.pipeline`:
 
-:::{image} ../../../images/sync-rules-paste-aggregation-pipeline.png
+:::{image} ../../images/sync-rules-paste-aggregation-pipeline.png
 :alt: Paste aggregation pipeline
 :class: screenshot
 :::
 
 Once validated, apply these rules. The following screenshot shows the applied sync rules, which will be executed in the next sync:
 
-:::{image} ../../../images/sync-rules-advanced-rules-appeared.png
+:::{image} ../../images/sync-rules-advanced-rules-appeared.png
 :alt: Advanced sync rules appeared
 :class: screenshot
 :::
 
 After a successful sync you can expand the sync details to see which rules were applied:
 
-:::{image} ../../../images/sync-rules-applied-rules-during-sync.png
+:::{image} ../../images/sync-rules-applied-rules-during-sync.png
 :alt: Applied rules during sync
 :class: screenshot
 :::

@@ -22,7 +22,7 @@ It is recommended to use the change point aggregation to detect changes in time-
 ## Parameters [change-point-agg-syntax]
 
 `buckets_path`
-:   (Required, string) Path to the buckets that contain one set of values in which to detect a change point. There must be at least 22 bucketed values. Fewer than 1,000 is preferred. For syntax, see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax).
+:   (Required, string) Path to the buckets that contain one set of values in which to detect a change point. There must be at least 22 bucketed values. Fewer than 1,000 is preferred. For syntax, see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax).
 
 
 ## Syntax [_syntax_11]

@@ -237,7 +237,7 @@ GET /_search
 }
 ```
 
-1. Supports expressive date [format pattern](/reference/data-analysis/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
+1. Supports expressive date [format pattern](/reference/aggregations/search-aggregations-bucket-daterange-aggregation.md#date-format-pattern)
 
 
 **Time Zone**

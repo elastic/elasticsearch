@@ -11,7 +11,7 @@ The Slack connector is written in Python using the [Elastic connector framework]
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/slack.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector reference** [es-connectors-slack-connector-client-reference]
@@ -22,7 +22,7 @@ This connector is available as a self-managed connector from the **Elastic conne
 
 This self-managed connector is compatible with Elastic versions **8.10.0+**.
 
-To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 ::::{note}
 This connector is in **technical preview** and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
@@ -108,7 +108,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 To use this connector as a **self-managed connector**, use the **Connector** workflow in the Kibana UI.
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 ::::{note}
 You need to create a Slack application to authenticate with Slack.
@@ -240,7 +240,7 @@ The following settings are required to set up this connector:
 
 Advanced sync rules are not available for this connector in the present version.
 
-For more information read [Types of sync rule](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-types).
+For more information read [Types of sync rule](/reference/search-connectors/es-sync-rules.md#es-sync-rules-types).
 
 
 ### Content Extraction [es-connectors-slack-client-content-extraction]
@@ -269,7 +269,7 @@ The connector syncs the following objects and entities:
 
 ### End-to-end testing [es-connectors-slack-client-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the GitHub connector, run the following command:
 
@@ -291,9 +291,9 @@ There are currently no known issues for this connector. Refer to [Known issues](
 
 ### Troubleshooting [es-connectors-slack-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-slack-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).

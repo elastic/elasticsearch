@@ -221,7 +221,7 @@ POST /sales/_search
 
 ## Dealing with dots in agg names [dots-in-agg-names]
 
-An alternate syntax is supported to cope with aggregations or metrics which have dots in the name, such as the `99.9`th [percentile](/reference/data-analysis/aggregations/search-aggregations-metrics-percentile-aggregation.md). This metric may be referred to as:
+An alternate syntax is supported to cope with aggregations or metrics which have dots in the name, such as the `99.9`th [percentile](/reference/aggregations/search-aggregations-metrics-percentile-aggregation.md). This metric may be referred to as:
 
 ```js
 "buckets_path": "my_percentile[99.9]"

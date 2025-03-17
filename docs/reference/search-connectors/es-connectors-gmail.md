@@ -7,10 +7,10 @@ mapped_pages:
 # Elastic Gmail connector reference [es-connectors-gmail]
 
 
-The *Elastic GMail connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for GMail.
+The *Elastic GMail connector* is a [connector](/reference/search-connectors/index.md) for GMail.
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector reference** [es-connectors-gmail-connector-client-reference]
@@ -21,7 +21,7 @@ This connector is available as a self-managed connector from the **Elastic conne
 
 This self-managed connector is compatible with Elastic versions **8.10.0+**.
 
-To use this connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+To use this connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a Gmail connector [es-connectors-gmail-create-connector-client]
@@ -101,7 +101,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 To use this connector as a **self-managed connector**, use the **Connector** workflow in the Kibana UI.
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Connector authentication prerequisites [es-connectors-gmail-client-connector-authentication-prerequisites]
@@ -157,7 +157,7 @@ The following configuration fields are required:
 :   Toggle to fetch spam and trash emails. Also works with DLS.
 
 `Enable document level security`
-:   Toggle to enable [document level security (DLS](/reference/ingestion-tools/search-connectors/document-level-security.md). DLS is supported for the GMail connector. When enabled:
+:   Toggle to enable [document level security (DLS](/reference/search-connectors/document-level-security.md). DLS is supported for the GMail connector. When enabled:
 
     * Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
     * Access control syncs will fetch users' access control lists and store them in a separate index.
@@ -243,14 +243,14 @@ The connector will fetch all messages of all users the service account has acces
 
 #### Sync types [es-connectors-gmail-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Sync rules [es-connectors-gmail-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 Advanced sync rules are available for this connector. The connector supports the [GMail advanced search syntax](https://support.google.com/mail/answer/7190) under the `messages` field.
 
@@ -271,7 +271,7 @@ For example:
 Document level security (DLS) enables you to restrict access to documents based on a user’s permissions. Refer to [configuration](#es-connectors-gmail-client-configuration) on this page for how to enable DLS for this connector.
 
 ::::{note}
-Refer to [DLS in Search Applications](/reference/ingestion-tools/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.
+Refer to [DLS in Search Applications](/reference/search-connectors/es-dls-e2e-guide.md) to learn how to ingest data from a connector with DLS enabled, when building a search application. The example uses SharePoint Online as the data source, but the same steps apply to every connector.
 
 ::::
 
@@ -284,12 +284,12 @@ There are currently no known issues for this connector.
 
 ### Troubleshooting [es-connectors-gmail-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-gmail-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 
 
 ### Framework and source [es-connectors-gmail-client-framework-and-source]

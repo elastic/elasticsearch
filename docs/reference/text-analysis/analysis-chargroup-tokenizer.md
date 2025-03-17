@@ -7,7 +7,7 @@ mapped_pages:
 # Character group tokenizer [analysis-chargroup-tokenizer]
 
 
-The `char_group` tokenizer breaks text into terms whenever it encounters a character which is in a defined set. It is mostly useful for cases where a simple custom tokenization is desired, and the overhead of use of the [`pattern` tokenizer](/reference/data-analysis/text-analysis/analysis-pattern-tokenizer.md) is not acceptable.
+The `char_group` tokenizer breaks text into terms whenever it encounters a character which is in a defined set. It is mostly useful for cases where a simple custom tokenization is desired, and the overhead of use of the [`pattern` tokenizer](/reference/text-analysis/analysis-pattern-tokenizer.md) is not acceptable.
 
 
 ## Configuration [_configuration_8]

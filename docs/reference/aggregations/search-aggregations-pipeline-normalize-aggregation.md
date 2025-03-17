@@ -7,7 +7,7 @@ mapped_pages:
 # Normalize aggregation [search-aggregations-pipeline-normalize-aggregation]
 
 
-A parent pipeline aggregation which calculates the specific normalized/rescaled value for a specific bucket value. Values that cannot be normalized, will be skipped using the [skip gap policy](/reference/data-analysis/aggregations/pipeline.md#gap-policy).
+A parent pipeline aggregation which calculates the specific normalized/rescaled value for a specific bucket value. Values that cannot be normalized, will be skipped using the [skip gap policy](/reference/aggregations/pipeline.md#gap-policy).
 
 ## Syntax [_syntax_20]
 
@@ -26,7 +26,7 @@ $$$normalize_pipeline-params$$$
 
 | Parameter Name | Description | Required | Default Value |
 | --- | --- | --- | --- |
-| `buckets_path` | The path to the buckets we wish to normalize (see [`buckets_path` syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
+| `buckets_path` | The path to the buckets we wish to normalize (see [`buckets_path` syntax](/reference/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
 | `method` | The specific [method](#normalize_pipeline-method) to apply | Required |  |
 | `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.html) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
 

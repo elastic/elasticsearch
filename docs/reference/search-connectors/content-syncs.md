@@ -14,7 +14,7 @@ Elastic connectors have two types of content syncs:
 ## Full syncs [es-connectors-sync-types-full]
 
 ::::{note}
-We recommend running a full sync whenever [Sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md) are modified
+We recommend running a full sync whenever [Sync rules](/reference/search-connectors/es-sync-rules.md) are modified
 
 ::::
 
@@ -27,7 +27,7 @@ A full sync, by definition, takes longer than an incremental sync but it ensures
 
 A full sync is available for all connectors.
 
-You can [schedule](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md#es-connectors-usage-syncs-recurring) or [manually trigger](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md#es-connectors-usage-syncs-manual) a full sync job.
+You can [schedule](/reference/search-connectors/connectors-ui-in-kibana.md#es-connectors-usage-syncs-recurring) or [manually trigger](/reference/search-connectors/connectors-ui-in-kibana.md#es-connectors-usage-syncs-manual) a full sync job.
 
 
 ## Incremental syncs [es-connectors-sync-types-incremental]
@@ -36,7 +36,7 @@ An incremental sync only syncs data changes since the last full or incremental s
 
 Incremental syncs are only available after an initial full sync has successfully completed. Otherwise the incremental sync will fail.
 
-You can [schedule](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md#es-connectors-usage-syncs-recurring) or [manually trigger](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md#es-connectors-usage-syncs-manual) an incremental sync job.
+You can [schedule](/reference/search-connectors/connectors-ui-in-kibana.md#es-connectors-usage-syncs-recurring) or [manually trigger](/reference/search-connectors/connectors-ui-in-kibana.md#es-connectors-usage-syncs-manual) an incremental sync job.
 
 
 ### Incremental sync performance [es-connectors-sync-types-incremental-performance]
@@ -50,7 +50,7 @@ A third-party data source that has throttling and low throughput, but stores ver
 However, a fast, accessible third-party data source that stores huge amounts of data in {{es}}, such as Azure Blob Storage, Google Drive, or S3, can lead to a significant performance improvement from incremental syncs.
 
 ::::{note}
-Incremental syncs for [SharePoint Online](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint-online.md) and [Google Drive](/reference/ingestion-tools/search-connectors/es-connectors-google-drive.md) connectors use specific logic. All other connectors use the same shared connector framework logic for incremental syncs.
+Incremental syncs for [SharePoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md) and [Google Drive](/reference/search-connectors/es-connectors-google-drive.md) connectors use specific logic. All other connectors use the same shared connector framework logic for incremental syncs.
 
 ::::
 
@@ -60,23 +60,23 @@ Incremental syncs for [SharePoint Online](/reference/ingestion-tools/search-conn
 
 Incremental syncs are available for the following connectors:
 
-* [Azure Blob Storage](/reference/ingestion-tools/search-connectors/es-connectors-azure-blob.md)
-* [Box](/reference/ingestion-tools/search-connectors/es-connectors-box.md)
-* [Confluence](/reference/ingestion-tools/search-connectors/es-connectors-confluence.md)
-* [Dropbox](/reference/ingestion-tools/search-connectors/es-connectors-dropbox.md)
-* [GitHub](/reference/ingestion-tools/search-connectors/es-connectors-github.md)
-* [Gmail](/reference/ingestion-tools/search-connectors/es-connectors-gmail.md)
-* [Google Cloud Storage](/reference/ingestion-tools/search-connectors/es-connectors-google-cloud.md)
-* [Google Drive](/reference/ingestion-tools/search-connectors/es-connectors-google-drive.md)
-* [Jira](/reference/ingestion-tools/search-connectors/es-connectors-jira.md)
-* [Network drive](/reference/ingestion-tools/search-connectors/es-connectors-network-drive.md)
-* [Notion](/reference/ingestion-tools/search-connectors/es-connectors-notion.md)
-* [OneDrive](/reference/ingestion-tools/search-connectors/es-connectors-onedrive.md)
-* [Outlook](/reference/ingestion-tools/search-connectors/es-connectors-outlook.md)
-* [Salesforce](/reference/ingestion-tools/search-connectors/es-connectors-salesforce.md)
-* [ServiceNow](/reference/ingestion-tools/search-connectors/es-connectors-servicenow.md)
-* [SharePoint Online](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint-online.md)
-* [SharePoint Server](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint.md)
-* [Teams](/reference/ingestion-tools/search-connectors/es-connectors-teams.md)
-* [Zoom](/reference/ingestion-tools/search-connectors/es-connectors-zoom.md)
+* [Azure Blob Storage](/reference/search-connectors/es-connectors-azure-blob.md)
+* [Box](/reference/search-connectors/es-connectors-box.md)
+* [Confluence](/reference/search-connectors/es-connectors-confluence.md)
+* [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)
+* [GitHub](/reference/search-connectors/es-connectors-github.md)
+* [Gmail](/reference/search-connectors/es-connectors-gmail.md)
+* [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)
+* [Google Drive](/reference/search-connectors/es-connectors-google-drive.md)
+* [Jira](/reference/search-connectors/es-connectors-jira.md)
+* [Network drive](/reference/search-connectors/es-connectors-network-drive.md)
+* [Notion](/reference/search-connectors/es-connectors-notion.md)
+* [OneDrive](/reference/search-connectors/es-connectors-onedrive.md)
+* [Outlook](/reference/search-connectors/es-connectors-outlook.md)
+* [Salesforce](/reference/search-connectors/es-connectors-salesforce.md)
+* [ServiceNow](/reference/search-connectors/es-connectors-servicenow.md)
+* [SharePoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)
+* [SharePoint Server](/reference/search-connectors/es-connectors-sharepoint.md)
+* [Teams](/reference/search-connectors/es-connectors-teams.md)
+* [Zoom](/reference/search-connectors/es-connectors-zoom.md)
 

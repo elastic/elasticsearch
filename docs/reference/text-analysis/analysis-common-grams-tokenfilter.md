@@ -11,7 +11,7 @@ Generates [bigrams](https://en.wikipedia.org/wiki/Bigram) for a specified set of
 
 For example, you can specify `is` and `the` as common words. This filter then converts the tokens `[the, quick, fox, is, brown]` to `[the, the_quick, quick, fox, fox_is, is, is_brown, brown]`.
 
-You can use the `common_grams` filter in place of the [stop token filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) when you don’t want to completely ignore common words.
+You can use the `common_grams` filter in place of the [stop token filter](/reference/text-analysis/analysis-stop-tokenfilter.md) when you don’t want to completely ignore common words.
 
 This filter uses Lucene’s [CommonGramsFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/commongrams/CommonGramsFilter.md).
 

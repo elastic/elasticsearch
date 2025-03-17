@@ -31,7 +31,7 @@ The above sentence would produce the following term:
 
 You can combine the `keyword` tokenizer with token filters to normalise structured data, such as product IDs or email addresses.
 
-For example, the following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the `keyword` tokenizer and [`lowercase`](/reference/data-analysis/text-analysis/analysis-lowercase-tokenfilter.md) filter to convert an email address to lowercase.
+For example, the following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the `keyword` tokenizer and [`lowercase`](/reference/text-analysis/analysis-lowercase-tokenfilter.md) filter to convert an email address to lowercase.
 
 ```console
 POST _analyze

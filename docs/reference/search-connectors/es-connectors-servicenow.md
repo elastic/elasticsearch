@@ -7,21 +7,21 @@ mapped_pages:
 # Elastic ServiceNow connector reference [es-connectors-servicenow]
 
 
-The *Elastic ServiceNow connector* is a [connector](/reference/ingestion-tools/search-connectors/index.md) for [ServiceNow](https://www.servicenow.com).
+The *Elastic ServiceNow connector* is a [connector](/reference/search-connectors/index.md) for [ServiceNow](https://www.servicenow.com).
 
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
 View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/servicenow.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector** [es-connectors-servicenow-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-servicenow-client-availability-prerequisites]
 
-The ServiceNow connector was introduced in Elastic version 8.9.0. This connector is available as a self-managed connector. To use this connector as a self-managed connector, satisfy all [self-managed connector requirements](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+The ServiceNow connector was introduced in Elastic version 8.9.0. This connector is available as a self-managed connector. To use this connector as a self-managed connector, satisfy all [self-managed connector requirements](/reference/search-connectors/self-managed-connectors.md).
 
 
 ### Create a ServiceNow connector [es-connectors-servicenow-create-connector-client]
@@ -101,7 +101,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 To use this connector as a **self-managed connector**, use the **Customized connector** workflow.
 
-For additional operations, see [Usage](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [Usage](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Compatibility [es-connectors-servicenow-client-compatibility]
@@ -161,7 +161,7 @@ The following configuration fields are required to set up the connector:
 :   The number of concurrent downloads for fetching the attachment content. This speeds up the content extraction of attachments. Defaults to `10`.
 
 `use_text_extraction_service`
-:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that ingest pipeline settings disable text extraction. Default value is `False`.
+:   Requires a separate deployment of the [Elastic Text Extraction Service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local). Requires that ingest pipeline settings disable text extraction. Default value is `False`.
 
 `use_document_level_security`
 :   Restrict access to documents based on a user’s permissions. Refer to [Document level security](#es-connectors-servicenow-client-dls) for more details.
@@ -175,8 +175,8 @@ All services and records the user has access to will be indexed according to the
 * Attachments
 
 ::::{note}
-* Content from files bigger than 10 MB won’t be extracted. Use the [self-managed local extraction service](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
-* Permissions are not synced by default. You must enable [document level security](/reference/ingestion-tools/search-connectors/document-level-security.md). Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+* Content from files bigger than 10 MB won’t be extracted. Use the [self-managed local extraction service](/reference/search-connectors/es-connectors-content-extraction.md#es-connectors-content-extraction-local) to handle larger binary files.
+* Permissions are not synced by default. You must enable [document level security](/reference/search-connectors/document-level-security.md). Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
 
 ::::
 
@@ -184,14 +184,14 @@ All services and records the user has access to will be indexed according to the
 
 #### Sync types [es-connectors-servicenow-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Document level security [es-connectors-servicenow-client-dls]
 
-[Document level security (DLS)](/reference/ingestion-tools/search-connectors/document-level-security.md) ensures identities and permissions set in ServiceNow are maintained in Elasticsearch. This enables you to restrict and personalize read-access users and groups have to documents in this index. Access control syncs ensure this metadata is kept up to date in your Elasticsearch documents.
+[Document level security (DLS)](/reference/search-connectors/document-level-security.md) ensures identities and permissions set in ServiceNow are maintained in Elasticsearch. This enables you to restrict and personalize read-access users and groups have to documents in this index. Access control syncs ensure this metadata is kept up to date in your Elasticsearch documents.
 
 The ServiceNow connector supports roles for access control lists (ACLs) to enable document level security in {{es}}. For default services, connectors use the following roles to find users who have access to documents.
 
@@ -289,13 +289,13 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 ### Sync rules [es-connectors-servicenow-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 
 #### Advanced sync rules [es-connectors-servicenow-client-sync-rules-advanced]
 
 ::::{note}
-A [full sync](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
+A [full sync](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) is required for advanced sync rules to take effect.
 
 ::::
 
@@ -343,7 +343,7 @@ $$$es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-ser
 
 ### End-to-end Testing [es-connectors-servicenow-client-connector-client-operations-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the ServiceNow connector, run the following command:
 
@@ -363,14 +363,14 @@ There are no known issues for this connector. Refer to [Known issues](/release-n
 
 ### Troubleshooting [es-connectors-servicenow-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-servicenow-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 
 
 ### Content extraction [es-connectors-servicenow-client-content-extraction]
 
-See [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+See [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).

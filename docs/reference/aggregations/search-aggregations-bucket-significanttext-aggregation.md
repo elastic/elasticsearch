@@ -7,14 +7,14 @@ mapped_pages:
 # Significant text aggregation [search-aggregations-bucket-significanttext-aggregation]
 
 
-An aggregation that returns interesting or unusual occurrences of free-text terms in a set. It is like the [significant terms](/reference/data-analysis/aggregations/search-aggregations-bucket-significantterms-aggregation.md) aggregation but differs in that:
+An aggregation that returns interesting or unusual occurrences of free-text terms in a set. It is like the [significant terms](/reference/aggregations/search-aggregations-bucket-significantterms-aggregation.md) aggregation but differs in that:
 
 * It is specifically designed for use on type `text` fields
 * It does not require field data or doc-values
 * It re-analyzes text content on-the-fly meaning it can also filter duplicate sections of noisy text that otherwise tend to skew statistics.
 
 ::::{warning}
-Re-analyzing *large* result sets will require a lot of time and memory. It is recommended that the significant_text aggregation is used as a child of either the [sampler](/reference/data-analysis/aggregations/search-aggregations-bucket-sampler-aggregation.md) or [diversified sampler](/reference/data-analysis/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md) aggregation to limit the analysis to a *small* selection of top-matching documents e.g. 200. This will typically improve speed, memory use and quality of results.
+Re-analyzing *large* result sets will require a lot of time and memory. It is recommended that the significant_text aggregation is used as a child of either the [sampler](/reference/aggregations/search-aggregations-bucket-sampler-aggregation.md) or [diversified sampler](/reference/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md) aggregation to limit the analysis to a *small* selection of top-matching documents e.g. 200. This will typically improve speed, memory use and quality of results.
 ::::
 
 
@@ -257,7 +257,7 @@ The results from analysing our deduplicated text are obviously of higher quality
 
 Mr Pozmantier and other one-off associations with elasticsearch no longer appear in the aggregation results as a consequence of copy-and-paste operations or other forms of mechanical repetition.
 
-If your duplicate or near-duplicate content is identifiable via a single-value indexed field  (perhaps a hash of the article’s `title` text or an `original_press_release_url` field) then it would be more efficient to use a parent [diversified sampler](/reference/data-analysis/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md) aggregation to eliminate these documents from the sample set based on that single key. The less duplicate content you can feed into the significant_text aggregation up front the better in terms of performance.
+If your duplicate or near-duplicate content is identifiable via a single-value indexed field  (perhaps a hash of the article’s `title` text or an `original_press_release_url` field) then it would be more efficient to use a parent [diversified sampler](/reference/aggregations/search-aggregations-bucket-diversified-sampler-aggregation.md) aggregation to eliminate these documents from the sample set based on that single key. The less duplicate content you can feed into the significant_text aggregation up front the better in terms of performance.
 
 ::::{admonition} How are the significance scores calculated?
 The numbers returned for scores are primarily intended for ranking different suggestions sensibly rather than something easily understood by end users. The scores are derived from the doc frequencies in *foreground* and *background* sets. In brief, a term is considered significant if there is a noticeable difference in the frequency in which a term appears in the subset and in the background. The way the terms are ranked can be configured, see "Parameters" section.
@@ -306,7 +306,7 @@ Like most design decisions, this is the basis of a trade-off in which we have ch
 
 ### Significance heuristics [_significance_heuristics]
 
-This aggregation supports the same scoring heuristics (JLH, mutual_information, gnd, chi_square etc) as the [significant terms](/reference/data-analysis/aggregations/search-aggregations-bucket-significantterms-aggregation.md) aggregation
+This aggregation supports the same scoring heuristics (JLH, mutual_information, gnd, chi_square etc) as the [significant terms](/reference/aggregations/search-aggregations-bucket-significantterms-aggregation.md) aggregation
 
 
 ### Size & Shard Size [sig-text-shard-size]
@@ -403,7 +403,7 @@ GET news/_search
 
 ### Filtering Values [_filtering_values_3]
 
-It is possible (although rarely required) to filter the values for which buckets will be created. This can be done using the `include` and `exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features described in the [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md) documentation.
+It is possible (although rarely required) to filter the values for which buckets will be created. This can be done using the `include` and `exclude` parameters which are based on a regular expression string or arrays of exact terms. This functionality mirrors the features described in the [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md) documentation.
 
 
 

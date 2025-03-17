@@ -45,7 +45,7 @@ The `fingerprint` analyzer accepts the following parameters:
 `stopwords_path`
 :   The path to a file containing stop words.
 
-See the [Stop Token Filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) for more information about stop word configuration.
+See the [Stop Token Filter](/reference/text-analysis/analysis-stop-tokenfilter.md) for more information about stop word configuration.
 
 
 ## Example configuration [_example_configuration_2]
@@ -86,14 +86,14 @@ The above example produces the following term:
 The `fingerprint` tokenizer consists of:
 
 Tokenizer
-:   * [Standard Tokenizer](/reference/data-analysis/text-analysis/analysis-standard-tokenizer.md)
+:   * [Standard Tokenizer](/reference/text-analysis/analysis-standard-tokenizer.md)
 
 
 Token Filters (in order)
-:   * [Lower Case Token Filter](/reference/data-analysis/text-analysis/analysis-lowercase-tokenfilter.md)
-* [ASCII folding](/reference/data-analysis/text-analysis/analysis-asciifolding-tokenfilter.md)
-* [Stop Token Filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) (disabled by default)
-* [Fingerprint](/reference/data-analysis/text-analysis/analysis-fingerprint-tokenfilter.md)
+:   * [Lower Case Token Filter](/reference/text-analysis/analysis-lowercase-tokenfilter.md)
+* [ASCII folding](/reference/text-analysis/analysis-asciifolding-tokenfilter.md)
+* [Stop Token Filter](/reference/text-analysis/analysis-stop-tokenfilter.md) (disabled by default)
+* [Fingerprint](/reference/text-analysis/analysis-fingerprint-tokenfilter.md)
 
 
 If you need to customize the `fingerprint` analyzer beyond the configuration parameters then you need to recreate it as a `custom` analyzer and modify it, usually by adding token filters. This would recreate the built-in `fingerprint` analyzer and you can use it as a starting point for further customization:

@@ -77,7 +77,7 @@ The resulting [GeoJSON Feature](https://tools.ietf.org/html/rfc7946#section-3.2)
 
 This result could be displayed in a map user interface:
 
-![Kibana map with museum tour of Amsterdam](../../../images/geo_line.png "")
+![Kibana map with museum tour of Amsterdam](../../images/geo_line.png "")
 
 ## Options [search-aggregations-metrics-geo-line-options]
 
@@ -183,7 +183,7 @@ POST /tour/_bulk?refresh
 
 ## Grouping with terms [search-aggregations-metrics-geo-line-grouping-terms]
 
-Using this data, for a non-time-series use case, the grouping can be done using a [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md) based on city name. This would work whether or not we had defined the `tour` index as a time series index.
+Using this data, for a non-time-series use case, the grouping can be done using a [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md) based on city name. This would work whether or not we had defined the `tour` index as a time series index.
 
 $$$search-aggregations-metrics-geo-line-terms$$$
 
@@ -273,7 +273,7 @@ This functionality is in technical preview and may be changed or removed in a fu
 ::::
 
 
-Using the same data as before, we can also perform the grouping with a [`time_series` aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-time-series-aggregation.md). This will group by TSID, which is defined as the combinations of all fields with `time_series_dimension: true`, in this case the same `city` field used in the previous [terms aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md). This example will only work if we defined the `tour` index as a time series index using  `index.mode="time_series"`.
+Using the same data as before, we can also perform the grouping with a [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md). This will group by TSID, which is defined as the combinations of all fields with `time_series_dimension: true`, in this case the same `city` field used in the previous [terms aggregation](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md). This example will only work if we defined the `tour` index as a time series index using  `index.mode="time_series"`.
 
 $$$search-aggregations-metrics-geo-line-time-series$$$
 
@@ -296,7 +296,7 @@ POST /tour/_search?filter_path=aggregations
 ```
 
 ::::{note}
-The `geo_line` aggregation no longer requires the `sort` field when nested within a [`time_series` aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-time-series-aggregation.md). This is because the sort field is set to `@timestamp`, which all time-series indexes are pre-sorted by. If you do set this parameter, and set it to something other than `@timestamp` you will get an error.
+The `geo_line` aggregation no longer requires the `sort` field when nested within a [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md). This is because the sort field is set to `@timestamp`, which all time-series indexes are pre-sorted by. If you do set this parameter, and set it to something other than `@timestamp` you will get an error.
 ::::
 
 
@@ -366,7 +366,7 @@ These results are essentially the same as with the previous `terms` aggregation 
 
 ## Why group with time-series? [search-aggregations-metrics-geo-line-grouping-time-series-advantages]
 
-When reviewing these examples, you might think that there is little difference between using [`terms`](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md) or [`time_series`](/reference/data-analysis/aggregations/search-aggregations-bucket-time-series-aggregation.md) to group the geo-lines. However, there are some important differences in behaviour between the two cases. Time series indexes are stored in a very specific order on disk. They are pre-grouped by the time-series dimension fields, and pre-sorted by the `@timestamp` field. This allows the `geo_line` aggregation to be considerably optimized:
+When reviewing these examples, you might think that there is little difference between using [`terms`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md) or [`time_series`](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md) to group the geo-lines. However, there are some important differences in behaviour between the two cases. Time series indexes are stored in a very specific order on disk. They are pre-grouped by the time-series dimension fields, and pre-sorted by the `@timestamp` field. This allows the `geo_line` aggregation to be considerably optimized:
 
 * The same memory allocated for the first bucket can be re-used over and over for all subsequent buckets. This is substantially less memory than required for non-time-series cases where all buckets are collected concurrently.
 * No sorting needs to be done, since the data is pre-sorted by `@timestamp`. The time-series data will naturally arrive at the aggregation collector in `DESC` order. This means that if we specify `sort_order:ASC` (the default), we still collect in `DESC` order, but perform an efficient in-memory reverse order before generating the final `LineString` geometry.
@@ -377,19 +377,19 @@ Note: There are other significant advantages to working with time-series data an
 
 ## Streaming line simplification [search-aggregations-metrics-geo-line-simplification]
 
-Line simplification is a great way to reduce the size of the final results sent to the client, and displayed in a map user interface. However, normally these algorithms use a lot of memory to perform the simplification, requiring the entire geometry to be maintained in memory together with supporting data for the simplification itself. The use of a streaming line simplification algorithm allows for minimal memory usage during the simplification process by constraining memory to the bounds defined for the simplified geometry. This is only possible if no sorting is required, which is the case when grouping is done by the [`time_series` aggregation](/reference/data-analysis/aggregations/search-aggregations-bucket-time-series-aggregation.md), running on an index with the `time_series` index mode.
+Line simplification is a great way to reduce the size of the final results sent to the client, and displayed in a map user interface. However, normally these algorithms use a lot of memory to perform the simplification, requiring the entire geometry to be maintained in memory together with supporting data for the simplification itself. The use of a streaming line simplification algorithm allows for minimal memory usage during the simplification process by constraining memory to the bounds defined for the simplified geometry. This is only possible if no sorting is required, which is the case when grouping is done by the [`time_series` aggregation](/reference/aggregations/search-aggregations-bucket-time-series-aggregation.md), running on an index with the `time_series` index mode.
 
 Under these conditions the `geo_line` aggregation allocates memory to the `size` specified, and then fills that memory with the incoming documents. Once the memory is completely filled, documents from within the line are removed as new documents are added. The choice of document to remove is made to minimize the visual impact on the geometry. This process makes use of the [Visvalingam–Whyatt algorithm](https://en.wikipedia.org/wiki/Visvalingam%E2%80%93Whyatt_algorithm). Essentially this means points are removed if they have the minimum triangle area, with the triangle defined by the point under consideration and the two points before and after it in the line. In addition, we calculate the area using spherical coordinates so that no planar distortions affect the choice.
 
 In order to demonstrate how much better line simplification is to line truncation, consider this example of the north shore of Kodiak Island. The data for this is only 209 points, but if we want to set `size` to `100` we get dramatic truncation.
 
-![North short of Kodiak Island truncated to 100 points](../../../images/kodiak_geo_line_truncated.png "")
+![North short of Kodiak Island truncated to 100 points](../../images/kodiak_geo_line_truncated.png "")
 
 The grey line is the entire geometry of 209 points, while the blue line is the first 100 points, a very different geometry than the original.
 
 Now consider the same geometry simplified to 100 points.
 
-![North short of Kodiak Island simplified to 100 points](../../../images/kodiak_geo_line_simplified.png "")
+![North short of Kodiak Island simplified to 100 points](../../images/kodiak_geo_line_simplified.png "")
 
 For comparison we have shown the original in grey, the truncated in blue and the new simplified geometry in magenta. It is possible to see where the new simplified line deviates from the original, but the overall geometry appears almost identical and is still clearly recognizable as the north shore of Kodiak Island.
 

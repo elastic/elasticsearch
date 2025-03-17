@@ -7,7 +7,7 @@ mapped_pages:
 # Thai tokenizer [analysis-thai-tokenizer]
 
 
-The `thai` tokenizer segments Thai text into words, using the Thai segmentation algorithm included with Java. Text in other languages in general will be treated the same as the [`standard` tokenizer](/reference/data-analysis/text-analysis/analysis-standard-tokenizer.md).
+The `thai` tokenizer segments Thai text into words, using the Thai segmentation algorithm included with Java. Text in other languages in general will be treated the same as the [`standard` tokenizer](/reference/text-analysis/analysis-standard-tokenizer.md).
 
 ::::{warning}
 This tokenizer may not be supported by all JREs. It is known to work with Sun/Oracle and OpenJDK. If your application needs to be fully portable, consider using the [ICU Tokenizer](/reference/elasticsearch-plugins/analysis-icu-tokenizer.md) instead.

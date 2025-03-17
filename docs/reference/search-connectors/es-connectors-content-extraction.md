@@ -5,7 +5,7 @@ mapped_pages:
 
 # Content extraction [es-connectors-content-extraction]
 
-Connectors use the [Elastic ingest attachment processor^](/reference/ingestion-tools/enrich-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
+Connectors use the [Elastic ingest attachment processor^](/reference/enrich-processor/attachment.md) to extract file contents. The processor extracts files using the [Apache Tika](https://tika.apache.org) text extraction library. The logic for content extraction is defined in [utils.py](https://github.com/elastic/connectors/tree/main/connectors/utils.py).
 
 While intended primarily for PDF and Microsoft Office formats, you can use any of the [supported formats](#es-connectors-content-extraction-supported-file-types).
 
@@ -78,22 +78,22 @@ The data extraction service code is now available in this public repository: [ht
 
 Local content extraction is available for the following self-managed connectors:
 
-* [Azure Blob Storage](/reference/ingestion-tools/search-connectors/es-connectors-azure-blob.md)
-* [Confluence](/reference/ingestion-tools/search-connectors/es-connectors-confluence.md)
-* [Dropbox](/reference/ingestion-tools/search-connectors/es-connectors-dropbox.md)
-* [GitHub](/reference/ingestion-tools/search-connectors/es-connectors-github.md)
-* [Google Cloud Storage](/reference/ingestion-tools/search-connectors/es-connectors-google-cloud.md)
-* [Google Drive](/reference/ingestion-tools/search-connectors/es-connectors-google-drive.md)
-* [Jira](/reference/ingestion-tools/search-connectors/es-connectors-jira.md)
-* [Network drive](/reference/ingestion-tools/search-connectors/es-connectors-network-drive.md)
-* [OneDrive](/reference/ingestion-tools/search-connectors/es-connectors-onedrive.md)
-* [Outlook](/reference/ingestion-tools/search-connectors/es-connectors-outlook.md)
-* [S3](/reference/ingestion-tools/search-connectors/es-connectors-s3.md)
-* [Salesforce](/reference/ingestion-tools/search-connectors/es-connectors-salesforce.md)
-* [ServiceNow](/reference/ingestion-tools/search-connectors/es-connectors-servicenow.md)
-* [SharePoint Online](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint-online.md)
-* [SharePoint Server](/reference/ingestion-tools/search-connectors/es-connectors-sharepoint.md)
-* [Zoom](/reference/ingestion-tools/search-connectors/es-connectors-zoom.md)
+* [Azure Blob Storage](/reference/search-connectors/es-connectors-azure-blob.md)
+* [Confluence](/reference/search-connectors/es-connectors-confluence.md)
+* [Dropbox](/reference/search-connectors/es-connectors-dropbox.md)
+* [GitHub](/reference/search-connectors/es-connectors-github.md)
+* [Google Cloud Storage](/reference/search-connectors/es-connectors-google-cloud.md)
+* [Google Drive](/reference/search-connectors/es-connectors-google-drive.md)
+* [Jira](/reference/search-connectors/es-connectors-jira.md)
+* [Network drive](/reference/search-connectors/es-connectors-network-drive.md)
+* [OneDrive](/reference/search-connectors/es-connectors-onedrive.md)
+* [Outlook](/reference/search-connectors/es-connectors-outlook.md)
+* [S3](/reference/search-connectors/es-connectors-s3.md)
+* [Salesforce](/reference/search-connectors/es-connectors-salesforce.md)
+* [ServiceNow](/reference/search-connectors/es-connectors-servicenow.md)
+* [SharePoint Online](/reference/search-connectors/es-connectors-sharepoint-online.md)
+* [SharePoint Server](/reference/search-connectors/es-connectors-sharepoint.md)
+* [Zoom](/reference/search-connectors/es-connectors-zoom.md)
 
 
 ### Running the extraction service [es-connectors-content-extraction-data-extraction-service]

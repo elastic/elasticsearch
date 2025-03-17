@@ -7,7 +7,7 @@ mapped_pages:
 # Variable width histogram aggregation [search-aggregations-bucket-variablewidthhistogram-aggregation]
 
 
-This is a multi-bucket aggregation similar to [Histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md). However, the width of each bucket is not specified. Rather, a target number of buckets is provided and bucket intervals are dynamically determined based on the document distribution. This is done using a simple one-pass document clustering algorithm that aims to obtain low distances between bucket centroids. Unlike other multi-bucket aggregations, the intervals will not necessarily have a uniform width.
+This is a multi-bucket aggregation similar to [Histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md). However, the width of each bucket is not specified. Rather, a target number of buckets is provided and bucket intervals are dynamically determined based on the document distribution. This is done using a simple one-pass document clustering algorithm that aims to obtain low distances between bucket centroids. Unlike other multi-bucket aggregations, the intervals will not necessarily have a uniform width.
 
 ::::{tip}
 The number of buckets returned will always be less than or equal to the target number.

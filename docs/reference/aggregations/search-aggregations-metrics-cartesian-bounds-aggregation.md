@@ -56,7 +56,7 @@ POST /museums/_search?size=0
 
 
 ::::{note}
-Unlike the case with the [`geo_bounds`](/reference/data-analysis/aggregations/search-aggregations-metrics-geobounds-aggregation.md#geobounds-aggregation-geo-shape) aggregation, there is no option to set [`wrap_longitude`](/reference/data-analysis/aggregations/search-aggregations-metrics-geobounds-aggregation.md#geo-bounds-wrap-longitude). This is because the cartesian space is euclidean and does not wrap back on itself. So the bounds will always have a minimum x value less than or equal to the maximum x value.
+Unlike the case with the [`geo_bounds`](/reference/aggregations/search-aggregations-metrics-geobounds-aggregation.md#geobounds-aggregation-geo-shape) aggregation, there is no option to set [`wrap_longitude`](/reference/aggregations/search-aggregations-metrics-geobounds-aggregation.md#geo-bounds-wrap-longitude). This is because the cartesian space is euclidean and does not wrap back on itself. So the bounds will always have a minimum x value less than or equal to the maximum x value.
 ::::
 
 

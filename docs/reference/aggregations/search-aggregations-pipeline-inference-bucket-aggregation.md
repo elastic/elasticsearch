@@ -43,7 +43,7 @@ $$$inference-bucket-params$$$
 | --- | --- | --- | --- |
 | `model_id` | The ID or alias for the trained model. | Required | - |
 | `inference_config` | Contains the inference type and its options. There are two types: [`regression`](#inference-agg-regression-opt) and [`classification`](#inference-agg-classification-opt) | Optional | - |
-| `buckets_path` | Defines the paths to the input aggregations and maps the aggregation names to the field names expected by the model.See [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for more details | Required | - |
+| `buckets_path` | Defines the paths to the input aggregations and maps the aggregation names to the field names expected by the model.See [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax) for more details | Required | - |
 
 
 ## Configuration options for {{infer}} models [_configuration_options_for_infer_models]

@@ -12,7 +12,7 @@ Normalizes width differences in CJK (Chinese, Japanese, and Korean) characters a
 * Folds full-width ASCII character variants into the equivalent basic Latin characters
 * Folds half-width Katakana character variants into the equivalent Kana characters
 
-This filter is included in {{es}}'s built-in [CJK language analyzer](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md#cjk-analyzer). It uses Lucene’s [CJKWidthFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/cjk/CJKWidthFilter.md).
+This filter is included in {{es}}'s built-in [CJK language analyzer](/reference/text-analysis/analysis-lang-analyzer.md#cjk-analyzer). It uses Lucene’s [CJKWidthFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/cjk/CJKWidthFilter.md).
 
 ::::{note}
 This token filter can be viewed as a subset of NFKC/NFKD Unicode normalization. See the [`analysis-icu` plugin](/reference/elasticsearch-plugins/analysis-icu-normalization-charfilter.md) for full normalization support.

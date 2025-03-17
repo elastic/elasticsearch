@@ -93,7 +93,7 @@ Response:
 
 ## High-precision requests [_high_precision_requests]
 
-When requesting detailed buckets (typically for displaying a "zoomed in" map) a filter like [geo_bounding_box](/reference/query-languages/query-dsl-geo-bounding-box-query.md) should be applied to narrow the subject area otherwise potentially millions of buckets will be created and returned.
+When requesting detailed buckets (typically for displaying a "zoomed in" map) a filter like [geo_bounding_box](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md) should be applied to narrow the subject area otherwise potentially millions of buckets will be created and returned.
 
 $$$geohashgrid-aggregation-high-precision-example$$$
 
@@ -191,7 +191,7 @@ var bbox = geohash.decode_bbox('u17');
 
 ## Requests with additional bounding box filtering [_requests_with_additional_bounding_box_filtering]
 
-The `geohash_grid` aggregation supports an optional `bounds` parameter that restricts the cells considered to those that intersects the bounds provided. The `bounds` parameter accepts the bounding box in all the same [accepted formats](/reference/query-languages/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats) of the bounds specified in the Geo Bounding Box Query. This bounding box can be used with or without an additional `geo_bounding_box` query filtering the points prior to aggregating. It is an independent bounding box that can intersect with, be equal to, or be disjoint to any additional `geo_bounding_box` queries defined in the context of the aggregation.
+The `geohash_grid` aggregation supports an optional `bounds` parameter that restricts the cells considered to those that intersects the bounds provided. The `bounds` parameter accepts the bounding box in all the same [accepted formats](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats) of the bounds specified in the Geo Bounding Box Query. This bounding box can be used with or without an additional `geo_bounding_box` query filtering the points prior to aggregating. It is an independent bounding box that can intersect with, be equal to, or be disjoint to any additional `geo_bounding_box` queries defined in the context of the aggregation.
 
 $$$geohashgrid-aggregation-with-bounds$$$
 
@@ -286,7 +286,7 @@ The table below shows the metric dimensions for cells covered by various string 
 
 Aggregating on [Geoshape](/reference/elasticsearch/mapping-reference/geo-shape.md) fields works just as it does for points, except that a single shape can be counted for in multiple tiles. A shape will contribute to the count of matching values if any part of its shape intersects with that tile. Below is an image that demonstrates this:
 
-![geoshape grid](../../../images/geoshape_grid.png "")
+![geoshape grid](../../images/geoshape_grid.png "")
 
 
 ## Options [_options_3]

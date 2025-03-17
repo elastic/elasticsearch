@@ -201,7 +201,7 @@ The username is redacted in the response.
 
 ## Grok watchdog [grok-watchdog-redact]
 
-The watchdog interrupts expressions that take too long to execute. When interrupted, the Redact processor fails with an error. The same [settings](/reference/ingestion-tools/enrich-processor/grok-processor.md#grok-watchdog-options) that control the Grok Watchdog timeout also apply to the Redact processor.
+The watchdog interrupts expressions that take too long to execute. When interrupted, the Redact processor fails with an error. The same [settings](/reference/enrich-processor/grok-processor.md#grok-watchdog-options) that control the Grok Watchdog timeout also apply to the Redact processor.
 
 
 ## Licensing [redact-licensing]

@@ -7,7 +7,7 @@ mapped_pages:
 # Date range aggregation [search-aggregations-bucket-daterange-aggregation]
 
 
-A range aggregation that is dedicated for date values. The main difference between this aggregation and the normal [range](/reference/data-analysis/aggregations/search-aggregations-bucket-range-aggregation.md) aggregation is that the `from` and `to` values can be expressed in [Date Math](/reference/elasticsearch/rest-apis/common-options.md#date-math) expressions, and it is also possible to specify a date format by which the `from` and `to` response fields will be returned. Note that this aggregation includes the `from` value and excludes the `to` value for each range.
+A range aggregation that is dedicated for date values. The main difference between this aggregation and the normal [range](/reference/aggregations/search-aggregations-bucket-range-aggregation.md) aggregation is that the `from` and `to` values can be expressed in [Date Math](/reference/elasticsearch/rest-apis/common-options.md#date-math) expressions, and it is also possible to specify a date format by which the `from` and `to` response fields will be returned. Note that this aggregation includes the `from` value and excludes the `to` value for each range.
 
 Example:
 
@@ -64,7 +64,7 @@ Response:
 ```
 
 ::::{warning}
-If a format or date value is incomplete, the date range aggregation replaces any missing components with default values. See [Missing date components](/reference/query-languages/query-dsl-range-query.md#missing-date-components).
+If a format or date value is incomplete, the date range aggregation replaces any missing components with default values. See [Missing date components](/reference/query-languages/query-dsl/query-dsl-range-query.md#missing-date-components).
 ::::
 
 

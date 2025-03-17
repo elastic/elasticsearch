@@ -31,7 +31,7 @@ The `simple` analyzer parses the sentence and produces the following tokens:
 The `simple` analyzer is defined by one tokenizer:
 
 Tokenizer
-:   * [Lowercase Tokenizer](/reference/data-analysis/text-analysis/analysis-lowercase-tokenizer.md)
+:   * [Lowercase Tokenizer](/reference/text-analysis/analysis-lowercase-tokenizer.md)
 
 
 

@@ -12,7 +12,7 @@ Removes duplicate tokens from a stream. For example, you can use the `unique` fi
 If the `only_on_same_position` parameter is set to `true`, the `unique` filter removes only duplicate tokens *in the same position*.
 
 ::::{note}
-When `only_on_same_position` is `true`, the `unique` filter works the same as [`remove_duplicates`](/reference/data-analysis/text-analysis/analysis-remove-duplicates-tokenfilter.md) filter.
+When `only_on_same_position` is `true`, the `unique` filter works the same as [`remove_duplicates`](/reference/text-analysis/analysis-remove-duplicates-tokenfilter.md) filter.
 
 ::::
 

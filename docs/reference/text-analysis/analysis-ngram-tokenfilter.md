@@ -14,7 +14,7 @@ For example, you can use the `ngram` token filter to change `fox` to `[ f, fo, o
 This filter uses Lucene’s [NGramTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ngram/NGramTokenFilter.md).
 
 ::::{note}
-The `ngram` filter is similar to the [`edge_ngram` token filter](/reference/data-analysis/text-analysis/analysis-edgengram-tokenfilter.md). However, the `edge_ngram` only outputs n-grams that start at the beginning of a token.
+The `ngram` filter is similar to the [`edge_ngram` token filter](/reference/text-analysis/analysis-edgengram-tokenfilter.md). However, the `edge_ngram` only outputs n-grams that start at the beginning of a token.
 
 ::::
 

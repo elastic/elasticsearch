@@ -13,12 +13,12 @@ When not customized, the filter removes the following French elisions by default
 
 `l'`, `m'`, `t'`, `qu'`, `n'`, `s'`, `j'`, `d'`, `c'`, `jusqu'`, `quoiqu'`, `lorsqu'`, `puisqu'`
 
-Customized versions of this filter are included in several of {{es}}'s built-in [language analyzers](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md):
+Customized versions of this filter are included in several of {{es}}'s built-in [language analyzers](/reference/text-analysis/analysis-lang-analyzer.md):
 
-* [Catalan analyzer](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md#catalan-analyzer)
-* [French analyzer](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md#french-analyzer)
-* [Irish analyzer](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md#irish-analyzer)
-* [Italian analyzer](/reference/data-analysis/text-analysis/analysis-lang-analyzer.md#italian-analyzer)
+* [Catalan analyzer](/reference/text-analysis/analysis-lang-analyzer.md#catalan-analyzer)
+* [French analyzer](/reference/text-analysis/analysis-lang-analyzer.md#french-analyzer)
+* [Irish analyzer](/reference/text-analysis/analysis-lang-analyzer.md#irish-analyzer)
+* [Italian analyzer](/reference/text-analysis/analysis-lang-analyzer.md#italian-analyzer)
 
 This filter uses Lucene’s [ElisionFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/util/ElisionFilter.md).
 

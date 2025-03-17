@@ -104,7 +104,7 @@ Response:
 }
 ```
 
-You can use a [`filter`](/reference/data-analysis/aggregations/search-aggregations-bucket-filter-aggregation.md) sub-aggregation to return results for a specific reseller.
+You can use a [`filter`](/reference/aggregations/search-aggregations-bucket-filter-aggregation.md) sub-aggregation to return results for a specific reseller.
 
 ```console
 GET /products/_search?size=0

@@ -18,9 +18,9 @@ Splits tokens at non-alphanumeric characters. The `word_delimiter_graph` filter 
 The `word_delimiter_graph` filter uses Lucene’s [WordDelimiterGraphFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/WordDelimiterGraphFilter.md).
 
 ::::{tip}
-The `word_delimiter_graph` filter was designed to remove punctuation from complex identifiers, such as product IDs or part numbers. For these use cases, we recommend using the `word_delimiter_graph` filter with the [`keyword`](/reference/data-analysis/text-analysis/analysis-keyword-tokenizer.md) tokenizer.
+The `word_delimiter_graph` filter was designed to remove punctuation from complex identifiers, such as product IDs or part numbers. For these use cases, we recommend using the `word_delimiter_graph` filter with the [`keyword`](/reference/text-analysis/analysis-keyword-tokenizer.md) tokenizer.
 
-Avoid using the `word_delimiter_graph` filter to split hyphenated words, such as `wi-fi`. Because users often search for these words both with and without hyphens, we recommend using the [`synonym_graph`](/reference/data-analysis/text-analysis/analysis-synonym-graph-tokenfilter.md) filter instead.
+Avoid using the `word_delimiter_graph` filter to split hyphenated words, such as `wi-fi`. Because users often search for these words both with and without hyphens, we recommend using the [`synonym_graph`](/reference/text-analysis/analysis-synonym-graph-tokenfilter.md) filter instead.
 
 ::::
 
@@ -66,7 +66,7 @@ PUT /my-index-000001
 ```
 
 ::::{warning}
-Avoid using the `word_delimiter_graph` filter with tokenizers that remove punctuation, such as the [`standard`](/reference/data-analysis/text-analysis/analysis-standard-tokenizer.md) tokenizer. This could prevent the `word_delimiter_graph` filter from splitting tokens correctly. It can also interfere with the filter’s configurable parameters, such as [`catenate_all`](#word-delimiter-graph-tokenfilter-catenate-all) or [`preserve_original`](#word-delimiter-graph-tokenfilter-preserve-original). We recommend using the [`keyword`](/reference/data-analysis/text-analysis/analysis-keyword-tokenizer.md) or [`whitespace`](/reference/data-analysis/text-analysis/analysis-whitespace-tokenizer.md) tokenizer instead.
+Avoid using the `word_delimiter_graph` filter with tokenizers that remove punctuation, such as the [`standard`](/reference/text-analysis/analysis-standard-tokenizer.md) tokenizer. This could prevent the `word_delimiter_graph` filter from splitting tokens correctly. It can also interfere with the filter’s configurable parameters, such as [`catenate_all`](#word-delimiter-graph-tokenfilter-catenate-all) or [`preserve_original`](#word-delimiter-graph-tokenfilter-preserve-original). We recommend using the [`keyword`](/reference/text-analysis/analysis-keyword-tokenizer.md) or [`whitespace`](/reference/text-analysis/analysis-whitespace-tokenizer.md) tokenizer instead.
 
 ::::
 
@@ -80,7 +80,7 @@ $$$word-delimiter-graph-tokenfilter-adjust-offsets$$$
 :   (Optional, Boolean) If `true`, the filter adjusts the offsets of split or catenated tokens to better reflect their actual position in the token stream. Defaults to `true`.
 
 ::::{warning}
-Set `adjust_offsets` to `false` if your analyzer uses filters, such as the [`trim`](/reference/data-analysis/text-analysis/analysis-trim-tokenfilter.md) filter, that change the length of tokens without changing their offsets. Otherwise, the `word_delimiter_graph` filter could produce tokens with illegal offsets.
+Set `adjust_offsets` to `false` if your analyzer uses filters, such as the [`trim`](/reference/text-analysis/analysis-trim-tokenfilter.md) filter, that change the length of tokens without changing their offsets. Otherwise, the `word_delimiter_graph` filter could produce tokens with illegal offsets.
 
 ::::
 
@@ -94,9 +94,9 @@ $$$word-delimiter-graph-tokenfilter-catenate-all$$$
 ::::{warning}
 Setting this parameter to `true` produces multi-position tokens, which are not supported by indexing.
 
-If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/data-analysis/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
+If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
 
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -110,9 +110,9 @@ $$$word-delimiter-graph-tokenfilter-catenate-numbers$$$
 ::::{warning}
 Setting this parameter to `true` produces multi-position tokens, which are not supported by indexing.
 
-If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/data-analysis/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
+If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
 
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -126,9 +126,9 @@ $$$word-delimiter-graph-tokenfilter-catenate-words$$$
 ::::{warning}
 Setting this parameter to `true` produces multi-position tokens, which are not supported by indexing.
 
-If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/data-analysis/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
+If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
 
-When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
+When used for search analysis, catenated tokens can cause problems for the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query and other queries that rely on token position for matching. Avoid setting this parameter to `true` if you plan to use these queries.
 
 ::::
 
@@ -151,7 +151,7 @@ $$$word-delimiter-graph-tokenfilter-preserve-original$$$
 ::::{warning}
 Setting this parameter to `true` produces multi-position tokens, which are not supported by indexing.
 
-If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/data-analysis/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
+If this parameter is `true`, avoid using this filter in an index analyzer or use the [`flatten_graph`](/reference/text-analysis/analysis-flatten-graph-tokenfilter.md) filter after this filter to make the token stream suitable for indexing.
 
 ::::
 
@@ -264,7 +264,7 @@ PUT /my-index-000001
 
 ## Differences between `word_delimiter_graph` and `word_delimiter` [analysis-word-delimiter-graph-differences]
 
-Both the `word_delimiter_graph` and [`word_delimiter`](/reference/data-analysis/text-analysis/analysis-word-delimiter-tokenfilter.md) filters produce tokens that span multiple positions when any of the following parameters are `true`:
+Both the `word_delimiter_graph` and [`word_delimiter`](/reference/text-analysis/analysis-word-delimiter-tokenfilter.md) filters produce tokens that span multiple positions when any of the following parameters are `true`:
 
 * [`catenate_all`](#word-delimiter-graph-tokenfilter-catenate-all)
 * [`catenate_numbers`](#word-delimiter-graph-tokenfilter-catenate-numbers)
@@ -275,7 +275,7 @@ However, only the `word_delimiter_graph` filter assigns multi-position tokens a 
 
 The `word_delimiter` filter does not assign multi-position tokens a `positionLength` attribute. This means it produces invalid graphs for streams including these tokens.
 
-While indexing does not support token graphs containing multi-position tokens, queries, such as the [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md) query, can use these graphs to generate multiple sub-queries from a single query string.
+While indexing does not support token graphs containing multi-position tokens, queries, such as the [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) query, can use these graphs to generate multiple sub-queries from a single query string.
 
 To see how token graphs produced by the `word_delimiter` and `word_delimiter_graph` filters differ, check out the following example.
 
@@ -292,7 +292,7 @@ Both the `word_delimiter` and `word_delimiter_graph` produce the following token
 
 This graph does not contain multi-position tokens. All tokens span only one position.
 
-:::{image} ../../../images/token-graph-basic.svg
+:::{image} ../../images/token-graph-basic.svg
 :alt: token graph basic
 :::
 
@@ -303,7 +303,7 @@ The `word_delimiter_graph` filter produces the following token graph for `PowerS
 
 This graph correctly indicates the catenated `PowerShot` token spans two positions.
 
-:::{image} ../../../images/token-graph-wdg.svg
+:::{image} ../../images/token-graph-wdg.svg
 :alt: token graph wdg
 :::
 
@@ -314,7 +314,7 @@ When `catenate_words` is `true`, the `word_delimiter` filter produces the follow
 
 Note that the catenated `PowerShot` token should span two positions but only spans one in the token graph, making it invalid.
 
-:::{image} ../../../images/token-graph-wd.svg
+:::{image} ../../images/token-graph-wd.svg
 :alt: token graph wd
 :::
 

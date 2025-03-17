@@ -14,7 +14,7 @@ This filter uses Lucene’s [UpperCaseFilter](https://lucene.apache.org/core/10_
 ::::{warning}
 Depending on the language, an uppercase character can map to multiple lowercase characters. Using the `uppercase` filter could result in the loss of lowercase character information.
 
-To avoid this loss but still have a consistent letter case, use the [`lowercase`](/reference/data-analysis/text-analysis/analysis-lowercase-tokenfilter.md) filter instead.
+To avoid this loss but still have a consistent letter case, use the [`lowercase`](/reference/text-analysis/analysis-lowercase-tokenfilter.md) filter instead.
 
 ::::
 

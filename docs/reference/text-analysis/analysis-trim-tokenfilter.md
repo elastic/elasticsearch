@@ -12,7 +12,7 @@ Removes leading and trailing whitespace from each token in a stream. While this 
 The `trim` filter uses Lucene’s [TrimFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/TrimFilter.md).
 
 ::::{tip}
-Many commonly used tokenizers, such as the [`standard`](/reference/data-analysis/text-analysis/analysis-standard-tokenizer.md) or [`whitespace`](/reference/data-analysis/text-analysis/analysis-whitespace-tokenizer.md) tokenizer, remove whitespace by default. When using these tokenizers, you don’t need to add a separate `trim` filter.
+Many commonly used tokenizers, such as the [`standard`](/reference/text-analysis/analysis-standard-tokenizer.md) or [`whitespace`](/reference/text-analysis/analysis-whitespace-tokenizer.md) tokenizer, remove whitespace by default. When using these tokenizers, you don’t need to add a separate `trim` filter.
 
 ::::
 
@@ -21,7 +21,7 @@ Many commonly used tokenizers, such as the [`standard`](/reference/data-analysis
 
 To see how the `trim` filter works, you first need to produce a token containing whitespace.
 
-The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the [`keyword`](/reference/data-analysis/text-analysis/analysis-keyword-tokenizer.md) tokenizer to produce a token for `" fox "`.
+The following [analyze API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-analyze) request uses the [`keyword`](/reference/text-analysis/analysis-keyword-tokenizer.md) tokenizer to produce a token for `" fox "`.
 
 ```console
 GET _analyze

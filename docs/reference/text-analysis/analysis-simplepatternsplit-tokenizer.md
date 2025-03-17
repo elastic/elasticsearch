@@ -7,11 +7,11 @@ mapped_pages:
 # Simple pattern split tokenizer [analysis-simplepatternsplit-tokenizer]
 
 
-The `simple_pattern_split` tokenizer uses a regular expression to split the input into terms at pattern matches. The set of regular expression features it supports is more limited than the [`pattern`](/reference/data-analysis/text-analysis/analysis-pattern-tokenizer.md) tokenizer, but the tokenization is generally faster.
+The `simple_pattern_split` tokenizer uses a regular expression to split the input into terms at pattern matches. The set of regular expression features it supports is more limited than the [`pattern`](/reference/text-analysis/analysis-pattern-tokenizer.md) tokenizer, but the tokenization is generally faster.
 
-This tokenizer does not produce terms from the matches themselves. To produce terms from matches using patterns in the same restricted regular expression subset, see the [`simple_pattern`](/reference/data-analysis/text-analysis/analysis-simplepattern-tokenizer.md) tokenizer.
+This tokenizer does not produce terms from the matches themselves. To produce terms from matches using patterns in the same restricted regular expression subset, see the [`simple_pattern`](/reference/text-analysis/analysis-simplepattern-tokenizer.md) tokenizer.
 
-This tokenizer uses [Lucene regular expressions](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/util/automaton/RegExp.html). For an explanation of the supported features and syntax, see [Regular Expression Syntax](/reference/query-languages/regexp-syntax.md).
+This tokenizer uses [Lucene regular expressions](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/util/automaton/RegExp.html). For an explanation of the supported features and syntax, see [Regular Expression Syntax](/reference/query-languages/query-dsl/regexp-syntax.md).
 
 The default pattern is the empty string, which produces one term containing the full input. This tokenizer should always be configured with a non-default pattern.
 

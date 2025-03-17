@@ -17,7 +17,7 @@ By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
 
 {{es}} automatically downloads updates for these databases from the Elastic GeoIP endpoint: [https://geoip.elastic.co/v1/database](https://geoip.elastic.co/v1/database?elastic_geoip_service_tos=agree). To get download statistics for these updates, use the [GeoIP stats API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-geo-ip-stats).
 
-If your cluster can’t connect to the Elastic GeoIP endpoint or you want to manage your own updates, see [Manage your own IP geolocation database updates](/reference/ingestion-tools/enrich-processor/geoip-processor.md#manage-geoip-database-updates).
+If your cluster can’t connect to the Elastic GeoIP endpoint or you want to manage your own updates, see [Manage your own IP geolocation database updates](/reference/enrich-processor/geoip-processor.md#manage-geoip-database-updates).
 
 If you would like to have {{es}} download database files directly from Maxmind using your own provided license key, see [Create or update IP geolocation database configuration](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ingest-put-ip-location-database).
 

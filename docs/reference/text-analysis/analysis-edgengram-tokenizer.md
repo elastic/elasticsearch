@@ -77,7 +77,7 @@ The `edge_ngram` tokenizer’s `max_gram` value limits the character length of t
 
 For example, if the `max_gram` is `3`, searches for `apple` won’t match the indexed term `app`.
 
-To account for this, you can use the [`truncate`](/reference/data-analysis/text-analysis/analysis-truncate-tokenfilter.md) token filter with a search analyzer to shorten search terms to the `max_gram` character length. However, this could return irrelevant results.
+To account for this, you can use the [`truncate`](/reference/text-analysis/analysis-truncate-tokenfilter.md) token filter with a search analyzer to shorten search terms to the `max_gram` character length. However, this could return irrelevant results.
 
 For example, if the `max_gram` is `3` and search terms are truncated to three characters, the search term `apple` is shortened to `app`. This means searches for `apple` return any indexed terms matching `app`, such as `apply`, `approximate` and `apple`.
 

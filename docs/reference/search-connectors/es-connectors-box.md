@@ -12,14 +12,14 @@ Th Box connector is written in Python using the [Elastic connector framework](ht
 View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/box.py) (branch *main*, compatible with Elastic *9.0*).
 
 ::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector reference** [es-connectors-box-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-box-client-availability-and-prerequisites]
 
-This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector prerequisites](/reference/ingestion-tools/search-connectors/self-managed-connectors.md).
+This connector is available as a self-managed connector. To use this connector, satisfy all [self-managed connector prerequisites](/reference/search-connectors/self-managed-connectors.md).
 
 ::::{note}
 This connector is in **technical preview** and is subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Technical preview features are not subject to the support SLA of official GA features.
@@ -105,7 +105,7 @@ Refer to the [{{es}} API documentation](https://www.elastic.co/docs/api/doc/elas
 
 To use this connector as a **self-managed connector**, use the **Box** tile from the connectors list OR **Customized connector** workflow.
 
-For additional operations, see [*Connectors UI in {{kib}}*](/reference/ingestion-tools/search-connectors/connectors-ui-in-kibana.md).
+For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
 
 ### Box API Authorization [es-connectors-box-client-api-authorization]
@@ -258,7 +258,7 @@ We also have a quickstart self-managed option using Docker Compose, so you can s
 
 ### Content Extraction [es-connectors-box-client-content-extraction]
 
-Refer to [Content extraction](/reference/ingestion-tools/search-connectors/es-connectors-content-extraction.md).
+Refer to [Content extraction](/reference/search-connectors/es-connectors-content-extraction.md).
 
 
 ### Documents and syncs [es-connectors-box-client-documents-and-syncs]
@@ -278,14 +278,14 @@ The connector syncs the following objects and entities:
 
 #### Sync types [es-connectors-box-client-sync-types]
 
-[Full syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
+[Full syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-full) are supported by default for all connectors.
 
-This connector also supports [incremental syncs](/reference/ingestion-tools/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
+This connector also supports [incremental syncs](/reference/search-connectors/content-syncs.md#es-connectors-sync-types-incremental).
 
 
 ### Sync rules [es-connectors-box-client-sync-rules]
 
-[Basic sync rules](/reference/ingestion-tools/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
+[Basic sync rules](/reference/search-connectors/es-sync-rules.md#es-sync-rules-basic) are identical for all connectors and are available by default.
 
 
 ### Advanced Sync Rules [es-connectors-box-client-advanced-sync-rules]
@@ -295,7 +295,7 @@ Advanced sync rules are not available for this connector in the present version.
 
 ### End-to-end Testing [es-connectors-box-client-end-to-end-testing]
 
-The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/ingestion-tools/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
+The connector framework enables operators to run functional tests against a real data source. Refer to [Connector testing](/reference/search-connectors/self-managed-connectors.md#es-build-connector-testing) for more details.
 
 To perform E2E testing for the Box connector, run the following command:
 
@@ -317,10 +317,10 @@ There are no known issues for this connector. Refer to [Known issues](/release-n
 
 ### Troubleshooting [es-connectors-box-client-troubleshooting]
 
-See [Troubleshooting](/reference/ingestion-tools/search-connectors/es-connectors-troubleshooting.md).
+See [Troubleshooting](/reference/search-connectors/es-connectors-troubleshooting.md).
 
 
 ### Security [es-connectors-box-client-security]
 
-See [Security](/reference/ingestion-tools/search-connectors/es-connectors-security.md).
+See [Security](/reference/search-connectors/es-connectors-security.md).
 

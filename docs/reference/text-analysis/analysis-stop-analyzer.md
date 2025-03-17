@@ -7,7 +7,7 @@ mapped_pages:
 # Stop analyzer [analysis-stop-analyzer]
 
 
-The `stop` analyzer is the same as the [`simple` analyzer](/reference/data-analysis/text-analysis/analysis-simple-analyzer.md) but adds support for removing stop words. It defaults to using the `_english_` stop words.
+The `stop` analyzer is the same as the [`simple` analyzer](/reference/text-analysis/analysis-simple-analyzer.md) but adds support for removing stop words. It defaults to using the `_english_` stop words.
 
 
 ## Example output [_example_output_5]
@@ -37,7 +37,7 @@ The `stop` analyzer accepts the following parameters:
 `stopwords_path`
 :   The path to a file containing stop words. This path is relative to the Elasticsearch `config` directory.
 
-See the [Stop Token Filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md) for more information about stop word configuration.
+See the [Stop Token Filter](/reference/text-analysis/analysis-stop-tokenfilter.md) for more information about stop word configuration.
 
 
 ## Example configuration [_example_configuration_5]
@@ -78,11 +78,11 @@ The above example produces the following terms:
 It consists of:
 
 Tokenizer
-:   * [Lower Case Tokenizer](/reference/data-analysis/text-analysis/analysis-lowercase-tokenizer.md)
+:   * [Lower Case Tokenizer](/reference/text-analysis/analysis-lowercase-tokenizer.md)
 
 
 Token filters
-:   * [Stop Token Filter](/reference/data-analysis/text-analysis/analysis-stop-tokenfilter.md)
+:   * [Stop Token Filter](/reference/text-analysis/analysis-stop-tokenfilter.md)
 
 
 If you need to customize the `stop` analyzer beyond the configuration parameters then you need to recreate it as a `custom` analyzer and modify it, usually by adding token filters. This would recreate the built-in `stop` analyzer and you can use it as a starting point for further customization:

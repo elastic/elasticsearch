@@ -452,6 +452,9 @@ PKCS#12 files are configured in the same way as Java keystore files:
 
 You can configure the following Slack notification settings in `elasticsearch.yml`. For more information about sending notifications via Slack, see [Configuring Slack actions](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md#configuring-slack-actions).
 
+`xpack.notification.slack` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   Configures [Slack notification settings](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md). Note that you need to add `secure_url` as a [secret value to the keystore](docs-content://deploy-manage/security/secure-settings.md).
+
 `xpack.notification.slack.default_account`
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Default Slack account to use.
 
@@ -521,6 +524,9 @@ $$$jira-account-attributes$$$
 ## PagerDuty Notification Settings [pagerduty-notification-settings]
 
 You can configure the following PagerDuty notification settings in `elasticsearch.yml`. For more information about sending notifications via PagerDuty, see [Configuring PagerDuty actions](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md#configuring-pagerduty-actions).
+
+`xpack.notification.pagerduty` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   Configures [PagerDuty notification settings](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md#configuring-pagerduty).
 
 `xpack.notification.pagerduty.default_account`
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Default PagerDuty account to use.

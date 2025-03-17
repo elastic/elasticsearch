@@ -56,16 +56,6 @@ Elasticsearch Service supports the following `elasticsearch.yml` settings.
     This setting only applies to the Watcher `webhook` action, not the `http` input action.
     ::::
 
-`azure.client.CLIENT_NAME.endpoint_suffix`
-:   Allows providing the [endpoint_suffix client setting](docs-content://deploy-manage/tools/snapshot-and-restore/azure-repository.md#repository-azure-client-settings) for a non-internal Azure client used for snapshot/restore. Note that `CLIENT_NAME` should be replaced with the name of the created client.
-
-### Indexing pressure settings [ec_indexing_pressure_settings]
-
-The following indexing pressure settings are supported:
-
-`indexing_pressure.memory.limit`
-:   Configures [the indexing pressure settings](/reference/elasticsearch/index-settings/pressure.md).
-
 
 ### X-Pack [ec_x_pack]
 
@@ -79,12 +69,6 @@ The following indexing pressure settings are supported:
 
 `xpack.security.loginAssistanceMessage`
 :   Adds a message to the login screen. Useful for displaying corporate messages.
-
-`xpack.notification.slack`
-:   Configures [Slack notification settings](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md). Note that you need to add `secure_url` as a [secret value to the keystore](docs-content://deploy-manage/security/secure-settings.md).
-
-`xpack.notification.pagerduty`
-:   Configures [PagerDuty notification settings](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md#configuring-pagerduty).
 
 `xpack.watcher.trigger.schedule.engine`
 :   Defines when the watch should start, based on date and time [Learn more](docs-content://explore-analyze/alerts-cases/watcher/schedule-types.md).
@@ -120,22 +104,6 @@ All SAML, OpenID Connect, Kerberos, and JWT settings are allowlisted.
 The following search settings are supported:
 
 * `search.aggs.rewrite_to_filter_by_filter`
-
-### Enrich settings [ec_enrich_settings]
-
-The following enrich settings are supported:
-
-`enrich.cache_size`
-:   Maximum number of searches to cache for enriching documents. Defaults to 1000. There is a single cache for all enrich processors in the cluster. This setting determines the size of that cache.
-
-`enrich.coordinator_proxy.max_concurrent_requests`
-:   Maximum number of concurrent multi-search requests to run when enriching documents. Defaults to 8.
-
-`enrich.coordinator_proxy.max_lookups_per_request`
-:   Maximum number of searches to include in a multi-search request when enriching documents. Defaults to 128.
-
-`enrich.coordinator_proxy.queue_capacity`
-:   coordinator queue capacity, defaults to max_concurrent_requests * max_lookups_per_request
 
 ### Universal Profiling settings [ec_universal_profiling_settings]
 

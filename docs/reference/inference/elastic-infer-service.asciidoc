@@ -48,9 +48,6 @@ include::inference-shared.asciidoc[tag=chat-completion-docs]
 ==== {api-request-body-title}
 
 
-`chunking_settings`::
-(Optional, object)
-include::inference-shared.asciidoc[tag=chunking-settings]
 
 `max_chunk_size`:::
 (Optional, integer)

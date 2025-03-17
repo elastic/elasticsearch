@@ -126,8 +126,6 @@ tasks.register("writeTestJavaPolicy") {
           "permission java.security.SecurityPermission \"getProperty.keystore.type.compat\";",
           "permission java.security.SecurityPermission \"getProperty.org.bouncycastle.ec.max_f2m_field_size\";",
           "permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
-          "permission java.io.FilePermission \"\${user.home}/.aws/credentials\", \"read\";",
-          "permission java.io.FilePermission \"\${user.home}/.aws/config\", \"read\";",
           "permission java.util.PropertyPermission \"http.proxyHost\", \"read\";",
           "permission java.util.PropertyPermission \"aws.region\", \"read\";",
           "};"
@@ -138,8 +136,6 @@ tasks.register("writeTestJavaPolicy") {
         [
           "grant {",
           "permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
-          "permission java.io.FilePermission \"\${user.home}/.aws/credentials\", \"read\";",
-          "permission java.io.FilePermission \"\${user.home}/.aws/config\", \"read\";",
           "permission java.util.PropertyPermission \"http.proxyHost\", \"read\";",
           "permission java.util.PropertyPermission \"aws.region\", \"read\";",
           "};"

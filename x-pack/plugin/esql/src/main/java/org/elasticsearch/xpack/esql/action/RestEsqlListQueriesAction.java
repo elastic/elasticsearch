@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,7 +46,11 @@ public class RestEsqlListQueriesAction extends BaseRestHandler {
 
         String id = request.param("id");
         return id != null
-            ? (channel -> client.execute(EsqlGetQueryAction.INSTANCE, new EsqlGetQueryRequest(id), new RestToXContentListener<>(channel)))
+            ? (channel -> client.execute(
+                EsqlGetQueryAction.INSTANCE,
+                new EsqlGetQueryRequest(new TaskId(id)),
+                new RestToXContentListener<>(channel)
+            ))
             : (channel -> client.execute(
                 EsqlListQueriesAction.INSTANCE,
                 new EsqlListQueriesRequest(),

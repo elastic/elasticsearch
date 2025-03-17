@@ -57,11 +57,13 @@ class Ec2NameResolver implements CustomNameResolver {
         return null; // using this, one has to explicitly specify _ec2_ in network setting
     }
 
+    private static final String IMDS_ADDRESS_PATH_PREFIX = "/latest/meta-data/";
+
     @Override
     public InetAddress[] resolveIfPossible(String value) throws IOException {
         for (Ec2HostnameType type : Ec2HostnameType.values()) {
             if (type.configName.equals(value)) {
-                final var metadataPath = "/latest/meta-data/" + type.ec2Name;
+                final var metadataPath = IMDS_ADDRESS_PATH_PREFIX + type.ec2Name;
                 try {
                     // only one address: IMDS returns just one address/name, and if it's a name then it should resolve to one address
                     return new InetAddress[] { InetAddress.getByName(AwsEc2Utils.getInstanceMetadata(metadataPath)) };

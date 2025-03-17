@@ -25,19 +25,12 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Comp
     }
 
     private final String fullPath;
-    private final String leafName;
     private final String offsetsFieldName;
     private final NumericValueWriter valueWriter;
     private NumericDocValuesWithOffsetsLoader docValuesLoader;
 
-    SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(
-        String fullPath,
-        String leafName,
-        String offsetsFieldName,
-        NumericValueWriter valueWriter
-    ) {
+    SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(String fullPath, String offsetsFieldName, NumericValueWriter valueWriter) {
         this.fullPath = fullPath;
-        this.leafName = leafName;
         this.offsetsFieldName = offsetsFieldName;
         this.valueWriter = valueWriter;
     }
@@ -67,7 +60,7 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Comp
     @Override
     public void write(XContentBuilder b) throws IOException {
         if (docValuesLoader != null) {
-            docValuesLoader.write(leafName, b);
+            docValuesLoader.write(b);
         }
     }
 
@@ -141,7 +134,7 @@ class SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Comp
             }
         }
 
-        public void write(String fieldName, XContentBuilder b) throws IOException {
+        public void write(XContentBuilder b) throws IOException {
             if (hasValue == false && hasOffset == false) {
                 return;
             }

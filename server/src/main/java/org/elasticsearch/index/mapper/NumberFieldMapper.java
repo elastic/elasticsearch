@@ -2231,9 +2231,7 @@ public class NumberFieldMapper extends FieldMapper {
     private SourceLoader.SyntheticFieldLoader docValuesSyntheticFieldLoader() {
         if (offsetsFieldName != null) {
             var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(
-                new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), leafName(), offsetsFieldName, type::writeValue)
-            );
+            layers.add(new SortedNumericWithOffsetsDocValuesSyntheticFieldLoaderLayer(fullPath(), offsetsFieldName, type::writeValue));
             if (ignoreMalformed.value()) {
                 layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
             }

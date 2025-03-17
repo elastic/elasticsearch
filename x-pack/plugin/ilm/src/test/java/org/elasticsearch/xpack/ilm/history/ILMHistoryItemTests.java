@@ -13,8 +13,13 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -109,6 +114,36 @@ public class ILMHistoryItemTests extends ESTestCase {
                   },
                   "error_details": "{\\"type\\":\\"illegal_argument_exception\\",\\"reason\\":\\"failure\\",\
                 \\"stack_trace\\":\\"java.lang.IllegalArgumentException: failure""".replaceAll("\\s", "")));
+        }
+    }
+
+    public void testTruncateLongError() throws IOException {
+        String longError = randomAlphaOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 20);
+        ILMHistoryItem failure = ILMHistoryItem.failure(
+            "index",
+            "policy",
+            1234L,
+            100L,
+            LifecycleExecutionState.EMPTY_STATE,
+            new IllegalArgumentException(longError)
+        );
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            failure.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            String json = Strings.toString(builder);
+            try (XContentParser p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, json)) {
+                Map<String, Object> item = p.map();
+                assertThat(
+                    item.get("error_details"),
+                    equalTo(
+                        "{\"type\":\"illegal_argument_exception\",\"reason\":\""
+                            // We subtract a number of characters here due to the truncation being based
+                            // on the length of the whole string, not just the "reason" part.
+                            + longError.substring(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 47)
+                            + "\"}"
+                    )
+                );
+            }
         }
     }
 }

@@ -33,8 +33,7 @@ include::inference-shared.asciidoc[tag=task-type]
 --
 Available task types:
 
-* `chat_completion`,
-* `sparse_embedding`.
+* `chat_completion`
 --
 
 [NOTE]
@@ -47,6 +46,7 @@ include::inference-shared.asciidoc[tag=chat-completion-docs]
 [discrete]
 [[infer-service-elastic-api-request-body]]
 ==== {api-request-body-title}
+
 
 
 `max_chunk_size`:::
@@ -93,22 +93,6 @@ include::inference-shared.asciidoc[tag=request-per-minute-example]
 [[inference-example-elastic]]
 ==== Elastic {infer-cap} Service example
 
-
-The following example shows how to create an {infer} endpoint called `elser-model-eis` to perform a `text_embedding` task type.
-
-[source,console]
-------------------------------------------------------------
-PUT _inference/sparse_embedding/elser-model-eis
-{
-    "service": "elastic",
-    "service_settings": {
-        "model_name": "elser"
-    }
-}
-
-------------------------------------------------------------
-// TEST[skip:TBD]
-
 The following example shows how to create an {infer} endpoint called `chat-completion-endpoint` to perform a `chat_completion` task type.
 
 [source,console]
@@ -117,7 +101,7 @@ PUT /_inference/chat_completion/chat-completion-endpoint
 {
     "service": "elastic",
     "service_settings": {
-        "model_id": "model-1"
+        "model_id": "rainbow-sprinkles"
     }
 }
 ------------------------------------------------------------

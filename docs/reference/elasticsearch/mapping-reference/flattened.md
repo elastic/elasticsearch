@@ -228,7 +228,7 @@ The following mapping parameters are accepted:
 :   Which scoring algorithm or *similarity* should be used. Defaults to `BM25`.
 
 `split_queries_on_whitespace`
-:   Whether [full text queries](/reference/query-languages/full-text-queries.md) should split the input on whitespace when building a query for this field. Accepts `true` or `false` (default).
+:   Whether [full text queries](/reference/query-languages/query-dsl/full-text-queries.md) should split the input on whitespace when building a query for this field. Accepts `true` or `false` (default).
 
 `time_series_dimensions`
 :   (Optional, array of strings) A list of fields inside the flattened object, where each field is a dimension of the time series. Each field is specified using the relative path from the root field and does not include the root field name.

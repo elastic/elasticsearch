@@ -129,9 +129,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(Throwable cause) {
         super(cause);
-        if (isTimeout()) {
-            headers.put(TIMED_OUT_HEADER, List.of("true"));
-        }
+        maybePutTimeoutHeader();
     }
 
     /**
@@ -146,9 +144,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Object... args) {
         super(LoggerMessageFormat.format(msg, args));
-        if (isTimeout()) {
-            headers.put(TIMED_OUT_HEADER, List.of("true"));
-        }
+        maybePutTimeoutHeader();
     }
 
     /**
@@ -165,9 +161,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @SuppressWarnings("this-escape")
     public ElasticsearchException(String msg, Throwable cause, Object... args) {
         super(LoggerMessageFormat.format(msg, args), cause);
-        if (isTimeout()) {
-            headers.put(TIMED_OUT_HEADER, List.of("true"));
-        }
+        maybePutTimeoutHeader();
     }
 
     @SuppressWarnings("this-escape")
@@ -176,6 +170,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         readStackTrace(this, in);
         headers.putAll(in.readMapOfLists(StreamInput::readString));
         metadata.putAll(in.readMapOfLists(StreamInput::readString));
+    }
+
+    private void maybePutTimeoutHeader() {
+        if (isTimeout()) {
+            // see https://www.rfc-editor.org/rfc/rfc8941.html#section-4.1.9 for booleans in structured headers
+            headers.put(TIMED_OUT_HEADER, List.of("?1"));
+        }
     }
 
     /**

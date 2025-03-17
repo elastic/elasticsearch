@@ -1578,7 +1578,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
               "reason": "some timeout",
               "timed_out": true,
               "header": {
-                "X-Timed-Out": "true"
+                "X-Timed-Out": "?1"
               }
             }""";
         assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));

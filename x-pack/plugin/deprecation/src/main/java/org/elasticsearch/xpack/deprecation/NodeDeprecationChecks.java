@@ -1018,7 +1018,7 @@ public class NodeDeprecationChecks {
             Setting.Property.NodeScope,
             Setting.Property.Deprecated
         );
-        String url = "https://ela.st/es-deprecation-8-watcher-bulk-concurrency-setting";
+        String url = "https://ela.st/es-deprecation-8-watcher-settings";
         return checkRemovedSetting(
             clusterState.metadata().settings(),
             settings,

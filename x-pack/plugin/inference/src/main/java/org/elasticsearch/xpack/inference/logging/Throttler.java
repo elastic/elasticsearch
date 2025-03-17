@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
@@ -44,6 +45,7 @@ public class Throttler implements Closeable {
     private final AtomicReference<Scheduler.Cancellable> cancellableTask = new AtomicReference<>();
     private final AtomicBoolean isRunning = new AtomicBoolean(true);
     private final ThreadPool threadPool;
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
      * @param loggingInterval the frequency to run a task to emit repeated log messages
@@ -86,27 +88,46 @@ public class Throttler implements Closeable {
             return;
         }
 
-        for (var iter = logExecutors.values().iterator(); iter.hasNext();) {
-            var executor = iter.next();
-            iter.remove();
-            executor.logRepeatedMessages();
+        final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
+
+        writeLock.lock();
+        try {
+            for (var iter = logExecutors.values().iterator(); iter.hasNext();) {
+                var executor = iter.next();
+                executor.logRepeatedMessages();
+                iter.remove();
+            }
+        } finally {
+            writeLock.unlock();
         }
     }
 
-    public void execute(String message, Consumer<String> logCallback) {
+    public void warn(Logger logger, String message) {
+        execute(message, logger::warn);
+    }
+
+    public void warn(Logger logger, String message, Throwable t) {
+        execute(message, enrichedMessage -> logger.warn(enrichedMessage, t));
+    }
+
+    private void execute(String message, Consumer<String> logCallback) {
         if (isRunning.get() == false) {
             return;
         }
 
-        var logExecutor = logExecutors.compute(message, (key, value) -> {
-            if (value == null) {
-                return new LogExecutor(clock, logCallback, message);
-            }
+        final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
 
-            return value;
-        });
+        readLock.lock();
+        try {
+            var logExecutor = logExecutors.compute(
+                message,
+                (key, value) -> Objects.requireNonNullElseGet(value, () -> new LogExecutor(clock, logCallback, message))
+            );
 
-        logExecutor.logFirstMessage();
+            logExecutor.logFirstMessage();
+        } finally {
+            readLock.unlock();
+        }
     }
 
     @Override
@@ -115,7 +136,18 @@ public class Throttler implements Closeable {
         if (cancellableTask.get() != null) {
             cancellableTask.get().cancel();
         }
-        logExecutors.clear();
+
+        clearLogExecutors();
+    }
+
+    private void clearLogExecutors() {
+        final ReentrantReadWriteLock.WriteLock writeLock = lock.writeLock();
+        writeLock.lock();
+        try {
+            logExecutors.clear();
+        } finally {
+            writeLock.unlock();
+        }
     }
 
     private static class LogExecutor {
@@ -126,39 +158,33 @@ public class Throttler implements Closeable {
         private static final long INITIAL_LOG_COUNTER_VALUE = -1;
 
         private final AtomicLong skippedLogCalls = new AtomicLong(INITIAL_LOG_COUNTER_VALUE);
-        private Instant timeOfLastLogCall;
+        private final AtomicReference<Instant> timeOfLastLogCall;
         private final Clock clock;
         private final Consumer<String> throttledConsumer;
         private final String originalMessage;
 
         LogExecutor(Clock clock, Consumer<String> throttledConsumer, String originalMessage) {
             this.clock = Objects.requireNonNull(clock);
-            timeOfLastLogCall = Instant.now(this.clock);
+            timeOfLastLogCall = new AtomicReference<>(Instant.now(this.clock));
             this.throttledConsumer = Objects.requireNonNull(throttledConsumer);
             this.originalMessage = Objects.requireNonNull(originalMessage);
         }
 
         void logRepeatedMessages() {
-            long numSkippedLogCalls;
-            synchronized (skippedLogCalls) {
-                numSkippedLogCalls = skippedLogCalls.get();
-                if (hasRepeatedLogsToEmit(numSkippedLogCalls) == false) {
-                    // Since we tried to log but there were no repeated messages we'll reset this entry so a new message
-                    // would get logged like it is the first time
-                    reset();
-                    return;
-                }
+            var numSkippedLogCalls = skippedLogCalls.get();
+            if (hasRepeatedLogsToEmit(numSkippedLogCalls) == false) {
+                return;
             }
 
             String enrichedMessage;
             if (numSkippedLogCalls == 1) {
-                enrichedMessage = Strings.format("%s, repeated 1 time, last message at [%s]", originalMessage, timeOfLastLogCall);
+                enrichedMessage = Strings.format("%s, repeated 1 time, last message at [%s]", originalMessage, timeOfLastLogCall.get());
             } else {
                 enrichedMessage = Strings.format(
                     "%s, repeated %s times, last message at [%s]",
                     originalMessage,
                     skippedLogCalls,
-                    timeOfLastLogCall
+                    timeOfLastLogCall.get()
                 );
             }
 
@@ -169,19 +195,10 @@ public class Throttler implements Closeable {
             return numSkippedLogCalls > 0;
         }
 
-        private void reset() {
-            skippedLogCalls.set(INITIAL_LOG_COUNTER_VALUE);
-        }
-
         void logFirstMessage() {
-            long numSkippedLogCalls;
-            synchronized (skippedLogCalls) {
-                numSkippedLogCalls = skippedLogCalls.getAndIncrement();
-            }
+            timeOfLastLogCall.set(Instant.now(this.clock));
 
-            timeOfLastLogCall = Instant.now(this.clock);
-
-            if (hasLoggedOriginalMessage(numSkippedLogCalls) == false) {
+            if (hasLoggedOriginalMessage(skippedLogCalls.getAndIncrement()) == false) {
                 this.throttledConsumer.accept(originalMessage);
             }
         }

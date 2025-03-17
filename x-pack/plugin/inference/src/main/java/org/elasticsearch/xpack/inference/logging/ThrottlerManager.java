@@ -98,13 +98,13 @@ public class ThrottlerManager implements Closeable {
         Objects.requireNonNull(message);
         Objects.requireNonNull(e);
 
-        throttler.execute(message, messageToLog -> logger.warn(messageToLog, e));
+        throttler.warn(logger, message, e);
     }
 
     public void warn(Logger logger, String message) {
         Objects.requireNonNull(message);
 
-        throttler.execute(message, logger::warn);
+        throttler.warn(logger, message);
     }
 
     @Override

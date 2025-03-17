@@ -46,11 +46,11 @@ public class ThrottlerTests extends ESTestCase {
             )
         ) {
             throttler.init();
-            throttler.execute("test", logger::warn);
+            throttler.warn(logger, "test");
 
             verify(logger, times(1)).warn(eq("test"));
 
-            throttler.execute("test", logger::warn);
+            throttler.warn(logger, "test");
             verifyNoMoreInteractions(logger);
         }
     }
@@ -67,11 +67,11 @@ public class ThrottlerTests extends ESTestCase {
             when(clock.instant()).thenReturn(now);
 
             // The first call is always logged
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
             // This should increment the skipped log count but not actually log anything
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verifyNoMoreInteractions(logger);
 
             // This should log a message with the skip count as 1
@@ -94,11 +94,11 @@ public class ThrottlerTests extends ESTestCase {
             when(clock.instant()).thenReturn(now);
 
             // The first call is always logged
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
             // This should increment the skipped log count but not actually log anything
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verifyNoMoreInteractions(logger);
 
             // This should log a message with the skip count as 1
@@ -106,7 +106,7 @@ public class ThrottlerTests extends ESTestCase {
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
             // Since the thread ran in the code above it will have reset the state so this will be treated as a first message
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
             verifyNoMoreInteractions(logger);
@@ -120,10 +120,10 @@ public class ThrottlerTests extends ESTestCase {
 
         try (var throttler = new Throttler(TimeValue.timeValueDays(1), clock, taskQueue.getThreadPool(), new ConcurrentHashMap<>())) {
             throttler.init();
-            throttler.execute("test", logger::warn);
+            throttler.warn(logger, "test");
             verify(logger, times(1)).warn(eq("test"));
 
-            throttler.execute("a different message", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.warn(logger, "a different message", new IllegalArgumentException("failed"));
             verify(logger, times(1)).warn(eq("a different message"), any(Throwable.class));
         }
     }
@@ -140,15 +140,15 @@ public class ThrottlerTests extends ESTestCase {
             when(clock.instant()).thenReturn(now);
 
             // The first call is always logged
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
 
             // This should increment the skipped log count but not actually log anything
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verifyNoMoreInteractions(logger);
 
             // This should increment the skipped log count but not actually log anything
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
+            throttler.warn(logger, "test", new IllegalArgumentException("failed"));
             verifyNoMoreInteractions(logger);
 
             // This should log a message with the skip count as 2
@@ -167,7 +167,7 @@ public class ThrottlerTests extends ESTestCase {
         var throttler = new Throttler(TimeValue.timeValueDays(1), clock, taskQueue.getThreadPool(), new ConcurrentHashMap<>());
 
         throttler.close();
-        throttler.execute("test", logger::warn);
+        throttler.warn(logger, "test");
         verifyNoMoreInteractions(logger);
     }
 }

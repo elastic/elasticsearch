@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.cluster.RemoteComputeException;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.RemoteComputeException;
 
 import static org.hamcrest.Matchers.is;
 

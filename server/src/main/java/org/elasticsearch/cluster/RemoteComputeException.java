@@ -5,12 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql;
+package org.elasticsearch.cluster;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -26,6 +28,10 @@ public class RemoteComputeException extends ElasticsearchException {
     public RemoteComputeException(String clusterAlias, Throwable cause) {
         super("Remote [" + clusterAlias + "] encountered an error", cause);
         Objects.requireNonNull(cause);
+    }
+
+    public RemoteComputeException(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

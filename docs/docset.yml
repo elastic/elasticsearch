@@ -26,11 +26,19 @@ toc:
   - toc: release-notes
   - toc: extend
 subs:
+  api-request-title:   "Request"
+  api-prereq-title:   "Prerequisites"
+  api-description-title:   "Description"
+  api-path-parms-title:   "Path parameters"
+  api-query-parms-title:   "Query parameters"
+  api-request-body-title:   "Request body"
+  api-examples-title:   "Examples"
   ecloud:   "Elastic Cloud"
   ess:   "Elasticsearch Service"
   ece:   "Elastic Cloud Enterprise"
   eck:   "Elastic Cloud on Kubernetes"
   ech:   "Elastic Cloud Hosted"
+  es-issue:   "https://github.com/elastic/elasticsearch/issues/"
   serverless-full:   "Elastic Cloud Serverless"
   serverless-short:   "Serverless"
   es-serverless:   "Elasticsearch Serverless"
@@ -92,4 +100,6 @@ subs:
   classification-cap:   "Classification"
   infer-cap:   "Inference"
   infer:   "inference"
+  feat-imp:   "feature importance"
+  feat-imp-cap:   "Feature importance"
   nlp:   "natural language processing"

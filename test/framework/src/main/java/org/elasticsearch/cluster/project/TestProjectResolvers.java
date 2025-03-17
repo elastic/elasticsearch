@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
 import java.util.Objects;
@@ -60,7 +61,7 @@ public final class TestProjectResolvers {
      * with the executeOnProject method. This is mostly useful in places where we just need a placeholder to satisfy
      * the constructor signature.
      */
-    public static ProjectResolver singleProjectOnly() {
+    public static ProjectResolver mustExecuteFirst() {
         return new ProjectResolver() {
 
             private ProjectId enforceProjectId = null;
@@ -102,10 +103,23 @@ public final class TestProjectResolvers {
 
     /**
      * This method returns a ProjectResolver that gives back the specified project-id when its getProjectId method is called.
-     * It also assumes it is the only project in the cluster state and throws if that is not the case.
+     * The ProjectResolver can work with cluster state containing multiple projects and its supportsMultipleProjects returns true.
      */
     public static ProjectResolver singleProject(ProjectId projectId) {
         return singleProject(projectId, false);
+    }
+
+    /**
+     * This method returns a ProjectResolver that returns a random unique project-id.
+     * It also assumes it is the only project in the cluster state and throws if that is not the case.
+     * In addition, the ProjectResolvers returns false for supportsMultipleProjects.
+     */
+    public static ProjectResolver singleProjectOnly() {
+        return singleProjectOnly(ESTestCase.randomUniqueProjectId());
+    }
+
+    public static ProjectResolver singleProjectOnly(ProjectId projectId) {
+        return singleProject(projectId, true);
     }
 
     private static ProjectResolver singleProject(ProjectId projectId, boolean only) {

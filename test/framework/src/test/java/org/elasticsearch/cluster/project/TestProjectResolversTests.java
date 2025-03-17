@@ -17,9 +17,11 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class TestProjectResolversTests extends ESTestCase {
@@ -37,17 +39,42 @@ public class TestProjectResolversTests extends ESTestCase {
     public void testSingleProject() {
         final ProjectId projectId = randomUniqueProjectId();
         final ProjectResolver projectResolver = TestProjectResolvers.singleProject(projectId);
+        assertThat(projectResolver.supportsMultipleProjects(), is(true));
         assertThat(projectResolver.getProjectId(), equalTo(projectId));
 
         ClusterState state = buildClusterState(projectId, randomIntBetween(0, 10));
         assertThat(projectResolver.getProjectMetadata(state), notNullValue());
     }
 
-    public void testSingleProjectOnly_getProjectIdAndMetadata() {
+    public void testSingleProjectOnly() {
+        final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
+        assertThat(projectResolver.supportsMultipleProjects(), is(false));
+        final var projectId = projectResolver.getProjectId();
+
+        ClusterState state = buildClusterState(projectId, 0);
+        assertThat(projectResolver.getProjectMetadata(state), notNullValue());
+
+        final IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> projectResolver.getProjectMetadata(buildClusterState(projectId, randomIntBetween(1, 10)))
+        );
+        assertThat(e.getMessage(), containsString("Cluster has multiple projects"));
+    }
+
+    public void testDefaultProjectOnly() {
+        final ProjectResolver projectResolver = TestProjectResolvers.DEFAULT_PROJECT_ONLY;
+        assertThat(projectResolver.supportsMultipleProjects(), is(false));
+        assertThat(projectResolver.getProjectId(), equalTo(ProjectId.DEFAULT));
+
+        ClusterState state = buildClusterState(ProjectId.DEFAULT, 0);
+        assertThat(projectResolver.getProjectMetadata(state), notNullValue());
+    }
+
+    public void testMustExecuteFirst_getProjectIdAndMetadata() {
         final ProjectId projectId = randomUniqueProjectId();
         final ClusterState state = buildClusterState(projectId);
 
-        final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
+        final ProjectResolver projectResolver = TestProjectResolvers.mustExecuteFirst();
         expectThrows(UnsupportedOperationException.class, projectResolver::getProjectId);
         expectThrows(UnsupportedOperationException.class, () -> projectResolver.getProjectMetadata(state));
 
@@ -57,9 +84,9 @@ public class TestProjectResolversTests extends ESTestCase {
         });
     }
 
-    public void testSingleProjectOnly_getProjectIds() {
+    public void testMustExecuteFirst_getProjectIds() {
         {
-            final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
+            final ProjectResolver projectResolver = TestProjectResolvers.mustExecuteFirst();
             final ProjectId projectId = randomUniqueProjectId();
             ClusterState state = buildClusterState(projectId);
             assertThat(state.metadata().projects().values(), hasSize(1));
@@ -71,7 +98,7 @@ public class TestProjectResolversTests extends ESTestCase {
             });
         }
         {
-            final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
+            final ProjectResolver projectResolver = TestProjectResolvers.mustExecuteFirst();
             final ProjectId projectId = randomUniqueProjectId();
             ClusterState state = buildClusterState(projectId, randomIntBetween(1, 10));
             assertThat(state.metadata().projects().values().size(), greaterThan(1));

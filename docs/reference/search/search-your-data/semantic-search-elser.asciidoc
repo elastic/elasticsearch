@@ -187,14 +187,13 @@ GET my-index/_search
    "query":{
       "sparse_vector":{
          "field": "content_embedding",
-         "inference_id": ".elser_model_2_linux-x86_64", <1> 
+         "inference_id": "my-elser-model", 
          "query": "How to avoid muscle soreness after running?"
       }
    }
 }
 ----
 // TEST[skip:TBD]
-<1> When performing a sparse vector search, use the `model_id`, not the `inference_id`.
 
 The result is the top 10 documents that are closest in meaning to your query text from the `my-index` index sorted by their relevancy.
 The result also contains the extracted tokens for each of the relevant search results with their weights.

@@ -147,6 +147,7 @@ public class TransportVersions {
     public static final TransportVersion JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19 = def(8_841_0_06);
     public static final TransportVersion RETRY_ILM_ASYNC_ACTION_REQUIRE_ERROR_8_19 = def(8_841_0_07);
     public static final TransportVersion INFERENCE_CONTEXT_8_X = def(8_841_0_08);
+    public static final TransportVersion ML_INFERENCE_DEEPSEEK_8_19 = def(8_841_0_09);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -183,6 +184,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = def(9_026_0_00);
     public static final TransportVersion ESQL_THREAD_NAME_IN_DRIVER_PROFILE = def(9_027_0_00);
     public static final TransportVersion INFERENCE_CONTEXT = def(9_028_0_00);
+    public static final TransportVersion ML_INFERENCE_DEEPSEEK = def(9_029_00_0);
+    public static final TransportVersion ESQL_FAILURE_FROM_REMOTE = def(9_030_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -53,6 +53,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -63,6 +64,7 @@ import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -694,10 +696,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     downsampleIndexName,
                     dataStream
                 );
+                @FixForMultiProject(description = "The correct project ID should be passed here")
+                final var projectId = ProjectId.DEFAULT;
                 swapSourceWithDownsampleIndexQueue.submitTask(
                     "data-stream-lifecycle-delete-source[" + backingIndexName + "]-add-to-datastream-[" + downsampleIndexName + "]",
                     new DeleteSourceAndAddDownsampleToDS(
                         settings,
+                        projectId,
                         dataStream.getName(),
                         backingIndexName,
                         downsampleIndexName,

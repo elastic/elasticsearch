@@ -280,7 +280,7 @@ public class JinaAIService extends SenderService {
         JinaAIModel jinaaiModel = (JinaAIModel) model;
         var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             jinaaiModel.getConfigurations().getChunkingSettings()

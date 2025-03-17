@@ -13,10 +13,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.voyageai.VoyageAIAccount;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -25,49 +23,46 @@ import java.util.Objects;
 
 public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
-    private final VoyageAIAccount account;
     private final List<String> input;
     private final InputType inputType;
-    private final VoyageAIEmbeddingsServiceSettings serviceSettings;
-    private final VoyageAIEmbeddingsTaskSettings taskSettings;
-    private final String model;
-    private final String inferenceEntityId;
+    private final VoyageAIEmbeddingsModel embeddingsModel;
 
     public VoyageAIEmbeddingsRequest(List<String> input, InputType inputType, VoyageAIEmbeddingsModel embeddingsModel) {
-        Objects.requireNonNull(embeddingsModel);
-
-        account = VoyageAIAccount.of(embeddingsModel);
+        this.embeddingsModel = Objects.requireNonNull(embeddingsModel);
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
-        serviceSettings = embeddingsModel.getServiceSettings();
-        taskSettings = embeddingsModel.getTaskSettings();
-        model = embeddingsModel.getServiceSettings().getCommonSettings().modelId();
-        inferenceEntityId = embeddingsModel.getInferenceEntityId();
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(account.uri());
+        HttpPost httpPost = new HttpPost(embeddingsModel.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new VoyageAIEmbeddingsRequestEntity(input, inputType, serviceSettings, taskSettings, model))
-                .getBytes(StandardCharsets.UTF_8)
+            Strings.toString(
+                new VoyageAIEmbeddingsRequestEntity(
+                    input,
+                    inputType,
+                    embeddingsModel.getServiceSettings(),
+                    embeddingsModel.getTaskSettings(),
+                    embeddingsModel.getServiceSettings().modelId()
+                )
+            ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
-        decorateWithHeaders(httpPost, account);
+        decorateWithHeaders(httpPost, embeddingsModel);
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     @Override
     public String getInferenceEntityId() {
-        return inferenceEntityId;
+        return embeddingsModel.getInferenceEntityId();
     }
 
     @Override
     public URI getURI() {
-        return account.uri();
+        return embeddingsModel.uri();
     }
 
     @Override
@@ -80,11 +75,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
         return null;
     }
 
-    public VoyageAIEmbeddingsTaskSettings getTaskSettings() {
-        return taskSettings;
-    }
-
     public VoyageAIEmbeddingsServiceSettings getServiceSettings() {
-        return serviceSettings;
+        return embeddingsModel.getServiceSettings();
     }
 }

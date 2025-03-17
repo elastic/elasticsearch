@@ -312,7 +312,7 @@ public class IbmWatsonxService extends SenderService {
     ) {
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
 
-        var batchedRequests = new EmbeddingRequestChunker(
+        var batchedRequests = new EmbeddingRequestChunker<>(
             input.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             model.getConfigurations().getChunkingSettings()

@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -103,7 +102,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final AtomicBoolean requestCancelled = new AtomicBoolean();
 
     // protected for tests
-    protected final List<Releasable> releasables = new ArrayList<>();
+    protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
 
     AbstractSearchAsyncAction(
         String name,
@@ -152,7 +151,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.executor = executor;
         this.request = request;
         this.task = task;
-        this.listener = ActionListener.runAfter(listener, () -> Releasables.close(releasables));
+        this.listener = ActionListener.runBefore(listener, () -> doneFuture.onResponse(null));
         this.nodeIdToConnection = nodeIdToConnection;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.clusterStateVersion = clusterState.version();
@@ -183,7 +182,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
      */
     public void addReleasable(Releasable releasable) {
-        releasables.add(releasable);
+        var doneFuture = this.doneFuture;
+        if (doneFuture.isDone()) {
+            releasable.close();
+        } else {
+            doneFuture.addListener(ActionListener.releasing(releasable));
+        }
     }
 
     /**
@@ -529,7 +533,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
         }
-        results.consumeShardFailure(shardIndex);
     }
 
     private static boolean isTaskCancelledException(Exception e) {

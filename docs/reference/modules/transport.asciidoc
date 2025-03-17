@@ -195,6 +195,15 @@ setting `transport.ping_schedule` if keepalives cannot be configured. Devices
 which drop connections when they reach a certain age are a common source of
 problems to {es} clusters, and must not be used.
 
+If an {es} node is temporarily unable to handle network traffic it may stop
+reading data from the network and advertise a zero-length TCP window to its
+peers so that they pause the transmission of data to the unavailable node. This
+is the standard backpressure mechanism built into TCP. When the node becomes
+available again, it will resume reading from the network. Configure your
+network to permit TCP connections to exist in this paused state without
+disruption. Do not impose any limit on the length of time that a connection may
+remain in this paused state.
+
 For information about troubleshooting unexpected network disconnections, see
 <<troubleshooting-unstable-cluster-network>>.
 

@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.BitSet;
+import java.util.EmptyStackException;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.isInteger;
+import static org.elasticsearch.xpack.esql.parser.ParserUtils.nameOrPosition;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
 
 public class EsqlParser {
@@ -111,6 +113,9 @@ public class EsqlParser {
             return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics)), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
+            // likely thrown by an invalid popMode (such as extra closing parenthesis)
+        } catch (EmptyStackException ese) {
+            throw new ParsingException("Invalid query [{}]", query);
         }
     }
 
@@ -172,7 +177,7 @@ public class EsqlParser {
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
-            if (token.getType() == EsqlBaseLexer.PARAM) {
+            if (token.getType() == EsqlBaseLexer.PARAM || token.getType() == EsqlBaseLexer.DOUBLE_PARAMS) {
                 checkAnonymousParam(token);
                 if (param > params.size()) {
                     throw new ParsingException(source(token), "Not enough actual parameters {}", params.size());
@@ -181,8 +186,9 @@ public class EsqlParser {
                 param++;
             }
 
-            if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM) {
-                if (isInteger(token.getText().substring(1))) {
+            String nameOrPosition = nameOrPosition(token);
+            if (nameOrPosition.isBlank() == false) {
+                if (isInteger(nameOrPosition)) {
                     checkPositionalParam(token);
                 } else {
                     checkNamedParam(token);

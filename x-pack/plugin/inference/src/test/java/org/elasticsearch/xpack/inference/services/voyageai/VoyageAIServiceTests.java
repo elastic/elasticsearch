@@ -53,7 +53,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,8 +108,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-                assertNull(embeddingsModel.uri());
-                MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+                MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -126,7 +124,6 @@ public class VoyageAIServiceTests extends ESTestCase {
                 ),
                 modelListener
             );
-
         }
     }
 
@@ -136,8 +133,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-                assertNull(embeddingsModel.uri());
-                MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+                MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -166,8 +162,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-                assertNull(embeddingsModel.uri());
-                MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+                MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -196,8 +191,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-                assertNull(embeddingsModel.uri());
-                MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+                MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), equalTo(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -333,13 +327,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -362,14 +353,11 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -391,14 +379,11 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -446,13 +431,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -477,13 +459,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -506,13 +485,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -537,13 +513,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -568,13 +541,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -590,13 +560,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -613,14 +580,11 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -636,14 +600,11 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -678,7 +639,6 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
@@ -698,13 +658,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             assertNull(embeddingsModel.getSecretSettings());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -723,13 +680,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             assertNull(embeddingsModel.getSecretSettings());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -747,13 +701,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.uri());
-            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
+            MatcherAssert.assertThat(embeddingsModel.uri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
             assertNull(embeddingsModel.getSecretSettings());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
         }
     }
 

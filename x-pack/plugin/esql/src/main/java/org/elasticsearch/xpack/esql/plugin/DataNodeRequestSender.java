@@ -15,6 +15,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardsGroup;
 import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -25,6 +26,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -55,6 +57,7 @@ import java.util.concurrent.locks.ReentrantLock;
 abstract class DataNodeRequestSender {
     private final TransportService transportService;
     private final Executor esqlExecutor;
+    private final String clusterAlias;
     private final CancellableTask rootTask;
     private final boolean allowPartialResults;
     private final ReentrantLock sendingLock = new ReentrantLock();
@@ -64,9 +67,16 @@ abstract class DataNodeRequestSender {
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
 
-    DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask, boolean allowPartialResults) {
+    DataNodeRequestSender(
+        TransportService transportService,
+        Executor esqlExecutor,
+        String clusterAlias,
+        CancellableTask rootTask,
+        boolean allowPartialResults
+    ) {
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
+        this.clusterAlias = clusterAlias;
         this.rootTask = rootTask;
         this.allowPartialResults = allowPartialResults;
     }
@@ -88,7 +98,8 @@ abstract class DataNodeRequestSender {
                     targetShards.totalShards(),
                     targetShards.totalShards() - shardFailures.size(),
                     targetShards.skippedShards(),
-                    shardFailures.size()
+                    shardFailures.size(),
+                    selectFailures()
                 );
             }))) {
                 for (TargetShard shard : targetShards.shards.values()) {
@@ -152,6 +163,27 @@ abstract class DataNodeRequestSender {
             }
             it.remove();
         }
+    }
+
+    private List<ShardSearchFailure> selectFailures() {
+        assert reportedFailure == false;
+        final List<ShardSearchFailure> failures = new ArrayList<>();
+        final Set<Exception> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Map.Entry<ShardId, ShardFailure> e : shardFailures.entrySet()) {
+            final ShardFailure failure = e.getValue();
+            if (ExceptionsHelper.unwrap(failure.failure(), TaskCancelledException.class) != null) {
+                continue;
+            }
+            if (seen.add(failure.failure) && failures.size() < 5) {
+                failures.add(new ShardSearchFailure(failure.failure, new SearchShardTarget(null, e.getKey(), clusterAlias)));
+            }
+        }
+        // pick any cancellation exception
+        if (failures.isEmpty() && shardFailures.isEmpty() == false) {
+            final ShardFailure any = shardFailures.values().iterator().next();
+            failures.add(new ShardSearchFailure(any.failure));
+        }
+        return failures;
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {

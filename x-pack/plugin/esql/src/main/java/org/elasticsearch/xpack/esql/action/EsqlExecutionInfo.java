@@ -215,6 +215,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
             || clusterInfo.size() == 1 && clusterInfo.containsKey(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY) == false;
     }
 
+    /**
+     * Is there any metadata to report in the response?
+     * This is true on cross-cluster search with includeCCSMetadata=true or when there are partial failures.
+     */
+    public boolean hasMetadataToReport() {
+        return isCrossClusterSearch() && includeCCSMetadata
+            || (isPartial && clusterInfo.values().stream().anyMatch(c -> c.getFailures().isEmpty() == false));
+    }
+
     public Cluster getCluster(String clusterAlias) {
         return clusterInfo.get(clusterAlias);
     }
@@ -254,8 +263,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        if (isCrossClusterSearch() == false || clusterInfo.isEmpty()) {
+        if (clusterInfo.isEmpty()) {
             return Collections.emptyIterator();
+        }
+        if (includeCCSMetadata == false) {
+            // If includeCCSMetadata is false, the only reason we're here is partial failures, so just report them.
+            return onlyFailuresToXContent(params);
         }
         return ChunkedToXContent.builder(params).object(b -> {
             b.field(TOTAL_FIELD.getPreferredName(), clusterInfo.size());
@@ -269,6 +282,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         });
     }
 
+    private Iterator<? extends ToXContent> onlyFailuresToXContent(ToXContent.Params params) {
+        Iterator<Cluster> failuresIterator = clusterInfo.values().stream().filter(c -> (c.getFailures().isEmpty() == false)).iterator();
+        if (failuresIterator.hasNext()) {
+            return ChunkedToXContent.builder(params).object(b -> { b.xContentObject("details", failuresIterator); });
+        } else {
+            return Collections.emptyIterator();
+        }
+    }
+
     /**
      * @param status the status you want a count of
      * @return how many clusters are currently in a specific state
@@ -280,7 +302,16 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "EsqlExecutionInfo{" + "overallTook=" + overallTook + ", clusterInfo=" + clusterInfo + '}';
+        return "EsqlExecutionInfo{"
+            + "overallTook="
+            + overallTook
+            + ", isPartial="
+            + isPartial
+            + ", isStopped="
+            + isStopped
+            + ", clusterInfo="
+            + clusterInfo
+            + '}';
     }
 
     @Override

@@ -386,12 +386,10 @@ public final class EsqlTestUtils {
     @SuppressWarnings("unchecked")
     private static InferenceService mockInferenceService() {
         InferenceService inferenceService = mock(InferenceService.class);
-        doAnswer(
-            i -> {
-                i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
-                return null;
-            }
-        ).when(inferenceService).resolveInferences(any(), any());
+        doAnswer(i -> {
+            i.getArgument(1, ActionListener.class).onResponse(emptyInferenceResolution());
+            return null;
+        }).when(inferenceService).resolveInferences(any(), any());
 
         return inferenceService;
     }

@@ -910,7 +910,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         private Map<String, String> getJvmOptionsReplacements() {
             return Map.of(
                 "# -XX:HeapDumpPath=/heap/dump/path",
-                logsDir.toString(),
+                "-XX:HeapDumpPath=" + logsDir.toString(),
                 "gc.log",
                 logsDir.resolve("gc.log").toString(),
                 "-XX:ErrorFile=hs_err_pid%p.log",

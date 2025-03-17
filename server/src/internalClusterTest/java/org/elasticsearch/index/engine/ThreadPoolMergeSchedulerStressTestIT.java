@@ -217,8 +217,8 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
     public void testMergingFallsBehindAndThenCatchesUp() throws Exception {
         createIndex(
             "index",
-                // stress test merging across multiple shards
-                indexSettings(randomIntBetween(1, 10), 0)
+            // stress test merging across multiple shards
+            indexSettings(randomIntBetween(1, 10), 0)
                 // few segments per merge ought to result in more merging activity
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), randomIntBetween(2, 3))
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), randomIntBetween(2, 3))

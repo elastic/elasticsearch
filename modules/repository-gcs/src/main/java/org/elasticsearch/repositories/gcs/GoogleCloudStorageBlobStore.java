@@ -398,19 +398,24 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     writeBlob(purpose, blobName, buffer.bytes(), failIfAlreadyExists);
                 }
                 return;
-            } catch (final StorageException se) {
-                final int errorCode = se.getCode();
-                if (errorCode == HTTP_GONE) {
-                    logger.warn(() -> format("Retrying broken resumable upload session for blob %s", blobInfo), se);
-                    storageException = ExceptionsHelper.useOrSuppress(storageException, se);
-                    continue;
-                } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
-                    throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+            } catch (IOException ioException) {
+                // This is for handling exceptions thrown by resumable uploads. BaseStorageWriteChannel.write wraps
+                // the StorageException in an IOException, so we need to unwrap it.
+                final StorageException se = (StorageException) ExceptionsHelper.unwrap(ioException, StorageException.class);
+                if (se != null) {
+                    final int errorCode = se.getCode();
+                    if (errorCode == HTTP_GONE) {
+                        logger.warn(() -> format("Retrying broken resumable upload session for blob %s", blobInfo), se);
+                        storageException = ExceptionsHelper.useOrSuppress(storageException, se);
+                        continue;
+                    } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
+                        throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+                    }
                 }
                 if (storageException != null) {
-                    se.addSuppressed(storageException);
+                    ioException.addSuppressed(storageException);
                 }
-                throw se;
+                throw ioException;
             }
         }
         assert storageException != null;
@@ -466,6 +471,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 stats.trackPutOperation();
                 return;
             } catch (final IOException ioException) {
+                // This is for handling exceptions thrown by resumable uploads. BaseStorageWriteChannel.write wraps
+                // the StorageException in an IOException, so we need to unwrap it.
                 final StorageException se = (StorageException) ExceptionsHelper.unwrap(ioException, StorageException.class);
                 if (se != null) {
                     final int errorCode = se.getCode();
@@ -477,10 +484,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
                         throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
                     }
-                    if (storageException != null) {
-                        se.addSuppressed(storageException);
-                    }
-                    throw se;
+                }
+                if (storageException != null) {
+                    ioException.addSuppressed(storageException);
                 }
                 throw ioException;
             }

@@ -39,7 +39,7 @@ public class MlDeprecationChecker implements DeprecationChecker {
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "Datafeed [" + datafeedConfig.getId() + "] uses deprecated query options",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-7.0.html#breaking_70_search_changes",
+                    "https://ela.st/es-deprecation-7-data-feed-query",
                     deprecations.toString(),
                     false,
                     null

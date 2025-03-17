@@ -15,7 +15,6 @@ import org.elasticsearch.compute.operator.DriverSleeps;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.esql.plugin.CollectedProfiles;
 
 import java.util.List;
 
@@ -27,7 +26,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     @Override
     protected EsqlQueryResponse.Profile createTestInstance() {
-        return new EsqlQueryResponse.Profile(randomDriverProfiles());
+        return randomDriverProfiles();
     }
 
     @Override
@@ -43,9 +42,10 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         return new NamedWriteableRegistry(List.of(AbstractPageMappingOperator.Status.ENTRY));
     }
 
-    private CollectedProfiles randomDriverProfiles() {
+    // TODO: this method is duplicated in ComputeListenerTests
+    private EsqlQueryResponse.Profile randomDriverProfiles() {
         // NOCOMMIT - test planner profiles too
-        return new CollectedProfiles(randomList(10, this::randomDriverProfile), List.of());
+        return new EsqlQueryResponse.Profile(randomList(10, this::randomDriverProfile), List.of());
     }
 
     private DriverProfile randomDriverProfile() {

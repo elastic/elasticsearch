@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.esql.action.EsqlResponse;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerProfile;
-import org.elasticsearch.xpack.esql.plugin.CollectedProfiles;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -352,12 +351,15 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         private final List<DriverProfile> drivers;
         private final List<PlannerProfile> plannerProfile;
 
+        public static final Profile EMPTY = new Profile(List.of(), List.of());
+
         public Profile(List<DriverProfile> drivers, List<PlannerProfile> plannerProfile) {
             this.drivers = drivers;
             this.plannerProfile = plannerProfile;
         }
 
-        public Profile(CollectedProfiles profiles) {
+        // NOCOMMIT - this should be removed
+        public Profile(Profile profiles) {
             this.drivers = profiles.getDriverProfiles();
             this.plannerProfile = profiles.getPlannerProfiles();
         }
@@ -369,9 +371,15 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             } else {
                 this.plannerProfile = List.of();
             }
-
         }
 
+        public List<DriverProfile> getDriverProfiles() {
+            return drivers;
+        }
+
+        public List<PlannerProfile> getPlannerProfiles() {
+            return plannerProfile;
+        }
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(drivers);
@@ -389,12 +397,12 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 return false;
             }
             Profile profile = (Profile) o;
-            return Objects.equals(drivers, profile.drivers);
+            return Objects.equals(drivers, profile.drivers) && Objects.equals(plannerProfile, profile.plannerProfile);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(drivers);
+            return Objects.hash(drivers, plannerProfile);
         }
 
         @Override

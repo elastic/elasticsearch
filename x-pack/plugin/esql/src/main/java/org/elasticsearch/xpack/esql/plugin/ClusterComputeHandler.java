@@ -26,6 +26,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -74,7 +75,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         RemoteCluster cluster,
         Runnable cancelQueryOnFailure,
         EsqlExecutionInfo executionInfo,
-        ActionListener<CollectedProfiles> listener
+        ActionListener<EsqlQueryResponse.Profile> listener
     ) {
         var queryPragmas = configuration.pragmas();
         listener = ActionListener.runBefore(listener, exchangeSource.addEmptySink()::close);
@@ -86,10 +87,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
             if (receivedResults == false && EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
-                l.onResponse(CollectedProfiles.EMPTY);
+                l.onResponse(EsqlQueryResponse.Profile.EMPTY);
             } else if (configuration.allowPartialResults()) {
                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
-                l.onResponse(CollectedProfiles.EMPTY);
+                l.onResponse(EsqlQueryResponse.Profile.EMPTY);
             } else {
                 l.onFailure(e);
             }

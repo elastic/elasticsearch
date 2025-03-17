@@ -14,6 +14,7 @@ import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.util.ArrayList;
@@ -34,7 +35,7 @@ final class ComputeListener implements Releasable {
     private final ResponseHeadersCollector responseHeaders;
     private final Runnable runOnFailure;
 
-    ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<CollectedProfiles> delegate) {
+    ComputeListener(ThreadPool threadPool, Runnable runOnFailure, ActionListener<EsqlQueryResponse.Profile> delegate) {
         this.runOnFailure = runOnFailure;
         this.responseHeaders = new ResponseHeadersCollector(threadPool.getThreadContext());
         this.collectedProfiles = Collections.synchronizedList(new ArrayList<>());
@@ -42,7 +43,7 @@ final class ComputeListener implements Releasable {
         // listener that executes after all the sub-listeners refs (created via acquireCompute) have completed
         this.refs = new EsqlRefCountingListener(delegate.delegateFailure((l, ignored) -> {
             responseHeaders.finish();
-            delegate.onResponse(new CollectedProfiles(collectedProfiles.stream().toList(), collectedPlannerProfiles.stream().toList()));
+            delegate.onResponse(new EsqlQueryResponse.Profile(collectedProfiles.stream().toList(), collectedPlannerProfiles.stream().toList()));
         }));
     }
 
@@ -63,11 +64,12 @@ final class ComputeListener implements Releasable {
     /**
      * Acquires a new listener that collects compute result. This listener will also collect warnings emitted during compute
      */
-    ActionListener<CollectedProfiles> acquireCompute() {
+    ActionListener<EsqlQueryResponse.Profile> acquireCompute() {
         final ActionListener<Void> delegate = acquireAvoid();
         return ActionListener.wrap(profiles -> {
             responseHeaders.collect();
             if (profiles != null) {
+                // TODO: move profile merging onto profile object
                 if (profiles.getDriverProfiles().isEmpty() == false) {
                     collectedProfiles.addAll(profiles.getDriverProfiles());
                 }

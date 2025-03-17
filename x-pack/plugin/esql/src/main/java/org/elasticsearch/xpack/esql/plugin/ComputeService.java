@@ -41,6 +41,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -285,7 +286,7 @@ public class ComputeService {
                                             EsqlExecutionInfo.Cluster.Status.PARTIAL
                                         ).setFailures(List.of(new ShardSearchFailure(e))).build()
                                     );
-                                    dataNodesListener.onResponse(CollectedProfiles.EMPTY);
+                                    dataNodesListener.onResponse(EsqlQueryResponse.Profile.EMPTY);
                                 } else {
                                     dataNodesListener.onFailure(e);
                                 }
@@ -345,7 +346,7 @@ public class ComputeService {
         }
     }
 
-    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<CollectedProfiles> listener) {
+    void runCompute(CancellableTask task, ComputeContext context, PhysicalPlan plan, ActionListener<EsqlQueryResponse.Profile> listener) {
         listener = ActionListener.runBefore(listener, () -> Releasables.close(context.searchContexts()));
         List<EsPhysicalOperationProviders.ShardContext> contexts = new ArrayList<>(context.searchContexts().size());
         for (int i = 0; i < context.searchContexts().size(); i++) {
@@ -403,9 +404,9 @@ public class ComputeService {
         }
         ActionListener<Void> listenerCollectingStatus = listener.map(ignored -> {
             if (context.configuration().profile()) {
-                return new CollectedProfiles(drivers.stream().map(Driver::profile).toList(), List.of(localPlannerProfile));
+                return new EsqlQueryResponse.Profile(drivers.stream().map(Driver::profile).toList(), List.of(localPlannerProfile));
             } else {
-                return CollectedProfiles.EMPTY;
+                return EsqlQueryResponse.Profile.EMPTY;
             }
         });
         listenerCollectingStatus = ActionListener.releaseAfter(listenerCollectingStatus, () -> Releasables.close(drivers));

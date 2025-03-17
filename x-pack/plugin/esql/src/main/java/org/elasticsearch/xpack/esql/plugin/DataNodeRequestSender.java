@@ -31,6 +31,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 
 import java.util.ArrayList;
@@ -154,9 +155,9 @@ abstract class DataNodeRequestSender {
     }
 
     private void sendOneNodeRequest(TargetShards targetShards, ComputeListener computeListener, NodeRequest request) {
-        final ActionListener<CollectedProfiles> listener = computeListener.acquireCompute();
+        final ActionListener<EsqlQueryResponse.Profile> listener = computeListener.acquireCompute();
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
-            void onAfter(CollectedProfiles profiles) {
+            void onAfter(EsqlQueryResponse.Profile profiles) {
                 nodePermits.get(request.node).release();
                 trySendingRequestsForPendingShards(targetShards, computeListener);
                 listener.onResponse(profiles);
@@ -184,7 +185,7 @@ abstract class DataNodeRequestSender {
                     trackShardLevelFailure(shardId, receivedData, e);
                     pendingShardIds.add(shardId);
                 }
-                onAfter(CollectedProfiles.EMPTY);
+                onAfter(EsqlQueryResponse.Profile.EMPTY);
             }
         });
     }

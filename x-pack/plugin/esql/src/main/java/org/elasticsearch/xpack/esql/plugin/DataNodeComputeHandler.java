@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -237,11 +238,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             final int endBatchIndex = Math.min(startBatchIndex + maxConcurrentShards, request.shardIds().size());
             final AtomicInteger pagesProduced = new AtomicInteger();
             List<ShardId> shardIds = request.shardIds().subList(startBatchIndex, endBatchIndex);
-            ActionListener<CollectedProfiles> batchListener = new ActionListener<>() {
-                final ActionListener<CollectedProfiles> ref = computeListener.acquireCompute();
+            ActionListener<EsqlQueryResponse.Profile> batchListener = new ActionListener<>() {
+                final ActionListener<EsqlQueryResponse.Profile> ref = computeListener.acquireCompute();
 
                 @Override
-                public void onResponse(CollectedProfiles result) {
+                public void onResponse(EsqlQueryResponse.Profile result) {
                     try {
                         onBatchCompleted(endBatchIndex);
                     } finally {
@@ -255,7 +256,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         for (ShardId shardId : shardIds) {
                             addShardLevelFailure(shardId, e);
                         }
-                        onResponse(CollectedProfiles.EMPTY);
+                        onResponse(EsqlQueryResponse.Profile.EMPTY);
                     } else {
                         // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
@@ -269,7 +270,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             acquireSearchContexts(clusterAlias, shardIds, configuration, request.aliasFilters(), ActionListener.wrap(searchContexts -> {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH, ESQL_WORKER_THREAD_POOL_NAME);
                 if (searchContexts.isEmpty()) {
-                    batchListener.onResponse(CollectedProfiles.EMPTY);
+                    batchListener.onResponse(EsqlQueryResponse.Profile.EMPTY);
                     return;
                 }
                 var computeContext = new ComputeContext(

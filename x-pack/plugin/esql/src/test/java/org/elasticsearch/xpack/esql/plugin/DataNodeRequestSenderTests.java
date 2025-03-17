@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.junit.After;
 import org.junit.Before;
 
@@ -112,7 +113,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
         Queue<NodeRequest> sent = ConcurrentCollections.newQueue();
         var future = sendRequests(targetShards, randomBoolean(), (node, shardIds, aliasFilters, listener) -> {
             sent.add(new NodeRequest(node, shardIds, aliasFilters));
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(CollectedProfiles.EMPTY, Map.of())));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of())));
         });
         safeGet(future);
         assertThat(sent.size(), equalTo(2));
@@ -131,7 +132,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             var targetShards = List.of(targetShard(shard1, node1), targetShard(shard3), targetShard(shard4, node2, node3));
             var future = sendRequests(targetShards, true, (node, shardIds, aliasFilters, listener) -> {
                 assertThat(shard3, not(in(shardIds)));
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(CollectedProfiles.EMPTY, Map.of())));
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of())));
             });
             ComputeResponse resp = safeGet(future);
             assertThat(resp.totalShards, equalTo(3));
@@ -158,7 +159,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (node.equals(node4) && shardIds.contains(shard2)) {
                 failures.put(shard2, new IOException("test"));
             }
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(CollectedProfiles.EMPTY, failures)));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, failures)));
         });
         try {
             future.actionGet(1, TimeUnit.MINUTES);
@@ -187,7 +188,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (shardIds.contains(shard5)) {
                 failures.put(shard5, new IOException("test failure for shard5"));
             }
-            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(CollectedProfiles.EMPTY, failures)));
+            runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, failures)));
         });
         var error = expectThrows(Exception.class, future::actionGet);
         assertNotNull(ExceptionsHelper.unwrap(error, IOException.class));
@@ -212,7 +213,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (node1.equals(node) && failed.compareAndSet(false, true)) {
                 runWithDelay(() -> listener.onFailure(new IOException("test request level failure"), true));
             } else {
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(CollectedProfiles.EMPTY, Map.of())));
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of())));
             }
         });
         Exception exception = expectThrows(Exception.class, future::actionGet);
@@ -232,7 +233,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (node1.equals(node) && failed.compareAndSet(false, true)) {
                 runWithDelay(() -> listener.onFailure(new IOException("test request level failure"), true));
             } else {
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(CollectedProfiles.EMPTY, Map.of())));
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of())));
             }
         });
         ComputeResponse resp = safeGet(future);
@@ -253,7 +254,7 @@ public class DataNodeRequestSenderTests extends ComputeTestCase {
             if (Objects.equals(node1, node)) {
                 runWithDelay(() -> listener.onFailure(new RuntimeException("test request level non fatal failure"), false));
             } else {
-                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(CollectedProfiles.EMPTY, Map.of())));
+                runWithDelay(() -> listener.onResponse(new DataNodeComputeResponse(EsqlQueryResponse.Profile.EMPTY, Map.of())));
             }
         }));
         assertThat(response.totalShards, equalTo(1));

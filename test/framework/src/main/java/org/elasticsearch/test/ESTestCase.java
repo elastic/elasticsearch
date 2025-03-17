@@ -221,7 +221,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                 "Europe/Kyiv", // part of tzdata2022c,
                 "Pacific/Kanton", // part of tzdata2021b
                 "Pacific/Niue",
-                "Antarctica/Vostok"
+                "Antarctica/Vostok",
+                "WET" // Western European timezone does not account for DST
             )
         )
     );

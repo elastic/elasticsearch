@@ -20,14 +20,13 @@
         "data_stream": {
           "properties": {
             "type": {
-              "type": "constant_keyword",
-              "value": "logs"
+              "type": "keyword"
             },
             "dataset": {
-              "type": "constant_keyword"
+              "type": "keyword"
             },
             "namespace": {
-              "type": "constant_keyword"
+              "type": "keyword"
             }
           }
         },

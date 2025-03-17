@@ -7,7 +7,7 @@ navigation_title: "Configuration"
 Configuration settings enable you to customize the behavior of Elasticsearch features.
 This reference provides details about each setting, such as its purpose, default behavior, and availability in Elastic Cloud environments.
 
-% TO-DO: For information about how to update these settings, refer to "Configure Elasticsearch" (link to appropriate deployment pages) %
+For details on updating user settings, see [Configure Elasticsearch](elasticsearch-settings.md) ({{ece}} and {{ech}}) and [User settings in Elasticsearch Serverless](elastic-cloud-serverless-elasticsearch-settings.md) ({{serverless-short}}).
 
 The settings are grouped by feature or purpose, for example:
 
@@ -16,6 +16,7 @@ The settings are grouped by feature or purpose, for example:
 - [Cluster formation and discovery](/reference/elasticsearch/configuration-reference/discovery-cluster-formation-settings.md)
 - [Cross-cluster replication](/reference/elasticsearch/configuration-reference/cross-cluster-replication-settings.md)
 - [Data stream lifecycle](/reference/elasticsearch/configuration-reference/data-stream-lifecycle-settings.md)
+- [Enrich settings](/reference/elasticsearch/configuration-reference/enrich-settings.md)
 - [Field data cache](/reference/elasticsearch/configuration-reference/field-data-cache-settings.md)
 - [Health diagnostic](/reference/elasticsearch/configuration-reference/health-diagnostic-settings.md)
 - [Index lifecycle management](/reference/elasticsearch/configuration-reference/index-lifecycle-management-settings.md), 

@@ -6,7 +6,7 @@ applies_to:
   serverless:
 ---
 
-# Differences from other {{es}} offerings [elasticsearch-differences]
+# User settings in {{es}} {{serverless-short}} [elasticsearch-differences]
 
 
 [{{es-serverless}}](docs-content://solutions/search.md) handles all the infrastructure management for you, providing a fully managed {{es}} service.

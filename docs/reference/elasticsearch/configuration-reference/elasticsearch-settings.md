@@ -9,7 +9,7 @@ applies_to:
     ece:
 ---
 
-# Elasticsearch settings [add-user-settings]
+# Configure {{es}} [add-user-settings]
 
 Change how {{es}} runs by providing your own user settings. Elasticsearch Service appends these settings to each node’s `elasticsearch.yml` configuration file.
 

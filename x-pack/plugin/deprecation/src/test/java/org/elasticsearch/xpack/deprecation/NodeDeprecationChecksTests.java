@@ -219,10 +219,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
         assertEquals("Realm that start with [_] will not be permitted in a future major release.", deprecationIssue.getMessage());
-        assertEquals(
-            "https://ela.st/es-deprecation-7-realm-prefix",
-            deprecationIssue.getUrl()
-        );
+        assertEquals("https://ela.st/es-deprecation-7-realm-prefix", deprecationIssue.getUrl());
         assertEquals(
             "Found realm "
                 + (invalidRealmNames.size() == 1 ? "name" : "names")

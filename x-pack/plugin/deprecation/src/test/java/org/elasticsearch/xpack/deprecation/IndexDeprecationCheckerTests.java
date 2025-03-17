@@ -505,8 +505,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
             emptyPrecomputedData
         );
-        final String expectedUrl =
-            "https://ela.st/es-deprecation-7-index-data-path";
+        final String expectedUrl = "https://ela.st/es-deprecation-7-index-data-path";
         assertThat(
             issuesByIndex.get("test"),
             contains(

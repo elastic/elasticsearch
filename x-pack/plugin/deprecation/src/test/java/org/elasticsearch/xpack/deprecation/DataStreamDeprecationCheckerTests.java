@@ -285,9 +285,10 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "Old data stream with a compatibility version < " + Version.CURRENT.major  + "0.0 Has Been Ignored",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + "0.0 Has Been Ignored",
             "https://ela.st/es-deprecation-ds-reindex",
-            "This data stream has read only backing indices that were created before Elasticsearch " + Version.CURRENT.major
+            "This data stream has read only backing indices that were created before Elasticsearch "
+                + Version.CURRENT.major
                 + "0.0 and have been marked as OK to remain read-only after upgrade",
             false,
             ofEntries(

@@ -429,9 +429,6 @@ abstract class DataNodeRequestSender {
             Map<ShardId, TargetShard> shards = new HashMap<>();
             for (SearchShardsGroup group : resp.getGroups()) {
                 var shardId = group.shardId();
-                if (concreteIndices.contains(shardId.getIndexName()) == false) {
-                    continue;
-                }
                 totalShards++;
                 if (group.skipped()) {
                     skippedShards++;

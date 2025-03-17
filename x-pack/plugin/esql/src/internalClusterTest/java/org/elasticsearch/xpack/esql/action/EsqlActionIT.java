@@ -1064,9 +1064,9 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*::data", 9L);
         testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*::failures", 6L);
         // Subtracting from ::*
-        testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*", 19L);
-        testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::data", 19L);
-        testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::failures", 21L);
+        testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*", 19L);
+        testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::data", 19L);
+        testCases.put("test_ds_patterns*::data,test_ds_patterns*::failures,-test_ds_patterns_2*::failures", 21L);
 
         testCases.put("\"test_ds_patterns_1,test_ds_patterns_2\"::failures", 8L);
 

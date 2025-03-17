@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -53,10 +54,13 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
+        List<String> docsInput = input.getInputs();
+        InputType inputType = input.getInputType();
+
         var serviceSettings = embeddingsModel.getServiceSettings();
         var truncatedInput = truncate(docsInput, serviceSettings.maxInputTokens());
-        var requestEntity = AmazonBedrockEmbeddingsEntityFactory.createEntity(embeddingsModel, truncatedInput);
+        var requestEntity = AmazonBedrockEmbeddingsEntityFactory.createEntity(embeddingsModel, truncatedInput, inputType);
         var responseHandler = new AmazonBedrockEmbeddingsResponseHandler();
         var request = new AmazonBedrockEmbeddingsRequest(truncator, truncatedInput, embeddingsModel, requestEntity, timeout);
         try {

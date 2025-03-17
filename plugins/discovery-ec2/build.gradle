@@ -46,13 +46,12 @@ esplugin.bundleSpec.from('config/discovery-ec2') {
 }
 
 tasks.register("writeTestJavaPolicy") {
+  boolean inFips = buildParams.inFipsJvm
+  inputs.property("inFipsJvm", inFips)
+  final File javaPolicy = new File(layout.buildDirectory.asFile.get(), "tmp/java.policy")
+  outputs.file(javaPolicy)
   doLast {
-    final File tmp = file("${buildDir}/tmp")
-    if (tmp.exists() == false && tmp.mkdirs() == false) {
-      throw new GradleException("failed to create temporary directory [${tmp}]")
-    }
-    final File javaPolicy = file("${tmp}/java.policy")
-    if (buildParams.inFipsJvm) {
+    if (inFips) {
       javaPolicy.write(
         [
           "grant {",
@@ -95,9 +94,9 @@ tasks.withType(Test).configureEach {
   // this is needed to manipulate com.amazonaws.sdk.ec2MetadataServiceEndpointOverride system property
   // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
   if (buildParams.inFipsJvm){
-    nonInputProperties.systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
+    nonInputProperties.systemProperty 'java.security.policy', "=file://${layout.buildDirectory.asFile.get()}/tmp/java.policy"
   } else {
-    nonInputProperties.systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
+    nonInputProperties.systemProperty 'java.security.policy', "file://${layout.buildDirectory.asFile.get()}/tmp/java.policy"
   }
 }
 

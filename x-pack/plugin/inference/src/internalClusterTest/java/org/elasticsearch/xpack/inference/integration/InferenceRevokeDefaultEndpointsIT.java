@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.junit.After;
 import org.junit.Before;
 
@@ -270,7 +270,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
     private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
         service.onNodeStarted();
-        service.waitForAuthorizationToComplete(TIMEOUT);
+        service.waitForFirstAuthorizationToComplete(TIMEOUT);
     }
 
     private ElasticInferenceService createElasticInferenceService() {
@@ -280,9 +280,9 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withNoRevokeDelay(gatewayUrl),
+            ElasticInferenceServiceSettingsTests.create(gatewayUrl),
             modelRegistry,
-            new ElasticInferenceServiceAuthorizationHandler(gatewayUrl, threadPool)
+            new ElasticInferenceServiceAuthorizationRequestHandler(gatewayUrl, threadPool)
         );
     }
 }

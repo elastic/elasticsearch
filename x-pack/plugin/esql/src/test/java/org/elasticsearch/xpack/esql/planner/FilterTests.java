@@ -318,7 +318,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder filterQueryForTransportNodes(PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(plan, EMP_NO);
+        return PlannerUtils.detectFilter(plan, EMP_NO::equals);
     }
 
     @Override

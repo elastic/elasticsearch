@@ -5,6 +5,10 @@
       "description": "Creates a behavioral analytics collection."
     },
     "stability": "experimental",
+    "deprecated": {
+      "version": "9.0.0",
+      "description": "Behavioral Analytics has been deprecated and will be removed in a future release."
+    },
     "visibility": "public",
     "headers": {
       "accept": [

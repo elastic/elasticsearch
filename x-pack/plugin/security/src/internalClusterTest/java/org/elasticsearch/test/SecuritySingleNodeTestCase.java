@@ -110,7 +110,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     private boolean isMigrationComplete(ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
+        IndexMetadata indexMetadata = state.metadata().getProject().index(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
         if (indexMetadata == null) {
             // If index doesn't exist, no migration needed
             return true;

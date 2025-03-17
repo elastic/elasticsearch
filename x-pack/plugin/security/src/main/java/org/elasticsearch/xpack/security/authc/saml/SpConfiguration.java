@@ -4,70 +4,57 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.core.Nullable;
 import org.opensaml.security.x509.X509Credential;
 
-import java.util.Collections;
 import java.util.List;
 
 /**
- * A simple container class that holds all configuration related to a SAML Service Provider (SP).
+ * Configuration interface for a SAML Service Provider (SP).
  */
-public class SpConfiguration {
-
-    private final String entityId;
-    private final String ascUrl;
-    private final String logoutUrl;
-    private final SigningConfiguration signingConfiguration;
-    private final List<String> reqAuthnCtxClassRef;
-    private final List<X509Credential> encryptionCredentials;
-
-    public SpConfiguration(
-        final String entityId,
-        final String ascUrl,
-        final String logoutUrl,
-        final SigningConfiguration signingConfiguration,
-        @Nullable final List<X509Credential> encryptionCredential,
-        final List<String> authnCtxClassRef
-    ) {
-        this.entityId = entityId;
-        this.ascUrl = ascUrl;
-        this.logoutUrl = logoutUrl;
-        this.signingConfiguration = signingConfiguration;
-        if (encryptionCredential != null) {
-            this.encryptionCredentials = Collections.unmodifiableList(encryptionCredential);
-        } else {
-            this.encryptionCredentials = Collections.<X509Credential>emptyList();
-        }
-        this.reqAuthnCtxClassRef = authnCtxClassRef;
-    }
+public interface SpConfiguration {
 
     /**
-     * The SAML identifier (as a URI) for the Sp
+     * Returns the entity ID of the SAML Service Provider.
+     *
+     * @return the entity ID
      */
-    public String getEntityId() {
-        return entityId;
-    }
+    String getEntityId();
 
-    public String getAscUrl() {
-        return ascUrl;
-    }
+    /**
+     * Returns the Assertion Consumer Service (ACS) URL of the SAML Service Provider.
+     *
+     * @return the ACS URL
+     */
+    String getAscUrl();
 
-    public String getLogoutUrl() {
-        return logoutUrl;
-    }
+    /**
+     * Returns the URL for handling SAML logout requests.
+     *
+     * @return the logout URL
+     */
+    String getLogoutUrl();
 
-    public List<X509Credential> getEncryptionCredentials() {
-        return encryptionCredentials;
-    }
+    /**
+     * Returns the list of X.509 credentials used for encryption.
+     *
+     * @return the encryption credentials
+     */
+    List<X509Credential> getEncryptionCredentials();
 
-    public SigningConfiguration getSigningConfiguration() {
-        return signingConfiguration;
-    }
+    /**
+     * Returns the signing configuration for the SAML Service Provider.
+     *
+     * @return the signing configuration
+     */
+    SigningConfiguration getSigningConfiguration();
 
-    List<String> getReqAuthnCtxClassRef() {
-        return reqAuthnCtxClassRef;
-    }
+    /**
+     * Returns the list of requested authentication context class references.
+     *
+     * @return the authentication context class references
+     */
+    List<String> getReqAuthnCtxClassRef();
 }

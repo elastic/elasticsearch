@@ -386,7 +386,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             Metadata.Builder metaBuilder = Metadata.builder(metadata);
 
             String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            IndexMetadata indexMetadata = metadata.index(firstBackingIndex);
+            IndexMetadata indexMetadata = metadata.getProject().index(firstBackingIndex);
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
             indexMetaBuilder.settings(
                 Settings.builder()
@@ -419,7 +419,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             Metadata.Builder metaBuilder = Metadata.builder(metadata);
 
             String firstBackingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            IndexMetadata indexMetadata = metadata.index(firstBackingIndex);
+            IndexMetadata indexMetadata = metadata.getProject().index(firstBackingIndex);
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
             indexMetaBuilder.settings(
                 Settings.builder().put(indexMetadata.getSettings()).putNull(IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY)
@@ -558,7 +558,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         // update the backing indices to be ILM managed
         for (Index index : dataStream.getIndices()) {
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.getProject().index(index);
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
             indexMetaBuilder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"));
             metaBuilder.put(indexMetaBuilder.build(), true);
@@ -610,7 +610,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         // update the backing indices to be ILM managed so they should be removed from the error store on the next DSL run
         for (Index index : ilmManagedDataStream.getIndices()) {
-            IndexMetadata indexMetadata = metadata.index(index);
+            IndexMetadata indexMetadata = metadata.getProject().index(index);
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(indexMetadata);
             indexMetaBuilder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy"));
             metaBuilder.put(indexMetaBuilder.build(), true);
@@ -661,16 +661,25 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         // There are 3 backing indices. One gets rolled over. The other two get force merged:
         assertBusy(() -> {
             assertThat(
-                clusterService.state().metadata().index(dataStream.getIndices().get(0)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
-                notNullValue()
-            );
-            assertThat(
-                clusterService.state().metadata().index(dataStream.getIndices().get(1)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
+                clusterService.state()
+                    .metadata()
+                    .getProject()
+                    .index(dataStream.getIndices().get(0))
+                    .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                 notNullValue()
             );
             assertThat(
                 clusterService.state()
                     .metadata()
+                    .getProject()
+                    .index(dataStream.getIndices().get(1))
+                    .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
+                notNullValue()
+            );
+            assertThat(
+                clusterService.state()
+                    .metadata()
+                    .getProject()
                     .index(dataStream.getIndices().get(0))
                     .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                     .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
@@ -679,6 +688,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             assertThat(
                 clusterService.state()
                     .metadata()
+                    .getProject()
                     .index(dataStream.getIndices().get(1))
                     .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                     .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
@@ -716,7 +726,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         builder = Metadata.builder(clusterService.state().metadata()).put(newIndexMetadata, true);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();
         setState(clusterService, state);
-        DataStream dataStream2 = dataStream.addBackingIndex(clusterService.state().metadata(), newIndexMetadata.getIndex());
+        DataStream dataStream2 = dataStream.addBackingIndex(clusterService.state().metadata().getProject(), newIndexMetadata.getIndex());
         builder = Metadata.builder(clusterService.state().metadata());
         builder.put(dataStream2);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();
@@ -726,12 +736,17 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(((ForceMergeRequest) clientSeenRequests.get(3)).indices().length, is(1));
         assertBusy(() -> {
             assertThat(
-                clusterService.state().metadata().index(dataStream2.getIndices().get(2)).getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
+                clusterService.state()
+                    .metadata()
+                    .getProject()
+                    .index(dataStream2.getIndices().get(2))
+                    .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                 notNullValue()
             );
             assertThat(
                 clusterService.state()
                     .metadata()
+                    .getProject()
                     .index(dataStream2.getIndices().get(2))
                     .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                     .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
@@ -788,6 +803,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 assertThat(
                     clusterService.state()
                         .metadata()
+                        .getProject()
                         .index(dataStream.getIndices().get(0))
                         .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     nullValue()
@@ -819,6 +835,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 assertThat(
                     clusterService.state()
                         .metadata()
+                        .getProject()
                         .index(dataStream.getIndices().get(0))
                         .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     nullValue()
@@ -844,6 +861,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 assertThat(
                     clusterService.state()
                         .metadata()
+                        .getProject()
                         .index(dataStream.getIndices().get(0))
                         .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     nullValue()
@@ -866,6 +884,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 assertThat(
                     clusterService.state()
                         .metadata()
+                        .getProject()
                         .index(dataStream.getIndices().get(0))
                         .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     notNullValue()
@@ -873,6 +892,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 assertThat(
                     clusterService.state()
                         .metadata()
+                        .getProject()
                         .index(dataStream.getIndices().get(1))
                         .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY),
                     notNullValue()
@@ -880,6 +900,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 assertThat(
                     clusterService.state()
                         .metadata()
+                        .getProject()
                         .index(dataStream.getIndices().get(0))
                         .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                         .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
@@ -888,6 +909,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 assertThat(
                     clusterService.state()
                         .metadata()
+                        .getProject()
                         .index(dataStream.getIndices().get(1))
                         .getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
                         .get(FORCE_MERGE_COMPLETED_TIMESTAMP_METADATA_KEY),
@@ -948,7 +970,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         builder = Metadata.builder(clusterService.state().metadata()).put(newIndexMetadata, true);
         ClusterState state = ClusterState.builder(clusterService.state()).metadata(builder).build();
         setState(clusterService, state);
-        DataStream dataStream2 = dataStream.addBackingIndex(clusterService.state().metadata(), newIndexMetadata.getIndex());
+        DataStream dataStream2 = dataStream.addBackingIndex(clusterService.state().metadata().getProject(), newIndexMetadata.getIndex());
         builder = Metadata.builder(clusterService.state().metadata());
         builder.put(dataStream2);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();
@@ -995,7 +1017,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             assertThat(failure.get(), equalTo(exception));
             ClusterState clusterState = createClusterState(targetIndex, null);
             ClusterState newClusterState = task.execute(clusterState);
-            IndexMetadata indexMetadata = newClusterState.metadata().index(targetIndex);
+            IndexMetadata indexMetadata = newClusterState.metadata().getProject().index(targetIndex);
             assertThat(indexMetadata, notNullValue());
             Map<String, String> dataStreamLifecycleMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
             assertThat(dataStreamLifecycleMetadata, notNullValue());
@@ -1020,7 +1042,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             );
             ClusterState clusterState = createClusterState(targetIndex, preExistingDataStreamLifecycleCustomMetadata);
             ClusterState newClusterState = task.execute(clusterState);
-            IndexMetadata indexMetadata = newClusterState.metadata().index(targetIndex);
+            IndexMetadata indexMetadata = newClusterState.metadata().getProject().index(targetIndex);
             Map<String, String> dataStreamLifecycleMetadata = indexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
             assertThat(dataStreamLifecycleMetadata, notNullValue());
             assertThat(dataStreamLifecycleMetadata.size(), equalTo(2));
@@ -1177,7 +1199,10 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         builder = Metadata.builder(clusterService.state().metadata()).put(newIndexMetadata, true);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();
         setState(clusterService, state);
-        DataStream modifiedDataStream = dataStream.addBackingIndex(clusterService.state().metadata(), newIndexMetadata.getIndex());
+        DataStream modifiedDataStream = dataStream.addBackingIndex(
+            clusterService.state().metadata().getProject(),
+            newIndexMetadata.getIndex()
+        );
         builder = Metadata.builder(clusterService.state().metadata());
         builder.put(modifiedDataStream);
         state = ClusterState.builder(clusterService.state()).metadata(builder).build();
@@ -1218,7 +1243,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).nodes(nodesBuilder).build();
         setState(clusterService, state);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        Index firstGenIndex = clusterService.state().metadata().index(firstGenIndexName).getIndex();
+        Index firstGenIndex = clusterService.state().metadata().getProject().index(firstGenIndexName).getIndex();
         Set<Index> affectedIndices = dataStreamLifecycleService.maybeExecuteDownsampling(
             clusterService.state(),
             dataStream,
@@ -1255,12 +1280,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
             DOWNSAMPLED_INDEX_PREFIX,
-            state.metadata().index(firstGenIndex),
+            state.metadata().getProject().index(firstGenIndex),
             new DateHistogramInterval("5m")
         );
         {
             // let's simulate the in-progress downsampling
-            IndexMetadata firstGenMetadata = state.metadata().index(firstGenIndexName);
+            IndexMetadata firstGenMetadata = state.metadata().getProject().index(firstGenIndexName);
             Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
 
             metadataBuilder.put(
@@ -1286,7 +1311,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         {
             // mark the downsample operation as complete
-            IndexMetadata firstGenMetadata = state.metadata().index(firstGenIndexName);
+            IndexMetadata firstGenMetadata = state.metadata().getProject().index(firstGenIndexName);
             Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
 
             metadataBuilder.put(
@@ -1312,12 +1337,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         assertThat(affectedIndices, is(Set.of(firstGenIndex)));
         assertBusy(() -> {
             ClusterState newState = clusterService.state();
-            IndexAbstraction downsample = newState.metadata().getIndicesLookup().get(downsampleIndexName);
+            IndexAbstraction downsample = newState.metadata().getProject().getIndicesLookup().get(downsampleIndexName);
             // the downsample index must be part of the data stream
             assertThat(downsample.getParentDataStream(), is(notNullValue()));
             assertThat(downsample.getParentDataStream().getName(), is(dataStreamName));
             // the source index was deleted
-            IndexAbstraction sourceIndexAbstraction = newState.metadata().getIndicesLookup().get(firstGenIndexName);
+            IndexAbstraction sourceIndexAbstraction = newState.metadata().getProject().getIndicesLookup().get(firstGenIndexName);
             assertThat(sourceIndexAbstraction, is(nullValue()));
 
             // no further requests should be triggered
@@ -1368,7 +1393,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         // add another index to the cluster state that clashes with the expected downsample index name for the configured round
         String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
             DOWNSAMPLED_INDEX_PREFIX,
-            state.metadata().index(firstGenIndexName),
+            state.metadata().getProject().index(firstGenIndexName),
             new DateHistogramInterval("5m")
         );
         Metadata.Builder newMetadata = Metadata.builder(state.metadata())
@@ -1378,7 +1403,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         state = ClusterState.builder(state).metadata(newMetadata).nodes(nodesBuilder).build();
         setState(clusterService, state);
 
-        Index firstGenIndex = state.metadata().index(firstGenIndexName).getIndex();
+        Index firstGenIndex = state.metadata().getProject().index(firstGenIndexName).getIndex();
         dataStreamLifecycleService.maybeExecuteDownsampling(clusterService.state(), dataStream, List.of(firstGenIndex));
 
         assertThat(clientSeenRequests.size(), is(0));
@@ -1402,7 +1427,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStreamName,
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2), Tuple.tuple(start3, end3))
         );
-        DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
 
         {
             // test for an index for which `now` is outside its time bounds
@@ -1499,11 +1524,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         List<Index> targetBackingIndicesOnly = DataStreamLifecycleService.getTargetIndices(
             dataStream,
             indicesToExclude,
-            metadata::index,
+            metadata.getProject()::index,
             false
         );
         assertThat(targetBackingIndicesOnly, equalTo(dataStream.getIndices().subList(1, 3)));
-        List<Index> targetIndices = DataStreamLifecycleService.getTargetIndices(dataStream, indicesToExclude, metadata::index, true);
+        List<Index> targetIndices = DataStreamLifecycleService.getTargetIndices(
+            dataStream,
+            indicesToExclude,
+            metadata.getProject()::index,
+            true
+        );
         assertThat(
             targetIndices,
             equalTo(List.of(dataStream.getIndices().get(1), dataStream.getIndices().get(2), dataStream.getFailureIndices().get(1)))
@@ -1544,18 +1574,18 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     public void testMaybeExecuteRetentionSuccessfulDownsampledIndex() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         ClusterState state = downsampleSetup(dataStreamName, SUCCESS);
-        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = state.metadata().getProject().dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
 
         // Executing the method to be tested:
         Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
-        assertThat(indicesToBeRemoved, contains(state.getMetadata().index(firstGenIndexName).getIndex()));
+        assertThat(indicesToBeRemoved, contains(state.getMetadata().getProject().index(firstGenIndexName).getIndex()));
     }
 
     public void testMaybeExecuteRetentionDownsampledIndexInProgress() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         ClusterState state = downsampleSetup(dataStreamName, STARTED);
-        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = state.metadata().getProject().dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
 
         // Executing the method to be tested:
@@ -1566,12 +1596,12 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     public void testMaybeExecuteRetentionDownsampledUnknown() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         ClusterState state = downsampleSetup(dataStreamName, UNKNOWN);
-        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        DataStream dataStream = state.metadata().getProject().dataStreams().get(dataStreamName);
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
 
         // Executing the method to be tested:
         Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
-        assertThat(indicesToBeRemoved, contains(state.getMetadata().index(firstGenIndexName).getIndex()));
+        assertThat(indicesToBeRemoved, contains(state.getMetadata().getProject().index(firstGenIndexName).getIndex()));
     }
 
     private ClusterState downsampleSetup(String dataStreamName, IndexMetadata.DownsampleTaskStatus status) {

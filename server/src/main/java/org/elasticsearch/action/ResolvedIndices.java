@@ -11,9 +11,9 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -124,7 +124,7 @@ public class ResolvedIndices {
     /**
      * Get the search context ID.
      * Returns a non-null value only when the instance is created using
-     * {@link ResolvedIndices#resolveWithPIT(PointInTimeBuilder, IndicesOptions, ClusterState, NamedWriteableRegistry)}.
+     * {@link ResolvedIndices#resolveWithPIT(PointInTimeBuilder, IndicesOptions, ProjectMetadata, NamedWriteableRegistry)}.
      *
      * @return The search context ID
      */
@@ -137,7 +137,7 @@ public class ResolvedIndices {
      * Create a new {@link ResolvedIndices} instance from an {@link IndicesRequest}.
      *
      * @param request The indices request
-     * @param clusterState The cluster state
+     * @param projectMetadata The project holding the indices
      * @param indexNameExpressionResolver The index name expression resolver used to resolve concrete local indices
      * @param remoteClusterService The remote cluster service used to group remote cluster indices
      * @param startTimeInMillis The request start time in milliseconds
@@ -145,7 +145,7 @@ public class ResolvedIndices {
      */
     public static ResolvedIndices resolveWithIndicesRequest(
         IndicesRequest request,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver indexNameExpressionResolver,
         RemoteClusterService remoteClusterService,
         long startTimeInMillis
@@ -153,7 +153,7 @@ public class ResolvedIndices {
         return resolveWithIndexNamesAndOptions(
             request.indices(),
             request.indicesOptions(),
-            clusterState,
+            projectMetadata,
             indexNameExpressionResolver,
             remoteClusterService,
             startTimeInMillis
@@ -163,7 +163,7 @@ public class ResolvedIndices {
     public static ResolvedIndices resolveWithIndexNamesAndOptions(
         String[] indexNames,
         IndicesOptions indicesOptions,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver indexNameExpressionResolver,
         RemoteClusterService remoteClusterService,
         long startTimeInMillis
@@ -174,9 +174,13 @@ public class ResolvedIndices {
 
         Index[] concreteLocalIndices = localIndices == null
             ? Index.EMPTY_ARRAY
-            : indexNameExpressionResolver.concreteIndices(clusterState, localIndices, startTimeInMillis);
+            : indexNameExpressionResolver.concreteIndices(projectMetadata, localIndices, startTimeInMillis);
 
-        return new ResolvedIndices(remoteClusterIndices, localIndices, resolveLocalIndexMetadata(concreteLocalIndices, clusterState, true));
+        return new ResolvedIndices(
+            remoteClusterIndices,
+            localIndices,
+            resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, true)
+        );
     }
 
     /**
@@ -184,14 +188,14 @@ public class ResolvedIndices {
      *
      * @param pit The point-in-time builder
      * @param indicesOptions The indices options to propagate to the new {@link ResolvedIndices} instance
-     * @param clusterState The cluster state
+     * @param projectMetadata The project holding the indices
      * @param namedWriteableRegistry The named writeable registry used to decode the search context ID
      * @return a new {@link ResolvedIndices} instance
      */
     public static ResolvedIndices resolveWithPIT(
         PointInTimeBuilder pit,
         IndicesOptions indicesOptions,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         final SearchContextId searchContextId = pit.getSearchContextId(namedWriteableRegistry);
@@ -231,19 +235,19 @@ public class ResolvedIndices {
         return new ResolvedIndices(
             remoteClusterIndices,
             localIndices,
-            resolveLocalIndexMetadata(concreteLocalIndices, clusterState, false),
+            resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, false),
             searchContextId
         );
     }
 
     private static Map<Index, IndexMetadata> resolveLocalIndexMetadata(
         Index[] concreteLocalIndices,
-        ClusterState clusterState,
+        ProjectMetadata projectMetadata,
         boolean failOnMissingIndex
     ) {
         Map<Index, IndexMetadata> localIndexMetadata = new HashMap<>();
         for (Index index : concreteLocalIndices) {
-            IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            IndexMetadata indexMetadata = projectMetadata.index(index);
             if (indexMetadata == null) {
                 if (failOnMissingIndex) {
                     throw new IndexNotFoundException(index);

@@ -17,7 +17,9 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -69,6 +71,7 @@ final class RequestDispatcher {
     RequestDispatcher(
         ClusterService clusterService,
         TransportService transportService,
+        ProjectResolver projectResolver,
         Task parentTask,
         FieldCapabilitiesRequest fieldCapsRequest,
         OriginalIndices originalIndices,
@@ -91,10 +94,13 @@ final class RequestDispatcher {
         this.onIndexFailure = onIndexFailure;
         this.onComplete = new RunOnce(onComplete);
         this.indexSelectors = ConcurrentCollections.newConcurrentMap();
+
+        ProjectState project = projectResolver.getProjectState(clusterState);
+
         for (String index : indices) {
             final List<ShardIterator> shardIts;
             try {
-                shardIts = clusterService.operationRouting().searchShards(clusterState, new String[] { index }, null, null);
+                shardIts = clusterService.operationRouting().searchShards(project, new String[] { index }, null, null);
             } catch (Exception e) {
                 onIndexFailure.accept(index, e);
                 continue;

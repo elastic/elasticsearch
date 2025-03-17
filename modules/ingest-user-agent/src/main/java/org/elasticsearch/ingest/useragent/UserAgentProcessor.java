@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.useragent;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.UpdateForV10;
@@ -191,7 +192,8 @@ public class UserAgentProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> factories,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");

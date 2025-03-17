@@ -50,6 +50,7 @@ import static org.apache.lucene.search.ScoreMode.TOP_DOCS;
  * Source operator that builds Pages out of the output of a TopFieldCollector (aka TopN)
  */
 public final class LuceneTopNSourceOperator extends LuceneOperator {
+
     public static class Factory extends LuceneOperator.Factory {
         private final int maxPageSize;
         private final List<SortBuilder<?>> sorts;
@@ -286,10 +287,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             SortField[] sortFields = sortAndFormats.get().sort.getSort();
             if (sortFields != null && sortFields.length == 1 && sortFields[0].needsScores() && sortFields[0].getReverse() == false) {
                 // SORT _score DESC
-                return new ScoringPerShardCollector(
-                    shardContext,
-                    new TopScoreDocCollectorManager(limit, null, limit, false).newCollector()
-                );
+                return new ScoringPerShardCollector(shardContext, new TopScoreDocCollectorManager(limit, null, limit).newCollector());
             } else {
                 // SORT ..., _score, ...
                 var sort = new Sort();
@@ -299,10 +297,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     l.add(SortField.FIELD_SCORE);
                     sort = new Sort(l.toArray(SortField[]::new));
                 }
-                return new ScoringPerShardCollector(
-                    shardContext,
-                    new TopFieldCollectorManager(sort, limit, null, limit, false).newCollector()
-                );
+                return new ScoringPerShardCollector(shardContext, new TopFieldCollectorManager(sort, limit, null, limit).newCollector());
             }
         }
     }
@@ -332,7 +327,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     static final class NonScoringPerShardCollector extends PerShardCollector {
         NonScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            super(shardContext, new TopFieldCollectorManager(sort, limit, null, 0, false).newCollector());
+            super(shardContext, new TopFieldCollectorManager(sort, limit, null, 0).newCollector());
         }
     }
 

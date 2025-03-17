@@ -78,7 +78,6 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(),
-            mock(),
             persistentTasksClusterService,
             persistentTasksService,
             client
@@ -177,7 +176,10 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
 
         upgradeModeSuccessfullyChanged(stateWithTransformTask(), assertNoFailureListener(r -> {
             assertThat(r, is(AcknowledgedResponse.TRUE));
-            verify(clusterService).submitUnbatchedStateUpdateTask(matches("unassign persistent task \\[.*\\] from any node"), any());
+            verify(clusterService).submitUnbatchedStateUpdateTask(
+                matches("unassign project .* persistent task \\[.*\\] from any node"),
+                any()
+            );
         }));
     }
 
@@ -191,10 +193,10 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
 
     public void testDisableUpgradeMode() throws InterruptedException {
         doAnswer(ans -> {
-            ActionListener<Boolean> listener = ans.getArgument(2);
+            ActionListener<Boolean> listener = ans.getArgument(3);
             listener.onResponse(true);
             return null;
-        }).when(persistentTasksService).waitForPersistentTasksCondition(any(), any(), any());
+        }).when(persistentTasksService).waitForPersistentTasksCondition(any(), any(), any(), any());
         upgradeModeSuccessfullyChanged(new SetUpgradeModeActionRequest(false), stateWithTransformTask(), assertNoFailureListener(r -> {
             assertThat(r, is(AcknowledgedResponse.TRUE));
             verify(clusterService, never()).submitUnbatchedStateUpdateTask(eq("unassign persistent task from any node"), any());

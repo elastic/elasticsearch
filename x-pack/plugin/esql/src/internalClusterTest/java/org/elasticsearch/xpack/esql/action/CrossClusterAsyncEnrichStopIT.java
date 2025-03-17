@@ -96,7 +96,7 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
         assertBusy(() -> {
             List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
             List<TaskInfo> reduceTasks = tasks.stream()
-                .filter(t -> t.status() instanceof DriverStatus ds && ds.taskDescription().equals("remote_reduce"))
+                .filter(t -> t.status() instanceof DriverStatus ds && ds.description().equals("remote_reduce"))
                 .toList();
             assertThat(reduceTasks, not(empty()));
         });
@@ -108,7 +108,7 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
         assertBusy(() -> {
             List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
             List<TaskInfo> reduceTasks = tasks.stream()
-                .filter(t -> t.status() instanceof DriverStatus ds && ds.taskDescription().equals("remote_reduce"))
+                .filter(t -> t.status() instanceof DriverStatus ds && ds.description().equals("remote_reduce"))
                 .toList();
             assertThat(reduceTasks, empty());
         });

@@ -12,14 +12,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -37,7 +38,7 @@ import java.util.Objects;
  * Collects the data streams from the cluster state, filters the ones that do not have a data stream lifecycle configured and then returns
  * a list of the data stream name and respective lifecycle configuration.
  */
-public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeReadAction<
+public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeReadProjectAction<
     GetDataStreamLifecycleAction.Request,
     GetDataStreamLifecycleAction.Response> {
     private final ClusterSettings clusterSettings;
@@ -50,6 +51,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
@@ -60,6 +62,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
             threadPool,
             actionFilters,
             GetDataStreamLifecycleAction.Request::new,
+            projectResolver,
             GetDataStreamLifecycleAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -72,12 +75,12 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
     protected void masterOperation(
         Task task,
         GetDataStreamLifecycleAction.Request request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetDataStreamLifecycleAction.Response> listener
     ) {
         List<String> results = DataStreamsActionUtil.getDataStreamNames(
             indexNameExpressionResolver,
-            state,
+            state.metadata(),
             request.getNames(),
             request.indicesOptions()
         );
@@ -104,7 +107,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetDataStreamLifecycleAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetDataStreamLifecycleAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 }

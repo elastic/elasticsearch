@@ -470,6 +470,43 @@ public class Iterators {
         }
     }
 
+    /**
+     * Cycles infinitely over the elements in the {@code source} parameter
+     */
+    public static <T> Iterator<T> cycling(final Iterable<T> source) {
+        return new CyclingIterator<>(Objects.requireNonNull(source));
+    }
+
+    private static class CyclingIterator<T> implements Iterator<T> {
+        private final Iterable<T> source;
+        private Iterator<T> iterator;
+
+        CyclingIterator(Iterable<T> source) {
+            this.source = source;
+            this.iterator = source.iterator();
+            if (iterator.hasNext() == false) {
+                throw new IllegalArgumentException("Cannot cycle over empty iterable");
+            }
+        }
+
+        @Override
+        public boolean hasNext() {
+            return true;
+        }
+
+        @Override
+        public T next() {
+            if (iterator.hasNext()) {
+                return iterator.next();
+            }
+            iterator = source.iterator();
+            if (iterator.hasNext() == false) {
+                throw new IllegalArgumentException("Cannot cycle over empty iterable");
+            }
+            return iterator.next();
+        }
+    }
+
     public static <T> boolean equals(Iterator<? extends T> iterator1, Iterator<? extends T> iterator2, BiPredicate<T, T> itemComparer) {
         if (iterator1 == null) {
             return iterator2 == null;

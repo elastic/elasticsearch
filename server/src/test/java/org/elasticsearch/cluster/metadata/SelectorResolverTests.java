@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.InvalidIndexNameException;
@@ -165,7 +164,7 @@ public class SelectorResolverTests extends ESTestCase {
     }
 
     private static Context getContext(IndicesOptions indicesOptions) {
-        return new Context(mock(ClusterState.class), indicesOptions, SystemIndices.SystemIndexAccessLevel.NONE);
+        return new Context(mock(ProjectMetadata.class), indicesOptions, SystemIndices.SystemIndexAccessLevel.NONE);
     }
 
     private static ResolvedExpression resolve(Context context, String expression) {

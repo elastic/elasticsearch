@@ -50,12 +50,11 @@ public class GraphInfoTransportActionTests extends ESTestCase {
             null,
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            null,
             Settings.EMPTY,
             licenseState
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.localClusterStateOperation(null, null, null, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
@@ -90,12 +89,11 @@ public class GraphInfoTransportActionTests extends ESTestCase {
             null,
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            null,
             settings.build(),
             licenseState
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.localClusterStateOperation(null, null, null, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(enabled));
 

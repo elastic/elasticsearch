@@ -40,7 +40,7 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
 
     @Override
     public ClusterState performAction(Index index, ClusterState currentState) {
-        IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+        IndexMetadata indexMetadata = currentState.metadata().getProject().getIndexSafe(index);
 
         long newIndexTime;
 
@@ -76,13 +76,13 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
     }
 
     private static String getRolloverTarget(Index index, ClusterState currentState) {
-        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(index.getName());
+        IndexAbstraction indexAbstraction = currentState.metadata().getProject().getIndicesLookup().get(index.getName());
         final String rolloverTarget;
         if (indexAbstraction.getParentDataStream() != null) {
             rolloverTarget = indexAbstraction.getParentDataStream().getName();
         } else {
             // find the newly created index from the rollover and fetch its index.creation_date
-            IndexMetadata indexMetadata = currentState.metadata().index(index);
+            IndexMetadata indexMetadata = currentState.metadata().getProject().index(index);
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
             if (Strings.isNullOrEmpty(rolloverAlias)) {
                 throw new IllegalStateException(

@@ -28,7 +28,6 @@ public class CreateServiceAccountTokenResponse extends ActionResponse implements
     }
 
     public CreateServiceAccountTokenResponse(StreamInput in) throws IOException {
-        super(in);
         this.name = in.readOptionalString();
         this.value = in.readOptionalSecureString();
     }

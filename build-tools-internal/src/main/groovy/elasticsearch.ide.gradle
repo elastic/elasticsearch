@@ -145,18 +145,23 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
     }
   }
 
-  // modifies the idea module config to enable preview features on ':libs:native' module
+  // modifies the idea module config to enable preview features on module that need them
   tasks.register("enablePreviewFeatures", EnablePreviewFeaturesTask) {
     group = 'ide'
-    description = 'Enables preview features on native library module'
+    description = 'Enables preview features on modules that need them'
     dependsOn tasks.named("enableExternalConfiguration")
     doLast {
       enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.main.iml', 'JDK_21_PREVIEW')
       enablePreview('.idea/modules/libs/native/elasticsearch.libs.native.test.iml', 'JDK_21_PREVIEW')
+      // due to org.elasticsearch.plugins.PluginsLoader
+      enablePreview('.idea/modules/server/elasticsearch.server.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/server/elasticsearch.server.test.iml', 'JDK_21_PREVIEW')
       enablePreview('.idea/modules/libs/entitlement/elasticsearch.libs.entitlement.main.iml', 'JDK_21_PREVIEW')
       enablePreview('.idea/modules/libs/entitlement/elasticsearch.libs.entitlement.test.iml', 'JDK_21_PREVIEW')
       enablePreview('.idea/modules/libs/entitlement/bridge/elasticsearch.libs.entitlement.bridge.main.iml', 'JDK_21_PREVIEW')
       enablePreview('.idea/modules/libs/entitlement/bridge/elasticsearch.libs.entitlement.bridge.test.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/qa/entitlement-test-plugin/elasticsearch.libs.entitlement.qa.entitlement-test-plugin.main.iml', 'JDK_21_PREVIEW')
+      enablePreview('.idea/modules/libs/entitlement/qa/entitlement-test-plugin/elasticsearch.libs.entitlement.qa.entitlement-test-plugin.test.iml', 'JDK_21_PREVIEW')
     }
   }
 
@@ -174,7 +179,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
 
   // this path is produced by the extractLibs task above
   String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/libs/native/libraries/build/platform")
-
+  def enableIdeaCC = providers.gradleProperty("org.elasticsearch.idea-configuration-cache").getOrElse("true").toBoolean()
   idea {
     project {
       vcs = 'Git'
@@ -204,6 +209,11 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
           }
         }
         runConfigurations {
+          defaults(org.jetbrains.gradle.ext.Gradle) {
+            scriptParameters = enableIdeaCC ? [
+              '--configuration-cache'
+            ].join(' ') : ''
+          }
           defaults(JUnit) {
             vmParameters = [
               '-ea',

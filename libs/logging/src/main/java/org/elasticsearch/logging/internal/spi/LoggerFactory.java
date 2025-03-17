@@ -9,6 +9,7 @@
 
 package org.elasticsearch.logging.internal.spi;
 
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Logger;
 
 /**
@@ -25,6 +26,10 @@ public abstract class LoggerFactory {
     public abstract Logger getLogger(String name);
 
     public abstract Logger getLogger(Class<?> clazz);
+
+    public abstract void setRootLevel(Level level);
+
+    public abstract Level getRootLevel();
 
     public static void setInstance(LoggerFactory INSTANCE) {
         LoggerFactory.INSTANCE = INSTANCE;

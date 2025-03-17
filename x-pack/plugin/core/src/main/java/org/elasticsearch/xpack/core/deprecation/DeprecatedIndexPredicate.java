@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -31,7 +31,7 @@ public class DeprecatedIndexPredicate {
      *                              if false, only those without a block are returned
      * @return a predicate that returns true for indices that need to be reindexed
      */
-    public static Predicate<Index> getReindexRequiredPredicate(Metadata metadata, boolean filterToBlockedStatus) {
+    public static Predicate<Index> getReindexRequiredPredicate(ProjectMetadata metadata, boolean filterToBlockedStatus) {
         return index -> {
             IndexMetadata indexMetadata = metadata.index(index);
             return reindexRequired(indexMetadata, filterToBlockedStatus);

@@ -43,7 +43,6 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
     private final FeatureSetsInfo featureSetsInfo;
 
     public XPackInfoResponse(StreamInput in) throws IOException {
-        super(in);
         this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
         this.licenseInfo = in.readOptionalWriteable(LicenseInfo::new);
         this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);

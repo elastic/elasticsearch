@@ -37,9 +37,12 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -47,12 +50,11 @@ import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorization;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationTests;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
@@ -379,6 +381,10 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     private ModelRegistry mockModelRegistry() {
+        return mockModelRegistry(threadPool);
+    }
+
+    public static ModelRegistry mockModelRegistry(ThreadPool threadPool) {
         var client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
 
@@ -474,9 +480,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testInfer_SendsEmbeddingsRequest() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var eisGatewayUrl = getUrl(webServer);
+        var elasticInferenceServiceURL = getUrl(webServer);
 
-        try (var service = createService(senderFactory, eisGatewayUrl)) {
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
             String responseJson = """
                 {
                     "data": [
@@ -490,7 +496,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl, "my-model-id");
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -514,7 +520,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     )
                 )
             );
-            var request = webServer.requests().get(0);
+            var request = webServer.requests().getFirst();
             assertNull(request.getUri().getQuery());
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
@@ -523,11 +529,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testChunkedInfer_PassesThrough() throws IOException {
+    public void testInfer_PropagatesProductUseCaseHeader() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        var eisGatewayUrl = getUrl(webServer);
+        var elasticInferenceServiceURL = getUrl(webServer);
 
-        try (var service = createService(senderFactory, eisGatewayUrl)) {
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
             String responseJson = """
                 {
                     "data": [
@@ -541,7 +547,212 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(eisGatewayUrl, "my-model-id");
+            // Set up the product use case in the thread context
+            String productUseCase = "test-product-use-case";
+            threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            try {
+                service.infer(
+                    model,
+                    null,
+                    List.of("input text"),
+                    false,
+                    new HashMap<>(),
+                    InputType.SEARCH,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                );
+                var result = listener.actionGet(TIMEOUT);
+
+                // Verify the response was processed correctly
+                assertThat(
+                    result.asMap(),
+                    Matchers.is(
+                        SparseEmbeddingResultsTests.buildExpectationSparseEmbeddings(
+                            List.of(
+                                new SparseEmbeddingResultsTests.EmbeddingExpectation(
+                                    Map.of("hello", 2.1259406f, "greet", 1.7073475f),
+                                    false
+                                )
+                            )
+                        )
+                    )
+                );
+
+                // Verify the header was sent in the request
+                var request = webServer.requests().getFirst();
+                assertNull(request.getUri().getQuery());
+                assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
+
+                // Check that the product use case header was set correctly
+                assertThat(request.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+
+                // Verify request body
+                var requestMap = entityAsMap(request.getBody());
+                assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "search")));
+            } finally {
+                // Clean up the thread context
+                threadPool.getThreadContext().stashContext();
+            }
+        }
+    }
+
+    public void testChunkedInfer_PropagatesProductUseCaseHeader() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            // Set up the product use case in the thread context
+            String productUseCase = "test-product-use-case";
+            threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+
+            try {
+                service.chunkedInfer(
+                    model,
+                    null,
+                    List.of("input text"),
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                );
+
+                var results = listener.actionGet(TIMEOUT);
+
+                // Verify the response was processed correctly
+                ChunkedInference inferenceResult = results.getFirst();
+                assertThat(inferenceResult, instanceOf(ChunkedInferenceEmbedding.class));
+                var sparseResult = (ChunkedInferenceEmbedding) inferenceResult;
+                assertThat(
+                    sparseResult.chunks(),
+                    is(
+                        List.of(
+                            new EmbeddingResults.Chunk(
+                                new SparseEmbeddingResults.Embedding(
+                                    List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                                    false
+                                ),
+                                new ChunkedInference.TextOffset(0, "input text".length())
+                            )
+                        )
+                    )
+                );
+
+                // Verify the request was sent and contains expected headers
+                MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+                var request = webServer.requests().getFirst();
+                assertNull(request.getUri().getQuery());
+                MatcherAssert.assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+
+                // Check that the product use case header was set correctly
+                assertThat(request.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+
+                // Verify request body
+                var requestMap = entityAsMap(request.getBody());
+                assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "ingest")));
+            } finally {
+                // Clean up the thread context
+                threadPool.getThreadContext().stashContext();
+            }
+        }
+    }
+
+    public void testUnifiedCompletionInfer_PropagatesProductUseCaseHeader() throws IOException {
+        var elasticInferenceServiceURL = getUrl(webServer);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            // Mock a successful streaming response
+            String responseJson = """
+                data: {"id":"1","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":"Hello"}}]}
+
+                data: {"id":"2","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":"stop","index":0,"delta":{"content":" world!"}}]}
+
+                data: [DONE]
+
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            String productUseCase = "test-product-use-case";
+            threadPool.getThreadContext().putHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER, productUseCase);
+
+            // Create completion model
+            var model = new ElasticInferenceServiceCompletionModel(
+                "id",
+                TaskType.CHAT_COMPLETION,
+                "elastic",
+                new ElasticInferenceServiceCompletionServiceSettings("my-model-id", new RateLimitSettings(100)),
+                EmptyTaskSettings.INSTANCE,
+                EmptySecretSettings.INSTANCE,
+                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
+            );
+
+            var request = UnifiedCompletionRequest.of(
+                List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("Hello"), "user", null, null))
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            try {
+                service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+                // We don't need to check the actual response as we're only testing header propagation
+                listener.actionGet(TIMEOUT);
+
+                // Verify the request was sent
+                assertThat(webServer.requests(), hasSize(1));
+                var httpRequest = webServer.requests().getFirst();
+
+                // Check that the product use case header was set correctly
+                assertThat(httpRequest.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+            } finally {
+                // Clean up the thread context
+                threadPool.getThreadContext().stashContext();
+            }
+        }
+    }
+
+    public void testChunkedInfer_PassesThrough() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var elasticInferenceServiceURL = getUrl(webServer);
+
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
+            String responseJson = """
+                {
+                    "data": [
+                        {
+                            "hello": 2.1259406,
+                            "greet": 1.7073475
+                        }
+                    ]
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(elasticInferenceServiceURL, "my-model-id");
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
@@ -560,9 +771,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 sparseResult.chunks(),
                 is(
                     List.of(
-                        new SparseEmbeddingResults.Chunk(
-                            List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
-                            "input text",
+                        new EmbeddingResults.Chunk(
+                            new SparseEmbeddingResults.Embedding(
+                                List.of(new WeightedToken("hello", 2.1259406f), new WeightedToken("greet", 1.7073475f)),
+                                false
+                            ),
                             new ChunkedInference.TextOffset(0, "input text".length())
                         )
                     )
@@ -582,7 +795,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testHideFromConfigurationApi_ReturnsTrue_WithNoAvailableModels() throws Exception {
-        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
             ensureAuthorizationCallFinished(service);
 
             assertTrue(service.hideFromConfigurationApi());
@@ -592,7 +805,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testHideFromConfigurationApi_ReturnsTrue_WithModelTaskTypesThatAreNotImplemented() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -613,7 +826,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testHideFromConfigurationApi_ReturnsFalse_WithAvailableModels() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -634,7 +847,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testGetConfiguration() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -700,7 +913,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testGetConfiguration_WithoutSupportedTaskTypes() throws Exception {
-        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
             ensureAuthorizationCallFinished(service);
 
             String content = XContentHelper.stripWhitespace("""
@@ -758,7 +971,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         try (
             var service = createServiceWithMockSender(
                 // this service doesn't yet support text embedding so we should still have no task types
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -1008,18 +1221,18 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testUnifiedCompletionError() throws Exception {
-        testUnifiedStreamError(404, """
+    public void testUnifiedCompletionError() {
+        var e = assertThrows(UnifiedChatCompletionException.class, () -> testUnifiedStream(404, """
             {
                 "error": "The model `rainbow-sprinkles` does not exist or you do not have access to it."
-            }""", """
-            {\
-            "error":{\
-            "code":"not_found",\
-            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
-            [404]. Error message: [The model `rainbow-sprinkles` does not exist or you do not have access to it.]",\
-            "type":"error"\
-            }}""");
+            }"""));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Received an unsuccessful status code for request from inference entity id [id] status "
+                    + "[404]. Error message: [The model `rainbow-sprinkles` does not exist or you do not have access to it.]"
+            )
+        );
     }
 
     public void testUnifiedCompletionErrorMidStream() throws Exception {
@@ -1050,9 +1263,28 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     private void testUnifiedStreamError(int responseCode, String responseJson, String expectedJson) throws Exception {
-        var eisGatewayUrl = getUrl(webServer);
+        testUnifiedStream(responseCode, responseJson).hasNoEvents().hasErrorMatching(e -> {
+            e = unwrapCause(e);
+            assertThat(e, isA(UnifiedChatCompletionException.class));
+            try (var builder = XContentFactory.jsonBuilder()) {
+                ((UnifiedChatCompletionException) e).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
+                    try {
+                        xContent.toXContent(builder, EMPTY_PARAMS);
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                });
+                var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
+
+                assertThat(json, is(expectedJson));
+            }
+        });
+    }
+
+    private InferenceEventsAssertion testUnifiedStream(int responseCode, String responseJson) throws Exception {
+        var elasticInferenceServiceURL = getUrl(webServer);
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        try (var service = createService(senderFactory, eisGatewayUrl)) {
+        try (var service = createService(senderFactory, elasticInferenceServiceURL)) {
             webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(responseJson));
             var model = new ElasticInferenceServiceCompletionModel(
                 "id",
@@ -1061,7 +1293,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
-                ElasticInferenceServiceComponents.withNoRevokeDelay(eisGatewayUrl)
+                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -1073,69 +1305,56 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
-
-            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoEvents().hasErrorMatching(e -> {
-                e = unwrapCause(e);
-                assertThat(e, isA(UnifiedChatCompletionException.class));
-                try (var builder = XContentFactory.jsonBuilder()) {
-                    ((UnifiedChatCompletionException) e).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
-                        try {
-                            xContent.toXContent(builder, EMPTY_PARAMS);
-                        } catch (IOException ex) {
-                            throw new RuntimeException(ex);
-                        }
-                    });
-                    var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
-
-                    assertThat(json, is(expectedJson));
-                }
-            });
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
     private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
         service.onNodeStarted();
-        service.waitForAuthorizationToComplete(TIMEOUT);
+        service.waitForFirstAuthorizationToComplete(TIMEOUT);
     }
 
     private ElasticInferenceService createServiceWithMockSender() {
-        return createServiceWithMockSender(ElasticInferenceServiceAuthorizationTests.createEnabledAuth());
+        return createServiceWithMockSender(ElasticInferenceServiceAuthorizationModelTests.createEnabledAuth());
     }
 
-    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceAuthorization auth) {
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationHandler.class);
+    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel auth) {
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
             listener.onResponse(auth);
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
         return new ElasticInferenceService(
-            mock(HttpRequestSender.Factory.class),
+            factory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.EMPTY_INSTANCE,
+            new ElasticInferenceServiceSettings(Settings.EMPTY),
             mockModelRegistry(),
             mockAuthHandler
         );
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory) {
-        return createService(senderFactory, ElasticInferenceServiceAuthorizationTests.createEnabledAuth(), null);
+        return createService(senderFactory, ElasticInferenceServiceAuthorizationModelTests.createEnabledAuth(), null);
     }
 
-    private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String gatewayUrl) {
-        return createService(senderFactory, ElasticInferenceServiceAuthorizationTests.createEnabledAuth(), gatewayUrl);
+    private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String elasticInferenceServiceURL) {
+        return createService(senderFactory, ElasticInferenceServiceAuthorizationModelTests.createEnabledAuth(), elasticInferenceServiceURL);
     }
 
     private ElasticInferenceService createService(
         HttpRequestSender.Factory senderFactory,
-        ElasticInferenceServiceAuthorization auth,
-        String gatewayUrl
+        ElasticInferenceServiceAuthorizationModel auth,
+        String elasticInferenceServiceURL
     ) {
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationHandler.class);
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
             listener.onResponse(auth);
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
@@ -1143,19 +1362,36 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withNoRevokeDelay(gatewayUrl),
+            ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
             mockModelRegistry(),
             mockAuthHandler
         );
     }
 
-    private ElasticInferenceService createServiceWithAuthHandler(HttpRequestSender.Factory senderFactory, String eisGatewayUrl) {
+    private ElasticInferenceService createServiceWithAuthHandler(
+        HttpRequestSender.Factory senderFactory,
+        String elasticInferenceServiceURL
+    ) {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withNoRevokeDelay(eisGatewayUrl),
+            ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
             mockModelRegistry(),
-            new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool)
+            new ElasticInferenceServiceAuthorizationRequestHandler(elasticInferenceServiceURL, threadPool)
+        );
+    }
+
+    public static ElasticInferenceService createServiceWithAuthHandler(
+        HttpRequestSender.Factory senderFactory,
+        String elasticInferenceServiceURL,
+        ThreadPool threadPool
+    ) {
+        return new ElasticInferenceService(
+            senderFactory,
+            createWithEmptySettings(threadPool),
+            ElasticInferenceServiceSettingsTests.create(elasticInferenceServiceURL),
+            mockModelRegistry(threadPool),
+            new ElasticInferenceServiceAuthorizationRequestHandler(elasticInferenceServiceURL, threadPool)
         );
     }
 }

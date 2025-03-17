@@ -11,11 +11,15 @@ package org.elasticsearch.benchmark.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -25,6 +29,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -40,9 +46,13 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -56,8 +66,10 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.time.Duration;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -80,9 +92,16 @@ public class EvalBenchmark {
     static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
 
     static {
+        LogConfigurator.configureESLogging();
         // Smoke test all the expected values and force loading subclasses more like prod
+        selfTest();
+    }
+
+    static void selfTest() {
+        Logger log = LogManager.getLogger(EvalBenchmark.class);
         try {
             for (String operation : EvalBenchmark.class.getField("operation").getAnnotationsByType(Param.class)[0].value()) {
+                log.info("self testing {}", operation);
                 run(operation);
             }
         } catch (NoSuchFieldException e) {
@@ -106,7 +125,9 @@ public class EvalBenchmark {
             "long_equal_to_int",
             "mv_min",
             "mv_min_ascending",
-            "rlike" }
+            "rlike",
+            "to_lower",
+            "to_upper" }
     )
     public String operation;
 
@@ -169,7 +190,7 @@ public class EvalBenchmark {
                     new Coalesce(Source.EMPTY, lhs, List.of(f2)),
                     layout(f1, f2)
                 ).get(driverContext);
-                String desc = operation.endsWith("lazy") ? "CoalesceLazyEvaluator" : "CoalesceEagerEvaluator";
+                String desc = operation.endsWith("lazy") ? "CoalesceLongLazyEvaluator" : "CoalesceLongEagerEvaluator";
                 if (evaluator.toString().contains(desc) == false) {
                     throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
                 }
@@ -214,6 +235,16 @@ public class EvalBenchmark {
                 RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern(".ar"));
                 yield EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
             }
+            case "to_lower" -> {
+                FieldAttribute keywordField = keywordField();
+                ToLower toLower = new ToLower(Source.EMPTY, keywordField, configuration());
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, toLower, layout(keywordField)).get(driverContext);
+            }
+            case "to_upper" -> {
+                FieldAttribute keywordField = keywordField();
+                ToUpper toUpper = new ToUpper(Source.EMPTY, keywordField, configuration());
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, toUpper, layout(keywordField)).get(driverContext);
+            }
             default -> throw new UnsupportedOperationException();
         };
     }
@@ -232,6 +263,23 @@ public class EvalBenchmark {
 
     private static FieldAttribute keywordField() {
         return new FieldAttribute(Source.EMPTY, "keyword", new EsField("keyword", DataType.KEYWORD, Map.of(), true));
+    }
+
+    private static Configuration configuration() {
+        return new Configuration(
+            ZoneOffset.UTC,
+            Locale.ROOT,
+            null,
+            null,
+            null,
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.get(Settings.EMPTY),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.get(Settings.EMPTY),
+            null,
+            false,
+            Map.of(),
+            0,
+            false
+        );
     }
 
     private static Layout layout(FieldAttribute... fields) {
@@ -366,7 +414,21 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "to_lower" -> checkBytes(operation, actual, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
+            case "to_upper" -> checkBytes(operation, actual, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
             default -> throw new UnsupportedOperationException(operation);
+        }
+    }
+
+    private static void checkBytes(String operation, Page actual, BytesRef[] expectedVals) {
+        BytesRef scratch = new BytesRef();
+        BytesRefVector v = actual.<BytesRefBlock>getBlock(1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            BytesRef expected = expectedVals[i % 2];
+            BytesRef b = v.getBytesRef(i, scratch);
+            if (b.equals(expected) == false) {
+                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + b + "]");
+            }
         }
     }
 
@@ -440,7 +502,7 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
-            case "rlike" -> {
+            case "rlike", "to_lower", "to_upper" -> {
                 var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
                 BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
                 for (int i = 0; i < BLOCK_LENGTH; i++) {

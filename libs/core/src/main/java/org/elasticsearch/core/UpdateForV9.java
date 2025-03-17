@@ -25,11 +25,11 @@ public @interface UpdateForV9 {
         CORE_INFRA,
         DATA_MANAGEMENT,
         DISTRIBUTED_INDEXING,
+        DOCS,
         ENTERPRISE_SEARCH,
         MACHINE_LEARNING,
         PROFILING,
-        SEARCH_ANALYTICS,
-        SECURITY,
+        SEARCH_ANALYTICS
     }
 
     /**

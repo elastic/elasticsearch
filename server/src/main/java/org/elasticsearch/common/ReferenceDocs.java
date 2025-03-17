@@ -11,6 +11,7 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
@@ -27,6 +28,7 @@ import java.util.regex.Pattern;
  * {@link #toString()} yields (a string representation of) a URL for the relevant docs. Links are defined in the resource file
  * {@code reference-docs-links.txt} which must include definitions for exactly the set of values of this enum.
  */
+@UpdateForV9(owner = UpdateForV9.Owner.DOCS) // the docs are completely different in v9 so these links all need fixing
 public enum ReferenceDocs {
     /*
      * Note that the docs subsystem parses {@code reference-docs-links.txt} differently. See {@code sub check_elasticsearch_links} in

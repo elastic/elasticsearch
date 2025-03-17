@@ -32,27 +32,36 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
         var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
         final List<Attribute> attributes = new ArrayList<>();
         attributes.add(docId);
-        if (plan.indexMode() == IndexMode.TIME_SERIES) {
-            Attribute tsid = null, timestamp = null;
-            for (Attribute attr : plan.output()) {
-                String name = attr.name();
-                if (name.equals(MetadataAttribute.TSID_FIELD)) {
+
+        var outputIterator = plan.output().iterator();
+        var isTimeSeries = plan.indexMode() == IndexMode.TIME_SERIES;
+        var keepIterating = true;
+        Attribute tsid = null, timestamp = null, score = null;
+
+        while (keepIterating && outputIterator.hasNext()) {
+            Attribute attr = outputIterator.next();
+            if (attr instanceof MetadataAttribute ma) {
+                if (ma.name().equals(MetadataAttribute.SCORE)) {
+                    score = attr;
+                } else if (isTimeSeries && ma.name().equals(MetadataAttribute.TSID_FIELD)) {
                     tsid = attr;
-                } else if (name.equals(MetadataAttribute.TIMESTAMP_FIELD)) {
-                    timestamp = attr;
                 }
+            } else if (attr.name().equals(MetadataAttribute.TIMESTAMP_FIELD)) {
+                timestamp = attr;
             }
+            keepIterating = score == null || (isTimeSeries && (tsid == null || timestamp == null));
+        }
+        if (isTimeSeries) {
             if (tsid == null || timestamp == null) {
                 throw new IllegalStateException("_tsid or @timestamp are missing from the time-series source");
             }
             attributes.add(tsid);
             attributes.add(timestamp);
         }
-        plan.output().forEach(attr -> {
-            if (attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE)) {
-                attributes.add(ma);
-            }
-        });
+        if (score != null) {
+            attributes.add(score);
+        }
+
         return new EsQueryExec(plan.source(), plan.indexPattern(), plan.indexMode(), plan.indexNameWithModes(), attributes, plan.query());
     }
 }

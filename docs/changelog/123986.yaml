@@ -1,5 +1,5 @@
 pr: 123986
-summary: Failure store access - selector-aware authorization
+summary: Failure Store Access Authorization
 area: Authorization
 type: enhancement
 issues: []

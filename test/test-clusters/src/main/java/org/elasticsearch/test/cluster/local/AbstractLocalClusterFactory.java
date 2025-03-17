@@ -439,7 +439,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 Map<String, String> expansions = getJvmOptionsReplacements();
                 for (String key : expansions.keySet()) {
                     if (content.contains(key) == false) {
-                        throw new IOException("Template property '" + key + "' not found in template.");
+                        LOGGER.warn("Template property '" + key + "' not found in template.");
+                        continue;
+                        // temporarily just warn during backports for https://github.com/elastic/elasticsearch/pull/124966
+                        // throw new IOException("Template property '" + key + "' not found in template.");
                     }
                     content = content.replace(key, expansions.get(key));
                 }
@@ -908,14 +911,30 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private Map<String, String> getJvmOptionsReplacements() {
-            return Map.of(
-                "# -XX:HeapDumpPath=/heap/dump/path",
-                "-XX:HeapDumpPath=" + logsDir.toString(),
-                "gc.log",
-                logsDir.resolve("gc.log").toString(),
-                "-XX:ErrorFile=hs_err_pid%p.log",
-                "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log")
-            );
+            var expansions = new HashMap<String, String>();
+            var version = spec.getVersion();
+            String heapDumpPathSub = "# -XX:HeapDumpPath=/heap/dump/path";
+            // temporarily duplicate the expansion so both old and new exist during backport
+            expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + logsDir);
+            if (version.before("8.18.0") && version.onOrAfter("6.3.0")) {
+                heapDumpPathSub = "-XX:HeapDumpPath=/heap/dump/path";
+            }
+            expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + logsDir);
+            String gcLogSub = "gc.log";
+            // temporarily duplicate the expansion so both old and new exist during backport
+            expansions.put(gcLogSub, logsDir.resolve("gc.log").toString());
+            if (version.before("8.18.0") && version.onOrAfter("6.2.0")) {
+                gcLogSub = "logs/gc.log";
+            }
+            expansions.put(gcLogSub, logsDir.resolve("gc.log").toString());
+            // temporarily duplicate the expansion so both old and new exist during backport
+            String errorFileSub = "-XX:ErrorFile=hs_err_pid%p.log";
+            expansions.put(errorFileSub, "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log"));
+            if (version.before("8.18.0") && version.getMajor() >= 7) {
+                errorFileSub = "-XX:ErrorFile=logs/hs_err_pid%p.log";
+            }
+            expansions.put(errorFileSub, "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log"));
+            return expansions;
         }
 
         private void runToolScript(String tool, String input, String... args) {

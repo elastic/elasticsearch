@@ -1438,7 +1438,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             Map<String, String> expansions = jvmOptionExpansions();
             for (String origin : expansions.keySet()) {
                 if (content.contains(origin) == false) {
-                    throw new IOException("template property " + origin + " not found in template.");
+                    LOGGER.warn("template property '" + origin + "' not found in template.");
+                    continue;
+                    // temporarily just warn during backports for https://github.com/elastic/elasticsearch/pull/124966
+                    // throw new IOException("template property '" + origin + "' not found in template.");
                 }
                 content = content.replace(origin, expansions.get(origin));
             }
@@ -1452,16 +1455,22 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Map<String, String> expansions = new HashMap<>();
         Version version = getVersion();
         String heapDumpPathSub = "# -XX:HeapDumpPath=/heap/dump/path";
+        // temporarily duplicate the expansion so both old and new exist during backport
+        expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + confPathLogs);
         if (version.before("8.18.0") && version.onOrAfter("6.3.0")) {
             heapDumpPathSub = "-XX:HeapDumpPath=/heap/dump/path";
         }
         expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + confPathLogs);
         String gcLogSub = "gc.log";
+        expansions.put(gcLogSub, confPathLogs.resolve("gc.log").toString());
+        // temporarily duplicate the expansion so both old and new exist during backport
         if (version.before("8.18.0") && version.onOrAfter("6.2.0")) {
             gcLogSub = "logs/gc.log";
         }
         expansions.put(gcLogSub, confPathLogs.resolve("gc.log").toString());
         String errorFileSub = "-XX:ErrorFile=hs_err_pid%p.log";
+        // temporarily duplicate the expansion so both old and new exist during backport
+        expansions.put(errorFileSub, "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
         if (version.before("8.18.0") && getVersion().getMajor() >= 7) {
             errorFileSub = "-XX:ErrorFile=logs/hs_err_pid%p.log";
         }

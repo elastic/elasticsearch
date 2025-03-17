@@ -479,3 +479,7 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: staged, expectedAssembleTaskName:
+    extractedAssemble, #1]"
+  issue: https://github.com/elastic/elasticsearch/issues/119870

@@ -185,7 +185,18 @@ tasks.named("yamlRestCompatTestTransform").configure({task ->
 })
 ```
 
-Minimally once this skip test is in place, the correct `skip` and `requires` checks will need to be backported to say 8.latest. Once backported, the test can be re-enabled in 9.0.0 by removing the `skipTest`. Consideration for whether tests should be cleaned up and changed based on how the breaking changes were backported is at the discretion of the team making the changes.  As an example in 9.0.0 a `requires` should be added for new tests to validate the changed api or output and `skip` added for the old tests which break in 9.0.0.  Then in backport say to 8.latest the `requires` check should be added to the existing tests with the old behavior so they no longer break when running bwc or upgrade tests from 9.0.0 to 8.latest.
+When skipping a test temporarily in 9.0.0, we have to implement the proper `skip` and `requires` conditions to previous branches, such as 8.latest. After these conditions are implemented in 8.latest, you can re-enable the test in 9.0.0 by removing the `skipTest` condition.
+
+The team implementing the changes can decide how to clean up or modify tests based on how breaking changes were backported. e.g.:
+
+In 8.latest:
+
+* Add `skip` / `requires` conditions to existing tests that check the old behavior. This prevents those tests from failing during backward compatibility or upgrade testing from 8.latest to 9.0.0
+
+In 9.0.0:
+
+* Add `requires` conditions for new tests that validate the updated API or output format
+* Add `skip` conditions for older tests that would break in 9.0.0
 
 #### Test Features
 

@@ -875,7 +875,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be scored when being part of a disjunction
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
+         * Support for multi-match function.
+         */
+        MULTI_MATCH_FUNCTION;
 
         private final boolean enabled;
 

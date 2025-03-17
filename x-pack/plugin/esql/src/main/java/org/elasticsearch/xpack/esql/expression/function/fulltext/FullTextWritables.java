@@ -28,6 +28,9 @@ public class FullTextWritables {
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);
         }
+        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
+            entries.add(MultiMatch.ENTRY);
+        }
 
         return Collections.unmodifiableList(entries);
     }

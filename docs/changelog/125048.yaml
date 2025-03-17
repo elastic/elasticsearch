@@ -1,0 +1,6 @@
+pr: 125048
+summary: Removing incorrect use of `constant_keyword` field type from deprecation
+  logger mapping
+area: Infra/Logging
+type: bug
+issues: []

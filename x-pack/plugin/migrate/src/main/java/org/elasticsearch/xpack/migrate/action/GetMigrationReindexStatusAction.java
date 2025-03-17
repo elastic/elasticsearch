@@ -42,7 +42,6 @@ public class GetMigrationReindexStatusAction extends ActionType<GetMigrationRein
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             enrichedStatus = in.readOptionalWriteable(ReindexDataStreamEnrichedStatus::new);
         }
 

@@ -410,6 +410,8 @@ Profiles also support all the other transport settings specified in the [transpo
 
 A transport connection between two nodes is made up of a number of long-lived TCP connections, some of which may be idle for an extended period of time. Nonetheless, {{es}} requires these connections to remain open, and it can disrupt the operation of your cluster if any inter-node connections are closed by an external influence such as a firewall. It is important to configure your network to preserve long-lived idle connections between {{es}} nodes, for instance by leaving `*.tcp.keep_alive` enabled and ensuring that the keepalive interval is shorter than any timeout that might cause idle connections to be closed, or by setting `transport.ping_schedule` if keepalives cannot be configured. Devices which drop connections when they reach a certain age are a common source of problems to {{es}} clusters, and must not be used.
 
+If an {{es}} node is temporarily unable to handle network traffic it may stop reading data from the network and advertise a zero-length TCP window to its peers so that they pause the transmission of data to the unavailable node. This is the standard backpressure mechanism built into TCP. When the node becomes available again, it will resume reading from the network. Configure your network to permit TCP connections to exist in this paused state without disruption. Do not impose any limit on the length of time that a connection may remain in this paused state.
+
 For information about troubleshooting unexpected network disconnections, see [Diagnosing other network disconnections](docs-content://troubleshoot/elasticsearch/troubleshooting-unstable-cluster.md#troubleshooting-unstable-cluster-network).
 
 

@@ -79,7 +79,7 @@ tasks {
     }
 
     yamlRestTest {
-        usesDefaultDistribution()
+        usesDefaultDistribution("to be triaged")
     }
 
     register<Test>("statelessS3ThirdPartyTests") {
@@ -96,6 +96,6 @@ tasks {
     }
 
     javaRestTest {
-        usesDefaultDistribution()
+        usesDefaultDistribution("to be triaged")
     }
 }

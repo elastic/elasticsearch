@@ -157,7 +157,7 @@ Will become:
 ```
 
 ::::{note}
-Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more detail. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
+Reordering text fields can have an effect on [phrase](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) and [span](/reference/query-languages/query-dsl/span-queries.md) queries. See the discussion about [`position_increment_gap`](/reference/elasticsearch/mapping-reference/position-increment-gap.md) for more detail. You can avoid this by making sure the `slop` parameter on the phrase queries is lower than the `position_increment_gap`. This is the default.
 ::::
 
 
@@ -297,11 +297,11 @@ PUT my-index-000001
 
 ## Match-only text field type [match-only-text-field-type]
 
-A variant of [`text`](#text-field-type) that trades scoring and efficiency of positional queries for space efficiency. This field effectively stores data the same way as a `text` field that only indexes documents (`index_options: docs`) and disables norms (`norms: false`). Term queries perform as fast if not faster as on `text` fields, however queries that need positions such as the [`match_phrase` query](/reference/query-languages/query-dsl-match-query-phrase.md) perform slower as they need to look at the `_source` document to verify whether a phrase matches. All queries return constant scores that are equal to 1.0.
+A variant of [`text`](#text-field-type) that trades scoring and efficiency of positional queries for space efficiency. This field effectively stores data the same way as a `text` field that only indexes documents (`index_options: docs`) and disables norms (`norms: false`). Term queries perform as fast if not faster as on `text` fields, however queries that need positions such as the [`match_phrase` query](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md) perform slower as they need to look at the `_source` document to verify whether a phrase matches. All queries return constant scores that are equal to 1.0.
 
 Analysis is not configurable: text is always analyzed with the [default analyzer](docs-content://manage-data/data-store/text-analysis/specify-an-analyzer.md#specify-index-time-default-analyzer) ([`standard`](/reference/data-analysis/text-analysis/analysis-standard-analyzer.md) by default).
 
-[span queries](/reference/query-languages/span-queries.md) are not supported with this field, use [interval queries](/reference/query-languages/query-dsl-intervals-query.md) instead, or the [`text`](#text-field-type) field type if you absolutely need span queries.
+[span queries](/reference/query-languages/query-dsl/span-queries.md) are not supported with this field, use [interval queries](/reference/query-languages/query-dsl/query-dsl-intervals-query.md) instead, or the [`text`](#text-field-type) field type if you absolutely need span queries.
 
 Other than that, `match_only_text` supports the same queries as `text`. And like `text`, it does not support sorting and has only limited support for aggregations.
 

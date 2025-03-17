@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -19,21 +18,16 @@ import java.util.List;
 public class EsqlListQueriesResponse extends ActionResponse implements ToXContentObject {
     private final List<Query> queries;
 
-    public record Query(String id, long startTimeMillis, long runningTimeNanos, String query) implements Writeable, ToXContentObject {
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(id);
-            out.writeLong(startTimeMillis);
-            out.writeLong(runningTimeNanos);
-            out.writeString(query);
-        }
-
+    public record Query(org.elasticsearch.tasks.TaskId taskId, long startTimeMillis, long runningTimeNanos, String query)
+        implements
+            ToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("id", id);
-            builder.field("startTimeMillis", startTimeMillis);
-            builder.field("runningTimeNanos", runningTimeNanos);
+            builder.startObject(taskId.toString());
+            builder.field("id", taskId.getId());
+            builder.field("node", taskId.getNodeId());
+            builder.field("start_time_millis", startTimeMillis);
+            builder.field("running_time_nanos", runningTimeNanos);
             builder.field("query", query);
             builder.endObject();
             return builder;
@@ -46,16 +40,16 @@ public class EsqlListQueriesResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(queries);
+        throw new AssertionError("should not reach here");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject("queries");
-        // for (Query query : queries) {
-        // query.toXContent(builder, params);
-        // }
+        for (Query query : queries) {
+            query.toXContent(builder, params);
+        }
         builder.endObject();
         builder.endObject();
         return builder;

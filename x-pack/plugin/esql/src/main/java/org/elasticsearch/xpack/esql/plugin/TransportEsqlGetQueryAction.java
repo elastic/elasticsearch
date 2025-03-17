@@ -19,7 +19,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlGetQueryAction;
@@ -36,43 +35,42 @@ public class TransportEsqlGetQueryAction extends HandledTransportAction<EsqlGetQ
 
     @Override
     protected void doExecute(Task task, EsqlGetQueryRequest request, ActionListener<EsqlGetQueryResponse> listener) {
-        new GetTaskRequestBuilder(nodeClient).setTaskId(new TaskId(nodeClient.getLocalNodeId(), Long.valueOf(request.id())))
-            .execute(new ActionListener<>() {
-                @Override
-                public void onResponse(GetTaskResponse response) {
-                    TaskInfo task = response.getTask().getTask();
-                    String node = task.node();
-                    new ListTasksRequestBuilder(nodeClient).setDetailed(true)
-                        .setActions(DriverTaskRunner.ACTION_NAME)
-                        .setTargetParentTaskId(new TaskId(node, Long.valueOf(request.id())))
-                        .execute(new ActionListener<>() {
-                            @Override
-                            public void onResponse(ListTasksResponse response) {
-                                listener.onResponse(
-                                    new EsqlGetQueryResponse(
-                                        new EsqlGetQueryResponse.DetailedQuery(
-                                            request.id(),
-                                            task.startTime(),
-                                            task.runningTimeNanos(),
-                                            task.description(),
-                                            task.node(),
-                                            response.getTasks().stream().map(t -> t.node()).distinct().toList()
-                                        )
+        new GetTaskRequestBuilder(nodeClient).setTaskId(request.id()).execute(new ActionListener<>() {
+            @Override
+            public void onResponse(GetTaskResponse response) {
+                TaskInfo task = response.getTask().getTask();
+                new ListTasksRequestBuilder(nodeClient).setDetailed(true)
+                    .setActions(DriverTaskRunner.ACTION_NAME)
+                    .setTargetParentTaskId(request.id())
+                    .execute(new ActionListener<>() {
+                        @Override
+                        public void onResponse(ListTasksResponse response) {
+                            listener.onResponse(
+                                new EsqlGetQueryResponse(
+                                    new EsqlGetQueryResponse.DetailedQuery(
+                                        request.id(),
+                                        task.startTime(),
+                                        task.runningTimeNanos(),
+                                        task.description(),
+                                        // FIXME(gal, NOCOMMIT) This should be the coordinating node... how do I get that?
+                                        task.node(),
+                                        response.getTasks().stream().map(TaskInfo::node).distinct().toList()
                                     )
-                                );
-                            }
+                                )
+                            );
+                        }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(e);
-                            }
-                        });
-                }
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    });
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 }

@@ -46,7 +46,7 @@ public class TransportEsqlListQueriesAction extends HandledTransportAction<EsqlL
             public void onResponse(ListTasksResponse response) {
                 List<EsqlListQueriesResponse.Query> queries = response.getTasks()
                     .stream()
-                    .map(TransportEsqlListQueriesAction::getQuery)
+                    .map(TransportEsqlListQueriesAction::toQuery)
                     .toList();
                 listener.onResponse(new EsqlListQueriesResponse(queries));
             }
@@ -58,9 +58,9 @@ public class TransportEsqlListQueriesAction extends HandledTransportAction<EsqlL
         });
     }
 
-    private static EsqlListQueriesResponse.Query getQuery(TaskInfo taskInfo) {
+    private static EsqlListQueriesResponse.Query toQuery(TaskInfo taskInfo) {
         return new EsqlListQueriesResponse.Query(
-            String.valueOf(taskInfo.id()),
+            taskInfo.taskId(),
             taskInfo.startTime(),
             taskInfo.runningTimeNanos(),
             taskInfo.description()

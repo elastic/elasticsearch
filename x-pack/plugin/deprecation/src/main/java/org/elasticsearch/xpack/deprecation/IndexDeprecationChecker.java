@@ -212,8 +212,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                 "setting [%s] is deprecated and will be removed in a future version",
                 IndexMetadata.INDEX_DATA_PATH_SETTING.getKey()
             );
-            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/"
-                + "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            final String url = "https://ela.st/es-deprecation-7-index-data-path";
             final String details = "Found index data path configured. Discontinue use of this setting.";
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }

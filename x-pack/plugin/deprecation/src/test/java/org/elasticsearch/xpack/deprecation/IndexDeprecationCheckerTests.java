@@ -506,7 +506,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             emptyPrecomputedData
         );
         final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            "https://ela.st/es-deprecation-7-index-data-path";
         assertThat(
             issuesByIndex.get("test"),
             contains(

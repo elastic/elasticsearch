@@ -546,7 +546,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "[simplefs] is deprecated and will be removed in future versions",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-store.html",
+                    "https://ela.st/es-deprecation-7-simplefs",
                     "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. "
                         + "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type "
                         + "as it offers superior or equivalent performance to [simplefs].",

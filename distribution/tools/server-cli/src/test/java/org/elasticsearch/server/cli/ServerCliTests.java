@@ -36,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
@@ -558,7 +559,7 @@ public class ServerCliTests extends CommandTestCase {
         boolean startServerCalled = false;
 
         @Override
-        protected Command loadTool(String toolname, String libs) {
+        protected Command loadTool(Map<String, String> sysprops, String toolname, String libs) {
             if (toolname.equals("auto-configure-node")) {
                 assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
                 return AUTO_CONFIG_CLI;

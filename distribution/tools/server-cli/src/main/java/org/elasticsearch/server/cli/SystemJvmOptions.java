@@ -9,7 +9,6 @@
 
 package org.elasticsearch.server.cli;
 
-import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
@@ -25,7 +24,7 @@ import java.util.stream.Stream;
 
 final class SystemJvmOptions {
 
-    static List<String> systemJvmOptions(ServerArgs args, final Map<String, String> sysprops) {
+    static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         Path esHome = Path.of(sysprops.get("es.path.home"));
         String distroType = sysprops.get("es.distribution.type");
         String javaType = sysprops.get("es.java.type");
@@ -78,7 +77,7 @@ final class SystemJvmOptions {
             ),
             maybeEnableNativeAccess(useEntitlements),
             maybeOverrideDockerCgroup(distroType),
-            maybeSetActiveProcessorCount(args.nodeSettings()),
+            maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
             maybeAllowSecurityManager(useEntitlements),

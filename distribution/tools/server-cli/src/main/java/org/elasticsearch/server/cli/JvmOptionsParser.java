@@ -145,7 +145,7 @@ public final class JvmOptionsParser {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(substitutedJvmOptions, new DefaultSystemMemoryInfo());
         substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(args.nodeSettings(), memoryInfo, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions, args.nodeSettings());
-        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args, cliSysprops);
+        final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions(args.nodeSettings(), cliSysprops);
 
         final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.secrets(), args.logsDir(), tmpDir);
 

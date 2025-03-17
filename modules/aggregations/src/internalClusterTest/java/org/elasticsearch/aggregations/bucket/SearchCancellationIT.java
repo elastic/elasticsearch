@@ -102,8 +102,8 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             .addAggregation(
                 timeSeriesAggregationBuilder.subAggregation(
                     new ScriptedMetricAggregationBuilder("sub_agg").initScript(
-                            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.INIT_SCRIPT_NAME, Collections.emptyMap())
-                        )
+                        new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.INIT_SCRIPT_NAME, Collections.emptyMap())
+                    )
                         .mapScript(
                             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.MAP_BLOCK_SCRIPT_NAME, Collections.emptyMap())
                         )

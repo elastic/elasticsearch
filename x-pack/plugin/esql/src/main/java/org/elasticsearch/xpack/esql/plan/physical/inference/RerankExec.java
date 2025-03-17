@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -32,11 +33,20 @@ public class RerankExec extends InferenceExec {
 
     private final Expression queryText;
     private final List<Alias> rerankFields;
+    private final Attribute scoreAttribute;
 
-    public RerankExec(Source source, PhysicalPlan child, Expression inferenceId, Expression queryText, List<Alias> rerankFields) {
+    public RerankExec(
+        Source source,
+        PhysicalPlan child,
+        Expression inferenceId,
+        Expression queryText,
+        List<Alias> rerankFields,
+        Attribute scoreAttribute
+    ) {
         super(source, child, inferenceId);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
+        this.scoreAttribute = scoreAttribute;
     }
 
     public RerankExec(StreamInput in) throws IOException {
@@ -45,7 +55,8 @@ public class RerankExec extends InferenceExec {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readCollectionAsList(Alias::new)
+            in.readCollectionAsList(Alias::new),
+            in.readNamedWriteable(Attribute.class)
         );
     }
 
@@ -55,6 +66,10 @@ public class RerankExec extends InferenceExec {
 
     public List<Alias> rerankFields() {
         return rerankFields;
+    }
+
+    public Attribute scoreAttribute() {
+        return scoreAttribute;
     }
 
     @Override
@@ -67,16 +82,17 @@ public class RerankExec extends InferenceExec {
         super.writeTo(out);
         out.writeNamedWriteable(queryText());
         out.writeCollection(rerankFields());
+        out.writeNamedWriteable(scoreAttribute);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, RerankExec::new, child(), inferenceId(), queryText, rerankFields);
+        return NodeInfo.create(this, RerankExec::new, child(), inferenceId(), queryText, rerankFields, scoreAttribute);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new RerankExec(source(), newChild, inferenceId(), queryText, rerankFields);
+        return new RerankExec(source(), newChild, inferenceId(), queryText, rerankFields, scoreAttribute);
     }
 
     @Override
@@ -85,11 +101,13 @@ public class RerankExec extends InferenceExec {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         RerankExec rerank = (RerankExec) o;
-        return Objects.equals(queryText, rerank.queryText) && Objects.equals(rerankFields, rerank.rerankFields);
+        return Objects.equals(queryText, rerank.queryText)
+            && Objects.equals(rerankFields, rerank.rerankFields)
+            && Objects.equals(scoreAttribute, rerank.scoreAttribute);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryText, rerankFields);
+        return Objects.hash(super.hashCode(), queryText, rerankFields, scoreAttribute);
     }
 }

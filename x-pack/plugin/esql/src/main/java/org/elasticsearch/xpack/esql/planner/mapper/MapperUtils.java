@@ -87,7 +87,14 @@ class MapperUtils {
         }
 
         if (p instanceof Rerank rerank) {
-            return new RerankExec(rerank.source(), child, rerank.inferenceId(), rerank.queryText(), rerank.rerankFields());
+            return new RerankExec(
+                rerank.source(),
+                child,
+                rerank.inferenceId(),
+                rerank.queryText(),
+                rerank.rerankFields(),
+                rerank.scoreAttribute()
+            );
         }
 
         if (p instanceof Enrich enrich) {

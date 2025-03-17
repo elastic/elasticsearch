@@ -568,14 +568,7 @@ public class LocalExecutionPlanner {
 
         String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
         String queryText = BytesRefs.toString(rerank.queryText().fold(context.foldCtx));
-
-        int scoreChannel = -1;
-
-        for (Attribute attr : rerank.output()) {
-            if (attr.name().equals(MetadataAttribute.SCORE)) {
-                scoreChannel = source.layout.get(attr.id()).channel();
-            }
-        }
+        int scoreChannel = source.layout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
             new RerankOperator.Factory(inferenceService, inferenceId, queryText, rerankFieldsEvaluatorSuppliers, scoreChannel),

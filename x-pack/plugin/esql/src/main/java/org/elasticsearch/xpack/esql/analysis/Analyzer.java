@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -736,16 +737,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new Fork(fork.source(), fork.child(), newSubPlans);
         }
 
-        private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childOutput) {
+        private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput) {
             List<Alias> newFields = new ArrayList<>();
             boolean changed = false;
+
+            // First resolving fields used in expression
             for (Alias field : rerank.rerankFields()) {
-                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childOutput));
+                Alias result = (Alias) field.transformUp(UnresolvedAttribute.class, ua -> resolveAttribute(ua, childrenOutput));
                 newFields.add(result);
                 changed |= result != field;
             }
 
-            return changed ? new Rerank(rerank.source(), rerank.child(), rerank.inferenceId(), rerank.queryText(), newFields) : rerank;
+            if (changed) {
+                rerank = rerank.withRerankFields(newFields);
+            }
+
+            // Ensure the score attribute is resolved
+            if (rerank.scoreAttribute() instanceof UnresolvedAttribute ua) {
+                Attribute resolved = resolveAttribute(ua, childrenOutput);
+                if (resolved.resolved() == false) {
+                    resolved = ua.withUnresolvedMessage(format(null, "Missing required column [{}] for RERANK", MetadataAttribute.SCORE));
+                } else if (resolved.dataType() != DOUBLE) {
+                    resolved = ua.withUnresolvedMessage(
+                        format("_score has the wrong type; [{}] expected but got [{}]", DataType.DOUBLE, resolved.dataType())
+                    );
+                }
+
+                rerank = rerank.withScoreAttribute(resolved);
+            }
+
+            return rerank;
         }
 
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {

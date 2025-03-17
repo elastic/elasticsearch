@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.AliasTests;
@@ -26,7 +28,7 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
     protected Rerank createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        return new Rerank(source, child, string(randomIdentifier()), string(randomIdentifier()), randomFields());
+        return new Rerank(source, child, string(randomIdentifier()), string(randomIdentifier()), randomFields(), scoreAttribute());
     }
 
     @Override
@@ -42,7 +44,7 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
             case 2 -> queryText = randomValueOtherThan(queryText, () -> string(RerankSerializationTests.randomIdentifier()));
             case 3 -> fields = randomValueOtherThan(fields, this::randomFields);
         }
-        return new Rerank(instance.source(), child, inferenceId, queryText, fields);
+        return new Rerank(instance.source(), child, inferenceId, queryText, fields, instance.scoreAttribute());
     }
 
     @Override
@@ -54,8 +56,11 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
         return randomList(0, 10, AliasTests::randomAlias);
     }
 
-    static Literal string(String value) {
+    private Literal string(String value) {
         return new Literal(EMPTY, value, DataType.KEYWORD);
     }
 
+    private Attribute scoreAttribute() {
+        return new MetadataAttribute(EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE, randomBoolean());
+    }
 }

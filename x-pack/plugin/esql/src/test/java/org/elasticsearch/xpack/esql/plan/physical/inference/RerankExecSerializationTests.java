@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.AliasTests;
@@ -26,7 +28,7 @@ public class RerankExecSerializationTests extends AbstractPhysicalPlanSerializat
     protected RerankExec createTestInstance() {
         Source source = randomSource();
         PhysicalPlan child = randomChild(0);
-        return new RerankExec(source, child, string(randomIdentifier()), string(randomIdentifier()), randomFields());
+        return new RerankExec(source, child, string(randomIdentifier()), string(randomIdentifier()), randomFields(), scoreAttribute());
     }
 
     @Override
@@ -42,7 +44,7 @@ public class RerankExecSerializationTests extends AbstractPhysicalPlanSerializat
             case 2 -> queryText = randomValueOtherThan(queryText, () -> string(RerankExecSerializationTests.randomIdentifier()));
             case 3 -> fields = randomValueOtherThan(fields, this::randomFields);
         }
-        return new RerankExec(instance.source(), child, inferenceId, queryText, fields);
+        return new RerankExec(instance.source(), child, inferenceId, queryText, fields, scoreAttribute());
     }
 
     @Override
@@ -58,4 +60,7 @@ public class RerankExecSerializationTests extends AbstractPhysicalPlanSerializat
         return new Literal(EMPTY, value, DataType.KEYWORD);
     }
 
+    private Attribute scoreAttribute() {
+        return new MetadataAttribute(EMPTY, MetadataAttribute.SCORE, DataType.DOUBLE, randomBoolean());
+    }
 }

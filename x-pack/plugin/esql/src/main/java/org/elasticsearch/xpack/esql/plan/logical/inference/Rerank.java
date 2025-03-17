@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttribu
 public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogicalPlan {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
+    private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;
 
@@ -45,6 +46,21 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
         super(source, child, inferenceId);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
+        this.scoreAttribute = new UnresolvedAttribute(source, MetadataAttribute.SCORE);
+    }
+
+    public Rerank(
+        Source source,
+        LogicalPlan child,
+        Expression inferenceId,
+        Expression queryText,
+        List<Alias> rerankFields,
+        Attribute scoreAttribute
+    ) {
+        super(source, child, inferenceId);
+        this.queryText = queryText;
+        this.rerankFields = rerankFields;
+        this.scoreAttribute = scoreAttribute;
     }
 
     public Rerank(StreamInput in) throws IOException {
@@ -53,7 +69,8 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readCollectionAsList(Alias::new)
+            in.readCollectionAsList(Alias::new),
+            in.readNamedWriteable(Attribute.class)
         );
     }
 
@@ -62,6 +79,7 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
         super.writeTo(out);
         out.writeNamedWriteable(queryText);
         out.writeCollection(rerankFields());
+        out.writeNamedWriteable(scoreAttribute);
     }
 
     public Expression queryText() {
@@ -72,15 +90,27 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
         return rerankFields;
     }
 
+    public Attribute scoreAttribute() {
+        return scoreAttribute;
+    }
+
     @Override
     public TaskType taskType() {
         return TaskType.RERANK;
     }
 
     @Override
-    public LogicalPlan withInferenceResolutionError(String inferenceId, String error) {
+    public Rerank withInferenceResolutionError(String inferenceId, String error) {
         Expression newInferenceId = new UnresolvedAttribute(inferenceId().source(), inferenceId, error);
-        return new Rerank(source(), child(), newInferenceId, queryText, rerankFields);
+        return new Rerank(source(), child(), newInferenceId, queryText, rerankFields, scoreAttribute);
+    }
+
+    public Rerank withRerankFields(List<Alias> newRerankFields) {
+        return new Rerank(source(), child(), inferenceId(), queryText, newRerankFields, scoreAttribute);
+    }
+
+    public Rerank withScoreAttribute(Attribute newScoreAttribute) {
+        return new Rerank(source(), child(), inferenceId(), queryText, rerankFields, newScoreAttribute);
     }
 
     @Override
@@ -90,12 +120,14 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Rerank(source(), newChild, inferenceId(), queryText, rerankFields);
+        return new Rerank(source(), newChild, inferenceId(), queryText, rerankFields, scoreAttribute);
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        return computeReferences(rerankFields);
+        AttributeSet refs = computeReferences(rerankFields);
+        refs.add(scoreAttribute);
+        return refs;
     }
 
     public static AttributeSet computeReferences(List<Alias> fields) {
@@ -105,12 +137,12 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
 
     @Override
     public boolean expressionsResolved() {
-        return super.expressionsResolved() && queryText.resolved() && Resolvables.resolved(rerankFields);
+        return super.expressionsResolved() && queryText.resolved() && Resolvables.resolved(rerankFields) && scoreAttribute.resolved();
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), queryText, rerankFields);
+        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), queryText, rerankFields, scoreAttribute);
     }
 
     @Override
@@ -119,18 +151,18 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         Rerank rerank = (Rerank) o;
-        return Objects.equals(queryText, rerank.queryText) && Objects.equals(rerankFields, rerank.rerankFields);
+        return Objects.equals(queryText, rerank.queryText)
+            && Objects.equals(rerankFields, rerank.rerankFields)
+            && Objects.equals(scoreAttribute, rerank.scoreAttribute);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryText, rerankFields);
+        return Objects.hash(super.hashCode(), queryText, rerankFields, scoreAttribute);
     }
 
     @Override
     public LogicalPlan surrogate() {
-        Attribute scoreAttribute = child().output().stream().filter(attr -> attr.name().equals(MetadataAttribute.SCORE)).findFirst().get();
-        assert scoreAttribute != null;
         Order sortOrder = new Order(source(), scoreAttribute, Order.OrderDirection.DESC, Order.NullsPosition.ANY);
         return new OrderBy(source(), this, List.of(sortOrder));
     }

@@ -3280,7 +3280,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testResolveRerankInferenceId() {
         {
             LogicalPlan plan = analyze(
-                "FROM books | RERANK \"italian food recipe\" ON title WITH \"reranking-inference-id\"",
+                " FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH \"reranking-inference-id\"",
                 "mapping-books.json"
             );
             Rerank rerank = as(as(plan, Limit.class).child(), Rerank.class);
@@ -3290,7 +3290,10 @@ public class AnalyzerTests extends ESTestCase {
         {
             VerificationException ve = expectThrows(
                 VerificationException.class,
-                () -> analyze("FROM books | RERANK \"italian food recipe\" ON title WITH \"completion-inference-id\"", "mapping-books.json")
+                () -> analyze(
+                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH \"completion-inference-id\"",
+                    "mapping-books.json"
+                )
 
             );
             assertThat(
@@ -3305,7 +3308,10 @@ public class AnalyzerTests extends ESTestCase {
         {
             VerificationException ve = expectThrows(
                 VerificationException.class,
-                () -> analyze("FROM books | RERANK \"italian food recipe\" ON title WITH \"error-inference-id\"", "mapping-books.json")
+                () -> analyze(
+                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH \"error-inference-id\"",
+                    "mapping-books.json"
+                )
 
             );
             assertThat(ve.getMessage(), containsString("error with inference resolution"));
@@ -3314,10 +3320,13 @@ public class AnalyzerTests extends ESTestCase {
         {
             VerificationException ve = expectThrows(
                 VerificationException.class,
-                () -> analyze("FROM books | RERANK \"italian food recipe\" ON title WITH \"unknow-inference-id\"", "mapping-books.json")
+                () -> analyze(
+                    "FROM books  METADATA _score | RERANK \"italian food recipe\" ON title WITH \"unknown-inference-id\"",
+                    "mapping-books.json"
+                )
 
             );
-            assertThat(ve.getMessage(), containsString("unresolved inference [unknow-inference-id]"));
+            assertThat(ve.getMessage(), containsString("unresolved inference [unknown-inference-id]"));
         }
     }
 
@@ -3327,9 +3336,9 @@ public class AnalyzerTests extends ESTestCase {
         {
             // Single field.
             LogicalPlan plan = analyze("""
-                FROM books
+                FROM books METADATA _score
                 | WHERE title:"italian food recipe" OR description:"italian food recipe"
-                | KEEP description, title, year
+                | KEEP description, title, year, _score
                 | DROP description
                 | RERANK "italian food recipe" ON title WITH "reranking-inference-id"
                 """, "mapping-books.json");
@@ -3352,7 +3361,7 @@ public class AnalyzerTests extends ESTestCase {
         {
             // Multiple fields.
             LogicalPlan plan = analyze("""
-                FROM books
+                FROM books METADATA _score
                 | WHERE title:"food"
                 | RERANK "food" ON title, description=SUBSTRING(description, 0, 100), yearRenamed=year WITH "reranking-inference-id"
                 """, "mapping-books.json");
@@ -3392,13 +3401,23 @@ public class AnalyzerTests extends ESTestCase {
             VerificationException ve = expectThrows(
                 VerificationException.class,
                 () -> analyze(
-                    "FROM books | RERANK \"italian food recipe\" ON missingField WITH \"reranking-inference-id\"",
+                    "FROM books METADATA _score | RERANK \"italian food recipe\" ON missingField WITH \"reranking-inference-id\"",
                     "mapping-books.json"
                 )
 
             );
             assertThat(ve.getMessage(), containsString("Unknown column [missingField]"));
         }
+    }
+
+    public void testRerankRequiresScore() {
+
+        VerificationException ve = expectThrows(
+            VerificationException.class,
+            () -> analyze("FROM books | RERANK \"italian food recipe\" ON title WITH \"reranking-inference-id\"", "mapping-books.json")
+
+        );
+        assertThat(ve.getMessage(), containsString("Missing required column [_score] for RERANK"));
     }
 
     @Override

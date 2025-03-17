@@ -70,7 +70,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
     public void testSynthesizeArrayRandomIgnoresMalformed() throws Exception {
         assumeTrue("supports ignore_malformed", getMalformedValue() != null);
-        int numDocs = 1; // randomIntBetween(8, 256);
+        int numDocs = randomIntBetween(8, 256);
         List<List<Object>> documents = new ArrayList<>(numDocs);
         List<List<Object>> shuffledDocuments = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {

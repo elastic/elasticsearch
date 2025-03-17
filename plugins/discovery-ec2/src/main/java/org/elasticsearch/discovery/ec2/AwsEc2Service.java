@@ -9,11 +9,11 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import software.amazon.awssdk.services.ec2.Ec2Client;
+
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
-
-import software.amazon.awssdk.services.ec2.Ec2Client;
 
 import java.io.Closeable;
 import java.util.List;

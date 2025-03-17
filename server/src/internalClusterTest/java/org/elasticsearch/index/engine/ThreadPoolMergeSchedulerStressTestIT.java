@@ -283,7 +283,11 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
         var segmentsCountAfter = getSegmentsCountForAllShards("index");
         // there should be way fewer segments after merging completed
         assertThat(segmentsCountBefore.get(), greaterThan(segmentsCountAfter));
-        // let's also run a force-merge
+        // and force merge should be a noop
+        assertAllSuccessful(indicesAdmin().prepareForceMerge("index").get());
+        var segmentsCountAfterForceMerge = getSegmentsCountForAllShards("index");
+        assertThat(segmentsCountAfterForceMerge, is(segmentsCountAfter));
+        // let's also run a force-merge to 1 segment
         assertAllSuccessful(indicesAdmin().prepareForceMerge("index").setMaxNumSegments(1).get());
         assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());
         // assert one segment per shard

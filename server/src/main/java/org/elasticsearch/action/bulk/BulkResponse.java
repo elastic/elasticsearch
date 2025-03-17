@@ -41,7 +41,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     private final BulkRequest.IncrementalState incrementalState;
 
     public BulkResponse(StreamInput in) throws IOException {
-        super(in);
         responses = in.readArray(BulkItemResponse::new, BulkItemResponse[]::new);
         tookInMillis = in.readVLong();
         ingestTookInMillis = in.readZLong();

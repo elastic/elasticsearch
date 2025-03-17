@@ -2595,7 +2595,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testComposableTemplateWithSubobjectsFalseObjectAndSubfield() throws Exception {
         MetadataIndexTemplateService service = getMetadataIndexTemplateService();
-        ProjectMetadata project = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        ClusterState state = ClusterState.EMPTY_STATE;
 
         ComponentTemplate subobjects = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
@@ -2611,7 +2611,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             }
             """), null), null, null);
 
-        project = service.addComponentTemplate(project, true, "subobjects", subobjects);
+        state = service.addComponentTemplate(state, true, "subobjects", subobjects);
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("test-*"))
             .template(new Template(null, null, null))
@@ -2619,9 +2619,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .priority(0L)
             .version(1L)
             .build();
-        project = service.addIndexTemplateV2(project, true, "composable-template", it);
+        state = service.addIndexTemplateV2(state, true, "composable-template", it);
 
-        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(project, "composable-template", "test-index");
+        List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "composable-template", "test-index");
 
         assertNotNull(mappings);
         assertThat(mappings.size(), equalTo(1));

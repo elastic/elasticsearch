@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -353,15 +354,14 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
 
         public static final Profile EMPTY = new Profile(List.of(), List.of());
 
+        public Profile() {
+            this.drivers = new ArrayList<>();
+            this.plannerProfile = new ArrayList<>();
+        }
+
         public Profile(List<DriverProfile> drivers, List<PlannerProfile> plannerProfile) {
             this.drivers = drivers;
             this.plannerProfile = plannerProfile;
-        }
-
-        // NOCOMMIT - this should be removed
-        public Profile(Profile profiles) {
-            this.drivers = profiles.getDriverProfiles();
-            this.plannerProfile = profiles.getPlannerProfiles();
         }
 
         public Profile(StreamInput in) throws IOException {
@@ -373,6 +373,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
             }
         }
 
+        public void merge(Profile other) {
+            this.drivers.addAll(other.drivers);
+            this.plannerProfile.addAll(other.plannerProfile);
+        }
         public List<DriverProfile> getDriverProfiles() {
             return drivers;
         }

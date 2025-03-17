@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -694,7 +695,7 @@ public class CsvTests extends ESTestCase {
         listener = ActionListener.releaseAfter(listener, () -> Releasables.close(drivers));
         runner.runToCompletion(
             drivers,
-            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, List.of(), List.of(), null))
+            listener.map(ignore -> new Result(physicalPlan.output(), collectedPages, EsqlQueryResponse.Profile.EMPTY, null))
         );
     }
 }

@@ -17,7 +17,6 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -28,6 +27,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -244,7 +244,7 @@ public class EsqlSession {
         // TODO: merge into one method
         if (subplans.size() > 0) {
             // code-path to execute subplans
-            executeSubPlan(new ArrayList<>(), physicalPlan, iterator, executionInfo, runner, listener);
+            executeSubPlan(new EsqlQueryResponse.Profile(), physicalPlan, iterator, executionInfo, runner, listener);
         } else {
             // execute main plan
             runner.run(physicalPlan, listener);
@@ -252,7 +252,7 @@ public class EsqlSession {
     }
 
     private void executeSubPlan(
-        List<DriverProfile> profileAccumulator,
+        EsqlQueryResponse.Profile profileAccumulator,
         PhysicalPlan plan,
         Iterator<PlanTuple> subPlanIterator,
         EsqlExecutionInfo executionInfo,
@@ -265,7 +265,7 @@ public class EsqlSession {
 
         runner.run(tuple.physical, listener.delegateFailureAndWrap((next, result) -> {
             try {
-                profileAccumulator.addAll(result.profiles());
+                profileAccumulator.merge(result.profile());
                 LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
 
                 // replace the original logical plan with the backing result
@@ -302,10 +302,9 @@ public class EsqlSession {
                 if (subPlanIterator.hasNext() == false) {
                     // In the production path, this is runner.run calls ComputeService.execute
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
-                        profileAccumulator.addAll(finalResult.profiles());
-                        plannerProfiles.addAll(finalResult.plannerProfiles());
+                        profileAccumulator.merge(finalResult.profile());
                         finalListener.onResponse(
-                            new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, plannerProfiles, executionInfo)
+                            new Result(finalResult.schema(), finalResult.pages(), profileAccumulator, executionInfo)
                         );
                     }));
                 } else {

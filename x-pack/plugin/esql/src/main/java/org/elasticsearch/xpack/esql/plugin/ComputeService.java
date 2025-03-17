@@ -176,8 +176,7 @@ public class ComputeService {
                     return new Result(
                         physicalPlan.output(),
                         collectedPages,
-                        profiles.getDriverProfiles(),
-                        profiles.getPlannerProfiles(),
+                        profiles,
                         execInfo
                     );
                 }))
@@ -211,7 +210,7 @@ public class ComputeService {
         exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
             execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
-            return new Result(outputAttributes, collectedPages, profiles.getDriverProfiles(), profiles.getPlannerProfiles(), execInfo);
+            return new Result(outputAttributes, collectedPages, profiles, execInfo);
         }))) {
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator

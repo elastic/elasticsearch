@@ -42,7 +42,7 @@ FLOOD_STAGE_WATERMARK                                           troubleshoot/ela
 X_OPAQUE_ID                                                     reference/elasticsearch/rest-apis/api-conventions#x-opaque-id
 FORMING_SINGLE_NODE_CLUSTERS                                    deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-bootstrap-cluster#modules-discovery-bootstrap-cluster-joining
 CIRCUIT_BREAKER_ERRORS                                          troubleshoot/elasticsearch/circuit-breaker-errors
-ALLOCATION_EXPLAIN_NO_COPIES                                    api/doc/elasticsearch/v9/operation/operation-cluster-allocation-explain
-ALLOCATION_EXPLAIN_MAX_RETRY                                    api/doc/elasticsearch/v9/operation/operation-cluster-allocation-explain
+ALLOCATION_EXPLAIN_NO_COPIES                                    troubleshoot/elasticsearch/diagnose-unassigned-shards#no-shard-copy
+ALLOCATION_EXPLAIN_MAX_RETRY                                    troubleshoot/elasticsearch/diagnose-unassigned-shards#maximum-retries-exceeded
 SECURE_SETTINGS                                                 deploy-manage/security/secure-settings
 CLUSTER_SHARD_LIMIT                                             reference/elasticsearch/configuration-reference/miscellaneous-cluster-settings#cluster-shard-limit

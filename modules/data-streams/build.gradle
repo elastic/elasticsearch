@@ -26,7 +26,7 @@ dependencies {
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 if (buildParams.inFipsJvm){

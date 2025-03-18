@@ -276,7 +276,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow request",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling request*modules-network.html#modules-network-threading-model"
+                    "handling request*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 
@@ -311,7 +311,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow response",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling response*modules-network.html#modules-network-threading-model"
+                    "handling response*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 

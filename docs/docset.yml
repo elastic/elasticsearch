@@ -97,6 +97,7 @@ subs:
   ctransforms:   "continuous transforms"
   regression:   "regression"
   regression-cap:   "Regression"
+  classification:   "classification"
   classification-cap:   "Classification"
   infer-cap:   "Inference"
   infer:   "inference"

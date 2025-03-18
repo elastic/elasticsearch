@@ -20,8 +20,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
-    public KeywordFieldBlockLoaderTests() {
-        super(FieldType.KEYWORD);
+    public KeywordFieldBlockLoaderTests(Params params) {
+        super(FieldType.KEYWORD.toString(), params);
     }
 
     @SuppressWarnings("unchecked")

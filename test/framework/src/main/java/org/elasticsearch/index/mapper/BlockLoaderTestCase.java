@@ -18,7 +18,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.Mapping;
 import org.elasticsearch.logsdb.datageneration.MappingGenerator;
 import org.elasticsearch.logsdb.datageneration.Template;
@@ -33,6 +32,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,12 +40,34 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
-    private final FieldType fieldType;
+    private static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
+        MappedFieldType.FieldExtractPreference.NONE };
+
+    @ParametersFactory(argumentFormatting = "preference=%s")
+    public static List<Object[]> args() {
+        List<Object[]> args = new ArrayList<>();
+        for (boolean syntheticSource : new boolean[] { false, true }) {
+            for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
+                args.add(new Object[] { new Params(syntheticSource, preference) });
+            }
+        }
+        return args;
+    }
+
+    public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {}
+
+    private final String fieldType;
+    protected final Params params;
+
     private final String fieldName;
     private final MappingGenerator mappingGenerator;
     private final DocumentGenerator documentGenerator;
 
-    protected BlockLoaderTestCase(FieldType fieldType) {
+    protected BlockLoaderTestCase(String fieldType, Params params) {
+        this(fieldType, List.of(), params);
+    }
+
+    protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customHandlers, Params params) {
         this.fieldType = fieldType;
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
 
@@ -65,6 +87,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                     return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
                 }
             }))
+            .withDataSourceHandlers(customHandlers)
             .build();
 
         this.mappingGenerator = new MappingGenerator(specification);

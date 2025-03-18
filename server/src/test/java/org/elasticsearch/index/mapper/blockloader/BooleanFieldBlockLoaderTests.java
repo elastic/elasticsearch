@@ -17,8 +17,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public class BooleanFieldBlockLoaderTests extends BlockLoaderTestCase {
-    public BooleanFieldBlockLoaderTests() {
-        super(FieldType.BOOLEAN);
+    public BooleanFieldBlockLoaderTests(Params params) {
+        super(FieldType.BOOLEAN.toString(), params);
     }
 
     @Override

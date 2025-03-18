@@ -330,10 +330,11 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
         authenticationException.set(new ElasticsearchSecurityException("authn failure"));
         TransportAddress[] boundRemoteIngressAddresses = remoteSecurityNetty4ServerTransport.boundRemoteIngressAddress().boundAddresses();
         InetSocketAddress remoteIngressTransportAddress = randomFrom(boundRemoteIngressAddresses).address();
+        final TransportRequest req = new EmptyRequest();
         try (Socket socket = new MockSocket(remoteIngressTransportAddress.getAddress(), remoteIngressTransportAddress.getPort())) {
             TestOutboundRequestMessage message = new TestOutboundRequestMessage(
                 threadPool.getThreadContext(),
-                new EmptyRequest(),
+                req,
                 TransportVersion.current(),
                 "internal:whatever",
                 randomNonNegativeLong(),
@@ -342,7 +343,7 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             );
             Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
             RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-            BytesReference bytesReference = message.serialize(out);
+            BytesReference bytesReference = message.serialize(req, out);
             socket.getOutputStream().write(Arrays.copyOfRange(bytesReference.array(), 0, bytesReference.length()));
             socket.getOutputStream().flush();
 

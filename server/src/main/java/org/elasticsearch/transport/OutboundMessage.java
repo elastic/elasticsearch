@@ -27,21 +27,17 @@ import java.io.IOException;
 
 abstract class OutboundMessage extends NetworkMessage {
 
-    protected final Writeable message;
-
     OutboundMessage(
         ThreadContext threadContext,
         TransportVersion version,
         byte status,
         long requestId,
-        Compression.Scheme compressionScheme,
-        Writeable message
+        Compression.Scheme compressionScheme
     ) {
         super(threadContext, version, status, requestId, compressionScheme);
-        this.message = message;
     }
 
-    BytesReference serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
+    BytesReference serialize(Writeable message, RecyclerBytesStreamOutput bytesStream) throws IOException {
         bytesStream.setTransportVersion(version);
         bytesStream.skip(TcpHeader.HEADER_SIZE);
 
@@ -74,12 +70,12 @@ abstract class OutboundMessage extends NetworkMessage {
                 stream.close();
             }
         }
-        final BytesReference message = bytesStream.bytes();
+        final BytesReference msg = bytesStream.bytes();
         if (zeroCopyBuffer.length() == 0) {
-            reference = message;
+            reference = msg;
         } else {
             zeroCopyBuffer.mustIncRef();
-            reference = new ReleasableBytesReference(CompositeBytesReference.of(message, zeroCopyBuffer), (RefCounted) zeroCopyBuffer);
+            reference = new ReleasableBytesReference(CompositeBytesReference.of(msg, zeroCopyBuffer), (RefCounted) zeroCopyBuffer);
         }
 
         bytesStream.seek(0);
@@ -119,7 +115,7 @@ abstract class OutboundMessage extends NetworkMessage {
             boolean isHandshake,
             Compression.Scheme compressionScheme
         ) {
-            super(threadContext, version, setStatus(isHandshake), requestId, adjustCompressionScheme(compressionScheme, message), message);
+            super(threadContext, version, setStatus(isHandshake), requestId, adjustCompressionScheme(compressionScheme, message));
             this.action = action;
         }
 
@@ -168,7 +164,7 @@ abstract class OutboundMessage extends NetworkMessage {
             boolean isHandshake,
             Compression.Scheme compressionScheme
         ) {
-            super(threadContext, version, setStatus(isHandshake, message), requestId, compressionScheme, message);
+            super(threadContext, version, setStatus(isHandshake, message), requestId, compressionScheme);
         }
 
         private static byte setStatus(boolean isHandshake, Writeable message) {
@@ -186,17 +182,7 @@ abstract class OutboundMessage extends NetworkMessage {
 
         @Override
         public String toString() {
-            return "Response{"
-                + requestId
-                + "}{"
-                + isError()
-                + "}{"
-                + isCompress()
-                + "}{"
-                + isHandshake()
-                + "}{"
-                + message.getClass()
-                + "}";
+            return "Response{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}";
         }
     }
 }

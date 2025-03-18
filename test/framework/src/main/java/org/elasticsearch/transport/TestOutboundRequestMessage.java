@@ -32,7 +32,7 @@ public class TestOutboundRequestMessage extends OutboundMessage.Request {
     }
 
     @Override
-    public BytesReference serialize(RecyclerBytesStreamOutput bytesStream) throws IOException {
-        return super.serialize(bytesStream);
+    public BytesReference serialize(Writeable message, RecyclerBytesStreamOutput bytesStream) throws IOException {
+        return super.serialize(message, bytesStream);
     }
 }

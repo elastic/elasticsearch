@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -110,12 +111,14 @@ public class InboundPipelineTests extends ESTestCase {
                     Exception expectedExceptionClass = null;
 
                     OutboundMessage message;
+                    final Writeable body;
                     if (isRequest) {
                         if (rarely()) {
                             messageData = new MessageData(version, requestId, true, compressionScheme, breakThisAction, null);
+                            body = new TestRequest(value);
                             message = new OutboundMessage.Request(
                                 threadContext,
-                                new TestRequest(value),
+                                body,
                                 version,
                                 breakThisAction,
                                 requestId,
@@ -125,9 +128,10 @@ public class InboundPipelineTests extends ESTestCase {
                             expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                         } else {
                             messageData = new MessageData(version, requestId, true, compressionScheme, actionName, value);
+                            body = new TestRequest(value);
                             message = new OutboundMessage.Request(
                                 threadContext,
-                                new TestRequest(value),
+                                body,
                                 version,
                                 actionName,
                                 requestId,
@@ -137,19 +141,13 @@ public class InboundPipelineTests extends ESTestCase {
                         }
                     } else {
                         messageData = new MessageData(version, requestId, false, compressionScheme, null, value);
-                        message = new OutboundMessage.Response(
-                            threadContext,
-                            new TestResponse(value),
-                            version,
-                            requestId,
-                            false,
-                            compressionScheme
-                        );
+                        body = new TestResponse(value);
+                        message = new OutboundMessage.Response(threadContext, body, version, requestId, false, compressionScheme);
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
                     try (RecyclerBytesStreamOutput temporaryOutput = new RecyclerBytesStreamOutput(recycler)) {
-                        Streams.copy(message.serialize(temporaryOutput).streamInput(), streamOutput, false);
+                        Streams.copy(message.serialize(body, temporaryOutput).streamInput(), streamOutput, false);
                     }
                 }
 
@@ -214,21 +212,16 @@ public class InboundPipelineTests extends ESTestCase {
             final long requestId = randomNonNegativeLong();
 
             OutboundMessage message;
+            final Writeable body;
             if (isRequest) {
-                message = new OutboundMessage.Request(
-                    threadContext,
-                    new TestRequest(value),
-                    invalidVersion,
-                    actionName,
-                    requestId,
-                    false,
-                    null
-                );
+                body = new TestRequest(value);
+                message = new OutboundMessage.Request(threadContext, body, invalidVersion, actionName, requestId, false, null);
             } else {
-                message = new OutboundMessage.Response(threadContext, new TestResponse(value), invalidVersion, requestId, false, null);
+                body = new TestResponse(value);
+                message = new OutboundMessage.Response(threadContext, body, invalidVersion, requestId, false, null);
             }
 
-            final BytesReference reference = message.serialize(streamOutput);
+            final BytesReference reference = message.serialize(body, streamOutput);
             try (ReleasableBytesReference releasable = ReleasableBytesReference.wrap(reference)) {
                 expectThrows(IllegalStateException.class, () -> pipeline.handleBytes(new FakeTcpChannel(), releasable));
             }
@@ -259,13 +252,16 @@ public class InboundPipelineTests extends ESTestCase {
             final long requestId = randomNonNegativeLong();
 
             OutboundMessage message;
+            final Writeable body;
             if (isRequest) {
-                message = new OutboundMessage.Request(threadContext, new TestRequest(value), version, actionName, requestId, false, null);
+                body = new TestRequest(value);
+                message = new OutboundMessage.Request(threadContext, body, version, actionName, requestId, false, null);
             } else {
-                message = new OutboundMessage.Response(threadContext, new TestResponse(value), version, requestId, false, null);
+                body = new TestResponse(value);
+                message = new OutboundMessage.Response(threadContext, body, version, requestId, false, null);
             }
 
-            final BytesReference reference = message.serialize(streamOutput);
+            final BytesReference reference = message.serialize(body, streamOutput);
             final int variableHeaderSize = reference.getInt(TcpHeader.HEADER_SIZE - 4);
             final int totalHeaderSize = TcpHeader.HEADER_SIZE + variableHeaderSize;
             final AtomicBoolean bodyReleased = new AtomicBoolean(false);

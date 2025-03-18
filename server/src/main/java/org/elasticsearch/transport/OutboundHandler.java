@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
@@ -115,6 +116,7 @@ final class OutboundHandler {
         );
         sendMessage(
             channel,
+            request,
             message,
             ResponseStatsConsumer.NONE,
             () -> messageListener.onRequestSent(node, requestId, action, request, options)
@@ -148,7 +150,7 @@ final class OutboundHandler {
         );
         assert response.hasReferences();
         try {
-            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action));
+            sendMessage(channel, response, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action));
         } catch (Exception ex) {
             if (isHandshake) {
                 logger.error(
@@ -178,16 +180,17 @@ final class OutboundHandler {
         final Exception error
     ) {
         assert assertValidTransportVersion(transportVersion);
+        var msg = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(
             threadPool.getThreadContext(),
-            new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error),
+            msg,
             transportVersion,
             requestId,
             false,
             null
         );
         try {
-            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
+            sendMessage(channel, msg, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
         } catch (Exception sendException) {
             sendException.addSuppressed(error);
             logger.error(() -> format("Failed to send error response on channel [%s], closing channel", channel), sendException);
@@ -197,6 +200,7 @@ final class OutboundHandler {
 
     private void sendMessage(
         TcpChannel channel,
+        Writeable writeable,
         OutboundMessage networkMessage,
         ResponseStatsConsumer responseStatsConsumer,
         Releasable onAfter
@@ -214,7 +218,7 @@ final class OutboundHandler {
         final BytesReference message;
         boolean serializeSuccess = false;
         try {
-            message = networkMessage.serialize(byteStreamOutput);
+            message = networkMessage.serialize(writeable, byteStreamOutput);
             serializeSuccess = true;
         } catch (Exception e) {
             logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);

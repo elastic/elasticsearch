@@ -385,10 +385,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         logger.debug("object store service closing...");
         try {
             final TimeValue timeout = OBJECT_STORE_SHUTDOWN_TIMEOUT.get(settings);
-            var acquired = permits.tryAcquire(UPLOAD_PERMITS, timeout.duration(), timeout.timeUnit());
-            if (acquired == false) {
-                logger.warn("failed to wait [{}] for object store tasks to complete", timeout);
-            }
+            acquirePermits(permits, UPLOAD_PERMITS, timeout, "object store");
+            acquirePermits(translogDeleteSchedulePermit, 1, timeout, "translog delete");
+            acquirePermits(shardFileDeleteSchedulePermit, 1, timeout, "shard file delete");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn("interrupted while waiting for the object store service to shut down", e);
@@ -396,6 +395,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         objectStore.close();
         objectStore = null;
         logger.info("object store service closed");
+    }
+
+    private void acquirePermits(Semaphore permits, int uploadPermits, TimeValue timeout, String task) throws InterruptedException {
+        var acquired = permits.tryAcquire(uploadPermits, timeout.duration(), timeout.timeUnit());
+        if (acquired == false) {
+            logger.warn("failed to wait [{}] for {} tasks to complete", timeout, task);
+        }
     }
 
     private void ensureRunning() {

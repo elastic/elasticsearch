@@ -782,7 +782,7 @@ POST music/_search?pretty
 The regex query can take specific regex parameters. For example:
 
 `flags`
-:   Possible flags are `ALL` (default), `ANYSTRING`, `COMPLEMENT`, `EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. See [regexp-syntax](/reference/query-languages/query-dsl-regexp-query.md) for their meaning
+:   Possible flags are `ALL` (default), `ANYSTRING`, `COMPLEMENT`, `EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. See [regexp-syntax](/reference/query-languages/query-dsl/query-dsl-regexp-query.md) for their meaning
 
 `max_determinized_states`
 :   Regular expressions are dangerous because it's easy to accidentally create an innocuous looking one that requires an exponential number of internal determinized automaton states (and corresponding RAM and CPU) for Lucene to execute. Lucene prevents these using the `max_determinized_states` setting (defaults to 10000). You can raise this limit to allow more complex regular expressions to execute.

@@ -266,7 +266,7 @@ final class MaxmindIpDataLookups {
                         Double latitude = location.getLatitude();
                         Double longitude = location.getLongitude();
                         if (latitude != null && longitude != null) {
-                            Map<String, Object> locationObject = new HashMap<>();
+                            Map<String, Object> locationObject = HashMap.newHashMap(2);
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
                             data.put("location", locationObject);
@@ -539,7 +539,7 @@ final class MaxmindIpDataLookups {
                         Double latitude = location.getLatitude();
                         Double longitude = location.getLongitude();
                         if (latitude != null && longitude != null) {
-                            Map<String, Object> locationObject = new HashMap<>();
+                            Map<String, Object> locationObject = HashMap.newHashMap(2);
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
                             data.put("location", locationObject);

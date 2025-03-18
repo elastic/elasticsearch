@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
@@ -27,7 +26,6 @@ import co.elastic.elasticsearch.stateless.commits.CommitBCCResolver;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.IndexEngineLocalReaderListener;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
@@ -44,7 +42,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Assertions;
@@ -591,23 +588,6 @@ public class IndexEngine extends InternalEngine {
         // Don't flush on closing to avoid doing blobstore IO for reading back the latest commit from the repository
         // if it's not cached or doing an actual flush if there's outstanding translog operations.
         close();
-    }
-
-    public void readVirtualBatchedCompoundCommitChunk(final GetVirtualBatchedCompoundCommitChunkRequest request, final StreamOutput output)
-        throws IOException {
-        PrimaryTermAndGeneration vbccTermGen = new PrimaryTermAndGeneration(
-            request.getPrimaryTerm(),
-            request.getVirtualBatchedCompoundCommitGeneration()
-        );
-        var vbcc = statelessCommitService.getVirtualBatchedCompoundCommit(shardId, vbccTermGen);
-        if (vbcc == null) {
-            // If the VBCC was not found, then it is already uploaded, so let the search shard query the blob store
-            throw VirtualBatchedCompoundCommit.buildResourceNotFoundException(shardId, vbccTermGen);
-        } else {
-            // This length adjustment is needed because the last CC is not padded in a vBCC
-            long length = Math.min(request.getLength(), vbcc.getTotalSizeInBytes() - request.getOffset());
-            vbcc.getBytesByRange(request.getOffset(), length, output);
-        }
     }
 
     @Override

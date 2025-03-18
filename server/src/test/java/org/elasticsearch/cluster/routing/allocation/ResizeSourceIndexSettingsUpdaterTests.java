@@ -61,7 +61,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
         final String targetIndex = "target";
 
         final ProjectMetadata sourceProject = ProjectMetadata.builder(
-            additionalProjects == 0 ? Metadata.DEFAULT_PROJECT_ID : new ProjectId(randomUUID())
+            additionalProjects == 0 ? Metadata.DEFAULT_PROJECT_ID : randomUniqueProjectId()
         )
             .put(
                 IndexMetadata.builder(sourceIndex)
@@ -79,7 +79,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
         final Metadata.Builder mBuilder = Metadata.builder().put(sourceProject);
 
         for (int i = 0; i < additionalProjects; i++) {
-            final ProjectMetadata.Builder project = ProjectMetadata.builder(new ProjectId(randomUUID()));
+            final ProjectMetadata.Builder project = ProjectMetadata.builder(randomUniqueProjectId());
             final int indexCount = randomIntBetween(0, 5);
             for (int j = 0; j < indexCount; j++) {
                 project.put(
@@ -226,9 +226,9 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
     public void testHandleChangesAcrossMultipleProjects() {
         final ResizeSourceIndexSettingsUpdater updater = new ResizeSourceIndexSettingsUpdater();
         final Metadata metadata = Metadata.builder()
-            .put(ProjectMetadata.builder(new ProjectId("p1")))
+            .put(ProjectMetadata.builder(ProjectId.fromId("p1")))
             .put(
-                ProjectMetadata.builder(new ProjectId("p2"))
+                ProjectMetadata.builder(ProjectId.fromId("p2"))
                     .put(
                         IndexMetadata.builder("index-a")
                             .settings(
@@ -243,7 +243,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
                     )
             )
             .put(
-                ProjectMetadata.builder(new ProjectId("p3"))
+                ProjectMetadata.builder(ProjectId.fromId("p3"))
                     .put(
                         IndexMetadata.builder("index-a")
                             .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
@@ -263,7 +263,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
                     )
             )
             .put(
-                ProjectMetadata.builder(new ProjectId("p4"))
+                ProjectMetadata.builder(ProjectId.fromId("p4"))
                     .put(
                         IndexMetadata.builder("index-a")
                             .settings(indexSettings(IndexVersion.current(), 1, 1).put(IndexMetadata.SETTING_INDEX_UUID, randomUUID()))
@@ -278,7 +278,7 @@ public class ResizeSourceIndexSettingsUpdaterTests extends ESAllocationTestCase 
                     )
             )
             .put(
-                ProjectMetadata.builder(new ProjectId("p5"))
+                ProjectMetadata.builder(ProjectId.fromId("p5"))
                     .put(
                         IndexMetadata.builder("index-a")
                             .settings(

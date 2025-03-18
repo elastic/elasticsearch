@@ -69,7 +69,7 @@ public class ProjectResolverTests extends ESTestCase {
 
     public void testGetById() {
         var projects = createProjects();
-        var expectedProject = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        var expectedProject = ProjectMetadata.builder(randomUniqueProjectId()).build();
         projects.put(expectedProject.id(), expectedProject);
         var metadata = Metadata.builder().projectMetadata(projects).build();
         threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, expectedProject.id().id());
@@ -114,7 +114,7 @@ public class ProjectResolverTests extends ESTestCase {
     public void testGetAllProjectIdsWhenAllowed() {
         allowAllProjects = () -> true;
         var projects = createProjects();
-        var randomProject = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        var randomProject = ProjectMetadata.builder(randomUniqueProjectId()).build();
         projects.put(randomProject.id(), randomProject);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().projectMetadata(projects).build()).build();
         var actualProjects = resolver.getProjectIds(state);
@@ -134,7 +134,7 @@ public class ProjectResolverTests extends ESTestCase {
 
     public void testGetProjectIdsWithHeader() {
         var projects = createProjects();
-        var expectedProject = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
+        var expectedProject = ProjectMetadata.builder(randomUniqueProjectId()).build();
         projects.put(expectedProject.id(), expectedProject);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().projectMetadata(projects).build()).build();
         threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, expectedProject.id().id());
@@ -144,8 +144,8 @@ public class ProjectResolverTests extends ESTestCase {
     }
 
     public void testExecuteOnProject() {
-        final ProjectId projectId1 = new ProjectId("1-" + randomAlphaOfLength(4));
-        final ProjectId projectId2 = new ProjectId("2-" + randomAlphaOfLength(4));
+        final ProjectId projectId1 = randomUniqueProjectId();
+        final ProjectId projectId2 = randomUniqueProjectId();
 
         final Map<ProjectId, ProjectMetadata> projects = createProjects();
         projects.put(projectId1, ProjectMetadata.builder(projectId1).build());
@@ -214,7 +214,7 @@ public class ProjectResolverTests extends ESTestCase {
 
     private static Map<ProjectId, ProjectMetadata> createProjects() {
         return randomMap(0, 5, () -> {
-            var id = new ProjectId(randomUUID());
+            var id = randomUniqueProjectId();
             return Tuple.tuple(id, ProjectMetadata.builder(id).build());
         });
     }

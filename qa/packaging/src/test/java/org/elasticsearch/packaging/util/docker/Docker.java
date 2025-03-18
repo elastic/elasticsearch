@@ -187,7 +187,7 @@ public class Docker {
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
                 // Set COLUMNS so that `ps` doesn't truncate its output
-                psOutput = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'").stdout();
+                psOutput = dockerShell.run("bash -c 'COLUMNS=3000 ps ax'").stdout();
 
                 if (psOutput.contains("org.elasticsearch.bootstrap.Elasticsearch")) {
                     isElasticsearchRunning = true;

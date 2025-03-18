@@ -278,7 +278,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertMappingsAndSettings(TestSystemIndexDescriptor.getOldMappings(), concreteIndex);
 
         // Remove the index and alias...
-        assertAcked(indicesAdmin().prepareAliases().removeAlias(concreteIndex, INDEX_NAME).get());
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias(concreteIndex, INDEX_NAME).get());
         assertAcked(indicesAdmin().prepareDelete(concreteIndex));
 
         // ...so that we can check that the they will still be auto-created again,

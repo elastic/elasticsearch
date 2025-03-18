@@ -43,6 +43,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -60,11 +61,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -96,6 +95,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Undocumented on purpose, may be removed at any time. Only use this if instructed to do so, can have other unintended consequences
      * including deadlocks.
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     public static final Setting<Boolean> ENABLE_STACK_OVERFLOW_AVOIDANCE = Setting.boolSetting(
         "transport.enable_stack_protection",
         false,
@@ -103,8 +103,7 @@ public class TransportService extends AbstractLifecycleComponent
         Setting.Property.Deprecated
     );
 
-    private final AtomicBoolean handleIncomingRequests = new AtomicBoolean();
-    private final DelegatingTransportMessageListener messageListener = new DelegatingTransportMessageListener();
+    private volatile boolean handleIncomingRequests;
     protected final Transport transport;
     protected final ConnectionManager connectionManager;
     protected final ThreadPool threadPool;
@@ -134,7 +133,7 @@ public class TransportService extends AbstractLifecycleComponent
 
     // tracer log
 
-    private final Logger tracerLog;
+    private static final Logger tracerLog = Loggers.getLogger(logger, ".tracer");
     private final Tracer tracer;
 
     volatile String[] tracerLogInclude;
@@ -291,7 +290,6 @@ public class TransportService extends AbstractLifecycleComponent
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         setTracerLogInclude(TransportSettings.TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
-        tracerLog = Loggers.getLogger(logger, ".tracer");
         this.taskManager = taskManger;
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
@@ -432,8 +430,8 @@ public class TransportService extends AbstractLifecycleComponent
      * reject any incoming requests, including handshakes, by closing the connection.
      */
     public final void acceptIncomingRequests() {
-        final boolean startedWithThisCall = handleIncomingRequests.compareAndSet(false, true);
-        assert startedWithThisCall : "transport service was already accepting incoming requests";
+        assert handleIncomingRequests == false : "transport service was already accepting incoming requests";
+        handleIncomingRequests = true;
         logger.debug("now accepting incoming requests");
     }
 
@@ -673,7 +671,6 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         public HandshakeResponse(StreamInput in) throws IOException {
-            super(in);
             // the first two fields need only VInts and raw (ASCII) characters, so we cross our fingers and hope that they appear
             // on the wire as we expect them to even if this turns out to be an incompatible build
             version = Version.readVersion(in);
@@ -748,14 +745,6 @@ public class TransportService extends AbstractLifecycleComponent
             return;
         }
         connectionManager.disconnectFromNode(node);
-    }
-
-    public void addMessageListener(TransportMessageListener listener) {
-        messageListener.listeners.add(listener);
-    }
-
-    public void removeMessageListener(TransportMessageListener listener) {
-        messageListener.listeners.remove(listener);
     }
 
     public void addConnectionListener(TransportConnectionListener listener) {
@@ -1265,13 +1254,12 @@ public class TransportService extends AbstractLifecycleComponent
      */
     @Override
     public void onRequestReceived(long requestId, String action) {
-        if (handleIncomingRequests.get() == false) {
+        if (handleIncomingRequests == false) {
             throw new TransportNotReadyException();
         }
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] received request", requestId, action);
         }
-        messageListener.onRequestReceived(requestId, action);
     }
 
     /** called by the {@link Transport} implementation once a request has been sent */
@@ -1286,7 +1274,6 @@ public class TransportService extends AbstractLifecycleComponent
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
         }
-        messageListener.onRequestSent(node, requestId, action, request, options);
     }
 
     @Override
@@ -1297,7 +1284,6 @@ public class TransportService extends AbstractLifecycleComponent
         } else if (tracerLog.isTraceEnabled() && shouldTraceAction(holder.action())) {
             tracerLog.trace("[{}][{}] received response from [{}]", requestId, holder.action(), holder.connection().getNode());
         }
-        messageListener.onResponseReceived(requestId, holder);
     }
 
     /** called by the {@link Transport} implementation once a response was sent to calling node */
@@ -1306,7 +1292,6 @@ public class TransportService extends AbstractLifecycleComponent
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent response", requestId, action);
         }
-        messageListener.onResponseSent(requestId, action, response);
     }
 
     /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
@@ -1315,7 +1300,6 @@ public class TransportService extends AbstractLifecycleComponent
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace(() -> format("[%s][%s] sent error response", requestId, action), e);
         }
-        messageListener.onResponseSent(requestId, action, e);
     }
 
     public RequestHandlerRegistry<? extends TransportRequest> getRequestHandler(String action) {
@@ -1453,6 +1437,7 @@ public class TransportService extends AbstractLifecycleComponent
         public void cancel() {
             assert responseHandlers.contains(requestId) == false
                 : "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
+            var cancellable = this.cancellable;
             if (cancellable != null) {
                 cancellable.cancel();
             }
@@ -1492,6 +1477,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void handleResponse(T response) {
+            var handler = this.handler;
             if (handler != null) {
                 handler.cancel();
             }
@@ -1502,6 +1488,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void handleException(TransportException exp) {
+            var handler = this.handler;
             if (handler != null) {
                 handler.cancel();
             }
@@ -1664,53 +1651,6 @@ public class TransportService extends AbstractLifecycleComponent
             throw new NodeNotConnectedException(discoveryNode, "discovery node must not be null");
         }
         return discoveryNode.equals(localNode);
-    }
-
-    private static final class DelegatingTransportMessageListener implements TransportMessageListener {
-
-        private final List<TransportMessageListener> listeners = new CopyOnWriteArrayList<>();
-
-        @Override
-        public void onRequestReceived(long requestId, String action) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onRequestReceived(requestId, action);
-            }
-        }
-
-        @Override
-        public void onResponseSent(long requestId, String action, TransportResponse response) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, response);
-            }
-        }
-
-        @Override
-        public void onResponseSent(long requestId, String action, Exception error) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, error);
-            }
-        }
-
-        @Override
-        public void onRequestSent(
-            DiscoveryNode node,
-            long requestId,
-            String action,
-            TransportRequest request,
-            TransportRequestOptions finalOptions
-        ) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onRequestSent(node, requestId, action, request, finalOptions);
-            }
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public void onResponseReceived(long requestId, Transport.ResponseContext holder) {
-            for (TransportMessageListener listener : listeners) {
-                listener.onResponseReceived(requestId, holder);
-            }
-        }
     }
 
     private static class PendingDirectHandlers extends AbstractRefCounted {

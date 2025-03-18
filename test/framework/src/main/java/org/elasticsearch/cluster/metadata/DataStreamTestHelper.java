@@ -361,7 +361,7 @@ public final class DataStreamTestHelper {
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
+            randomBoolean() ? DataStreamLifecycle.builder().dataRetention(randomMillisUpToYear9999()).build() : null,
             failureStore ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             DataStream.DataStreamIndices.backingIndicesBuilder(indices)
                 .setRolloverOnWrite(replicated == false && randomBoolean())
@@ -551,6 +551,16 @@ public final class DataStreamTestHelper {
     public static ClusterState getClusterStateWithDataStream(String dataStream, List<Tuple<Instant, Instant>> timeSlices) {
         return ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(getProjectWithDataStream(Metadata.DEFAULT_PROJECT_ID, dataStream, timeSlices))
+            .build();
+    }
+
+    public static ClusterState getClusterStateWithDataStream(
+        ProjectId projectId,
+        String dataStream,
+        List<Tuple<Instant, Instant>> timeSlices
+    ) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(getProjectWithDataStream(projectId, dataStream, timeSlices))
             .build();
     }
 

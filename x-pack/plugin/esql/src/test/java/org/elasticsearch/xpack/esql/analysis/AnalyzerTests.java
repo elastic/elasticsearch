@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -50,6 +52,7 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -61,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
@@ -82,6 +86,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -2538,6 +2543,195 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
+    public void testNamedDoubleParamsForIdentifiers() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        assertProjectionWithMapping(
+            """
+                from test
+                | eval ??f1 = ??fn1(??f2)
+                | where ??f1 == ??f2
+                | stats ??f8 = ??fn2(??f3.??f4.??f5) by ??f3.??f6.??f7
+                | sort ??f36.??f7, ??f8
+                | keep ??f367, ??f8
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "a"),
+                    paramAsConstant("f2", "keyword"),
+                    paramAsConstant("f3", "some"),
+                    paramAsConstant("f4", "dotted"),
+                    paramAsConstant("f5", "field"),
+                    paramAsConstant("f6", "string"),
+                    paramAsConstant("f7", "typical"),
+                    paramAsConstant("f8", "y"),
+                    paramAsConstant("f36", "some.string"),
+                    paramAsConstant("f367", "some.string.typical"),
+                    paramAsConstant("fn1", "trim"),
+                    paramAsConstant("fn2", "count")
+                )
+            ),
+            "some.string.typical",
+            "y"
+        );
+
+        assertProjectionWithMapping(
+            """
+                from test
+                | eval ??f1 = ??fn1(??f2)
+                | where ??f1 == ??f2
+                | mv_expand ??f3.??f4.??f5
+                | dissect ??f8 "%{bar}"
+                | grok ??f2 "%{WORD:foo}"
+                | rename ??f9 as ??f10
+                | sort ??f3.??f6.??f7
+                | drop ??f11
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "a"),
+                    paramAsConstant("f2", "keyword"),
+                    paramAsConstant("f3", "some"),
+                    paramAsConstant("f4", "dotted"),
+                    paramAsConstant("f5", "field"),
+                    paramAsConstant("f6", "string"),
+                    paramAsConstant("f7", "typical"),
+                    paramAsConstant("f8", "text"),
+                    paramAsConstant("f9", "date"),
+                    paramAsConstant("f10", "datetime"),
+                    paramAsConstant("f11", "bool"),
+                    paramAsConstant("fn1", "trim")
+                )
+            ),
+            "binary",
+            "binary_stored",
+            "datetime",
+            "date_nanos",
+            "geo_shape",
+            "int",
+            "keyword",
+            "shape",
+            "some.ambiguous",
+            "some.ambiguous.normalized",
+            "some.ambiguous.one",
+            "some.ambiguous.two",
+            "some.dotted.field",
+            "some.string",
+            "some.string.normalized",
+            "some.string.typical",
+            "text",
+            "unsigned_long",
+            "unsupported",
+            "x",
+            "x.y",
+            "x.y.z",
+            "x.y.z.v",
+            "x.y.z.w",
+            "a",
+            "bar",
+            "foo"
+        );
+
+        assertProjectionWithMapping(
+            """
+                FROM test
+                | EVAL ??f1 = ??f2
+                | LOOKUP JOIN languages_lookup ON ??f1
+                | KEEP ??f3.??f6.??f7
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "language_code"),
+                    paramAsConstant("f2", "int"),
+                    paramAsConstant("f3", "some"),
+                    paramAsConstant("f6", "string"),
+                    paramAsConstant("f7", "typical")
+                )
+            ),
+            "some.string.typical"
+        );
+    }
+
+    public void testInvalidNamedDoubleParamsForIdentifiers() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        // missing field
+        assertError(
+            """
+                from test
+                | eval ??f1 = ??fn1(??f2)
+                | keep ??f3
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "a"),
+                    paramAsConstant("f2", "keyword"),
+                    paramAsConstant("f3", "some.string.nonexisting"),
+                    paramAsConstant("fn1", "trim")
+                )
+            ),
+            "Unknown column [some.string.nonexisting]"
+        );
+
+        // field name pattern is not supported in where/stats/sort/dissect/grok, they only take identifier
+        // eval/rename/enrich/mvexpand are covered in StatementParserTests
+        for (String invalidParam : List.of(
+            "where ??f1 == \"a\"",
+            "stats x = count(??f1)",
+            "sort ??f1",
+            "dissect ??f1 \"%{bar}\"",
+            "grok ??f1 \"%{WORD:foo}\"",
+            "lookup join languages_lookup on ??f1"
+        )) {
+            for (String pattern : List.of("keyword*", "*")) {
+                assertError(
+                    "from test | " + invalidParam,
+                    "mapping-multi-field-with-nested.json",
+                    new QueryParams(List.of(paramAsConstant("f1", pattern))),
+                    "Unknown column [" + pattern + "]"
+                );
+            }
+        }
+
+        // pattern and constant for function are covered in StatementParserTests
+        for (String pattern : List.of("count*", "*")) {
+            assertError(
+                "from test | stats x = ??fn1(*)",
+                "mapping-multi-field-with-nested.json",
+                new QueryParams(List.of(paramAsConstant("fn1", pattern))),
+                "Unknown function [" + pattern + "]"
+            );
+        }
+
+        // identifier provided in param is not expected to be in backquote
+        List<String> commands = List.of(
+            "eval x = ??f1",
+            "where ??f1 == \"a\"",
+            "stats x = count(??f1)",
+            "sort ??f1",
+            "dissect ??f1 \"%{bar}\"",
+            "grok ??f1 \"%{WORD:foo}\"",
+            "mv_expand ??f1",
+            "lookup join languages_lookup on ??f1"
+        );
+        for (Object command : commands) {
+            assertError(
+                "from test | " + command,
+                "mapping-multi-field-with-nested.json",
+                new QueryParams(List.of(paramAsConstant("f1", "`keyword`"))),
+                "Unknown column [`keyword`]"
+            );
+        }
+    }
+
     public void testNamedParamsForIdentifierPatterns() {
         assertProjectionWithMapping(
             """
@@ -2620,6 +2814,22 @@ public class AnalyzerTests extends ESTestCase {
         EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
         assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 2.0, DataType.DOUBLE), ee.value());
+        assertEquals(DataType.DOUBLE, ee.dataType());
+    }
+
+    public void testFunctionNamedParamsAsFunctionArgument1() {
+        LogicalPlan plan = analyze("""
+            from test
+            | WHERE QSTR("first_name: Anna", {"minimum_should_match": 3.0})
+            """);
+        Limit limit = as(plan, Limit.class);
+        Filter filter = as(limit.child(), Filter.class);
+        QueryString qstr = as(filter.condition(), QueryString.class);
+        MapExpression me = as(qstr.options(), MapExpression.class);
+        assertEquals(1, me.entryExpressions().size());
+        EntryExpression ee = as(me.entryExpressions().get(0), EntryExpression.class);
+        assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
+        assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
 
@@ -2889,6 +3099,91 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 6 | SORT emp_no | LIMIT 5 )
             """));
         assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting INTEGER_LITERAL"));
+    }
+
+    public void testValidRrf() {
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+
+        LogicalPlan plan = analyze("""
+             from test metadata _id, _index, _score
+             | fork ( where first_name:"foo" )
+                    ( where first_name:"bar" )
+             | rrf
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        OrderBy orderBy = as(limit.child(), OrderBy.class);
+
+        assertThat(orderBy.order().size(), equalTo(3));
+        assertThat(orderBy.order().get(0).child(), instanceOf(ReferenceAttribute.class));
+        assertThat(((ReferenceAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
+        assertThat(orderBy.order().get(1).child(), instanceOf(ReferenceAttribute.class));
+        assertThat(((ReferenceAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
+        assertThat(orderBy.order().get(2).child(), instanceOf(ReferenceAttribute.class));
+        assertThat(((ReferenceAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
+
+        Dedup dedup = as(orderBy.child(), Dedup.class);
+        assertThat(dedup.groupings().size(), equalTo(2));
+        assertThat(dedup.aggregates().size(), equalTo(15));
+
+        RrfScoreEval rrf = as(dedup.child(), RrfScoreEval.class);
+        assertThat(rrf.scoreAttribute(), instanceOf(MetadataAttribute.class));
+        assertThat(rrf.scoreAttribute().name(), equalTo("_score"));
+        assertThat(rrf.forkAttribute(), instanceOf(ReferenceAttribute.class));
+        assertThat(rrf.forkAttribute().name(), equalTo("_fork"));
+
+        assertThat(rrf.child(), instanceOf(Fork.class));
+    }
+
+    public void testRrfError() {
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | rrf
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
+        assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test metadata _score, _index, _id
+            | eval _fork = 1
+            | rrf
+            """));
+        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found EVAL"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+             from test metadata _id, _index, _score
+            | fork ( where first_name:"foo" )
+                   ( where first_name:"bar" )
+            | rrf
+            | rrf
+            """));
+        assertThat(e.getMessage(), containsString("RRF can only be used after FORK, but found RRF"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no == 1 )
+                   ( WHERE emp_no > 1 )
+            | RRF
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test metadata _score, _id
+            | FORK ( WHERE emp_no == 1 )
+                   ( WHERE emp_no > 1 )
+            | RRF
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [_index]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test metadata _score, _index
+            | FORK ( WHERE emp_no == 1 )
+                   ( WHERE emp_no > 1 )
+            | RRF
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [_id]"));
     }
 
     // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.

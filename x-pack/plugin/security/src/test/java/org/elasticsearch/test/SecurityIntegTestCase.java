@@ -345,7 +345,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
         if (frequently()) {
             boolean aliasAdded = false;
-            IndicesAliasesRequestBuilder builder = indicesAdmin().prepareAliases();
+            IndicesAliasesRequestBuilder builder = indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             for (String index : indices) {
                 if (frequently()) {
                     // one alias per index with prefix "alias-"

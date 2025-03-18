@@ -7,9 +7,9 @@ The [`STATS`](/reference/query-languages/esql/esql-commands.md#esql-stats-by) co
 :::
 
 
-:::{include} functions/bucket.md
+:::{include} functions/layout/bucket.md
 :::
 
-:::{include} functions/categorize.md
+:::{include} functions/layout/categorize.md
 :::
 

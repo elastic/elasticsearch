@@ -20,10 +20,10 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResultsTests;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingByteResultsTests;
-import org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -953,7 +953,7 @@ public class ServiceUtilsTests extends ESTestCase {
         var model = mock(Model.class);
         when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
 
-        var textEmbedding = TextEmbeddingResultsTests.createRandomResults();
+        var textEmbedding = TextEmbeddingFloatResultsTests.createRandomResults();
 
         doAnswer(invocation -> {
             ActionListener<InferenceServiceResults> listener = invocation.getArgument(7);
@@ -991,6 +991,42 @@ public class ServiceUtilsTests extends ESTestCase {
         var size = listener.actionGet(TIMEOUT);
 
         assertThat(size, is(textEmbedding.embeddings().get(0).values().length));
+    }
+
+    public void testValidateInputType_NoValidationErrorsWhenInternalType() {
+        ValidationException validationException = new ValidationException();
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INTERNAL_SEARCH, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INTERNAL_INGEST, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testValidateInputType_NoValidationErrorsWhenInputTypeIsNullOrUnspecified() {
+        ValidationException validationException = new ValidationException();
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.UNSPECIFIED, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(null, validationException);
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testValidateInputType_ValidationErrorsWhenInputTypeIsSpecified() {
+        ValidationException validationException = new ValidationException();
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.SEARCH, validationException);
+        assertThat(validationException.validationErrors().size(), is(1));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.INGEST, validationException);
+        assertThat(validationException.validationErrors().size(), is(2));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.CLASSIFICATION, validationException);
+        assertThat(validationException.validationErrors().size(), is(3));
+
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(InputType.CLUSTERING, validationException);
+        assertThat(validationException.validationErrors().size(), is(4));
     }
 
     private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {

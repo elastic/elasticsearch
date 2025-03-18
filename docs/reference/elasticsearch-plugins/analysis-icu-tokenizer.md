@@ -33,7 +33,7 @@ This functionality is marked as experimental in Lucene
 
 You can customize the `icu-tokenizer` behavior by specifying per-script rule files, see the [RBBI rules syntax reference](http://userguide.icu-project.org/boundaryanalysis#TOC-RBBI-Rules) for a more detailed explanation.
 
-To add icu tokenizer rules, set the `rule_files` settings, which should contain a comma-separated list of `code:rulefile` pairs in the following format: [four-letter ISO 15924 script code](https://unicode.org/iso15924/iso15924-codes.md), followed by a colon, then a rule file name. Rule files are placed `ES_HOME/config` directory.
+To add icu tokenizer rules, set the `rule_files` settings, which should contain a comma-separated list of `code:rulefile` pairs in the following format: [four-letter ISO 15924 script code](https://unicode.org/iso15924/iso15924-codes.html), followed by a colon, then a rule file name. Rule files are placed `ES_HOME/config` directory.
 
 As a demonstration of how the rule files can be used, save the following user file to `$ES_HOME/config/KeywordTokenizer.rbbi`:
 

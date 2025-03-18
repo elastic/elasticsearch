@@ -663,8 +663,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         var metadataBuilder = Metadata.builder();
         final ProjectId projectId1, projectId2;
         if (multipleProjects) {
-            projectId1 = new ProjectId(randomUUID());
-            projectId2 = new ProjectId(randomUUID());
+            projectId1 = randomUniqueProjectId();
+            projectId2 = randomUniqueProjectId();
             metadataBuilder.put(ProjectMetadata.builder(projectId1).put(indexMetadata1, false));
             metadataBuilder.put(ProjectMetadata.builder(projectId2).put(indexMetadata2, false));
         } else {

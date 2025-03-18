@@ -10,12 +10,18 @@ package org.elasticsearch.xpack.esql.telemetry;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -31,6 +37,8 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -39,7 +47,9 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -77,6 +87,42 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         return enrichResolver;
     }
 
+    EsqlQueryLog mockQueryLog() {
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
+                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
+                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_DEBUG_SETTING,
+                    EsqlPlugin.ESQL_QUERYLOG_THRESHOLD_TRACE_SETTING,
+                    EsqlPlugin.ESQL_QUERYLOG_INCLUDE_USER_SETTING
+                )
+            )
+        );
+        return new EsqlQueryLog(clusterSettings, new SlowLogFieldProvider() {
+            @Override
+            public SlowLogFields create(IndexSettings indexSettings) {
+                return create();
+            }
+
+            @Override
+            public SlowLogFields create() {
+                return new SlowLogFields() {
+                    @Override
+                    public Map<String, String> indexFields() {
+                        return Map.of();
+                    }
+
+                    @Override
+                    public Map<String, String> searchFields() {
+                        return Map.of();
+                    }
+                };
+            }
+        });
+    }
+
     public void testFailedMetric() {
         String[] indices = new String[] { "test" };
 
@@ -104,7 +150,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L));
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), mockQueryLog());
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();
@@ -194,8 +240,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
-        FieldCapabilities fooField = new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, Map.of());
-        FieldCapabilities barField = new FieldCapabilities("bar", "long", false, true, true, indices, null, null, Map.of());
+        FieldCapabilities fooField = new FieldCapabilitiesBuilder("foo", "integer").indices(indices).build();
+        FieldCapabilities barField = new FieldCapabilitiesBuilder("bar", "long").indices(indices).build();
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), Map.of(fooField.getName(), fooField));
         fields.put(barField.getName(), Map.of(barField.getName(), barField));

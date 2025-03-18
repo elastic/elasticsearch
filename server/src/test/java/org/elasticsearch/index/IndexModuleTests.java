@@ -59,6 +59,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -158,6 +160,7 @@ public class IndexModuleTests extends ESTestCase {
     };
     private MapperRegistry mapperRegistry;
     private ThreadPool threadPool;
+    private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private CircuitBreakerService circuitBreakerService;
     private BigArrays bigArrays;
     private ScriptService scriptService;
@@ -170,6 +173,7 @@ public class IndexModuleTests extends ESTestCase {
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
         indicesQueryCache = new IndicesQueryCache(settings);
         indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
@@ -188,6 +192,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyMap()
         );
         threadPool = new TestThreadPool("test");
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, settings);
         circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
         bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
@@ -214,6 +219,7 @@ public class IndexModuleTests extends ESTestCase {
             circuitBreakerService,
             bigArrays,
             threadPool,
+            threadPoolMergeExecutorService,
             scriptService,
             clusterService,
             null,

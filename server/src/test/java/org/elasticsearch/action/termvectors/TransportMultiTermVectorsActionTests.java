@@ -91,7 +91,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             emptySet()
         );
 
-        ProjectId projectId = new ProjectId(randomBase64UUID());
+        ProjectId projectId = randomUniqueProjectId();
         projectResolver = TestProjectResolvers.singleProject(projectId);
         final Index index1 = new Index("index1", randomBase64UUID());
         final Index index2 = new Index("index2", randomBase64UUID());

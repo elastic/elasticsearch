@@ -13,9 +13,9 @@ Documents using this type can be used:
 
 * to find geoshapes within:
 
-    * a [bounding box](/reference/query-languages/query-dsl-geo-bounding-box-query.md)
-    * a certain [distance](/reference/query-languages/query-dsl-geo-distance-query.md) of a central point
-    * a [`geo_shape` query](/reference/query-languages/query-dsl-geo-shape-query.md) (for example, intersecting polygons).
+    * a [bounding box](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md)
+    * a certain [distance](/reference/query-languages/query-dsl/query-dsl-geo-distance-query.md) of a central point
+    * a [`geo_shape` query](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md) (for example, intersecting polygons).
 
 * to aggregate documents by geographic grids:
 
@@ -68,7 +68,7 @@ PUT /example
 
 ### Input Structure [input-structure]
 
-Shapes can be represented using either the [GeoJSON](http://geojson.org) or [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md) (WKT) format. The following table provides a mapping of GeoJSON and WKT to Elasticsearch types:
+Shapes can be represented using either the [GeoJSON](http://geojson.org) or [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) (WKT) format. The following table provides a mapping of GeoJSON and WKT to Elasticsearch types:
 
 | GeoJSON Type | WKT Type | Elasticsearch Type | Description |
 | --- | --- | --- | --- |
@@ -88,7 +88,7 @@ For all types, both the inner `type` and `coordinates` fields are required.
 
 
 
-#### [Point](http://geojson.org/geojson-spec.md#id2) [geo-point-type]
+#### [Point](http://geojson.org/geojson-spec.html#id2) [geo-point-type]
 
 A point is a single geographic coordinate, such as the location of a building or the current position given by a smartphone’s Geolocation API. The following is an example of a point in GeoJSON.
 
@@ -112,7 +112,7 @@ POST /example/_doc
 ```
 
 
-#### [LineString](http://geojson.org/geojson-spec.md#id3) [geo-linestring]
+#### [LineString](http://geojson.org/geojson-spec.html#id3) [geo-linestring]
 
 A linestring defined by an array of two or more positions. By specifying only two points, the linestring will represent a straight line. Specifying more than two points creates an arbitrary path. The following is an example of a linestring in GeoJSON.
 
@@ -138,7 +138,7 @@ POST /example/_doc
 The above linestring would draw a straight line starting at the White House to the US Capitol Building.
 
 
-#### [Polygon](http://geojson.org/geojson-spec.md#id4) [geo-polygon]
+#### [Polygon](http://geojson.org/geojson-spec.html#id4) [geo-polygon]
 
 A polygon is defined by a list of a list of points. The first and last points in each (outer) list must be the same (the polygon must be closed). The following is an example of a polygon in GeoJSON.
 
@@ -216,7 +216,7 @@ POST /example/_doc
 If the difference between a polygon’s minimum longitude and the maximum longitude is 180° or greater, {{es}} checks whether the polygon’s document-level `orientation` differs from the default orientation. If the orientation differs, {{es}} considers the polygon to cross the international dateline and splits the polygon at the dateline.
 
 
-#### [MultiPoint](http://geojson.org/geojson-spec.md#id5) [geo-multipoint]
+#### [MultiPoint](http://geojson.org/geojson-spec.html#id5) [geo-multipoint]
 
 The following is an example of a list of GeoJSON points:
 
@@ -242,7 +242,7 @@ POST /example/_doc
 ```
 
 
-#### [MultiLineString](http://geojson.org/geojson-spec.md#id6) [geo-multilinestring]
+#### [MultiLineString](http://geojson.org/geojson-spec.html#id6) [geo-multilinestring]
 
 The following is an example of a list of GeoJSON linestrings:
 
@@ -270,7 +270,7 @@ POST /example/_doc
 ```
 
 
-#### [MultiPolygon](http://geojson.org/geojson-spec.md#id7) [geo-multipolygon]
+#### [MultiPolygon](http://geojson.org/geojson-spec.html#id7) [geo-multipolygon]
 
 The following is an example of a list of GeoJSON polygons (second polygon contains a hole):
 

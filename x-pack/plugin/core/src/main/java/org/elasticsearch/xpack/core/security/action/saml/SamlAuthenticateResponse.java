@@ -69,9 +69,6 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         out.writeString(tokenString);
         out.writeString(refreshToken);
         out.writeTimeValue(expiresIn);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_11_0)) {
-            authentication.writeTo(out);
-        }
+        authentication.writeTo(out);
     }
-
 }

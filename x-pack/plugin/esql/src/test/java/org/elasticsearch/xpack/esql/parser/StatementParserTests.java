@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -921,6 +923,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "line 1:22: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
             );
         }
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            expectError(
+                "from test | eval x = ??fn1(f)",
+                List.of(paramAsConstant("fn1", "IS_NULL")),
+                "line 1:22: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+            );
+        }
     }
 
     public void testMetadataFieldOnOtherSources() {
@@ -1208,6 +1217,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testMissingInputParams() {
         expectError("row x = ?, y = ?", List.of(paramAsConstant(null, 1)), "Not enough actual parameters 1");
+
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            expectError("from test | eval x = ??, y = ??", List.of(paramAsConstant(null, 1)), "Not enough actual parameters 1");
+            expectError("from test | eval x = ??, y = ?", List.of(paramAsConstant(null, 1)), "Not enough actual parameters 1");
+        }
     }
 
     public void testNamedParams() {
@@ -1246,15 +1260,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("from test | where x < ?#1", List.of(paramAsConstant("#1", 5)), "token recognition error at: '#'");
 
-        expectError(
-            "from test | where x < ??",
-            List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
-            "extraneous input '?' expecting <EOF>"
-        );
-
         expectError("from test | where x < ?Å", List.of(paramAsConstant("Å", 5)), "line 1:24: token recognition error at: 'Å'");
 
         expectError("from test | eval x = ?Å", List.of(paramAsConstant("Å", 5)), "line 1:23: token recognition error at: 'Å'");
+
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            expectError(
+                "from test | where x < ???",
+                List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
+                "extraneous input '?' expecting <EOF>"
+            );
+        } else {
+            expectError(
+                "from test | where x < ??",
+                List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
+                "extraneous input '?' expecting <EOF>"
+            );
+        }
     }
 
     public void testPositionalParams() {
@@ -1556,33 +1578,39 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamMixed() {
-        expectError(
-            "from test | where x < ? | eval y = ?n2 + ?n3 |  limit ?n4",
-            List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("n3", 100), paramAsConstant("n4", 10)),
-            "Inconsistent parameter declaration, "
-                + "use one of positional, named or anonymous params but not a combination of named and anonymous"
+        Map<List<String>, String> mixedParams = new HashMap<>(
+            Map.ofEntries(
+                Map.entry(List.of("?", "?n2", "?n3"), "named and anonymous"),
+                Map.entry(List.of("?", "?_n2", "?n3"), "named and anonymous"),
+                Map.entry(List.of("?1", "?n2", "?_n3"), "named and positional"),
+                Map.entry(List.of("?", "?2", "?n3"), "positional and anonymous")
+            )
         );
 
-        expectError(
-            "from test | where x < ? | eval y = ?_n2 + ?n3 |  limit ?_4",
-            List.of(paramAsConstant("n1", 5), paramAsConstant("_n2", -1), paramAsConstant("n3", 100), paramAsConstant("n4", 10)),
-            "Inconsistent parameter declaration, "
-                + "use one of positional, named or anonymous params but not a combination of named and anonymous"
-        );
-
-        expectError(
-            "from test | where x < ?1 | eval y = ?n2 + ?_n3 |  limit ?n4",
-            List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("_n3", 100), paramAsConstant("n4", 10)),
-            "Inconsistent parameter declaration, "
-                + "use one of positional, named or anonymous params but not a combination of named and positional"
-        );
-
-        expectError(
-            "from test | where x < ? | eval y = ?2 + ?n3 |  limit ?_n4",
-            List.of(paramAsConstant("n1", 5), paramAsConstant("n2", -1), paramAsConstant("n3", 100), paramAsConstant("_n4", 10)),
-            "Inconsistent parameter declaration, "
-                + "use one of positional, named or anonymous params but not a combination of positional and anonymous"
-        );
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            mixedParams.put(List.of("??", "??n2", "??n3"), "named and anonymous");
+            mixedParams.put(List.of("?", "??_n2", "?n3"), "named and anonymous");
+            mixedParams.put(List.of("??1", "?n2", "?_n3"), "named and positional");
+            mixedParams.put(List.of("?", "??2", "?n3"), "positional and anonymous");
+        }
+        for (Map.Entry<List<String>, String> mixedParam : mixedParams.entrySet()) {
+            List<String> params = mixedParam.getKey();
+            String errorMessage = mixedParam.getValue();
+            String query = LoggerMessageFormat.format(
+                null,
+                "from test | where x < {} | eval y = {}() + {}",
+                params.get(0),
+                params.get(1),
+                params.get(2)
+            );
+            expectError(
+                query,
+                List.of(paramAsConstant("n1", "f1"), paramAsConstant("n2", "fn2"), paramAsConstant("n3", "f3")),
+                "Inconsistent parameter declaration, "
+                    + "use one of positional, named or anonymous params but not a combination of "
+                    + errorMessage
+            );
+        }
     }
 
     public void testIntervalParam() {
@@ -1602,6 +1630,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifier() {
+        // TODO will be replaced by testDoubleParamsForIdentifier after providing an identifier with a single parameter marker is deprecated
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where
         assertEquals(
@@ -2022,6 +2051,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     List.of(identifierOrPattern.equals("identifier") ? paramAsIdentifier("f4", "f1*") : paramAsPattern("f4", "f1*")),
                     missingParamGroupB.contains(missingParam) ? errorMvExpandFunctionNameCommandOption : error
                 );
+            }
+            if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+                expectError("from test | " + missingParam.replace("?", "??"), List.of(paramAsConstant("f4", "f1*")), error);
             }
         }
     }
@@ -3109,7 +3141,807 @@ public class StatementParserTests extends AbstractStatementParserTests {
         }
     }
 
+    // [ and ( are used to trigger a double mode causing their symbol name (instead of text) to be used in error reporting
+    // this test checks that their are properly replaced in the error message
+    public void testPreserveParanthesis() {
+        // test for (
+        expectError("row a = 1 not in", "line 1:17: mismatched input '<EOF>' expecting '('");
+        expectError("row a = 1 | where a not in", "line 1:27: mismatched input '<EOF>' expecting '('");
+        expectError("row a = 1 | where a not in (1", "line 1:30: mismatched input '<EOF>' expecting {',', ')'}");
+        expectError("row a = 1 | where a not in [1", "line 1:28: missing '(' at '['");
+        expectError("row a = 1 | where a not in 123", "line 1:28: missing '(' at '123'");
+        // test for [
+        expectError("explain", "line 1:8: mismatched input '<EOF>' expecting '['");
+        expectError("explain ]", "line 1:9: token recognition error at: ']'");
+        expectError("explain [row x = 1", "line 1:19: missing ']' at '<EOF>'");
+    }
+
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
+    }
+
+    public void testValidRrf() {
+        assumeTrue("RRF requires corresponding capability", EsqlCapabilities.Cap.RRF.isEnabled());
+
+        LogicalPlan plan = statement("""
+                FROM foo* METADATA _id, _index, _score
+                | FORK ( WHERE a:"baz" )
+                       ( WHERE b:"bar" )
+                | RRF
+            """);
+
+        var orderBy = as(plan, OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(3));
+
+        assertThat(orderBy.order().get(0).child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) orderBy.order().get(0).child()).name(), equalTo("_score"));
+        assertThat(orderBy.order().get(1).child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) orderBy.order().get(1).child()).name(), equalTo("_id"));
+        assertThat(orderBy.order().get(2).child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) orderBy.order().get(2).child()).name(), equalTo("_index"));
+
+        var dedup = as(orderBy.child(), Dedup.class);
+        assertThat(dedup.groupings().size(), equalTo(2));
+        assertThat(dedup.groupings().get(0), instanceOf(UnresolvedAttribute.class));
+        assertThat(dedup.groupings().get(0).name(), equalTo("_id"));
+        assertThat(dedup.groupings().get(1), instanceOf(UnresolvedAttribute.class));
+        assertThat(dedup.groupings().get(1).name(), equalTo("_index"));
+        assertThat(dedup.aggregates().size(), equalTo(1));
+        assertThat(dedup.aggregates().get(0), instanceOf(Alias.class));
+
+        var rrfScoreEval = as(dedup.child(), RrfScoreEval.class);
+        assertThat(rrfScoreEval.scoreAttribute(), instanceOf(UnresolvedAttribute.class));
+        assertThat(rrfScoreEval.scoreAttribute().name(), equalTo("_score"));
+        assertThat(rrfScoreEval.forkAttribute(), instanceOf(UnresolvedAttribute.class));
+        assertThat(rrfScoreEval.forkAttribute().name(), equalTo("_fork"));
+
+        assertThat(rrfScoreEval.child(), instanceOf(Fork.class));
+    }
+
+    public void testDoubleParamsForIdentifier() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        // There are three variations of double parameters - named, positional or anonymous, e.g. ??n, ??1 or ??, covered.
+        // Each query is executed three times with the three variations.
+
+        // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
+        // eval, where
+        List<List<String>> doubleParams = new ArrayList<>(3);
+        List<String> namedDoubleParams = List.of("??f0", "??fn1", "??f1", "??f2", "??f3");
+        List<String> positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5");
+        List<String> anonymousDoubleParams = List.of("??", "??", "??", "??", "??");
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | eval {} = {}({})
+                | where {} == {}
+                | limit 1""", params.get(0), params.get(1), params.get(2), params.get(3), params.get(4));
+            assertEquals(
+                new Limit(
+                    EMPTY,
+                    new Literal(EMPTY, 1, INTEGER),
+                    new Filter(
+                        EMPTY,
+                        new Eval(EMPTY, relation("test"), List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1.")))))),
+                        new Equals(EMPTY, attribute("f.2"), attribute("f3"))
+                    )
+                ),
+                statement(
+                    query,
+                    new QueryParams(
+                        List.of(
+                            paramAsConstant("f0", "x"),
+                            paramAsConstant("fn1", "toString"),
+                            paramAsConstant("f1", "f1."),
+                            paramAsConstant("f2", "f.2"),
+                            paramAsConstant("f3", "f3")
+                        )
+                    )
+                )
+            );
+        }
+
+        namedDoubleParams = List.of("??f0", "??fn1", "??f1", "??f2", "??f3", "??f4", "??f5", "??f6");
+        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6", "??7", "??8");
+        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??");
+        doubleParams.clear();
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(
+                null,
+                """
+                    from test
+                    | eval {} = {}({}.{})
+                    | where {}.{} == {}.{}
+                    | limit 1""",
+                params.get(0),
+                params.get(1),
+                params.get(2),
+                params.get(3),
+                params.get(4),
+                params.get(5),
+                params.get(6),
+                params.get(7)
+            );
+            assertEquals(
+                new Limit(
+                    EMPTY,
+                    new Literal(EMPTY, 1, INTEGER),
+                    new Filter(
+                        EMPTY,
+                        new Eval(
+                            EMPTY,
+                            relation("test"),
+                            List.of(new Alias(EMPTY, "x", function("toString", List.of(attribute("f1..f.2")))))
+                        ),
+                        new Equals(EMPTY, attribute("f3.*.f.4."), attribute("f.5.*.f.*.6"))
+                    )
+                ),
+                statement(
+                    query,
+                    new QueryParams(
+                        List.of(
+                            paramAsConstant("f0", "x"),
+                            paramAsConstant("fn1", "toString"),
+                            paramAsConstant("f1", "f1."),
+                            paramAsConstant("f2", "f.2"),
+                            paramAsConstant("f3", "f3.*"),
+                            paramAsConstant("f4", "f.4."),
+                            paramAsConstant("f5", "f.5.*"),
+                            paramAsConstant("f6", "f.*.6")
+                        )
+                    )
+                )
+            );
+        }
+
+        // stats, sort, mv_expand
+        namedDoubleParams = List.of("??fn2", "??f3", "??f4", "??f5", "??f6");
+        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5");
+        anonymousDoubleParams = List.of("??", "??", "??", "??", "??");
+        doubleParams.clear();
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats y = {}({}) by {}
+                | sort {}
+                | mv_expand {}""", params.get(0), params.get(1), params.get(2), params.get(3), params.get(4));
+            assertEquals(
+                new MvExpand(
+                    EMPTY,
+                    new OrderBy(
+                        EMPTY,
+                        new Aggregate(
+                            EMPTY,
+                            relation("test"),
+                            Aggregate.AggregateType.STANDARD,
+                            List.of(attribute("f.4.")),
+                            List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f3.*")))), attribute("f.4."))
+                        ),
+                        List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
+                    ),
+                    attribute("f.6*"),
+                    attribute("f.6*")
+                ),
+                statement(
+                    query,
+                    new QueryParams(
+                        List.of(
+                            paramAsConstant("fn2", "count"),
+                            paramAsConstant("f3", "f3.*"),
+                            paramAsConstant("f4", "f.4."),
+                            paramAsConstant("f5", "f.5.*"),
+                            paramAsConstant("f6", "f.6*")
+                        )
+                    )
+                )
+            );
+        }
+
+        namedDoubleParams = List.of("??fn2", "??f7", "??f8", "??f9", "??f10", "??f11", "??f12", "??f13", "??f14");
+        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6", "??7", "??8", "??9");
+        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??", "??");
+        doubleParams.clear();
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(
+                null,
+                """
+                    from test
+                    | stats y = {}({}.{}) by {}.{}
+                    | sort {}.{}
+                    | mv_expand {}.{}""",
+                params.get(0),
+                params.get(1),
+                params.get(2),
+                params.get(3),
+                params.get(4),
+                params.get(5),
+                params.get(6),
+                params.get(7),
+                params.get(8)
+            );
+            assertEquals(
+                new MvExpand(
+                    EMPTY,
+                    new OrderBy(
+                        EMPTY,
+                        new Aggregate(
+                            EMPTY,
+                            relation("test"),
+                            Aggregate.AggregateType.STANDARD,
+                            List.of(attribute("f.9.f10.*")),
+                            List.of(new Alias(EMPTY, "y", function("count", List.of(attribute("f.7*.f8.")))), attribute("f.9.f10.*"))
+                        ),
+                        List.of(new Order(EMPTY, attribute("f.11..f.12.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
+                    ),
+                    attribute("f.*.13.f.14*"),
+                    attribute("f.*.13.f.14*")
+                ),
+                statement(
+                    query,
+                    new QueryParams(
+                        List.of(
+                            paramAsConstant("fn2", "count"),
+                            paramAsConstant("f7", "f.7*"),
+                            paramAsConstant("f8", "f8."),
+                            paramAsConstant("f9", "f.9"),
+                            paramAsConstant("f10", "f10.*"),
+                            paramAsConstant("f11", "f.11."),
+                            paramAsConstant("f12", "f.12.*"),
+                            paramAsConstant("f13", "f.*.13"),
+                            paramAsConstant("f14", "f.14*")
+                        )
+                    )
+                )
+            );
+        }
+
+        // keep, drop, rename, grok, dissect, lookup join
+        namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4", "??f5", "??f6", "??f7", "??f8", "??f9");
+        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6", "??7", "??8", "??9");
+        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??", "??");
+        doubleParams.clear();
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(
+                null,
+                """
+                    from test
+                    | keep {}, {}
+                    | drop {}, {}
+                    | dissect {} "%{bar}"
+                    | grok {} "%{WORD:foo}"
+                    | rename {} as {}
+                    | lookup join idx on {}
+                    | limit 1""",
+                params.get(0),
+                params.get(1),
+                params.get(2),
+                params.get(3),
+                params.get(4),
+                params.get(5),
+                params.get(6),
+                params.get(7),
+                params.get(8)
+            );
+            LogicalPlan plan = statement(
+                query,
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("f1", "f.1.*"),
+                        paramAsConstant("f2", "f.2"),
+                        paramAsConstant("f3", "f3."),
+                        paramAsConstant("f4", "f4.*"),
+                        paramAsConstant("f5", "f.5*"),
+                        paramAsConstant("f6", "f.6."),
+                        paramAsConstant("f7", "f7*."),
+                        paramAsConstant("f8", "f.8"),
+                        paramAsConstant("f9", "f9")
+                    )
+                )
+            );
+            Limit limit = as(plan, Limit.class);
+            LookupJoin join = as(limit.child(), LookupJoin.class);
+            UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
+            assertEquals(ur.indexPattern().indexPattern(), "idx");
+            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
+            assertEquals(joinType.columns(), List.of(attribute("f9")));
+            Rename rename = as(join.left(), Rename.class);
+            assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f.8", attribute("f7*."))));
+            Grok grok = as(rename.child(), Grok.class);
+            assertEquals(grok.input(), attribute("f.6."));
+            assertEquals("%{WORD:foo}", grok.parser().pattern());
+            assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+            Dissect dissect = as(grok.child(), Dissect.class);
+            assertEquals(dissect.input(), attribute("f.5*"));
+            assertEquals("%{bar}", dissect.parser().pattern());
+            assertEquals("", dissect.parser().appendSeparator());
+            assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+            Drop drop = as(dissect.child(), Drop.class);
+            List<? extends NamedExpression> removals = drop.removals();
+            assertEquals(removals, List.of(attribute("f3."), attribute("f4.*")));
+            Keep keep = as(drop.child(), Keep.class);
+            assertEquals(keep.projections(), List.of(attribute("f.1.*"), attribute("f.2")));
+        }
+
+        namedDoubleParams = List.of(
+            "??f1",
+            "??f2",
+            "??f3",
+            "??f4",
+            "??f5",
+            "??f6",
+            "??f7",
+            "??f8",
+            "??f9",
+            "??f10",
+            "??f11",
+            "??f12",
+            "??f13",
+            "??f14"
+        );
+        positionalDoubleParams = List.of(
+            "??1",
+            "??2",
+            "??3",
+            "??4",
+            "??5",
+            "??6",
+            "??7",
+            "??8",
+            "??9",
+            "??10",
+            "??11",
+            "??12",
+            "??13",
+            "??14"
+        );
+        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??", "??");
+        doubleParams.clear();
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(
+                null,
+                """
+                    from test
+                    | keep {}.{}
+                    | drop {}.{}
+                    | dissect {}.{} "%{bar}"
+                    | grok {}.{} "%{WORD:foo}"
+                    | rename {}.{} as {}.{}
+                    | lookup join idx on {}.{}
+                    | limit 1""",
+                params.get(0),
+                params.get(1),
+                params.get(2),
+                params.get(3),
+                params.get(4),
+                params.get(5),
+                params.get(6),
+                params.get(7),
+                params.get(8),
+                params.get(9),
+                params.get(10),
+                params.get(11),
+                params.get(12),
+                params.get(13)
+            );
+            LogicalPlan plan = statement(
+                query,
+                new QueryParams(
+                    List.of(
+                        paramAsConstant("f1", "f.1.*"),
+                        paramAsConstant("f2", "f.2"),
+                        paramAsConstant("f3", "f3."),
+                        paramAsConstant("f4", "f4.*"),
+                        paramAsConstant("f5", "f.5*"),
+                        paramAsConstant("f6", "f.6."),
+                        paramAsConstant("f7", "f7*."),
+                        paramAsConstant("f8", "f.8"),
+                        paramAsConstant("f9", "f.9*"),
+                        paramAsConstant("f10", "f.10."),
+                        paramAsConstant("f11", "f11*."),
+                        paramAsConstant("f12", "f.12"),
+                        paramAsConstant("f13", "f13"),
+                        paramAsConstant("f14", "f14")
+                    )
+                )
+            );
+            Limit limit = as(plan, Limit.class);
+            LookupJoin join = as(limit.child(), LookupJoin.class);
+            UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
+            assertEquals(ur.indexPattern().indexPattern(), "idx");
+            JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+            assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
+            assertEquals(joinType.columns(), List.of(attribute("f13.f14")));
+            Rename rename = as(join.left(), Rename.class);
+            assertEquals(rename.renamings(), List.of(new Alias(EMPTY, "f11*..f.12", attribute("f.9*.f.10."))));
+            Grok grok = as(rename.child(), Grok.class);
+            assertEquals(grok.input(), attribute("f7*..f.8"));
+            assertEquals("%{WORD:foo}", grok.parser().pattern());
+            assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
+            Dissect dissect = as(grok.child(), Dissect.class);
+            assertEquals(dissect.input(), attribute("f.5*.f.6."));
+            assertEquals("%{bar}", dissect.parser().pattern());
+            assertEquals("", dissect.parser().appendSeparator());
+            assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
+            Drop drop = as(dissect.child(), Drop.class);
+            List<? extends NamedExpression> removals = drop.removals();
+            assertEquals(removals, List.of(attribute("f3..f4.*")));
+            Keep keep = as(drop.child(), Keep.class);
+            assertEquals(keep.projections(), List.of(attribute("f.1.*.f.2")));
+        }
+
+        // enrich, lookup join
+        namedDoubleParams = List.of("??f1", "??f2", "??f3");
+        positionalDoubleParams = List.of("??1", "??2", "??3");
+        anonymousDoubleParams = List.of("??", "??", "??");
+        doubleParams.clear();
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(
+                null,
+                "from idx1 | ENRICH idx2 ON {} WITH {} = {}",
+                params.get(0),
+                params.get(1),
+                params.get(2)
+            );
+            assertEquals(
+                new Enrich(
+                    EMPTY,
+                    relation("idx1"),
+                    null,
+                    new Literal(EMPTY, "idx2", KEYWORD),
+                    attribute("f.1.*"),
+                    null,
+                    Map.of(),
+                    List.of(new Alias(EMPTY, "f.2", attribute("f.3*")))
+                ),
+                statement(
+                    query,
+                    new QueryParams(List.of(paramAsConstant("f1", "f.1.*"), paramAsConstant("f2", "f.2"), paramAsConstant("f3", "f.3*")))
+                )
+            );
+        }
+
+        namedDoubleParams = List.of("??f1", "??f2", "??f3", "??f4", "??f5", "??f6");
+        positionalDoubleParams = List.of("??1", "??2", "??3", "??4", "??5", "??6");
+        anonymousDoubleParams = List.of("??", "??", "??", "??", "??", "??");
+        doubleParams.clear();
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(
+                null,
+                "from idx1 | ENRICH idx2 ON {}.{} WITH {}.{} = {}.{}",
+                params.get(0),
+                params.get(1),
+                params.get(2),
+                params.get(3),
+                params.get(4),
+                params.get(5)
+            );
+            assertEquals(
+                new Enrich(
+                    EMPTY,
+                    relation("idx1"),
+                    null,
+                    new Literal(EMPTY, "idx2", KEYWORD),
+                    attribute("f.1.*.f.2"),
+                    null,
+                    Map.of(),
+                    List.of(new Alias(EMPTY, "f.3*.f.4.*", attribute("f.5.f.6*")))
+                ),
+                statement(
+                    query,
+                    new QueryParams(
+                        List.of(
+                            paramAsConstant("f1", "f.1.*"),
+                            paramAsConstant("f2", "f.2"),
+                            paramAsConstant("f3", "f.3*"),
+                            paramAsConstant("f4", "f.4.*"),
+                            paramAsConstant("f5", "f.5"),
+                            paramAsConstant("f6", "f.6*")
+                        )
+                    )
+                )
+            );
+        }
+    }
+
+    public void testMixedSingleDoubleParams() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        // This is a subset of testDoubleParamsForIdentifier, with single and double parameter markers mixed in the queries
+        // Single parameter markers represent a constant value or pattern
+        // double parameter markers represent identifiers - field or function names
+
+        // mixed constant and identifier, eval/where
+        List<List<String>> doubleParams = new ArrayList<>(3);
+        List<String> namedDoubleParams = List.of("??f0", "??fn1", "?v1", "??f2", "?v3");
+        List<String> positionalDoubleParams = List.of("??1", "??2", "?3", "??4", "?5");
+        List<String> anonymousDoubleParams = List.of("??", "??", "?", "??", "?");
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | eval {} = {}({})
+                | where {} == {}
+                | limit 1""", params.get(0), params.get(1), params.get(2), params.get(3), params.get(4));
+            assertEquals(
+                new Limit(
+                    EMPTY,
+                    new Literal(EMPTY, 1, INTEGER),
+                    new Filter(
+                        EMPTY,
+                        new Eval(
+                            EMPTY,
+                            relation("test"),
+                            List.of(new Alias(EMPTY, "x", function("toString", List.of(new Literal(EMPTY, "constant_value", KEYWORD)))))
+                        ),
+                        new Equals(EMPTY, attribute("f.2"), new Literal(EMPTY, 100, INTEGER))
+                    )
+                ),
+                statement(
+                    query,
+                    new QueryParams(
+                        List.of(
+                            paramAsConstant("f0", "x"),
+                            paramAsConstant("fn1", "toString"),
+                            paramAsConstant("v1", "constant_value"),
+                            paramAsConstant("f2", "f.2"),
+                            paramAsConstant("v3", 100)
+                        )
+                    )
+                )
+            );
+        }
+
+        // mixed constant and identifier, stats/sort/mv_expand
+        namedDoubleParams = List.of("??fn2", "?v3", "??f4", "??f5", "??f6");
+        positionalDoubleParams = List.of("??1", "?2", "??3", "??4", "??5");
+        anonymousDoubleParams = List.of("??", "?", "??", "??", "??");
+        doubleParams.clear();
+        doubleParams.add(namedDoubleParams);
+        doubleParams.add(positionalDoubleParams);
+        doubleParams.add(anonymousDoubleParams);
+        for (List<String> params : doubleParams) {
+            String query = LoggerMessageFormat.format(null, """
+                from test
+                | stats y = {}({}) by {}
+                | sort {}
+                | mv_expand {}""", params.get(0), params.get(1), params.get(2), params.get(3), params.get(4));
+            assertEquals(
+                new MvExpand(
+                    EMPTY,
+                    new OrderBy(
+                        EMPTY,
+                        new Aggregate(
+                            EMPTY,
+                            relation("test"),
+                            Aggregate.AggregateType.STANDARD,
+                            List.of(attribute("f.4.")),
+                            List.of(new Alias(EMPTY, "y", function("count", List.of(new Literal(EMPTY, "*", KEYWORD)))), attribute("f.4."))
+                        ),
+                        List.of(new Order(EMPTY, attribute("f.5.*"), Order.OrderDirection.ASC, Order.NullsPosition.LAST))
+                    ),
+                    attribute("f.6*"),
+                    attribute("f.6*")
+                ),
+                statement(
+                    query,
+                    new QueryParams(
+                        List.of(
+                            paramAsConstant("fn2", "count"),
+                            paramAsConstant("v3", "*"),
+                            paramAsConstant("f4", "f.4."),
+                            paramAsConstant("f5", "f.5.*"),
+                            paramAsConstant("f6", "f.6*")
+                        )
+                    )
+                )
+            );
+        }
+
+        // mixed field name and field name pattern
+        LogicalPlan plan = statement(
+            "from test | keep ??f1, ?f2 | drop ?f3, ??f4 | lookup join idx on ??f5",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "f*1."),
+                    paramAsPattern("f2", "f.2*"),
+                    paramAsPattern("f3", "f3.*"),
+                    paramAsConstant("f4", "f.4.*"),
+                    paramAsConstant("f5", "f5")
+                )
+            )
+        );
+
+        LookupJoin join = as(plan, LookupJoin.class);
+        UnresolvedRelation ur = as(join.right(), UnresolvedRelation.class);
+        assertEquals(ur.indexPattern().indexPattern(), "idx");
+        JoinTypes.UsingJoinType joinType = as(join.config().type(), JoinTypes.UsingJoinType.class);
+        assertEquals(joinType.coreJoin().joinName(), "LEFT OUTER");
+        assertEquals(joinType.columns(), List.of(attribute("f5")));
+        Drop drop = as(join.left(), Drop.class);
+        List<? extends NamedExpression> removals = drop.removals();
+        assertEquals(removals.size(), 2);
+        UnresolvedNamePattern up = as(removals.get(0), UnresolvedNamePattern.class);
+        assertEquals(up.name(), "f3.*");
+        assertEquals(up.pattern(), "f3.*");
+        UnresolvedAttribute ua = as(removals.get(1), UnresolvedAttribute.class);
+        assertEquals(ua.name(), "f.4.*");
+        Keep keep = as(drop.child(), Keep.class);
+        assertEquals(keep.projections().size(), 2);
+        ua = as(keep.projections().get(0), UnresolvedAttribute.class);
+        assertEquals(ua.name(), "f*1.");
+        up = as(keep.projections().get(1), UnresolvedNamePattern.class);
+        assertEquals(up.name(), "f.2*");
+        assertEquals(up.pattern(), "f.2*");
+        ur = as(keep.child(), UnresolvedRelation.class);
+        assertEquals(ur, relation("test"));
+
+        // test random single and double params
+        // commands in group1 take both constants(?) and identifiers(??)
+        List<String> commandWithRandomSingleOrDoubleParamsGroup1 = List.of(
+            "eval x = {}f1, y = {}f2, z = {}f3",
+            "eval x = fn({}f1), y = {}f2 + {}f3",
+            "where {}f1 == \"a\" and {}f2 > 1 and {}f3 in (1, 2)",
+            "stats x = fn({}f1) by {}f2, {}f3",
+            "sort {}f1, {}f2, {}f3",
+            "dissect {}f1 \"%{bar}\"",
+            "grok {}f1 \"%{WORD:foo}\""
+        );
+        for (String command : commandWithRandomSingleOrDoubleParamsGroup1) {
+            String param1 = randomBoolean() ? "?" : "??";
+            String param2 = randomBoolean() ? "?" : "??";
+            String param3 = randomBoolean() ? "?" : "??";
+            plan = statement(
+                LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                new QueryParams(List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")))
+            );
+            assertNotNull(plan);
+        }
+        // commands in group2 only take identifiers(??)
+        List<String> commandWithRandomSingleOrDoubleParamsGroup2 = List.of(
+            "eval x = {}f1(), y = {}f2(), z = {}f3()",
+            "where {}f1 : \"b\" and {}f2() > 0 and {}f3()",
+            "stats x = {}f1(), {}f2(), {}f3()",
+            "rename {}f1 as {}f2, {}f3 as x",
+            "enrich idx2 ON {}f1 WITH {}f2 = {}f3",
+            "keep {}f1, {}f2, {}f3",
+            "drop {}f1, {}f2, {}f3",
+            "mv_expand {}f1 | mv_expand {}f2 | mv_expand {}f3",
+            "lookup join idx1 on {}f1 | lookup join idx2 on {}f2 | lookup join idx3 on {}f3"
+        );
+
+        for (String command : commandWithRandomSingleOrDoubleParamsGroup2) {
+            String param1 = randomBoolean() ? "?" : "??";
+            String param2 = randomBoolean() ? "?" : "??";
+            String param3 = randomBoolean() ? "?" : "??";
+            if (param1.equals("?") || param2.equals("?") || param3.equals("?")) {
+                expectError(
+                    LoggerMessageFormat.format(null, "from test | " + command, param1, param2, param3),
+                    List.of(paramAsConstant("f1", "f1"), paramAsConstant("f2", "f2"), paramAsConstant("f3", "f3")),
+                    command.contains("join")
+                        ? "JOIN ON clause only supports fields at the moment"
+                        : "declared as a constant, cannot be used as an identifier"
+                );
+            }
+        }
+    }
+
+    public void testInvalidDoubleParamsNames() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        expectError(
+            "from test | where x < ??n1 | eval y = ??n2",
+            List.of(paramAsConstant("n1", "f1"), paramAsConstant("n3", "f2")),
+            "line 1:39: Unknown query parameter [n2], did you mean any of [n3, n1]?"
+        );
+
+        expectError("from test | where x < ??@1", List.of(paramAsConstant("@1", "f1")), "line 1:25: extraneous input '@1' expecting <EOF>");
+
+        expectError("from test | where x < ??#1", List.of(paramAsConstant("#1", "f1")), "line 1:25: token recognition error at: '#'");
+
+        expectError("from test | where x < ??Å", List.of(paramAsConstant("Å", "f1")), "line 1:25: token recognition error at: 'Å'");
+
+        expectError("from test | eval x = ??Å", List.of(paramAsConstant("Å", "f1")), "line 1:24: token recognition error at: 'Å'");
+    }
+
+    public void testInvalidDoubleParamsPositions() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        expectError(
+            "from test | where x < ??0",
+            List.of(paramAsConstant(null, "f1")),
+            "line 1:23: No parameter is defined for position 0, did you mean position 1"
+        );
+
+        expectError(
+            "from test | where x < ??2",
+            List.of(paramAsConstant(null, "f1")),
+            "line 1:23: No parameter is defined for position 2, did you mean position 1"
+        );
+
+        expectError(
+            "from test | where x < ??0 and y < ??2",
+            List.of(paramAsConstant(null, "f1")),
+            "line 1:23: No parameter is defined for position 0, did you mean position 1?; "
+                + "line 1:35: No parameter is defined for position 2, did you mean position 1?"
+        );
+
+        expectError(
+            "from test | where x < ??0",
+            List.of(paramAsConstant(null, "f1"), paramAsConstant(null, "f2")),
+            "line 1:23: No parameter is defined for position 0, did you mean any position between 1 and 2?"
+        );
+    }
+
+    public void testInvalidDoubleParamsType() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        // double parameter markers cannot be declared as identifier patterns
+        String error = "Query parameter [??f1][f1] declared as a pattern, cannot be used as an identifier";
+        List<String> commandWithDoubleParams = List.of(
+            "eval x = ??f1",
+            "eval x = ??f1(f1)",
+            "where ??f1 == \"a\"",
+            "stats x = count(??f1)",
+            "sort ??f1",
+            "rename ??f1 as ??f2",
+            "dissect ??f1 \"%{bar}\"",
+            "grok ??f1 \"%{WORD:foo}\"",
+            "enrich idx2 ON ??f1 WITH ??f2 = ??f3",
+            "keep ??f1",
+            "drop ??f1",
+            "mv_expand ??f1",
+            "lookup join idx on ??f1"
+        );
+        for (String command : commandWithDoubleParams) {
+            expectError(
+                "from test | " + command,
+                List.of(paramAsPattern("f1", "f1*"), paramAsPattern("f2", "f2*"), paramAsPattern("f3", "f3*")),
+                error
+            );
+        }
+    }
+
+    public void testUnclosedParenthesis() {
+        String[] queries = { "row a = )", "row ]", "from source | eval x = [1,2,3]]" };
+        for (String q : queries) {
+            expectError(q, "Invalid query");
+        }
     }
 }

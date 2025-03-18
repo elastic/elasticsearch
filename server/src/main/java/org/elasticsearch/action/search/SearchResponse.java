@@ -15,6 +15,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -90,9 +91,16 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
 
     public SearchResponse(StreamInput in) throws IOException {
-        super(in);
         this.hits = SearchHits.readFrom(in, true);
-        this.aggregations = in.readBoolean() ? InternalAggregations.readFrom(in) : null;
+        if (in.readBoolean()) {
+            // deserialize the aggregations trying to deduplicate the object created
+            // TODO: use DelayableWriteable instead.
+            this.aggregations = InternalAggregations.readFrom(
+                DelayableWriteable.wrapWithDeduplicatorStreamInput(in, in.getTransportVersion(), in.namedWriteableRegistry())
+            );
+        } else {
+            this.aggregations = null;
+        }
         this.suggest = in.readBoolean() ? new Suggest(in) : null;
         this.timedOut = in.readBoolean();
         this.terminatedEarly = in.readOptionalBoolean();
@@ -786,7 +794,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          * for tracking search Cluster details.
          */
         public boolean hasClusterObjects() {
-            return clusterInfo.keySet().size() > 0;
+            return clusterInfo.isEmpty() == false;
         }
 
         /**
@@ -853,27 +861,6 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          */
         public Cluster(String clusterAlias, String indexExpression, boolean skipUnavailable) {
             this(clusterAlias, indexExpression, skipUnavailable, Status.RUNNING, null, null, null, null, null, null, false);
-        }
-
-        /**
-         * Create a Cluster with a new Status and one or more ShardSearchFailures. This constructor
-         * should only be used for fatal failures where shard counters (total, successful, skipped, failed)
-         * are not known (unset).
-         * @param clusterAlias clusterAlias as defined in the remote cluster settings or RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY
-         *                     for the local cluster
-         * @param indexExpression the original (not resolved/concrete) indices expression provided for this cluster.
-         * @param skipUnavailable whether cluster is marked as skip_unavailable in remote cluster settings
-         * @param status current status of the search on this Cluster
-         * @param failures list of failures that occurred during the search on this Cluster
-         */
-        public Cluster(
-            String clusterAlias,
-            String indexExpression,
-            boolean skipUnavailable,
-            Status status,
-            List<ShardSearchFailure> failures
-        ) {
-            this(clusterAlias, indexExpression, skipUnavailable, status, null, null, null, null, failures, null, false);
         }
 
         public Cluster(
@@ -1034,7 +1021,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             String name = clusterAlias;
-            if (clusterAlias.equals("")) {
+            if (clusterAlias.isEmpty()) {
                 name = LOCAL_CLUSTER_NAME_REPRESENTATION;
             }
             builder.startObject(name);

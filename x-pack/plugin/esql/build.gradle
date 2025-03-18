@@ -127,7 +127,7 @@ tasks.named("test").configure {
               include '**/*.md'
             }
           } else {
-            // If we do not run the full test of tests, be careful about what we need to preserve
+            // If we do run the full test of tests, be careful about what we need to preserve
             preserve {
               // The lists are static, and the operators are a mix of generated and static content
               include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md'

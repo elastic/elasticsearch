@@ -115,7 +115,8 @@ public class SearchDirectoryTests extends ESTestCase {
                         LongConsumer bytesReadFromObjectStore,
                         LongConsumer bytesReadFromIndexing,
                         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-                        Executor objectStoreFetchExecutor
+                        Executor objectStoreFetchExecutor,
+                        String fileName
                     ) {
                         var originalCacheBlobReader = cacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -126,7 +127,8 @@ public class SearchDirectoryTests extends ESTestCase {
                             bytesReadFromObjectStore,
                             bytesReadFromIndexing,
                             cachePopulationReason,
-                            objectStoreFetchExecutor
+                            objectStoreFetchExecutor,
+                            fileName
                         );
                         return new CacheBlobReader() {
                             @Override

@@ -281,7 +281,7 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    public CacheBlobReader getCacheBlobReader(BlobLocation blobLocation) {
+    public CacheBlobReader getCacheBlobReader(String fileName, BlobLocation blobLocation) {
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
             this::getBlobContainer,
@@ -290,12 +290,13 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             totalBytesReadFromObjectStore::add,
             totalBytesReadFromIndexing::add,
             BlobCacheMetrics.CachePopulationReason.CacheMiss,
-            cacheService.getShardReadThreadPoolExecutor()
+            cacheService.getShardReadThreadPoolExecutor(),
+            fileName
         );
     }
 
     @Override
-    public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation blobLocation) {
+    public CacheBlobReader getCacheBlobReaderForWarming(String fileName, BlobLocation blobLocation) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         return cacheBlobReaderService.getCacheBlobReader(
             shardId,
@@ -305,7 +306,8 @@ public class SearchDirectory extends BlobStoreCacheDirectory {
             totalBytesWarmedFromObjectStore::add,
             totalBytesWarmedFromIndexing::add,
             BlobCacheMetrics.CachePopulationReason.Warming,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            fileName
         );
     }
 

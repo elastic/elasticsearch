@@ -251,7 +251,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                     LongConsumer totalBytesReadFromObjectStore,
                     LongConsumer totalBytesReadFromIndexing,
                     BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-                    Executor objectStoreFetchExecutor
+                    Executor objectStoreFetchExecutor,
+                    String fileName
                 ) {
                     var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                         shardId,
@@ -261,7 +262,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         totalBytesReadFromObjectStore,
                         totalBytesReadFromIndexing,
                         cachePopulationReason,
-                        objectStoreFetchExecutor
+                        objectStoreFetchExecutor,
+                        fileName
                     );
                     var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
                         shardId,
@@ -352,7 +354,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             bytesReadFromObjectStore -> {},
                             bytesReadFromIndexing -> {},
                             BlobCacheMetrics.CachePopulationReason.CacheMiss,
-                            threadPool.executor(SHARD_READ_THREAD_POOL)
+                            threadPool.executor(SHARD_READ_THREAD_POOL),
+                            "fileName"
                         ),
                         new BlobFileRanges(getLastInternalLocation().getValue())
                     ),
@@ -694,7 +697,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 internalLocation.getValue().blobName()
             );
             final var cacheFile = node.sharedCacheService.getCacheFile(fileCacheKey, regionSize);
-            final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(internalLocation.getValue());
+            final var cacheBlobReader = node.searchDirectory.getCacheBlobReader(internalLocation.getKey(), internalLocation.getValue());
             final var cacheFileReader = new CacheFileReader(cacheFile, cacheBlobReader, new BlobFileRanges(internalLocation.getValue()));
             final long availableDataLength = BlobCacheUtils.toPageAlignedSize(vbccSize);
             try (var searchInput = new BlobCacheIndexInput("region", IOContext.DEFAULT, cacheFileReader, null, regionSize, 0)) {
@@ -749,7 +752,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing,
                         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-                        Executor objectStoreFetchExecutor
+                        Executor objectStoreFetchExecutor,
+                        String fileName
                     ) {
                         var originalCacheBlobReader = originalCacheBlobReaderService.getCacheBlobReader(
                             shardId,
@@ -759,7 +763,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             totalBytesReadFromObjectStore,
                             totalBytesReadFromIndexing,
                             cachePopulationReason,
-                            objectStoreFetchExecutor
+                            objectStoreFetchExecutor,
+                            fileName
                         );
                         return new CacheBlobReader() {
                             @Override
@@ -820,7 +825,8 @@ public class CacheBlobReaderTests extends ESTestCase {
                             LongConsumer totalBytesReadFromObjectStore,
                             LongConsumer totalBytesReadFromIndexing,
                             BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-                            Executor objectStoreFetchExecutor
+                            Executor objectStoreFetchExecutor,
+                            String fileName
                         ) {
                             var writerFromObjectStore = new ObjectStoreCacheBlobReader(
                                 blobContainer.apply(location.primaryTerm()),

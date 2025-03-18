@@ -17,6 +17,7 @@ public abstract class ParameterizedRuleExecutor<TreeType extends Node<TreeType>,
     private final Context context;
 
     protected ParameterizedRuleExecutor(Context context, PlannerProfile profile) {
+        super(profile);
         this.context = context;
     }
 

@@ -74,6 +74,7 @@ FROM employees main
 ;
 
 main emp_no:integer | main languages:integer | language_code:integer | right language_code:integer | right language_name:keyword
+10001               | 2                      | 2                     | 2                           | French
 ;
 
 lookupJoinLeftQualifier
@@ -89,6 +90,7 @@ FROM employees main
 ;
 
 main emp_no:integer | main languages:integer | main language_code:integer | right language_code:integer | right language_name:keyword
+10001               | 2                      | 2                          | 2                           | French
 ;
 
 lookupJoinOnlyMainHasQualifier
@@ -105,6 +107,7 @@ FROM employees main
 
 // TODO: Should this include the `language_code` field, now that the `ON` clause used a qualified name?
 main emp_no:integer | main languages:integer | main language_code:integer | language_name:keyword
+10001               | 2                      | 2                          | French
 ;
 
 lookupJoinOnPredicate

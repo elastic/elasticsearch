@@ -310,7 +310,7 @@ public abstract class DocsV3Support {
         // Various other remaining old asciidoc links
         // <<match-field-params,match query parameters>>
         return switch (parts[0]) {
-            case "match-field-params" -> makeLink(key, "", "/reference/query-languages/query-dsl-match-query.md");
+            case "match-field-params" -> makeLink(key, "", "/reference/query-languages/query-dsl/query-dsl-match-query.md");
             case "search-aggregations-bucket-histogram-aggregation" -> makeLink(
                 key,
                 "",

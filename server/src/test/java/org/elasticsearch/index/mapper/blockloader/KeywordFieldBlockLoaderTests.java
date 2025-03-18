@@ -44,7 +44,8 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove))
             .filter(Objects::nonNull);
 
-        if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        if (hasDocValues) {
             // Sorted and no duplicates
             var resultList = convertValues.andThen(Stream::distinct)
                 .andThen(Stream::sorted)

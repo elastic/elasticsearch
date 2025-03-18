@@ -29,7 +29,8 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             return convert(value, nullValue, fieldMapping);
         }
 
-        if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        if (hasDocValues) {
             // Sorted
             var resultList = ((List<Object>) value).stream()
                 .map(v -> convert(v, nullValue, fieldMapping))

@@ -1,0 +1,5 @@
+pr: 125082
+summary: Adds EIS inference PUT API
+area: Machine Learning
+type: enhancement
+issues: []

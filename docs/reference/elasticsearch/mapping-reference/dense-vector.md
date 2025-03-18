@@ -51,7 +51,7 @@ Unlike most other data types, dense vectors are always single-valued. It is not 
 
 A *k-nearest neighbor* (kNN) search finds the *k* nearest vectors to a query vector, as measured by a similarity metric.
 
-Dense vector fields can be used to rank documents in [`script_score` queries](/reference/query-languages/query-dsl-script-score-query.md). This lets you perform a brute-force kNN search by scanning all documents and ranking them by similarity.
+Dense vector fields can be used to rank documents in [`script_score` queries](/reference/query-languages/query-dsl/query-dsl-script-score-query.md). This lets you perform a brute-force kNN search by scanning all documents and ranking them by similarity.
 
 In many cases, a brute-force kNN search is not efficient enough. For this reason, the `dense_vector` type supports indexing vectors into a specialized data structure to support fast kNN retrieval through the [`knn` option](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) in the search API
 
@@ -215,7 +215,7 @@ $$$dense-vector-element-type$$$
 :   (Optional, integer) Number of vector dimensions. Can’t exceed `4096`. If `dims` is not specified, it will be set to the length of the first vector added to the field.
 
 `index`
-:   (Optional, Boolean) If `true`, you can search this field using the [knn query](/reference/query-languages/query-dsl-knn-query.md) or [knn in _search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) . Defaults to `true`.
+:   (Optional, Boolean) If `true`, you can search this field using the [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) or [knn in _search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search) . Defaults to `true`.
 
 $$$dense-vector-similarity$$$
 
@@ -287,6 +287,14 @@ $$$dense-vector-index-options$$$
     `confidence_interval`
     :   (Optional, float) Only applicable to `int8_hnsw`, `int4_hnsw`, `int8_flat`, and `int4_flat` index types. The confidence interval to use when quantizing the vectors. Can be any value between and including `0.90` and `1.0` or exactly `0`. When the value is `0`, this indicates that dynamic quantiles should be calculated for optimized quantization. When between `0.90` and `1.0`, this value restricts the values used when calculating the quantization thresholds. For example, a value of `0.95` will only use the middle 95% of the values when calculating the quantization thresholds (e.g. the highest and lowest 2.5% of values will be ignored). Defaults to `1/(dims + 1)` for `int8` quantized vectors and `0` for `int4` for dynamic quantile calculation.
 
+    `rescore_vector`
+    :   (Optional, object) Functionality in [preview]. An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
+    :::::{dropdown} Properties of `rescore_vector`
+    `oversample`
+    :   (required, float) The amount to oversample the search results by. This value should be greater than `1.0` and less than `10.0`. The higher the value, the more vectors will be gathered and rescored with the raw values per shard.
+        :   In case a knn query specifies a `rescore_vector` parameter, the query `rescore_vector` parameter will be used instead.
+        :   See [oversampling and rescoring quantized vectors](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details.
+        :::::
     ::::
 
 

@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -21,14 +22,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToIPFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToIPFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator asString;
+
+  public ToIPFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator asString,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.asString = asString;
   }
 
   @Override
-  public String name() {
-    return "ToIPFromString";
+  public EvalOperator.ExpressionEvaluator next() {
+    return asString;
   }
 
   @Override
@@ -57,7 +61,7 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
     }
   }
 
-  private static BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToIP.fromKeyword(value);
   }
@@ -97,29 +101,39 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
     }
   }
 
-  private static BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private BytesRef evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
     return ToIP.fromKeyword(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToIPFromStringEvaluator[" + "asString=" + asString + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(asString);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory asString;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory asString) {
       this.source = source;
+      this.asString = asString;
     }
 
     @Override
     public ToIPFromStringEvaluator get(DriverContext context) {
-      return new ToIPFromStringEvaluator(field.get(context), source, context);
+      return new ToIPFromStringEvaluator(source, asString.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToIPFromStringEvaluator[field=" + field + "]";
+      return "ToIPFromStringEvaluator[" + "asString=" + asString + "]";
     }
   }
 }

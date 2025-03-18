@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -23,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -128,10 +130,14 @@ public final class RoleDescriptorTestHelper {
             () -> {
                 String[] indexPatterns = randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(5, 100));
 
-                int startIndex = randomIntBetween(0, IndexPrivilege.names().size() - 2);
-                int endIndex = randomIntBetween(startIndex + 1, IndexPrivilege.names().size());
+                Set<String> validNames = IndexPrivilege.names().stream().filter(p -> {
+                    IndexPrivilege named = IndexPrivilege.getNamedOrNull(p);
+                    return named != null && named.getSelectorPredicate() != IndexComponentSelectorPredicate.FAILURES;
+                }).collect(Collectors.toSet());
+                int startIndex = randomIntBetween(0, validNames.size() - 2);
+                int endIndex = randomIntBetween(startIndex + 1, validNames.size());
 
-                String[] indexPrivileges = IndexPrivilege.names().stream().toList().subList(startIndex, endIndex).toArray(String[]::new);
+                String[] indexPrivileges = validNames.stream().toList().subList(startIndex, endIndex).toArray(String[]::new);
                 return new ConfigurableClusterPrivileges.ManageRolesPrivilege.ManageRolesIndexPermissionGroup(
                     indexPatterns,
                     indexPrivileges

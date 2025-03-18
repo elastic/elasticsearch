@@ -931,11 +931,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             maxTotalDataSize = ByteSizeValue.readFrom(in);
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                abortWritePermitted = in.readBoolean();
-            } else {
-                abortWritePermitted = false;
-            }
+            abortWritePermitted = in.readBoolean();
         }
 
         @Override
@@ -967,13 +963,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             maxTotalDataSize.writeTo(out);
             out.writeBoolean(detailed);
             out.writeOptionalWriteable(reroutedFrom);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
-                out.writeBoolean(abortWritePermitted);
-            } else if (abortWritePermitted) {
-                throw new IllegalArgumentException(
-                    "cannot send abortWritePermitted request to version [" + out.getTransportVersion().toReleaseVersion() + "]"
-                );
-            }
+            out.writeBoolean(abortWritePermitted);
         }
 
         @Override
@@ -1217,7 +1207,6 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             coordinatingNodeId = in.readString();
             coordinatingNodeName = in.readString();
             repositoryName = in.readString();

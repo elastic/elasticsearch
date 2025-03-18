@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -97,7 +98,26 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
     ClusterState updateTimeSeriesTemporalRange(ClusterState current, Instant now) {
         Metadata.Builder mBuilder = null;
-        for (DataStream dataStream : current.metadata().dataStreams().values()) {
+        for (ProjectMetadata project : current.metadata().projects().values()) {
+            final var projectBuilder = updateTimeSeriesTemporalRange(project, now);
+            if (projectBuilder == null) {
+                continue;
+            }
+            if (mBuilder == null) {
+                mBuilder = Metadata.builder(current.metadata());
+            }
+            mBuilder.put(projectBuilder);
+        }
+
+        if (mBuilder == null) {
+            return current;
+        }
+        return ClusterState.builder(current).metadata(mBuilder).build();
+    }
+
+    private ProjectMetadata.Builder updateTimeSeriesTemporalRange(ProjectMetadata project, Instant now) {
+        ProjectMetadata.Builder mBuilder = null;
+        for (DataStream dataStream : project.dataStreams().values()) {
             if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
                 continue;
             }
@@ -107,7 +127,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
 
             // getWriteIndex() selects the latest added index:
             Index head = dataStream.getWriteIndex();
-            IndexMetadata im = current.metadata().getIndexSafe(head);
+            IndexMetadata im = project.getIndexSafe(head);
             Instant currentEnd = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             TimeValue lookAheadTime = DataStreamsPlugin.getLookAheadTime(im.getSettings());
             Instant newEnd = DataStream.getCanonicalTimestampBound(
@@ -126,7 +146,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                         dataStream.getName()
                     );
                     if (mBuilder == null) {
-                        mBuilder = Metadata.builder(current.metadata());
+                        mBuilder = ProjectMetadata.builder(project);
                     }
                     mBuilder.updateSettings(settings, head.getName());
                     // Verify that all temporal ranges of each backing index is still valid:
@@ -144,12 +164,7 @@ public class UpdateTimeSeriesRangeService extends AbstractLifecycleComponent imp
                 }
             }
         }
-
-        if (mBuilder != null) {
-            return ClusterState.builder(current).metadata(mBuilder).build();
-        } else {
-            return current;
-        }
+        return mBuilder;
     }
 
     void scheduleTask() {

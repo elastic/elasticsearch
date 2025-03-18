@@ -106,7 +106,11 @@ public class MlAnomaliesIndexUpdateTests extends ESTestCase {
             new OriginSettingClient(mock(Client.class), "doesn't matter")
         );
 
-        IndicesAliasesRequestBuilder aliasRequestBuilder = new IndicesAliasesRequestBuilder(mock(ElasticsearchClient.class));
+        IndicesAliasesRequestBuilder aliasRequestBuilder = new IndicesAliasesRequestBuilder(
+            mock(ElasticsearchClient.class),
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT
+        );
 
         var newIndex = anomaliesIndex + "-000001";
         var request = updater.addIndexAliasesRequests(aliasRequestBuilder, anomaliesIndex, newIndex, csBuilder.build());

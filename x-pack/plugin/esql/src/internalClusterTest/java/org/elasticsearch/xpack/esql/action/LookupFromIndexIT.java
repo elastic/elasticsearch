@@ -33,17 +33,23 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -63,6 +69,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
@@ -192,7 +199,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                     new ValuesSourceReaderOperator.FieldInfo(
                         "key",
                         PlannerUtils.toElementType(keyType),
-                        shard -> searchContext.getSearchExecutionContext().getFieldType("key").blockLoader(null)
+                        shard -> searchContext.getSearchExecutionContext().getFieldType("key").blockLoader(blContext())
                     )
                 ),
                 List.of(new ValuesSourceReaderOperator.ShardContext(searchContext.getSearchExecutionContext().getIndexReader(), () -> {
@@ -226,8 +233,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             );
             DriverContext driverContext = driverContext();
             try (
-                var driver = new Driver(
-                    "test",
+                var driver = TestDriverFactory.create(
                     driverContext,
                     source.get(driverContext),
                     List.of(reader.get(driverContext), lookup.get(driverContext)),
@@ -247,8 +253,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                         } finally {
                             page.releaseBlocks();
                         }
-                    }),
-                    () -> {}
+                    })
                 )
             ) {
                 PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -291,5 +296,47 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
     public static void assertDriverContext(DriverContext driverContext) {
         assertTrue(driverContext.isFinished());
         assertThat(driverContext.getSnapshot().releasables(), empty());
+    }
+
+    private static MappedFieldType.BlockLoaderContext blContext() {
+        return new MappedFieldType.BlockLoaderContext() {
+            @Override
+            public String indexName() {
+                return "test_index";
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                var imd = IndexMetadata.builder("test_index")
+                    .settings(ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
+                    .build();
+                return new IndexSettings(imd, Settings.EMPTY);
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
+            }
+
+            @Override
+            public SearchLookup lookup() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Set<String> sourcePaths(String name) {
+                return Set.of(name);
+            }
+
+            @Override
+            public String parentField(String field) {
+                return null;
+            }
+
+            @Override
+            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
+                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
+            }
+        };
     }
 }

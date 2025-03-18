@@ -472,7 +472,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         assertBusy(() -> {
             for (String masterNode : allMasterEligibleNodes) {
                 final ClusterState masterState = internalCluster().clusterService(masterNode).state();
-                assertTrue("index not deleted on " + masterNode, masterState.metadata().hasIndex(idxName) == false);
+                assertTrue("index not deleted on " + masterNode, masterState.metadata().getProject().hasIndex(idxName) == false);
             }
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);

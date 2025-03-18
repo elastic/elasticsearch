@@ -17,12 +17,14 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -118,7 +120,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         ActionListener<Set<String>> expandedIdsListener = ActionListener.wrap(idsToStop -> {
             logger.debug("Resolved data frame analytics to stop: {}", idsToStop);
 
-            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(state.metadata().getDefaultProject());
             AnalyticsByTaskState analyticsByTaskState = AnalyticsByTaskState.build(idsToStop, tasks);
 
             if (analyticsByTaskState.isEmpty()) {
@@ -165,7 +167,7 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
     }
 
     private static Set<String> getAllStartedIds(ClusterState clusterState) {
-        PersistentTasksCustomMetadata tasksMetadata = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.get(clusterState.metadata().getDefaultProject());
         return tasksMetadata == null
             ? Collections.emptySet()
             : tasksMetadata.tasks()
@@ -427,15 +429,17 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
         StopDataFrameAnalyticsAction.Response response,
         ActionListener<StopDataFrameAnalyticsAction.Response> listener
     ) {
-        persistentTasksService.waitForPersistentTasksCondition(
-            persistentTasks -> persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, t -> taskIds.contains(t.getId()))
-                .isEmpty(),
-            request.getTimeout(),
-            ActionListener.wrap(booleanResponse -> {
-                auditor.info(request.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STOPPED);
-                listener.onResponse(response);
-            }, listener::onFailure)
-        );
+        @FixForMultiProject
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        persistentTasksService.waitForPersistentTasksCondition(projectId, persistentTasks -> {
+            if (persistentTasks == null) {
+                return true;
+            }
+            return persistentTasks.findTasks(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, t -> taskIds.contains(t.getId())).isEmpty();
+        }, request.getTimeout(), ActionListener.wrap(booleanResponse -> {
+            auditor.info(request.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_STOPPED);
+            listener.onResponse(response);
+        }, listener::onFailure));
     }
 
     // Visible for testing

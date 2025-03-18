@@ -52,11 +52,7 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         primaryRelocation = in.readBoolean();
         startingSeqNo = in.readLong();
-        if (in.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
-            canDownloadSnapshotFiles = in.readBoolean();
-        } else {
-            canDownloadSnapshotFiles = true;
-        }
+        canDownloadSnapshotFiles = in.readBoolean();
     }
 
     /**
@@ -171,9 +167,7 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);
-        if (out.getTransportVersion().onOrAfter(RecoverySettings.SNAPSHOT_FILE_DOWNLOAD_THROTTLING_SUPPORTED_TRANSPORT_VERSION)) {
-            out.writeBoolean(canDownloadSnapshotFiles);
-        }
+        out.writeBoolean(canDownloadSnapshotFiles);
     }
 
     @Override

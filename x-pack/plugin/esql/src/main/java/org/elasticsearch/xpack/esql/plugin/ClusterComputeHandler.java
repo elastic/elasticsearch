@@ -109,7 +109,12 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     groupTask = rootTask;
                     onGroupFailure = cancelQueryOnFailure;
                 } else {
-                    groupTask = computeService.createGroupTask(rootTask, () -> "compute group: cluster [" + clusterAlias + "]");
+                    try {
+                        groupTask = computeService.createGroupTask(rootTask, () -> "compute group: cluster [" + clusterAlias + "]");
+                    } catch (TaskCancelledException e) {
+                        l.onFailure(e);
+                        return;
+                    }
                     onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }
@@ -158,7 +163,8 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 builder.setTook(executionInfo.tookSoFar());
             }
             if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                if (executionInfo.isStopped() || resp.failedShards > 0) {
+                builder.setFailures(resp.failures);
+                if (executionInfo.isStopped() || resp.failedShards > 0 || resp.failures.isEmpty() == false) {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
                 } else {
                     builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
@@ -246,7 +252,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
             final TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
             final ComputeResponse r = finalResponse.get();
-            return new ComputeResponse(profiles, took, r.totalShards, r.successfulShards, r.skippedShards, r.failedShards);
+            return new ComputeResponse(profiles, took, r.totalShards, r.successfulShards, r.skippedShards, r.failedShards, r.failures);
         }))) {
             var exchangeSource = new ExchangeSourceHandler(
                 configuration.pragmas().exchangeBufferSize(),

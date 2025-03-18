@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
@@ -64,13 +65,13 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         TransportEsqlAsyncGetResultsAction getResultsAction,
         Client client,
         ExchangeService exchangeService,
-        BlockFactory blockFactory
+        BlockFactoryProvider blockFactoryProvider
     ) {
         super(EsqlAsyncStopAction.NAME, transportService, actionFilters, AsyncStopRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.queryAction = queryAction;
         this.getResultsAction = getResultsAction;
         this.exchangeService = exchangeService;
-        this.blockFactory = blockFactory;
+        this.blockFactory = blockFactoryProvider.blockFactory();
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.security = new AsyncSearchSecurity(

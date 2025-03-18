@@ -16,14 +16,12 @@ import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Objects;
 
 /**
@@ -60,16 +58,7 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
         // Retrieve top k documents from the rescored query
         TopDocs topDocs = searcher.search(query, k);
         vectorOperations = topDocs.totalHits.value();
-        ScoreDoc[] scoreDocs = topDocs.scoreDocs;
-        Arrays.sort(scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
-        int[] docIds = new int[scoreDocs.length];
-        float[] scores = new float[scoreDocs.length];
-        for (int i = 0; i < scoreDocs.length; i++) {
-            docIds[i] = scoreDocs[i].doc;
-            scores[i] = scoreDocs[i].score;
-        }
-
-        return new KnnScoreDocQuery(docIds, scores, searcher.getIndexReader());
+        return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
     }
 
     public Query innerQuery() {

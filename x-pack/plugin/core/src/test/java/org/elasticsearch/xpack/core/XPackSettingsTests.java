@@ -30,8 +30,22 @@ import static org.hamcrest.Matchers.not;
 public class XPackSettingsTests extends ESTestCase {
 
     public void testDefaultSSLCiphers() {
-        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_128_CBC_SHA"));
-        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_256_CBC_SHA"));
+        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_AES_256_GCM_SHA384"));
+        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_AES_128_GCM_SHA256"));
+        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
+        assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"));
+
+        if (Runtime.version().feature() < 24) {
+            assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_256_CBC_SHA256"));
+            assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_128_CBC_SHA256"));
+            assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_256_CBC_SHA"));
+            assertThat(XPackSettings.DEFAULT_CIPHERS, hasItem("TLS_RSA_WITH_AES_128_CBC_SHA"));
+        } else {
+            assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_RSA_WITH_AES_256_CBC_SHA256")));
+            assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_RSA_WITH_AES_128_CBC_SHA256")));
+            assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_RSA_WITH_AES_256_CBC_SHA")));
+            assertThat(XPackSettings.DEFAULT_CIPHERS, not(hasItem("TLS_RSA_WITH_AES_128_CBC_SHA")));
+        }
     }
 
     public void testChaCha20InCiphersOnJdk12Plus() {

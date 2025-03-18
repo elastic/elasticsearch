@@ -152,10 +152,10 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (currentState.metadata().hasIndex(indexMetadata.getIndex().getName())) {
+                        if (currentState.metadata().getProject().hasIndex(indexMetadata.getIndex().getName())) {
                             continue;
                         }
-                        if (currentState.metadata().hasAlias(indexMetadata.getIndex().getName())) {
+                        if (currentState.metadata().getProject().hasAlias(indexMetadata.getIndex().getName())) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] due to an existing alias with the same name",
                                 indexMetadata.getIndex(),
@@ -163,7 +163,7 @@ public class LocalAllocateDangledIndices {
                             );
                             continue;
                         }
-                        if (currentState.metadata().indexGraveyard().containsIndex(indexMetadata.getIndex())) {
+                        if (currentState.metadata().getProject().indexGraveyard().containsIndex(indexMetadata.getIndex())) {
                             logger.warn(
                                 "ignoring dangled index [{}] on node [{}] since it was recently deleted",
                                 indexMetadata.getIndex(),

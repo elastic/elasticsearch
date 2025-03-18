@@ -526,7 +526,7 @@ null      | 19.72282600331636  | 10024          | null          | 64675         
 
 log10
 // tag::log10[]
-ROW d = 1000.0 
+ROW d = 1000.0
 | EVAL s = LOG10(d)
 // end::log10[]
 ;
@@ -1007,6 +1007,33 @@ warning:Line 2:16: java.lang.ArithmeticException: unsigned_long overflow
 
 mvsum:unsigned_long
 null
+;
+
+mvSumOverflowOnNode
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| SORT first_name ASC
+| EVAL
+    ints = CASE(first_name == "Alejandro", [0, 1, 2147483647], 0),
+    longs = CASE(first_name == "Alejandro", [0, 1, 9223372036854775807], 0),
+    ulongs = CASE(first_name == "Alejandro", [0, 1, 18446744073709551615], 0),
+    intsResult = mv_sum(ints),
+    longsResult = mv_sum(longs),
+    ulongsResult = mv_sum(ulongs)
+| KEEP first_name, intsResult, longsResult, ulongsResult
+| LIMIT 1
+;
+
+warning:Line 7:14: evaluation of [mv_sum(ints)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 7:14: java.lang.ArithmeticException: integer overflow
+warning:Line 8:15: evaluation of [mv_sum(longs)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 8:15: java.lang.ArithmeticException: long overflow
+warning:Line 9:16: evaluation of [mv_sum(ulongs)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 9:16: java.lang.ArithmeticException: unsigned_long overflow
+
+first_name:keyword | intsResult:integer | longsResult:long | ulongsResult:unsigned_long
+Alejandro          | null               | null             | null
 ;
 
 e
@@ -1518,7 +1545,7 @@ emp_no:integer | min_plus_max:integer | are_equal:boolean
 
 docsAbs
 //tag::abs[]
-ROW number = -1.0 
+ROW number = -1.0
 | EVAL abs_number = ABS(number)
 //end::abs[]
 ;

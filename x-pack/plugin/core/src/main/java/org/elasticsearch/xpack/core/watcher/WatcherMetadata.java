@@ -24,7 +24,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 
-public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public class WatcherMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
     public static final String TYPE = "watcher";
 
@@ -57,8 +57,8 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
         this(streamInput.readBoolean());
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.ProjectCustom.class, TYPE, streamInput);
     }
 
     @Override
@@ -86,7 +86,7 @@ public class WatcherMetadata extends AbstractNamedDiffable<Metadata.Custom> impl
         return Objects.hash(manuallyStopped);
     }
 
-    public static Metadata.Custom fromXContent(XContentParser parser) throws IOException {
+    public static Metadata.ProjectCustom fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         Boolean manuallyStopped = null;
         String currentFieldName = null;

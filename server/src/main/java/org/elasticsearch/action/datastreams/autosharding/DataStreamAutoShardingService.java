@@ -11,12 +11,12 @@ package org.elasticsearch.action.datastreams.autosharding;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -150,8 +150,7 @@ public class DataStreamAutoShardingService {
      * The NO_CHANGE_REQUIRED type will potentially report the remaining cooldown always report a cool down period of TimeValue.ZERO (as
      * there'll be no new auto sharding event)
      */
-    public AutoShardingResult calculate(ClusterState state, DataStream dataStream, @Nullable Double writeIndexLoad) {
-        Metadata metadata = state.metadata();
+    public AutoShardingResult calculate(ProjectState state, DataStream dataStream, @Nullable Double writeIndexLoad) {
         if (isAutoShardingEnabled == false) {
             logger.debug("Data stream auto sharding service is not enabled.");
             return NOT_APPLICABLE_RESULT;
@@ -174,23 +173,28 @@ public class DataStreamAutoShardingService {
             );
             return NOT_APPLICABLE_RESULT;
         }
-        return innerCalculate(metadata, dataStream, writeIndexLoad, nowSupplier);
+        return innerCalculate(state.metadata(), dataStream, writeIndexLoad, nowSupplier);
     }
 
-    private AutoShardingResult innerCalculate(Metadata metadata, DataStream dataStream, double writeIndexLoad, LongSupplier nowSupplier) {
+    private AutoShardingResult innerCalculate(
+        ProjectMetadata project,
+        DataStream dataStream,
+        double writeIndexLoad,
+        LongSupplier nowSupplier
+    ) {
         // increasing the number of shards is calculated solely based on the index load of the write index
-        IndexMetadata writeIndex = metadata.index(dataStream.getWriteIndex());
+        IndexMetadata writeIndex = project.index(dataStream.getWriteIndex());
         assert writeIndex != null : "the data stream write index must exist in the provided cluster metadata";
         AutoShardingResult increaseShardsResult = getIncreaseShardsResult(dataStream, writeIndexLoad, nowSupplier, writeIndex);
         return Objects.requireNonNullElseGet(
             increaseShardsResult,
             () -> getDecreaseShardsResult(
-                metadata,
+                project,
                 dataStream,
                 writeIndexLoad,
                 nowSupplier,
                 writeIndex,
-                getRemainingDecreaseShardsCooldown(metadata, dataStream)
+                getRemainingDecreaseShardsCooldown(project, dataStream)
             )
         );
 
@@ -237,9 +241,9 @@ public class DataStreamAutoShardingService {
      * This reference for the remaining time math is either the time since the last auto sharding event (if available) or otherwise the
      * oldest index in the data stream.
      */
-    private TimeValue getRemainingDecreaseShardsCooldown(Metadata metadata, DataStream dataStream) {
+    private TimeValue getRemainingDecreaseShardsCooldown(ProjectMetadata project, DataStream dataStream) {
         Index oldestBackingIndex = dataStream.getIndices().get(0);
-        IndexMetadata oldestIndexMeta = metadata.getIndexSafe(oldestBackingIndex);
+        IndexMetadata oldestIndexMeta = project.getIndexSafe(oldestBackingIndex);
 
         return dataStream.getAutoShardingEvent() == null
             // without a pre-existing auto sharding event we wait until the oldest index has been created longer than the decrease_shards
@@ -258,7 +262,7 @@ public class DataStreamAutoShardingService {
     }
 
     private AutoShardingResult getDecreaseShardsResult(
-        Metadata metadata,
+        ProjectMetadata project,
         DataStream dataStream,
         double writeIndexLoad,
         LongSupplier nowSupplier,
@@ -266,7 +270,7 @@ public class DataStreamAutoShardingService {
         TimeValue remainingReduceShardsCooldown
     ) {
         double maxIndexLoadWithinCoolingPeriod = getMaxIndexLoadWithinCoolingPeriod(
-            metadata,
+            project,
             dataStream,
             writeIndexLoad,
             reduceShardsCooldown,
@@ -338,7 +342,7 @@ public class DataStreamAutoShardingService {
      * period is also considered).
      */
     static double getMaxIndexLoadWithinCoolingPeriod(
-        Metadata metadata,
+        ProjectMetadata project,
         DataStream dataStream,
         double writeIndexLoad,
         TimeValue coolingPeriod,
@@ -347,13 +351,13 @@ public class DataStreamAutoShardingService {
         // for reducing the number of shards we look at more than just the write index
         List<IndexWriteLoad> writeLoadsWithinCoolingPeriod = DataStream.getIndicesWithinMaxAgeRange(
             dataStream,
-            metadata::getIndexSafe,
+            project::getIndexSafe,
             coolingPeriod,
             nowSupplier
         )
             .stream()
             .filter(index -> index.equals(dataStream.getWriteIndex()) == false)
-            .map(metadata::index)
+            .map(project::index)
             .filter(Objects::nonNull)
             .map(IndexMetadata::getStats)
             .filter(Objects::nonNull)

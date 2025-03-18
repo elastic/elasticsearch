@@ -285,16 +285,16 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
         metadataBuilder.persistentSettings(
             metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
         );
-        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().indices());
+        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().getProject().indices());
         for (String indexName : indexNames) {
-            IndexMetadata indexMetadata = state.getMetadata().index(indexName);
+            IndexMetadata indexMetadata = state.getMetadata().getProject().index(indexName);
             IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
             Settings filteredSettings = indexMetadata.getSettings()
                 .filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);
             filteredIndexMetadataBuilder.settings(filteredSettings);
             indicesBuilder.put(indexName, filteredIndexMetadataBuilder.build());
         }
-        metadataBuilder.componentTemplates(state.metadata().componentTemplates().entrySet().stream().map(entry -> {
+        metadataBuilder.componentTemplates(state.metadata().getProject().componentTemplates().entrySet().stream().map(entry -> {
             String templateName = entry.getKey();
             ComponentTemplate componentTemplate = entry.getValue();
             Template template = componentTemplate.template();
@@ -313,7 +313,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                 )
             );
         }).collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
-        metadataBuilder.indexTemplates(state.metadata().templatesV2().entrySet().stream().map(entry -> {
+        metadataBuilder.indexTemplates(state.metadata().getProject().templatesV2().entrySet().stream().map(entry -> {
             String templateName = entry.getKey();
             ComposableIndexTemplate indexTemplate = entry.getValue();
             Template template = indexTemplate.template();

@@ -437,7 +437,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> query,
             null,
             maxBucket,
-            () -> buildSubSearchContext(indexSettings, searchExecutionContext, bitsetFilterCache),
+            () -> buildSubSearchContext(
+                indexSettings,
+                searchExecutionContext,
+                bitsetFilterCache,
+                breakerService.getBreaker(CircuitBreaker.REQUEST)
+            ),
             bitsetFilterCache,
             randomInt(),
             () -> 0L,
@@ -471,7 +476,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private SubSearchContext buildSubSearchContext(
         IndexSettings indexSettings,
         SearchExecutionContext searchExecutionContext,
-        BitsetFilterCache bitsetFilterCache
+        BitsetFilterCache bitsetFilterCache,
+        CircuitBreaker breaker
     ) {
         SearchContext ctx = mock(SearchContext.class);
         try {
@@ -488,7 +494,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             throw new RuntimeException(e);
         }
         when(ctx.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
-
+        when(ctx.circuitBreaker()).thenReturn(breaker);
+        when(ctx.memAccountingBufferSize()).thenReturn(1024 * 1024L);
         /*
          * Use a QueryShardContext that doesn't contain nested documents so we
          * don't try to fetch them which would require mocking a whole menagerie

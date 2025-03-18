@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -16,7 +15,6 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
-import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteIndexTemplateAction;
@@ -30,11 +28,9 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -82,7 +78,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
@@ -274,8 +269,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertEquals(expectedDestIndexName, response.getDestIndex());
     }
 
-    public void testDestIndexNameSet_withDotPrefix() throws Exception {
-
+    public void testDestIndexNameSet_withDotPrefix() {
         var sourceIndex = "." + randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
@@ -288,12 +282,18 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertEquals(expectedDestIndexName, response.getDestIndex());
     }
 
-    public void testDestIndexContainsDocs() throws Exception {
+    public void testDestIndexContainsDocs() {
         // source index with docs
         var numDocs = randomIntBetween(1, 100);
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
         indexDocs(sourceIndex, numDocs);
+
+        var settings = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_METADATA, randomBoolean())
+            .put(IndexMetadata.SETTING_READ_ONLY, randomBoolean())
+            .build();
+        safeGet(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, sourceIndex)));
 
         // call reindex
         var response = safeGet(
@@ -303,31 +303,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // verify that dest contains docs
         assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
-    }
-
-    public void testSetSourceToBlockWrites() throws Exception {
-        var settings = randomBoolean() ? Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build() : Settings.EMPTY;
-
-        // empty source index
-        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
-
-        // call reindex
-        safeGet(client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)));
-
-        // Assert that source index is now read-only but not verified read-only
-        GetSettingsResponse getSettingsResponse = safeGet(
-            admin().indices().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex))
-        );
-        assertTrue(parseBoolean(getSettingsResponse.getSetting(sourceIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
-        assertFalse(
-            parseBoolean(getSettingsResponse.getSetting(sourceIndex, MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey()))
-        );
-
-        // assert that write to source fails
-        var indexReq = new IndexRequest(sourceIndex).source(jsonBuilder().startObject().field("field", "1").endObject());
-        expectThrows(ClusterBlockException.class, client().index(indexReq));
-        assertHitCount(prepareSearch(sourceIndex).setSize(0), 0);
     }
 
     public void testMissingSourceIndex() {
@@ -387,34 +362,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
     }
 
-    public void testFailIfMetadataBlockSet() {
-        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true).build();
-        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
-
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
-            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-        );
-        assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
-
-        cleanupMetadataBlocks(sourceIndex);
-    }
-
-    public void testFailIfReadBlockSet() {
-        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        var settings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_READ, true).build();
-        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex, settings)));
-
-        ElasticsearchException e = expectThrows(
-            ElasticsearchException.class,
-            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-        );
-        assertTrue(e.getMessage().contains("Cannot reindex index") || e.getCause().getMessage().equals("Cannot reindex index"));
-
-        cleanupMetadataBlocks(sourceIndex);
-    }
-
     public void testReadOnlyBlocksNotAddedBack() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         var settings = Settings.builder()
@@ -434,7 +381,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
 
-        cleanupMetadataBlocks(sourceIndex);
         cleanupMetadataBlocks(destIndex);
     }
 
@@ -752,9 +698,8 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         var settings = Settings.builder()
             .putNull(IndexMetadata.SETTING_READ_ONLY)
             .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-            .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
-            .build();
-        safeGet(indicesAdmin().updateSettings(new UpdateSettingsRequest(settings, index)));
+            .putNull(IndexMetadata.SETTING_BLOCKS_METADATA);
+        updateIndexSettings(settings, index);
     }
 
     private static void indexDocs(String index, int numDocs) {

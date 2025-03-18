@@ -36,7 +36,7 @@ public class IndexAbstractionResolver {
     public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         Supplier<Set<String>> allAuthorizedAndAvailable,
         Predicate<String> isAuthorized,
         boolean includeDataStreams
@@ -78,11 +78,11 @@ public class IndexAbstractionResolver {
                             selectorString,
                             authorizedIndex,
                             indicesOptions,
-                            metadata,
+                            projectMetadata,
                             indexNameExpressionResolver,
                             includeDataStreams
                         )) {
-                        resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, metadata);
+                        resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                     }
                 }
                 if (resolvedIndices.isEmpty()) {
@@ -99,7 +99,7 @@ public class IndexAbstractionResolver {
                 }
             } else {
                 Set<String> resolvedIndices = new HashSet<>();
-                resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, metadata);
+                resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
                 if (minus) {
                     finalIndices.removeAll(resolvedIndices);
                 } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
@@ -118,10 +118,10 @@ public class IndexAbstractionResolver {
         String selectorString,
         IndicesOptions indicesOptions,
         Set<String> collect,
-        Metadata metadata
+        ProjectMetadata projectMetadata
     ) {
         if (indicesOptions.allowSelectors()) {
-            IndexAbstraction abstraction = metadata.getIndicesLookup().get(indexAbstraction);
+            IndexAbstraction abstraction = projectMetadata.getIndicesLookup().get(indexAbstraction);
             // We can't determine which selectors are valid for a nonexistent abstraction, so simply propagate them as if they supported
             // all of them so we don't drop anything.
             boolean acceptsAllSelectors = abstraction == null || abstraction.isDataStreamRelated();
@@ -145,18 +145,22 @@ public class IndexAbstractionResolver {
         @Nullable String selectorString,
         String index,
         IndicesOptions indicesOptions,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(index);
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
         }
         final boolean isHidden = indexAbstraction.isHidden();
         boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-            if (indexAbstraction.isSystem()) {
+            // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
+            // it's complicated to support those options with aliases pointing to multiple indices...
+            isVisible = isVisible && indicesOptions.ignoreAliases() == false;
+
+            if (isVisible && indexAbstraction.isSystem()) {
                 // check if it is net new
                 if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
                     // don't give this code any particular credit for being *correct*. it's just trying to resolve a combination of
@@ -174,7 +178,7 @@ public class IndexAbstractionResolver {
                             selectorString,
                             writeIndex.getName(),
                             indicesOptions,
-                            metadata,
+                            projectMetadata,
                             resolver,
                             includeDataStreams
                         );
@@ -182,9 +186,6 @@ public class IndexAbstractionResolver {
                 }
             }
 
-            // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
-            // complicated to support those options with aliases pointing to multiple indices...
-            isVisible = isVisible && indicesOptions.ignoreAliases() == false;
             if (isVisible && selectorString != null) {
                 // Check if a selector was present, and if it is, check if this alias is applicable to it
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
@@ -231,7 +232,7 @@ public class IndexAbstractionResolver {
             }
         }
 
-        IndexMetadata indexMetadata = metadata.index(indexAbstraction.getIndices().get(0));
+        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().get(0));
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
             return true;
         }

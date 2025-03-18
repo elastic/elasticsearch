@@ -12,6 +12,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -498,6 +499,16 @@ public class TestSearchContext extends SearchContext {
     @Override
     public Profilers getProfilers() {
         return null; // no profiling
+    }
+
+    @Override
+    public CircuitBreaker circuitBreaker() {
+        return indexService.getBigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+    }
+
+    @Override
+    public long memAccountingBufferSize() {
+        return 1024 * 1024;
     }
 
     @Override

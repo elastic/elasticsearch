@@ -24,7 +24,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -35,11 +34,16 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.concurrent.CountDownLatch;
+import java.util.Optional;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -54,36 +58,34 @@ import static org.mockito.Mockito.when;
 
 public class AbstractFileWatchingServiceTests extends ESTestCase {
 
-    class TestFileWatchingService extends AbstractFileWatchingService {
+    static class TestFileWatchingService extends AbstractFileWatchingService {
 
-        private final CountDownLatch countDownLatch;
+        private final Consumer<Path> called;
 
-        TestFileWatchingService(Path watchedFile) {
-            super(watchedFile);
-            this.countDownLatch = null;
-        }
-
-        TestFileWatchingService(Path watchedFile, CountDownLatch countDownLatch) {
-            super(watchedFile);
-            this.countDownLatch = countDownLatch;
+        TestFileWatchingService(Path watchedFile, Consumer<Path> called) {
+            super(watchedFile.getParent());
+            this.called = called;
         }
 
         @Override
-        protected void processFileChanges() throws InterruptedException, ExecutionException, IOException {
-            if (countDownLatch != null) {
-                countDownLatch.countDown();
+        protected void processFileChanges(Path file) throws InterruptedException, ExecutionException, IOException {
+            // sometimes files from ExtraFS appear in the directory
+            if (called != null && file.getFileName().toString().startsWith("extra") == false) {
+                called.accept(file);
             }
         }
 
         @Override
-        protected void processInitialFileMissing() {
-            if (countDownLatch != null) {
-                countDownLatch.countDown();
+        protected void processInitialFilesMissing() {
+            if (called != null) {
+                called.accept(null);
             }
         }
     }
 
+    private Path watchedFile;
     private AbstractFileWatchingService fileWatchingService;
+    private BlockingQueue<Optional<Path>> updates;
     private ThreadPool threadpool;
     private ClusterService clusterService;
     private Environment env;
@@ -106,11 +108,14 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
 
         Files.createDirectories(env.configDir());
 
-        fileWatchingService = new TestFileWatchingService(getWatchedFilePath(env));
+        watchedFile = getWatchedFilePath(env);
+        updates = new ArrayBlockingQueue<>(5);
+        fileWatchingService = new TestFileWatchingService(watchedFile, f -> updates.add(Optional.ofNullable(f)));
     }
 
     @After
     public void tearDown() throws Exception {
+        fileWatchingService.close();
         super.tearDown();
         threadpool.shutdownNow();
     }
@@ -120,7 +125,6 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         assertTrue(fileWatchingService.watching());
         fileWatchingService.stop();
         assertFalse(fileWatchingService.watching());
-        fileWatchingService.close();
     }
 
     public void testWatchedFile() throws Exception {
@@ -128,43 +132,42 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
         Path tmpFile1 = createTempFile();
         Path otherFile = tmpFile.getParent().resolve("other.json");
         // we return false on non-existent paths, we don't remember state
-        assertFalse(fileWatchingService.watchedFileChanged(otherFile));
+        assertFalse(fileWatchingService.fileChanged(otherFile));
 
         // we remember the previous state
-        assertTrue(fileWatchingService.watchedFileChanged(tmpFile));
-        assertFalse(fileWatchingService.watchedFileChanged(tmpFile));
+        assertTrue(fileWatchingService.fileChanged(tmpFile));
+        assertFalse(fileWatchingService.fileChanged(tmpFile));
 
         // we modify the timestamp of the file, it should trigger a change
         Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
         Files.setLastModifiedTime(tmpFile, FileTime.from(now));
 
-        assertTrue(fileWatchingService.watchedFileChanged(tmpFile));
-        assertFalse(fileWatchingService.watchedFileChanged(tmpFile));
+        assertTrue(fileWatchingService.fileChanged(tmpFile));
+        assertFalse(fileWatchingService.fileChanged(tmpFile));
 
         // we change to another real file, it should be changed
-        assertTrue(fileWatchingService.watchedFileChanged(tmpFile1));
-        assertFalse(fileWatchingService.watchedFileChanged(tmpFile1));
+        assertTrue(fileWatchingService.fileChanged(tmpFile1));
+        assertFalse(fileWatchingService.fileChanged(tmpFile1));
     }
 
     public void testCallsProcessing() throws Exception {
-        CountDownLatch processFileLatch = new CountDownLatch(1);
+        fileWatchingService.start();
+        assertTrue(fileWatchingService.watching());
+        // poll ping from processInitialFilesMissing
+        assertThat(updates.poll(30, TimeUnit.SECONDS), isEmpty());
 
-        AbstractFileWatchingService service = new TestFileWatchingService(getWatchedFilePath(env), processFileLatch);
+        Files.createDirectories(fileWatchingService.watchedFileDir());
 
-        service.start();
-        assertTrue(service.watching());
-
-        Files.createDirectories(service.watchedFileDir());
-
-        writeTestFile(service.watchedFile(), "{}");
+        writeTestFile(watchedFile, "{}");
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
         // on Linux is instantaneous. Windows is instantaneous too.
-        processFileLatch.await(30, TimeUnit.SECONDS);
+        assertThat(updates.poll(30, TimeUnit.SECONDS), isPresentWith(watchedFile));
 
-        service.stop();
-        assertFalse(service.watching());
-        service.close();
+        // test another file
+        Path otherFile = watchedFile.resolveSibling("otherFile.json");
+        writeTestFile(otherFile, "{}");
+        assertThat(updates.poll(30, TimeUnit.SECONDS), isPresentWith(otherFile));
     }
 
     public void testRegisterWatchKeyRetry() throws IOException, InterruptedException {
@@ -195,10 +198,10 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
     }
 
     // helpers
-    private void writeTestFile(Path path, String contents) throws IOException {
+    private static void writeTestFile(Path path, String contents) throws IOException {
         Path tempFilePath = createTempFile();
 
-        Files.write(tempFilePath, contents.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tempFilePath, contents);
         Files.move(tempFilePath, path, StandardCopyOption.ATOMIC_MOVE);
     }
 

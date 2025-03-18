@@ -98,7 +98,7 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = computeOutput(left().output(), right().output(), config);
+            lazyOutput = computeOutput(left().output(), right().output());
         }
         return lazyOutput;
     }
@@ -124,6 +124,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         }
 
         return rightOutputFields;
+    }
+
+    public List<Attribute> computeOutput(List<Attribute> left, List<Attribute> right) {
+        return computeOutput(left, right, config);
     }
 
     /**

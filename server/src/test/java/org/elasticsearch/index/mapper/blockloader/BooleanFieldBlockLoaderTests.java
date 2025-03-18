@@ -23,7 +23,7 @@ public class BooleanFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value) {
         var rawNullValue = fieldMapping.get("null_value");
 
         Boolean nullValue;

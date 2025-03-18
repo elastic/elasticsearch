@@ -26,7 +26,7 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @SuppressWarnings("unchecked")
     @Override
-    protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value) {
         var nullValue = (String) fieldMapping.get("null_value");
 
         var ignoreAbove = fieldMapping.get("ignore_above") == null

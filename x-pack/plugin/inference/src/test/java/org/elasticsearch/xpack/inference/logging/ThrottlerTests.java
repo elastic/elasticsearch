@@ -186,6 +186,8 @@ public class ThrottlerTests extends ESTestCase {
             throttler.execute(mockedLogger.logger, Level.WARN, "test");
             mockedLogger.verify(1, "test");
 
+            mockedLogger.clearInvocations();
+
             throttler.execute(mockedLogger.logger, Level.WARN, "a different message");
             mockedLogger.verify(1, "a different message");
         }

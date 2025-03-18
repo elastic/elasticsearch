@@ -25,6 +25,33 @@ public class AlibabaCloudSearchSparseRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var entity = new AlibabaCloudSearchSparseRequestEntity(
             List.of("abc"),
+            InputType.SEARCH,
+            new AlibabaCloudSearchSparseTaskSettings(InputType.INGEST, true)
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"input_type":"query","return_token":true}"""));
+    }
+
+    public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
+        var entity = new AlibabaCloudSearchSparseRequestEntity(List.of("abc"), null, AlibabaCloudSearchSparseTaskSettings.EMPTY_SETTINGS);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"]}"""));
+    }
+
+    public void testXContent_InputType_Internal() throws IOException {
+        var entity = new AlibabaCloudSearchSparseRequestEntity(
+            List.of("abc"),
+            InputType.INTERNAL_INGEST,
             new AlibabaCloudSearchSparseTaskSettings(InputType.INGEST, true)
         );
 
@@ -34,16 +61,5 @@ public class AlibabaCloudSearchSparseRequestEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"input_type":"document","return_token":true}"""));
-    }
-
-    public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
-        var entity = new AlibabaCloudSearchSparseRequestEntity(List.of("abc"), AlibabaCloudSearchSparseTaskSettings.EMPTY_SETTINGS);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"]}"""));
     }
 }

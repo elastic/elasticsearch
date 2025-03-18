@@ -108,14 +108,12 @@ public class TransportFetchShardCommitsInUseAction extends TransportNodesAction<
 
     private void completeListenerWithClosedShardService(
         ActionListener<FetchShardCommitsInUseAction.NodeResponse> listener,
+        DiscoveryNode node,
         ShardId shardId
     ) {
         ActionListener.completeWith(
             listener,
-            () -> new FetchShardCommitsInUseAction.NodeResponse(
-                clusterService.localNode(),
-                getPrimaryTermAndGenerationsFromClosedShardService(shardId)
-            )
+            () -> new FetchShardCommitsInUseAction.NodeResponse(node, getPrimaryTermAndGenerationsFromClosedShardService(shardId))
         );
     }
 
@@ -133,17 +131,18 @@ public class TransportFetchShardCommitsInUseAction extends TransportNodesAction<
         ActionListener<FetchShardCommitsInUseAction.NodeResponse> listener
     ) {
         logger.trace(() -> format("received fetch-shard-commits-in-use request [%s]", request));
+        DiscoveryNode localNode = clusterService.localNode();
 
         // If the search shard or index is gone, check the ClosedShardService to see if active reader state was carried over on shard
         // close.
         IndexService indexService = indicesService.indexService(request.getShardId().getIndex());
         if (indexService == null) {
-            completeListenerWithClosedShardService(listener, request.getShardId());
+            completeListenerWithClosedShardService(listener, localNode, request.getShardId());
             return;
         }
         IndexShard shard = indexService.getShardOrNull(request.getShardId().id());
         if (shard == null) {
-            completeListenerWithClosedShardService(listener, request.getShardId());
+            completeListenerWithClosedShardService(listener, localNode, request.getShardId());
             return;
         }
 
@@ -155,13 +154,13 @@ public class TransportFetchShardCommitsInUseAction extends TransportNodesAction<
 
             .<FetchShardCommitsInUseAction.NodeResponse>andThen((subscribedListener, ignored) -> {
                 if (shard.indexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE) {
-                    completeListenerWithClosedShardService(subscribedListener, request.getShardId());
+                    completeListenerWithClosedShardService(subscribedListener, localNode, request.getShardId());
                     return;
                 }
 
                 final Engine engineOrNull = shard.getEngineOrNull();
                 if (engineOrNull == null) {
-                    completeListenerWithClosedShardService(subscribedListener, request.getShardId());
+                    completeListenerWithClosedShardService(subscribedListener, localNode, request.getShardId());
                     return;
                 }
 
@@ -169,7 +168,7 @@ public class TransportFetchShardCommitsInUseAction extends TransportNodesAction<
                     ActionListener.completeWith(
                         subscribedListener,
                         () -> new FetchShardCommitsInUseAction.NodeResponse(
-                            clusterService.localNode(),
+                            localNode,
                             // Even if the index is officially closed by the time we fetch the commit generations, the SearchEngine will
                             // remain active and its list of `openReaders` will remain valid. Search operations retain a reference to the
                             // SearchEngine and only remove active reader tracking when done. The ClosedShardService acts as a concurrent

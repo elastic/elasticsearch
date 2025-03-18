@@ -249,7 +249,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     + " and max seq no "
                     + indexShard.getEngineOrNull().getMaxSeqNo()
                     + ")";
-            logger.info("{} unhollowing shard completed", shardId);
+            logger.info("{} removed hollow shard", shardId);
             existingBlocker.listener.onResponse(null);
             metrics.decrementHollowShardCount();
         }

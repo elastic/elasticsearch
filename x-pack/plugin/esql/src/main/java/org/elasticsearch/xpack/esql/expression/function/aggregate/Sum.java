@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 
 import java.io.IOException;
@@ -65,7 +66,11 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     }
 
     public Sum(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+        this(source, field, filter, false);
+    }
+
+    public Sum(Source source, Expression field, Expression filter, boolean isCorrectedForSampling) {
+        super(source, field, filter, emptyList(), isCorrectedForSampling);
     }
 
     private Sum(StreamInput in) throws IOException {
@@ -146,5 +151,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
         return field.foldable()
             ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataType.KEYWORD)))
             : null;
+    }
+
+    @Override
+    public Expression correctForSampling(Expression samplingProbability) {
+        return isCorrectedForSampling() ? this : new Div(source(), new Sum(source(), field(), filter(), true), samplingProbability);
     }
 }

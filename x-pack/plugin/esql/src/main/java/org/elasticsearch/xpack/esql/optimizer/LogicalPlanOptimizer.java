@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateSampleFrequencyToAggs;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans;
@@ -129,6 +130,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             "Substitutions",
             Limiter.ONCE,
             new SubstituteSurrogatePlans(),
+            new PropagateSampleFrequencyToAggs(),
             // Translate filtered expressions into aggregate with filters - can't use surrogate expressions because it was
             // retrofitted for constant folding - this needs to be fixed.
             // Needs to occur before ReplaceAggregateAggExpressionWithEval, which will update the functions, losing the filter.

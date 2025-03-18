@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.external.request.voyageai;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
@@ -23,11 +24,13 @@ import java.util.Objects;
 public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
     private final List<String> input;
+    private final InputType inputType;
     private final VoyageAIEmbeddingsModel embeddingsModel;
 
-    public VoyageAIEmbeddingsRequest(List<String> input, VoyageAIEmbeddingsModel embeddingsModel) {
+    public VoyageAIEmbeddingsRequest(List<String> input, InputType inputType, VoyageAIEmbeddingsModel embeddingsModel) {
         this.embeddingsModel = Objects.requireNonNull(embeddingsModel);
         this.input = Objects.requireNonNull(input);
+        this.inputType = inputType;
     }
 
     @Override
@@ -38,6 +41,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
             Strings.toString(
                 new VoyageAIEmbeddingsRequestEntity(
                     input,
+                    inputType,
                     embeddingsModel.getServiceSettings(),
                     embeddingsModel.getTaskSettings(),
                     embeddingsModel.getServiceSettings().modelId()

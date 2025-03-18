@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -31,12 +30,9 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.bu
 import static org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils.HOST;
 
 public class VoyageAIEmbeddingsModel extends VoyageAIModel {
-    public static VoyageAIEmbeddingsModel of(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
+    public static VoyageAIEmbeddingsModel of(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings) {
         var requestTaskSettings = VoyageAIEmbeddingsTaskSettings.fromMap(taskSettings);
-        return new VoyageAIEmbeddingsModel(
-            model,
-            VoyageAIEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings, inputType)
-        );
+        return new VoyageAIEmbeddingsModel(model, VoyageAIEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
     public VoyageAIEmbeddingsModel(
@@ -121,7 +117,7 @@ public class VoyageAIEmbeddingsModel extends VoyageAIModel {
     }
 
     @Override
-    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
-        return visitor.create(this, taskSettings, inputType);
+    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings) {
+        return visitor.create(this, taskSettings);
     }
 }

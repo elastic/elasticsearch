@@ -22,7 +22,7 @@ To strike the right balance, the <<shard-size-recommendation,general guidelines>
 
 If you are using <<data-streams>>, each data stream is backed by a sequence of indices, each index potentially having multiple shards. 
 
-Despite these general guidelines, it is good to develop a tailored <<create-a-sharding-strategy, sharding strategy>> that considers your specific infrastructure, use case, and performance expectations. 
+In addition to these these general guidelines, you should develop a tailored <<create-a-sharding-strategy, sharding strategy>> that considers your specific infrastructure, use case, and performance expectations. 
 
 [discrete]
 [[create-a-sharding-strategy]]

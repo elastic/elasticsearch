@@ -2,6 +2,10 @@
 navigation_title: "Auditing settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/auditing-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Auditing security settings [auditing-settings]

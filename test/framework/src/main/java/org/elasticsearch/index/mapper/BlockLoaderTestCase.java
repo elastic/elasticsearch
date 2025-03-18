@@ -71,6 +71,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customHandlers, Params params) {
         this.fieldType = fieldType;
+        this.params = params;
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
 
         var specification = DataGeneratorSpecification.builder()

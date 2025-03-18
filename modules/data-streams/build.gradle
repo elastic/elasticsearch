@@ -22,10 +22,11 @@ dependencies {
   testImplementation project(path: ':test:test-clusters')
   testImplementation project(":modules:mapper-extras")
   internalClusterTestImplementation project(":modules:mapper-extras")
+  internalClusterTestImplementation project(':modules:rest-root')
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 if (buildParams.inFipsJvm){

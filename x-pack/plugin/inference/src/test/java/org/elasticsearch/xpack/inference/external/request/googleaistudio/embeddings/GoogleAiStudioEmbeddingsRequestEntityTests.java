@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.request.googleaistudio.embeddings;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -22,7 +23,7 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
 
     public void testXContent_SingleRequest_WritesDimensionsIfDefined() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), "model", 8);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), InputType.SEARCH, "model", 8);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -40,7 +41,8 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
                                 }
                             ]
                         },
-                        "outputDimensionality": 8
+                        "outputDimensionality": 8,
+                        "taskType": "RETRIEVAL_QUERY"
                     }
                 ]
             }
@@ -48,7 +50,7 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_SingleRequest_DoesNotWriteDimensionsIfNull() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), "model", null);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), null, "model", null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -73,7 +75,7 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_MultipleRequests_WritesDimensionsIfDefined() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc", "def"), "model", 8);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc", "def"), null, "model", 8);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -110,7 +112,7 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_MultipleRequests_DoesNotWriteDimensionsIfNull() throws IOException {
-        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc", "def"), "model", null);
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc", "def"), null, "model", null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -138,6 +140,32 @@ public class GoogleAiStudioEmbeddingsRequestEntityTests extends ESTestCase {
                                 }
                             ]
                         }
+                    }
+                ]
+            }
+            """));
+    }
+
+    public void testXContent_SingleRequest_WritesInternalInputTypeIfDefined() throws IOException {
+        var entity = new GoogleAiStudioEmbeddingsRequestEntity(List.of("abc"), InputType.INTERNAL_INGEST, "model", null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "requests": [
+                    {
+                        "model": "models/model",
+                        "content": {
+                            "parts": [
+                                {
+                                    "text": "abc"
+                                }
+                            ]
+                        },
+                        "taskType": "RETRIEVAL_DOCUMENT"
                     }
                 ]
             }

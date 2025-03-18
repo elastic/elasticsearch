@@ -37,6 +37,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.transport.Transports;
@@ -2111,14 +2112,18 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             ? ChunkedToXContentHelper.object("indices", indices().values().iterator())
             : Collections.emptyIterator();
 
-        Iterator<ToXContent> customs = Iterators.flatMap(
-            customs().entrySet().iterator(),
-            entry -> entry.getValue().context().contains(context)
-                ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
-                : Collections.emptyIterator()
-        );
-
         final var multiProject = p.paramAsBoolean("multi-project", false);
+        Iterator<ToXContent> customs = Iterators.flatMap(customs().entrySet().iterator(), entry -> {
+            if (entry.getValue().context().contains(context)
+                // Include persistent tasks in the output only when multi-project=true.
+                // In single-project-mode (multi-project=false), we already output them in Metadata.
+                && (multiProject || PersistentTasksCustomMetadata.TYPE.equals(entry.getKey()) == false)) {
+                return ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p));
+            } else {
+                return Collections.emptyIterator();
+            }
+        });
+
         return Iterators.concat(
             ChunkedToXContentHelper.object(
                 "templates",

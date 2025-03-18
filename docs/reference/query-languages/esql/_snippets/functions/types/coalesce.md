@@ -5,7 +5,7 @@
 | first | rest | result |
 | --- | --- | --- |
 | boolean | boolean | boolean |
-| boolean |  | boolean |
+| boolean | | boolean |
 | cartesian_point | cartesian_point | cartesian_point |
 | cartesian_shape | cartesian_shape | cartesian_shape |
 | date | date | date |
@@ -13,13 +13,13 @@
 | geo_point | geo_point | geo_point |
 | geo_shape | geo_shape | geo_shape |
 | integer | integer | integer |
-| integer |  | integer |
+| integer | | integer |
 | ip | ip | ip |
 | keyword | keyword | keyword |
-| keyword |  | keyword |
+| keyword | | keyword |
 | long | long | long |
-| long |  | long |
+| long | | long |
 | text | text | keyword |
-| text |  | keyword |
+| text | | keyword |
 | version | version | version |
 

@@ -9,7 +9,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -20,11 +24,19 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInProgressException;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -464,6 +476,61 @@ public class MetadataDataStreamsServiceTests extends MapperServiceTestCase {
         updatedDataStream = after.metadata().getProject().dataStreams().get(dataStream);
         assertNotNull(updatedDataStream);
         assertThat(updatedDataStream.getDataStreamOptions(), equalTo(DataStreamOptions.EMPTY));
+    }
+
+    public void testDeleteMissing() {
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
+        final var projectId = randomProjectIdOrDefault();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId))
+            .build()
+            .projectState(projectId);
+
+        ResourceNotFoundException e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> MetadataDataStreamsService.deleteDataStreams(state, Set.of(dataStream), Settings.EMPTY)
+        );
+        assertThat(e.getMessage(), containsString(dataStream.getName()));
+    }
+
+    public void testDeleteSnapshotting() {
+        String dataStreamName = randomAlphaOfLength(5);
+        Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
+        SnapshotsInProgress snaps = SnapshotsInProgress.EMPTY.withAddedEntry(
+            SnapshotsInProgress.Entry.snapshot(
+                snapshot,
+                true,
+                false,
+                SnapshotsInProgress.State.INIT,
+                Collections.emptyMap(),
+                List.of(dataStreamName),
+                Collections.emptyList(),
+                System.currentTimeMillis(),
+                (long) randomIntBetween(0, 1000),
+                Map.of(),
+                null,
+                SnapshotInfoTestUtils.randomUserMetadata(),
+                IndexVersionUtils.randomVersion()
+            )
+        );
+        final DataStream dataStream = DataStreamTestHelper.randomInstance(dataStreamName);
+        var projectId = randomProjectIdOrDefault();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putCustom(SnapshotsInProgress.TYPE, snaps)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(dataStream))
+            .build()
+            .projectState(projectId);
+        Exception e = expectThrows(
+            SnapshotInProgressException.class,
+            () -> MetadataDataStreamsService.deleteDataStreams(state, Set.of(dataStream), Settings.EMPTY)
+        );
+        assertEquals(
+            "Cannot delete data streams that are being snapshotted: ["
+                + dataStreamName
+                + "]. Try again after snapshot finishes "
+                + "or cancel the currently running snapshot.",
+            e.getMessage()
+        );
     }
 
     private MapperService getMapperService(IndexMetadata im) {

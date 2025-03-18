@@ -461,7 +461,7 @@ You can configure the following Slack notification settings in `elasticsearch.ym
 `xpack.notification.slack` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Configures [Slack notification settings](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md). Note that you need to add `secure_url` as a [secret value to the keystore](docs-content://deploy-manage/security/secure-settings.md).
 
-`xpack.notification.slack.default_account`
+`xpack.notification.slack.default_account` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Default Slack account to use.
 
     If you configure multiple Slack accounts, you must either configure this setting or specify the Slack account to use in the [`slack`](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md) action. See [Configuring Slack Accounts](docs-content://explore-analyze/alerts-cases/watcher/actions-slack.md#configuring-slack).
@@ -469,7 +469,7 @@ You can configure the following Slack notification settings in `elasticsearch.ym
 
 $$$slack-account-attributes$$$
 
-`xpack.notification.slack.account`
+`xpack.notification.slack.account` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies account information for sending notifications via Slack. You can specify the following Slack account attributes:
 
     `secure_url`
@@ -534,7 +534,7 @@ You can configure the following PagerDuty notification settings in `elasticsearc
 `xpack.notification.pagerduty` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Configures [PagerDuty notification settings](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md#configuring-pagerduty).
 
-`xpack.notification.pagerduty.default_account`
+`xpack.notification.pagerduty.default_account` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Default PagerDuty account to use.
 
     If you configure multiple PagerDuty accounts, you must either configure this setting or specify the PagerDuty account to use in the [`pagerduty`](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md) action. See [Configuring PagerDuty accounts](docs-content://explore-analyze/alerts-cases/watcher/actions-pagerduty.md#configuring-pagerduty).
@@ -542,7 +542,7 @@ You can configure the following PagerDuty notification settings in `elasticsearc
 
 $$$pagerduty-account-attributes$$$
 
-`xpack.notification.pagerduty.account`
+`xpack.notification.pagerduty.account` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Specifies account information for sending notifications via PagerDuty. You can specify the following PagerDuty account attributes:
 
     `name`

@@ -144,22 +144,6 @@ Large real-time clock inconsistency across cluster nodes can cause problems with
 `xpack.security.authc.api_key.hashing.algorithm`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the hashing algorithm that is used for securing API key credentials. See [Table 3, Secure token hashing algorithms](#secure-token-hashing-algorithms). Defaults to `ssha256`.
 
-`xpack.security.authc.realms.saml.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   To learn more on how to enable SAML and related user settings, check [secure your clusters with SAML](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/saml.md).
-
-`xpack.security.authc.realms.oidc.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   To learn more on how to enable OpenID Connect and related user settings, check [secure your clusters with OpenID Connect](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/openid-connect.md).
-
-`xpack.security.authc.realms.kerberos.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   To learn more on how to enable Kerberos and relate user settings, check [secure your clusters with Kerberos](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kerberos.md).
-
-`xpack.security.authc.realms.jwt.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
-:   To learn more on how to enable JWT and related user settings, check [secure your clusters with JWT](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/jwt.md).
-
-::::{note}
-All SAML, OpenID Connect, Kerberos, and JWT settings are allowlisted.
-::::
-
 
 ### Security domain settings [security-domain-settings]
 
@@ -182,6 +166,22 @@ xpack:
 
 
 ### Realm settings [realm-settings]
+
+`xpack.security.authc.realms.saml.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   To learn more on how to enable SAML and related user settings, check [secure your clusters with SAML](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/saml.md).
+
+`xpack.security.authc.realms.oidc.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   To learn more on how to enable OpenID Connect and related user settings, check [secure your clusters with OpenID Connect](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/openid-connect.md).
+
+`xpack.security.authc.realms.kerberos.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   To learn more on how to enable Kerberos and relate user settings, check [secure your clusters with Kerberos](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kerberos.md).
+
+`xpack.security.authc.realms.jwt.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
+:   To learn more on how to enable JWT and related user settings, check [secure your clusters with JWT](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/jwt.md).
+
+::::{note}
+All SAML, OpenID Connect, Kerberos, and JWT settings are allowlisted.
+::::
 
 You configure realm settings in the `xpack.security.authc.realms` namespace in `elasticsearch.yml`.
 

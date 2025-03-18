@@ -10,6 +10,7 @@
 package org.elasticsearch.logsdb.datageneration.matchers.source;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
@@ -20,6 +21,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,6 +36,34 @@ import static org.elasticsearch.logsdb.datageneration.matchers.Messages.prettyPr
 
 interface FieldSpecificMatcher {
     MatchResult match(List<Object> actual, List<Object> expected, Map<String, Object> actualMapping, Map<String, Object> expectedMapping);
+
+    static Map<String, FieldSpecificMatcher> matchers(
+        XContentBuilder actualMappings,
+        Settings.Builder actualSettings,
+        XContentBuilder expectedMappings,
+        Settings.Builder expectedSettings
+    ) {
+        return new HashMap<>() {
+            {
+                put("keyword", new KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("date", new DateMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("long", new NumberMatcher("long", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("unsigned_long", new UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("integer", new NumberMatcher("integer", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("short", new NumberMatcher("short", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("byte", new NumberMatcher("byte", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("double", new NumberMatcher("double", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("float", new NumberMatcher("float", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("half_float", new HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("scaled_float", new ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("counted_keyword", new CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("boolean", new BooleanMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("geo_shape", new ExactMatcher("geo_shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("shape", new ExactMatcher("shape", actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("geo_point", new GeoPointMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+            }
+        };
+    }
 
     class CountedKeywordMatcher implements FieldSpecificMatcher {
         private final XContentBuilder actualMappings;
@@ -165,12 +195,12 @@ interface FieldSpecificMatcher {
             Map<String, Object> actualMapping,
             Map<String, Object> expectedMapping
         ) {
-            var scalingFactor = FieldSpecificMatcher.getMappingParameter("scaling_factor", actualMapping, expectedMapping);
+            var scalingFactor = getMappingParameter("scaling_factor", actualMapping, expectedMapping);
 
             assert scalingFactor instanceof Number;
             double scalingFactorDouble = ((Number) scalingFactor).doubleValue();
 
-            var nullValue = (Number) FieldSpecificMatcher.getNullValue(actualMapping, expectedMapping);
+            var nullValue = (Number) getNullValue(actualMapping, expectedMapping);
 
             // It is possible that we receive a mix of reduced precision values and original values.
             // F.e. in case of `synthetic_source_keep: "arrays"` in nested objects only arrays are preserved as is
@@ -473,18 +503,70 @@ interface FieldSpecificMatcher {
         }
     }
 
-    class ShapeMatcher implements FieldSpecificMatcher {
-        private final XContentBuilder actualMappings;
-        private final Settings.Builder actualSettings;
-        private final XContentBuilder expectedMappings;
-        private final Settings.Builder expectedSettings;
-
-        ShapeMatcher(
+    class GeoPointMatcher extends GenericMappingAwareMatcher {
+        GeoPointMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
             Settings.Builder expectedSettings
         ) {
+            super("geo_point", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        Object convert(Object value, Object nullValue) {
+            if (value == null) {
+                if (nullValue != null) {
+                    return normalizePoint(new GeoPoint((String) nullValue));
+                }
+                return null;
+            }
+            if (value instanceof String s) {
+                try {
+                    return normalizePoint(new GeoPoint(s));
+                } catch (Exception e) {
+                    // malformed
+                    return value;
+                }
+            }
+            if (value instanceof Map<?, ?> m) {
+                if (m.get("type") != null) {
+                    var coordinates = (List<Double>) m.get("coordinates");
+                    // Order is GeoJSON is lon,lat
+                    return normalizePoint(new GeoPoint(coordinates.get(1), coordinates.get(0)));
+                } else {
+                    return normalizePoint(new GeoPoint((Double) m.get("lat"), (Double) m.get("lon")));
+                }
+            }
+            if (value instanceof List<?> l) {
+                // Order in arrays is lon,lat
+                return normalizePoint(new GeoPoint((Double) l.get(1), (Double) l.get(0)));
+            }
+
+            return value;
+        }
+
+        private static GeoPoint normalizePoint(GeoPoint point) {
+            return point.resetFromEncoded(point.getEncoded());
+        }
+    }
+
+    class ExactMatcher implements FieldSpecificMatcher {
+        private final String fieldType;
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
+        ExactMatcher(
+            String fieldType,
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            this.fieldType = fieldType;
             this.actualMappings = actualMappings;
             this.actualSettings = actualSettings;
             this.expectedMappings = expectedMappings;
@@ -498,7 +580,6 @@ interface FieldSpecificMatcher {
             Map<String, Object> actualMapping,
             Map<String, Object> expectedMapping
         ) {
-            // Since fallback synthetic source is used, should always match exactly.
             return actual.equals(expected)
                 ? MatchResult.match()
                 : MatchResult.noMatch(
@@ -507,7 +588,11 @@ interface FieldSpecificMatcher {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Values of type [geo_shape] don't match, values " + prettyPrintCollections(actual, expected)
+                        "Values of type ["
+                            + fieldType
+                            + "] were expected to match exactly "
+                            + "but don't match, values "
+                            + prettyPrintCollections(actual, expected)
                     )
                 );
         }

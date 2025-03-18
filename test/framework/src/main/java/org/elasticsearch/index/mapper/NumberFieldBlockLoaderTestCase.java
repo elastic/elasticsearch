@@ -22,7 +22,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = fieldMapping.get("null_value") != null ? convert((Number) fieldMapping.get("null_value"), fieldMapping) : null;
 
         if (value instanceof List<?> == false) {

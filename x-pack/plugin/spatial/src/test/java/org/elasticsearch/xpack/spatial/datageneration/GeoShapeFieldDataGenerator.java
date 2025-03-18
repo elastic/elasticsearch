@@ -48,7 +48,7 @@ public class GeoShapeFieldDataGenerator implements FieldDataGenerator {
             return null;
         }
 
-        if (fieldMapping != null && (Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
+        if ((Boolean) fieldMapping.getOrDefault("ignore_malformed", false)) {
             return formattedGeoShapesWithMalformed.get();
         }
 

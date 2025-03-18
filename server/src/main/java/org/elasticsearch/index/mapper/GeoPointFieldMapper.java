@@ -67,6 +67,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
+
 /**
  * Field Mapper for geo_point types.
  *
@@ -224,7 +226,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 scriptValues(),
                 meta.get(),
                 metric.get(),
-                indexMode
+                indexMode,
+                context.isSourceSynthetic()
             );
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.get();
@@ -370,6 +373,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         private final FieldValues<GeoPoint> scriptValues;
         private final IndexMode indexMode;
+        private final boolean isSyntheticSource;
 
         private GeoPointFieldType(
             String name,
@@ -381,17 +385,19 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             FieldValues<GeoPoint> scriptValues,
             Map<String, String> meta,
             TimeSeriesParams.MetricType metricType,
-            IndexMode indexMode
+            IndexMode indexMode,
+            boolean isSyntheticSource
         ) {
             super(name, indexed, stored, hasDocValues, parser, nullValue, meta);
             this.scriptValues = scriptValues;
             this.metricType = metricType;
             this.indexMode = indexMode;
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         // only used in test
         public GeoPointFieldType(String name, TimeSeriesParams.MetricType metricType, IndexMode indexMode) {
-            this(name, true, false, true, null, null, null, Collections.emptyMap(), metricType, indexMode);
+            this(name, true, false, true, null, null, null, Collections.emptyMap(), metricType, indexMode, false);
         }
 
         // only used in test
@@ -523,6 +529,20 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public TimeSeriesParams.MetricType getMetricType() {
             return metricType;
+        }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (blContext.fieldExtractPreference() == DOC_VALUES && hasDocValues()) {
+                return new BlockDocValuesReader.LongsBlockLoader(name());
+            }
+
+            // _ignored_source field will only be present if there is no doc_values
+            if (isSyntheticSource && hasDocValues() == false) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
         }
     }
 

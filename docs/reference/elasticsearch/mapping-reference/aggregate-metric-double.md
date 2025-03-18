@@ -67,10 +67,10 @@ Running any other aggregation on an `aggregate_metric_double` field will fail wi
 
 Finally, an `aggregate_metric_double` field supports the following queries for which it behaves as a `double` by delegating its behavior to its `default_metric` sub-field:
 
-* [`exists`](/reference/query-languages/query-dsl-exists-query.md)
-* [`range`](/reference/query-languages/query-dsl-range-query.md)
-* [`term`](/reference/query-languages/query-dsl-term-query.md)
-* [`terms`](/reference/query-languages/query-dsl-terms-query.md)
+* [`exists`](/reference/query-languages/query-dsl/query-dsl-exists-query.md)
+* [`range`](/reference/query-languages/query-dsl/query-dsl-range-query.md)
+* [`term`](/reference/query-languages/query-dsl/query-dsl-term-query.md)
+* [`terms`](/reference/query-languages/query-dsl/query-dsl-terms-query.md)
 
 
 ## Examples [aggregate-metric-double-example]

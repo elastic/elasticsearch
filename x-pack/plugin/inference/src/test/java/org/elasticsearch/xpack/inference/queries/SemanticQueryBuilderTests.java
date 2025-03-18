@@ -265,7 +265,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     protected Object simulateMethod(Method method, Object[] args) {
         InferenceAction.Request request = (InferenceAction.Request) args[1];
         assertThat(request.getTaskType(), equalTo(TaskType.ANY));
-        assertThat(request.getInputType(), equalTo(InputType.SEARCH));
+        assertThat(request.getInputType(), equalTo(InputType.INTERNAL_SEARCH));
         assertThat(request.getInferenceEntityId(), equalTo(useSearchInferenceId ? SEARCH_INFERENCE_ID : INFERENCE_ID));
 
         List<String> input = request.getInput();
@@ -352,8 +352,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     ) throws IOException {
         var modelSettings = switch (inferenceResultType) {
             case NONE -> null;
-            case SPARSE_EMBEDDING -> new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
+            case SPARSE_EMBEDDING -> new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
             case TEXT_EMBEDDING -> new MinimalServiceSettings(
+                "my-service",
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
                 // l2_norm similarity is required for bit embeddings

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.voyageai.embeddings;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,13 +19,14 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService.VALID_INPUT_TYPE_VALUES;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceFields.TRUNCATION;
 
 /**
@@ -41,7 +41,6 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
     public static final String NAME = "voyageai_embeddings_task_settings";
     public static final VoyageAIEmbeddingsTaskSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
-    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(InputType.INGEST, InputType.SEARCH);
 
     public static VoyageAIEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
@@ -55,7 +54,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
             INPUT_TYPE,
             ModelConfigurations.TASK_SETTINGS,
             InputType::fromString,
-            VALID_REQUEST_VALUES,
+            VALID_INPUT_TYPE_VALUES,
             validationException
         );
         Boolean truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
@@ -75,15 +74,13 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
      * originalSettings.
      * @param originalSettings the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
-     * @param requestInputType the input type passed in the request parameters
      * @return a constructed {@link VoyageAIEmbeddingsTaskSettings}
      */
     public static VoyageAIEmbeddingsTaskSettings of(
         VoyageAIEmbeddingsTaskSettings originalSettings,
-        VoyageAIEmbeddingsTaskSettings requestTaskSettings,
-        InputType requestInputType
+        VoyageAIEmbeddingsTaskSettings requestTaskSettings
     ) {
-        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings, requestInputType);
+        var inputTypeToUse = getValidInputType(originalSettings, requestTaskSettings);
         var truncationToUse = getValidTruncation(originalSettings, requestTaskSettings);
 
         return new VoyageAIEmbeddingsTaskSettings(inputTypeToUse, truncationToUse);
@@ -91,14 +88,11 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
 
     private static InputType getValidInputType(
         VoyageAIEmbeddingsTaskSettings originalSettings,
-        VoyageAIEmbeddingsTaskSettings requestTaskSettings,
-        InputType requestInputType
+        VoyageAIEmbeddingsTaskSettings requestTaskSettings
     ) {
         InputType inputTypeToUse = originalSettings.inputType;
 
-        if (VALID_REQUEST_VALUES.contains(requestInputType)) {
-            inputTypeToUse = requestInputType;
-        } else if (requestTaskSettings.inputType != null) {
+        if (requestTaskSettings.inputType != null) {
             inputTypeToUse = requestTaskSettings.inputType;
         }
 
@@ -130,7 +124,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
             return;
         }
 
-        assert VALID_REQUEST_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
+        assert VALID_INPUT_TYPE_VALUES.contains(inputType) : invalidInputTypeMessage(inputType);
     }
 
     @Override
@@ -190,13 +184,9 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
         return Objects.hash(inputType, truncation);
     }
 
-    public static String invalidInputTypeMessage(InputType inputType) {
-        return Strings.format("received invalid input type value [%s]", inputType.toString());
-    }
-
     @Override
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         VoyageAIEmbeddingsTaskSettings updatedSettings = VoyageAIEmbeddingsTaskSettings.fromMap(new HashMap<>(newSettings));
-        return of(this, updatedSettings, updatedSettings.inputType != null ? updatedSettings.inputType : this.inputType);
+        return of(this, updatedSettings);
     }
 }

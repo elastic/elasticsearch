@@ -7,8 +7,13 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,6 +24,15 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
  * Spatial functions that take one spatial argument, one parameter and one optional bounds can inherit from this class.
@@ -67,6 +81,60 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
      * This only applies to geo_point and cartesian_point types.
      */
     public abstract SpatialGridFunction withDocValues(boolean useDocValues);
+
+    @Override
+    protected TypeResolution resolveType() {
+        if (childrenResolved() == false) {
+            return new TypeResolution("Unresolved children");
+        }
+
+        TypeResolution resolution = isGeoPoint(spatialField(), sourceText());
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        resolution = isWholeNumber(parameter(), sourceText(), SECOND);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        if (bounds() != null) {
+            resolution = isGeoShape(bounds(), sourceText());
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+        }
+
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    protected static Expression.TypeResolution isGeoPoint(Expression e, String operationName) {
+        return isType(e, t -> t.equals(GEO_POINT), operationName, FIRST, GEO_POINT.typeName());
+    }
+
+    protected static Expression.TypeResolution isGeoShape(Expression e, String operationName) {
+        return isType(e, t -> t.equals(GEO_SHAPE), operationName, THIRD, GEO_SHAPE.typeName());
+    }
+
+    protected static Rectangle asRectangle(BytesRef boundsBytesRef) {
+        var geometry = GEO.wkbToGeometry(boundsBytesRef);
+        if (geometry instanceof Rectangle rectangle) {
+            return rectangle;
+        }
+        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, SpatialEnvelopeVisitor.WrapLongitude.WRAP);
+        if (envelope.isPresent()) {
+            return envelope.get();
+        }
+        throw new IllegalArgumentException("Cannot determine envelope of bounds geometry");
+    }
+
+    protected static boolean inBounds(Point point, Rectangle bounds) {
+        // TODO: consider bounds across the dateline
+        return point.getX() >= bounds.getMinX()
+            && point.getY() >= bounds.getMinY()
+            && point.getX() <= bounds.getMaxX()
+            && point.getY() <= bounds.getMaxY();
+    }
 
     @Override
     public int hashCode() {
@@ -119,4 +187,19 @@ public abstract class SpatialGridFunction extends ScalarFunction implements Opti
     public boolean foldable() {
         return spatialField.foldable() && parameter.foldable() && (bounds == null || bounds.foldable());
     }
+
+    protected static void addGrids(BytesRefBlock.Builder results, List<BytesRef> gridIds) {
+        if (gridIds.isEmpty()) {
+            results.appendNull();
+        } else if (gridIds.size() == 1) {
+            results.appendBytesRef(gridIds.getFirst());
+        } else {
+            results.beginPositionEntry();
+            for (BytesRef gridId : gridIds) {
+                results.appendBytesRef(gridId);
+            }
+            results.endPositionEntry();
+        }
+    }
+
 }

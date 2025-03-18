@@ -1,14 +1,17 @@
 ###############################################
-# Tests for geo_grid functions: geohash, geotile, geohex
+# Tests for geo_grid function: ST_GEOHASH
 ###############################################
 
 geohashLiteral
 ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
-| EVAL geohash = ST_GEOHASH(location, 4)
+| EVAL geohash4 = ST_GEOHASH(location, 4),
+       geohash3 = ST_GEOHASH(location, 3),
+       geohash2 = ST_GEOHASH(location, 2),
+       geohash1 = ST_GEOHASH(location, 1)
 ;
 
-location:geo_point | geohash:keyword
-POINT(12.6493508684508 55.6285017221528) | u3bu
+location:geo_point | geohash4:keyword | geohash3:keyword | geohash2:keyword | geohash1:keyword
+POINT(12.6493508684508 55.6285017221528) | u3bu | u3b | u3 | u
 ;
 
 geohashLiteralMv
@@ -44,6 +47,7 @@ FROM airports
     count = COUNT(*),
     centroid = ST_CENTROID_AGG(location)
       BY geohash
+| WHERE count >= 10
 | SORT count DESC, geohash ASC
 // end::st_geohash-grid[]
 ;
@@ -67,14 +71,6 @@ count:long | centroid:geo_point                             | geohash:keyword
 16         | POINT (147.40052131412085 21.054660080408212)  | x
 13         | POINT (63.64716878519035 54.37333276101317)    | v
 12         | POINT (-39.53510569408536 -11.72166372067295)  | 7
-9          | POINT (-150.36503398790956 63.14222150482237)  | b
-7          | POINT (-167.3069146488394 -17.976190628084755) | 2
-6          | POINT (-157.0227657398209 17.60691551025957)   | 8
-5          | POINT (114.40185610949993 48.99013584572822)   | y
-4          | POINT (-69.98911972157657 -52.170535867335275) | 4
-4          | POINT (51.48641954641789 -14.176777086686343)  | m
-1          | POINT (-109.43006442859769 -27.15877384878695) | 3
-1          | POINT (170.20002692006528 -45.92343100346625)  | p
 // end::st_geohash-grid-result[]
 ;
 
@@ -170,4 +166,333 @@ FROM airports
 count:long | centroid:geo_point
 14         | POINT (-2.5644131543646966 53.38093495994274)
 3          | POINT (-2.7510103583335876 58.79020635969937)
+;
+
+###############################################
+# Tests for geo_grid function: ST_GEOTILE
+###############################################
+
+geotileLiteral
+ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
+| EVAL geotile4 = ST_GEOTILE(location, 4),
+       geotile3 = ST_GEOTILE(location, 3),
+       geotile2 = ST_GEOTILE(location, 2),
+       geotile1 = ST_GEOTILE(location, 1)
+;
+
+location:geo_point                        | geotile4:keyword | geotile3:keyword | geotile2:keyword | geotile1:keyword
+POINT (12.6493508684508 55.6285017221528) | 4/8/5            | 3/4/2            | 2/2/1            | 1/1/0           
+;
+
+geotileLiteralMv
+ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)"), precision = [1,2,3,4,5]
+| MV_EXPAND precision
+| EVAL geotile = ST_GEOTILE(location, precision)
+;
+
+location:geo_point                        | precision:integer | geotile:keyword
+POINT (12.6493508684508 55.6285017221528) | 1                 | 1/1/0          
+POINT (12.6493508684508 55.6285017221528) | 2                 | 2/2/1          
+POINT (12.6493508684508 55.6285017221528) | 3                 | 3/4/2          
+POINT (12.6493508684508 55.6285017221528) | 4                 | 4/8/5          
+POINT (12.6493508684508 55.6285017221528) | 5                 | 5/17/10        
+;
+
+geotileField
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL geotile = ST_GEOTILE(location, 7)
+| KEEP geotile, abbrev, name, location
+;
+
+geotile:keyword | abbrev:keyword | name:text  | location:geo_point                       
+7/68/40         | CPH            | Copenhagen | POINT (12.6493508684508 55.6285017221528)
+;
+
+gridGeotileStatsBy
+// tag::st_geotile-grid[]
+FROM airports
+| EVAL geotile = ST_GEOTILE(location, 2)
+| STATS
+    count = COUNT(*),
+    centroid = ST_CENTROID_AGG(location)
+      BY geotile
+| SORT count DESC, geotile ASC
+// end::st_geotile-grid[]
+;
+
+// tag::st_geotile-grid-result[]
+count:long | centroid:geo_point                              | geotile:keyword
+286        | POINT (39.31202001609169 35.149993664386415)    | 2/2/1          
+197        | POINT (-55.387361375756825 31.952955322292855)  | 2/1/1          
+136        | POINT (-110.97162496141048 36.87185255084734)   | 2/0/1          
+106        | POINT (119.35907618669827 25.46263281488791)    | 2/3/1          
+67         | POINT (-58.031108492373754 -22.624166105151065) | 2/1/2          
+46         | POINT (142.95455511274707 -20.581492295427978)  | 2/3/2          
+34         | POINT (31.38476753634784 -14.64374022804858)    | 2/2/2          
+8          | POINT (-160.0723083713092 -19.124013530672528)  | 2/0/2          
+6          | POINT (23.95813101902604 70.17537698848173)     | 2/2/0          
+3          | POINT (-133.4001641627401 72.06833167467266)    | 2/0/0          
+2          | POINT (-68.47209956031293 66.77569948369637)    | 2/1/0             
+// end::st_geotile-grid-result[]
+;
+
+gridGeotileStatsByBounds
+FROM airports
+| EVAL geotile = ST_GEOTILE(location, 3, TO_GEOSHAPE("BBOX(0, 12, 60, 30)"))
+| WHERE geotile IS NOT NULL
+| STATS
+    count = COUNT(*),
+    centroid = ST_CENTROID_AGG(location)
+      BY geotile
+| SORT count DESC, geotile ASC
+;
+
+count:long | centroid:geo_point                           | geotile:keyword
+36         | POINT (6.52789649553597 48.36977661703713)   | 3/4/2
+5          | POINT (6.707012789323926 37.031419202685356) | 3/4/3
+;
+
+gridGeotileStatsByWhereUK
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL geotile = ST_GEOTILE(location, 4)
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY geotile
+| SORT count DESC
+;
+
+count:long | centroid:geo_point                            | geotile:keyword
+12         | POINT (-2.342151787597686 52.9600293841213)   | 4/7/5
+5          | POINT (-3.2097987569868565 57.63667118176818) | 4/7/4
+;
+
+gridGeotileStatsByBoundsUK
+FROM airports
+| EVAL bounds = ST_ENVELOPE(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL geotile = ST_GEOTILE(location, 2, bounds)
+| WHERE geotile IS NOT NULL
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY geotile
+| SORT count DESC
+;
+
+count:long | centroid:geo_point                            | geotile:keyword
+20         | POINT (-3.3905635555274785 54.08363554766402) | 2/1/1
+1          | POINT (0.15865350142121315 49.36166098807007) | 2/2/1
+;
+
+gridGeotileInStatsBy
+FROM airports
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY ST_GEOTILE(location, 1)
+| SORT count DESC
+| KEEP count, centroid
+| LIMIT 10
+;
+
+count:long | centroid:geo_point                           
+398        | POINT (60.39961956408642 33.09796363900383)  
+338        | POINT (-78.52247301001411 34.49426195088267) 
+80         | POINT (95.5373953927774 -18.057947666791733) 
+75         | POINT (-68.91550314612687 -22.25081649720669)
+;
+
+gridGeotileInStatsByWhereUK
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY ST_GEOTILE(location, 3)
+| KEEP count, centroid
+| SORT count DESC
+;
+
+count:long | centroid:geo_point                          
+17         | POINT (-2.597342072712148 54.33551226578214)
+;
+
+###############################################
+# Tests for geo_grid function: ST_GEOHEX
+###############################################
+
+geohexLiteral
+ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)")
+| EVAL geohex4 = ST_GEOHEX(location, 4),
+       geohex3 = ST_GEOHEX(location, 3),
+       geohex2 = ST_GEOHEX(location, 2),
+       geohex1 = ST_GEOHEX(location, 1)
+;
+
+location:geo_point                        | geohex4:keyword | geohex3:keyword | geohex2:keyword | geohex1:keyword
+POINT (12.6493508684508 55.6285017221528) | 841f059ffffffff | 831f05fffffffff | 821f07fffffffff | 811f3ffffffffff
+;
+
+geohexLiteralMv
+ROW location = TO_GEOPOINT("POINT(12.6493508684508 55.6285017221528)"), precision = [1,2,3,4,5]
+| MV_EXPAND precision
+| EVAL geohex = ST_GEOHEX(location, precision)
+;
+
+location:geo_point                        | precision:integer | geohex:keyword 
+POINT (12.6493508684508 55.6285017221528) | 1                 | 811f3ffffffffff
+POINT (12.6493508684508 55.6285017221528) | 2                 | 821f07fffffffff
+POINT (12.6493508684508 55.6285017221528) | 3                 | 831f05fffffffff
+POINT (12.6493508684508 55.6285017221528) | 4                 | 841f059ffffffff
+POINT (12.6493508684508 55.6285017221528) | 5                 | 851f0583fffffff
+;
+
+geohexField
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL geohex = ST_GEOHEX(location, 7)
+| KEEP geohex, abbrev, name, location
+;
+
+geohex:keyword  | abbrev:keyword | name:text  | location:geo_point                       
+871f05818ffffff | CPH            | Copenhagen | POINT (12.6493508684508 55.6285017221528)
+;
+
+gridGeohexStatsBy
+// tag::st_geohex-grid[]
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| STATS
+    count = COUNT(*),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohex
+| WHERE count >= 10
+| SORT count DESC, geohex ASC
+// end::st_geohex-grid[]
+;
+
+// tag::st_geohex-grid-result[]
+count:long | centroid:geo_point                             | geohex:keyword 
+22         | POINT (7.250850197689777 48.21363834643059)    | 811fbffffffffff
+18         | POINT (-80.64959161449224 40.04119813675061)   | 812abffffffffff
+17         | POINT (-0.7606179875266903 52.86413913565304)  | 81197ffffffffff
+13         | POINT (22.53157936179867 41.98255742864254)    | 811efffffffffff
+13         | POINT (78.30096947387435 26.073904778951636)   | 813dbffffffffff
+12         | POINT (-76.39781514415517 45.16300531569868)   | 812bbffffffffff
+12         | POINT (-100.30120467301458 20.114154297625646) | 8149bffffffffff
+11         | POINT (18.037187419831753 48.66540593306788)   | 811e3ffffffffff
+11         | POINT (-83.42379064553164 33.18388901439241)   | 8144fffffffffff
+11         | POINT (-99.4237939513881 27.100012352774765)   | 8148bffffffffff
+10         | POINT (128.01009018346667 35.8699960866943)    | 8130fffffffffff
+// end::st_geohex-grid-result[]
+;
+
+gridGeohexStatsByBounds
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1, TO_GEOSHAPE("BBOX(0, 12, 60, 30)"))
+| WHERE geohex IS NOT NULL
+| STATS
+    count = COUNT(*),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohex
+| SORT count DESC, geohex ASC
+;
+
+count:long | centroid:geo_point                            | geohex:keyword 
+22         | POINT (7.250850197689777 48.21363834643059)   | 811fbffffffffff
+5          | POINT (3.6714368518441916 42.29731031600386)  | 81397ffffffffff
+4          | POINT (4.188777215313166 51.50470834574662)   | 81197ffffffffff
+3          | POINT (9.197671310976148 36.29719984252006)   | 81387ffffffffff
+2          | POINT (9.261639816686511 43.87209988664836)   | 811ebffffffffff
+2          | POINT (9.395754751749337 53.3421441167593)    | 811f3ffffffffff
+1          | POINT (5.629810290411115 58.88215648010373)   | 8109bffffffffff
+1          | POINT (0.15865350142121315 49.36166098807007) | 81187ffffffffff
+1          | POINT (3.212073454633355 36.69972063973546)   | 81383ffffffffff
+;
+
+gridGeohexStatsByWhereUK
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL geohex = ST_GEOHEX(location, 1)
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohex
+| SORT count DESC, geohex ASC
+;
+
+count:long | centroid:geo_point                            | geohex:keyword
+13         | POINT (-2.283508819169723 53.28242553254733)  | 81197ffffffffff
+2          | POINT (-3.482485176064074 58.24696456314996)  | 81193ffffffffff
+1          | POINT (-1.2880607228726149 59.87668995279819) | 8109bffffffffff
+1          | POINT (-6.216169511899352 54.66155751608312)  | 81183ffffffffff
+;
+
+gridGeohexStatsByBoundsUK
+FROM airports
+| EVAL bounds = ST_ENVELOPE(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL geohex = ST_GEOHEX(location, 2, bounds)
+| WHERE geohex IS NOT NULL
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohex
+| SORT count DESC, geohex ASC
+;
+
+count:long | centroid:geo_point                             | geohex:keyword 
+5          | POINT (-1.7227098606526852 51.717823022045195) | 82195ffffffffff
+4          | POINT (-3.9897833741270006 54.21732849790715)  | 821957fffffffff
+3          | POINT (-7.885485291481018 52.65633414499462)   | 82182ffffffffff
+2          | POINT (-4.2476349184289575 56.70184155693278)  | 82190ffffffffff
+2          | POINT (-2.5373152876272798 55.49281941493973)  | 821977fffffffff
+1          | POINT (-1.2880607228726149 59.87668995279819)  | 8209a7fffffffff
+1          | POINT (0.15865350142121315 49.36166098807007)  | 821867fffffffff
+1          | POINT (-2.9013785161077976 58.95442885346711)  | 82192ffffffffff
+1          | POINT (-1.6598310694098473 53.8690819311887)   | 821947fffffffff
+1          | POINT (-0.16296171583235264 51.1557567352429)  | 82194ffffffffff  
+;
+
+gridGeohexInStatsBy
+FROM airports
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY ST_GEOHEX(location, 1)
+| SORT count DESC
+| KEEP count, centroid
+| LIMIT 10
+;
+
+count:long | centroid:geo_point                            
+22         | POINT (7.250850197689777 48.21363834643059)   
+18         | POINT (-80.64959161449224 40.04119813675061)  
+17         | POINT (-0.7606179875266903 52.86413913565304) 
+13         | POINT (22.53157936179867 41.98255742864254)   
+13         | POINT (78.30096947387435 26.073904778951636)  
+12         | POINT (-100.30120467301458 20.114154297625646)
+12         | POINT (-76.39781514415517 45.16300531569868)  
+11         | POINT (-99.4237939513881 27.100012352774765)  
+11         | POINT (-83.42379064553164 33.18388901439241)  
+11         | POINT (18.037187419831753 48.66540593306788)  
+;
+
+gridGeohexInStatsByWhereUK
+FROM airports
+| WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY ST_GEOHEX(location, 1)
+| KEEP count, centroid
+| SORT count DESC
+;
+
+count:long | centroid:geo_point 
+13         | POINT (-2.283508819169723 53.28242553254733)
+2          | POINT (-3.482485176064074 58.24696456314996)
+1          | POINT (-6.216169511899352 54.66155751608312)
+1          | POINT (-1.2880607228726149 59.87668995279819)
 ;

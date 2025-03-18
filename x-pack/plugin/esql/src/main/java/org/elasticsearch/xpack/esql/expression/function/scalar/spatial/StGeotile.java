@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -35,21 +35,21 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
- * Calculates the geohash of geo_point geometries.
+ * Calculates the geotile of geo_point geometries.
  */
-public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
+public class StGeotile extends SpatialGridFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "StGeohash",
-        StGeohash::new
+        "StGeotile",
+        StGeotile::new
     );
 
     @FunctionInfo(
         returnType = "keyword",
-        description = "Calculates the `geohash` of the supplied geo_point at the specified precision.",
-        examples = @Example(file = "spatial-grid", tag = "st_geohash-grid")
+        description = "Calculates the `geotile` of the supplied geo_point at the specified precision.",
+        examples = @Example(file = "spatial-grid", tag = "st_geotile-grid")
     )
-    public StGeohash(
+    public StGeotile(
         Source source,
         @Param(
             name = "point",
@@ -64,18 +64,18 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         @Param(
             name = "bounds",
             type = { "geo_shape", "geo_point" },
-            description = "Bounds to filter the grid tiles, either a geo_shape BBOX or an array of two points",
+            description = "Bounds to filter the grid tiles, either a geo_shape BBOX or an array",
             optional = true
         ) Expression bounds
     ) {
         this(source, field, precision, bounds, false);
     }
 
-    private StGeohash(Source source, Expression field, Expression precision, Expression bounds, boolean spatialDocValues) {
+    private StGeotile(Source source, Expression field, Expression precision, Expression bounds, boolean spatialDocValues) {
         super(source, field, precision, bounds, spatialDocValues);
     }
 
-    private StGeohash(StreamInput in) throws IOException {
+    private StGeotile(StreamInput in) throws IOException {
         super(in, false);
     }
 
@@ -83,7 +83,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     public SpatialGridFunction withDocValues(boolean useDocValues) {
         // Only update the docValues flags if the field is found in the attributes
         boolean docValues = this.spatialDocsValues || useDocValues;
-        return new StGeohash(source(), spatialField, parameter, bounds, docValues);
+        return new StGeotile(source(), spatialField, parameter, bounds, docValues);
     }
 
     @Override
@@ -98,12 +98,12 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
 
     @Override
     protected SpatialGridFunction replaceChildren(Expression newSpatialField, Expression newParameter, Expression newBounds) {
-        return new StGeohash(source(), newSpatialField, newParameter, newBounds);
+        return new StGeotile(source(), newSpatialField, newParameter, newBounds);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StGeohash::new, spatialField, parameter, bounds, false);
+        return NodeInfo.create(this, StGeotile::new, spatialField, parameter, bounds, false);
     }
 
     @Override
@@ -116,18 +116,18 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             if (spatialField().foldable()) {
                 // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
                 var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
-                return new StGeohashFromLiteralAndFieldAndLiteralEvaluator.Factory(source(), point, toEvaluator.apply(parameter()), bbox);
+                return new StGeotileFromLiteralAndFieldAndLiteralEvaluator.Factory(source(), point, toEvaluator.apply(parameter()), bbox);
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
                 int precision = (int) parameter.fold(toEvaluator.foldCtx());
                 return spatialDocsValues
-                    ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
+                    ? new StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
                         source(),
                         toEvaluator.apply(spatialField()),
                         precision,
                         bbox
                     )
-                    : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(
+                    : new StGeotileFromFieldAndLiteralAndLiteralEvaluator.Factory(
                         source(),
                         toEvaluator.apply(spatialField),
                         precision,
@@ -136,13 +136,13 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             } else {
                 // Both arguments come from index fields
                 return spatialDocsValues
-                    ? new StGeohashFromFieldDocValuesAndFieldAndLiteralEvaluator.Factory(
+                    ? new StGeotileFromFieldDocValuesAndFieldAndLiteralEvaluator.Factory(
                         source(),
                         toEvaluator.apply(spatialField),
                         toEvaluator.apply(parameter),
                         bbox
                     )
-                    : new StGeohashFromFieldAndFieldAndLiteralEvaluator.Factory(
+                    : new StGeotileFromFieldAndFieldAndLiteralEvaluator.Factory(
                         source(),
                         toEvaluator.apply(spatialField),
                         toEvaluator.apply(parameter),
@@ -153,22 +153,22 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             if (spatialField().foldable()) {
                 // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
                 var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
-                return new StGeohashFromLiteralAndFieldEvaluator.Factory(source(), point, toEvaluator.apply(parameter()));
+                return new StGeotileFromLiteralAndFieldEvaluator.Factory(source(), point, toEvaluator.apply(parameter()));
             } else if (parameter().foldable()) {
                 // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
                 int precision = (int) parameter.fold(toEvaluator.foldCtx());
                 return spatialDocsValues
-                    ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
-                    : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
+                    ? new StGeotileFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
+                    : new StGeotileFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
             } else {
                 // Both arguments come from index fields
                 return spatialDocsValues
-                    ? new StGeohashFromFieldDocValuesAndFieldEvaluator.Factory(
+                    ? new StGeotileFromFieldDocValuesAndFieldEvaluator.Factory(
                         source(),
                         toEvaluator.apply(spatialField),
                         toEvaluator.apply(parameter)
                     )
-                    : new StGeohashFromFieldAndFieldEvaluator.Factory(
+                    : new StGeotileFromFieldAndFieldEvaluator.Factory(
                         source(),
                         toEvaluator.apply(spatialField),
                         toEvaluator.apply(parameter)
@@ -181,7 +181,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     public Object fold(FoldContext ctx) {
         var point = (BytesRef) spatialField().fold(ctx);
         int precision = (int) parameter().fold(ctx);
-        return calculateGeohash(GEO.wkbAsPoint(point), precision);
+        return calculateGeotile(GEO.wkbAsPoint(point), precision);
     }
 
     @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -206,11 +206,11 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "FromLiteralAndField", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromLiteralAndField(@Fixed BytesRef in, int precision) {
-        return calculateGeohash(GEO.wkbAsPoint(in), precision);
+        return calculateGeotile(GEO.wkbAsPoint(in), precision);
     }
 
-    protected static BytesRef calculateGeohash(Point point, int precision) {
-        return new BytesRef(Geohash.stringEncode(point.getX(), point.getY(), precision));
+    protected static BytesRef calculateGeotile(Point point, int precision) {
+        return new BytesRef(GeoTileUtils.stringEncode(GeoTileUtils.longEncode(point.getX(), point.getY(), precision)));
     }
 
     @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
@@ -259,7 +259,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
 
     @Evaluator(extraName = "FromLiteralAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed Rectangle bounds) {
-        return calculateGeohash(GEO.wkbAsPoint(in), precision, bounds);
+        return calculateGeotile(GEO.wkbAsPoint(in), precision, bounds);
     }
 
     private static void fromWKB(BytesRefBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision) {
@@ -270,11 +270,11 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             final BytesRef scratch = new BytesRef();
             final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
             if (valueCount == 1) {
-                results.appendBytesRef(calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision));
+                results.appendBytesRef(calculateGeotile(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision));
             } else {
                 results.beginPositionEntry();
                 for (int i = 0; i < valueCount; i++) {
-                    results.appendBytesRef(calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision));
+                    results.appendBytesRef(calculateGeotile(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision));
                 }
                 results.endPositionEntry();
             }
@@ -288,21 +288,21 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         } else {
             final int firstValueIndex = encoded.getFirstValueIndex(position);
             if (valueCount == 1) {
-                results.appendBytesRef(calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision));
+                results.appendBytesRef(calculateGeotile(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision));
             } else {
                 results.beginPositionEntry();
                 for (int i = 0; i < valueCount; i++) {
-                    results.appendBytesRef(calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision));
+                    results.appendBytesRef(calculateGeotile(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision));
                 }
                 results.endPositionEntry();
             }
         }
     }
 
-    protected static BytesRef calculateGeohash(Point point, int precision, Rectangle bounds) {
+    protected static BytesRef calculateGeotile(Point point, int precision, Rectangle bounds) {
         // For points, filtering the point is as good as filtering the tile
         if (inBounds(point, bounds)) {
-            return new BytesRef(Geohash.stringEncode(point.getX(), point.getY(), precision));
+            return new BytesRef(GeoTileUtils.stringEncode(GeoTileUtils.longEncode(point.getX(), point.getY(), precision)));
         }
         return null;
     }
@@ -315,7 +315,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             final BytesRef scratch = new BytesRef();
             final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
             if (valueCount == 1) {
-                BytesRef grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision, bounds);
+                BytesRef grid = calculateGeotile(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision, bounds);
                 if (grid == null) {
                     results.appendNull();
                 } else {
@@ -324,7 +324,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             } else {
                 var gridIds = new ArrayList<BytesRef>(valueCount);
                 for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision, bounds);
+                    var grid = calculateGeotile(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision, bounds);
                     if (grid != null) {
                         gridIds.add(grid);
                     }
@@ -341,7 +341,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
         } else {
             final int firstValueIndex = encoded.getFirstValueIndex(position);
             if (valueCount == 1) {
-                BytesRef grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision, bounds);
+                BytesRef grid = calculateGeotile(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision, bounds);
                 if (grid == null) {
                     results.appendNull();
                 } else {
@@ -350,7 +350,7 @@ public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
             } else {
                 var gridIds = new ArrayList<BytesRef>(valueCount);
                 for (int i = 0; i < valueCount; i++) {
-                    var grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision, bounds);
+                    var grid = calculateGeotile(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision, bounds);
                     if (grid != null) {
                         gridIds.add(grid);
                     }

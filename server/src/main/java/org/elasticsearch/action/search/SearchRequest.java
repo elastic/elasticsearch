@@ -253,8 +253,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if ((in.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90)
-            || in.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
+        if ((in.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
+            && in.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE)) && in.readBoolean()) {
             Version.readVersion(in); // and drop on the floor
         }
         waitForCheckpoints = in.readMap(StreamInput::readLongArray);
@@ -291,8 +291,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             out.writeBoolean(finalReduce);
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
-        if ((out.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90)
-            || out.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE))) {
+        if ((out.getTransportVersion().isPatchFrom(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE_90) == false
+            && out.getTransportVersion().before(TransportVersions.RE_REMOVE_MIN_COMPATIBLE_SHARD_NODE))) {
             out.writeBoolean(false);
         }
         out.writeMap(waitForCheckpoints, StreamOutput::writeLongArray);

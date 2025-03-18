@@ -201,6 +201,16 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     @Override
+    public void writeAhHocConfigFile(int index, String fileName, String content) {
+        nodes.get(index).writeAdHocConfigFile(fileName, content);
+    }
+
+    @Override
+    public void deleteAhHocConfigFile(int index, String fileName) {
+        nodes.get(index).removeAdHocConfigFile(fileName);
+    }
+
+    @Override
     public void updateStoredSecureSettings() {
         execute(() -> nodes.parallelStream().forEach(Node::updateStoredSecureSettings));
     }

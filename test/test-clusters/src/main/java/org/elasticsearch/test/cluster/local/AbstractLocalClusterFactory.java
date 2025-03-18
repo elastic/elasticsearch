@@ -286,6 +286,32 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             throw new IllegalArgumentException("Log file " + logFile + " does not exist.");
         }
 
+        public void writeAdHocConfigFile(String fileName, String content) {
+            final Path target = configDir.resolve(fileName);
+            final Path directory = target.getParent();
+            if (Files.exists(directory) == false) {
+                try {
+                    Files.createDirectories(directory);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+            try {
+                Files.writeString(target, content);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Could not write ad-hoc config file: " + fileName, e);
+            }
+        }
+
+        public void removeAdHocConfigFile(String fileName) {
+            final Path target = configDir.resolve(fileName);
+            try {
+                Files.deleteIfExists(target);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Could not remove ad-hoc config file: " + fileName, e);
+            }
+        }
+
         public LocalNodeSpec getSpec() {
             return spec;
         }

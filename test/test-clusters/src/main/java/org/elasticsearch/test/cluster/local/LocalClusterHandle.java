@@ -109,6 +109,16 @@ public interface LocalClusterHandle extends ClusterHandle {
     InputStream getNodeLog(int index, LogType logType);
 
     /**
+     * Write an ad-hoc file in the config directory
+     */
+    void writeAhHocConfigFile(int index, String fileName, String content);
+
+    /**
+     * Delete an ad-hoc file in the config directory
+     */
+    void deleteAhHocConfigFile(int index, String fileName);
+
+    /**
      * Writes secure settings to the relevant secure config file on each node. Use this method if you are dynamically updating secure
      * settings via a {@link MutableSettingsProvider} and need the update to be written to file, without a cluster restart.
      *

@@ -282,10 +282,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 out.writeOptionalTimeValue(dataRetention);
             } else {
-                out.writeBoolean(dataRetention != null);
-                if (dataRetention != null) {
-                    out.writeOptionalTimeValue(dataRetention);
-                }
+                writeLegacyOptionalValue(dataRetention, out, StreamOutput::writeTimeValue);
             }
 
         }
@@ -293,10 +290,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 out.writeOptionalCollection(downsampling);
             } else {
-                out.writeBoolean(downsampling != null);
-                if (downsampling != null) {
-                    out.writeOptionalCollection(downsampling);
-                }
+                writeLegacyOptionalValue(downsampling, out, StreamOutput::writeCollection);
             }
             out.writeBoolean(enabled());
         }
@@ -307,9 +301,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 dataRetention = in.readOptionalTimeValue();
             } else {
-                // When the data retention is not null, for bwc reasons we need an extra flag
-                boolean isDefined = in.readBoolean();
-                dataRetention = isDefined ? in.readOptionalTimeValue() : null;
+                dataRetention = readLegacyOptionalValue(in, StreamInput::readTimeValue);
             }
         } else {
             dataRetention = null;
@@ -318,15 +310,50 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 downsampling = in.readOptionalCollectionAsList(DownsamplingRound::read);
             } else {
-                // When the data retention is not null, for bwc reasons we need an extra flag
-                boolean isDefined = in.readBoolean();
-                downsampling = isDefined ? in.readOptionalCollectionAsList(DownsamplingRound::read) : null;
+                downsampling = readLegacyOptionalValue(in, is -> is.readCollectionAsList(DownsamplingRound::read));
             }
             enabled = in.readBoolean();
         } else {
             downsampling = null;
             enabled = true;
         }
+    }
+
+    /**
+     * Previous versions were serialising <code>value</code> in way that also captures an explicit null. Meaning, first they serialise
+     * a boolean flag signaling if this value is defined, and then another boolean flag if the value is non-null. We do not need explicit
+     * null values anymore, so we treat them the same as non defined, but for bwc reasons we still need to write all the flags.
+     * @param value value to be serialised that used to be explicitly nullable.
+     * @param writer the writer of the value, it should NOT be an optional writer
+     * @throws IOException
+     */
+    private static <T> void writeLegacyOptionalValue(T value, StreamOutput out, Writer<T> writer) throws IOException {
+        boolean isDefined = value != null;
+        out.writeBoolean(isDefined);
+        if (isDefined) {
+            // There are no explicit null values anymore, so it's always true
+            out.writeBoolean(true);
+            writer.write(out, value);
+        }
+    }
+
+    /**
+     * Previous versions were de-serialising <code>value</code> in way that also captures an explicit null. Meaning, first they de-serialise
+     * a boolean flag signaling if this value is defined, and then another boolean flag if the value is non-null. We do not need explicit
+     * null values anymore, so we treat them the same as non defined, but for bwc reasons we still need to read all the flags.
+     * @param reader the reader of the value, it should NOT be an optional reader
+     * @throws IOException
+     */
+    private static <T> T readLegacyOptionalValue(StreamInput in, Reader<T> reader) throws IOException {
+        T value = null;
+        boolean isDefined = in.readBoolean();
+        if (isDefined) {
+            boolean isNotNull = in.readBoolean();
+            if (isNotNull) {
+                value = reader.read(in);
+            }
+        }
+        return value;
     }
 
     public static Diff<DataStreamLifecycle> readDiffFrom(StreamInput in) throws IOException {

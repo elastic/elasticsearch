@@ -270,7 +270,7 @@ public record LifecycleExecutionState(
     }
 
     public static String truncateWithExplanation(String input) {
-        if (input.length() > MAXIMUM_STEP_INFO_STRING_LENGTH) {
+        if (input != null && input.length() > MAXIMUM_STEP_INFO_STRING_LENGTH) {
             return Strings.cleanTruncate(input, MAXIMUM_STEP_INFO_STRING_LENGTH)
                 + "... ("
                 + (input.length() - MAXIMUM_STEP_INFO_STRING_LENGTH)

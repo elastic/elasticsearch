@@ -9,7 +9,7 @@ applies_to:
 
 You can use two methods to filter search results:
 
-* Use a boolean query with a `filter` clause. Search requests apply [boolean filters](/reference/query-languages/query-dsl-bool-query.md) to both search hits and [aggregations](/reference/data-analysis/aggregations/index.md).
+* Use a boolean query with a `filter` clause. Search requests apply [boolean filters](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to both search hits and [aggregations](/reference/data-analysis/aggregations/index.md).
 * Use the search API’s `post_filter` parameter. Search requests apply [post filters](#post-filter) only to search hits, not aggregations. You can use a post filter to calculate aggregations based on a broader result set, and then further narrow the results.
 
     You can also [rescore](#rescore) hits after the post filter to improve relevance and reorder results.
@@ -44,7 +44,7 @@ PUT /shirts/_doc/1?refresh
 
 Imagine a user has specified two filters:
 
-`color:red` and `brand:gucci`. You only want to show them red shirts made by Gucci in the search results. Normally you would do this with a [`bool` query](/reference/query-languages/query-dsl-bool-query.md):
+`color:red` and `brand:gucci`. You only want to show them red shirts made by Gucci in the search results. Normally you would do this with a [`bool` query](/reference/query-languages/query-dsl/query-dsl-bool-query.md):
 
 ```console
 GET /shirts/_search
@@ -189,7 +189,7 @@ The way the scores are combined can be controlled with the `score_mode`:
 | Score Mode | Description |
 | --- | --- |
 | `total` | Add the original score and the rescore query score. The default. |
-| `multiply` | Multiply the original score by the rescore query score. Usefulfor [`function query`](/reference/query-languages/query-dsl-function-score-query.md) rescores. |
+| `multiply` | Multiply the original score by the rescore query score. Usefulfor [`function query`](/reference/query-languages/query-dsl/query-dsl-function-score-query.md) rescores. |
 | `avg` | Average the original score and the rescore query score. |
 | `max` | Take the max of original score and the rescore query score. |
 | `min` | Take the min of the original score and the rescore query score. |

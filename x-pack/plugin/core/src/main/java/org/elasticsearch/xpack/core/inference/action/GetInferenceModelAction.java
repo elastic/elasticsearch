@@ -117,7 +117,6 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 endpoints = in.readCollectionAsList(ModelConfigurations::new);
             } else {

@@ -539,7 +539,7 @@ In addition to individual query scoring details, we can make use of the `explain
 6. the `value` heres specifies the `rank` of this document for the second (`knn`) query
 
 
-In addition to the above, explain in RRF also supports [named queries](/reference/query-languages/query-dsl-bool-query.md#named-queries) using the `_name` parameter. Using named queries allows for easier and more intuitive understanding of the RRF score computation, especially when dealing with multiple queries. So, we would now have:
+In addition to the above, explain in RRF also supports [named queries](/reference/query-languages/query-dsl/query-dsl-bool-query.md#named-queries) using the `_name` parameter. Using named queries allows for easier and more intuitive understanding of the RRF score computation, especially when dealing with multiple queries. So, we would now have:
 
 ```js
 GET example-index/_search

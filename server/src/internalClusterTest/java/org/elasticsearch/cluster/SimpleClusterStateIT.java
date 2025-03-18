@@ -266,7 +266,6 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             MappingMetadata mappingMetadata = client.admin()
                 .indices()
                 .prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
-                .setLocal(true)
                 .get()
                 .getMappings()
                 .get("test");

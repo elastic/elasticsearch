@@ -125,7 +125,6 @@ public class DfsPhaseTests extends ESTestCase {
             return mockIndexShard;
         });
 
-        // 构造超过最大值的查询参数
         KnnSearchBuilder queryBuilder = new KnnSearchBuilder(
             "float_vector",
             new float[] { 0, 0, 0 },
@@ -140,7 +139,6 @@ public class DfsPhaseTests extends ESTestCase {
         when(searchRequest.source()).thenReturn(source);
         when(context.request()).thenReturn(searchRequest);
 
-        // 验证异常抛出
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DfsPhase.executeKnnVectorQuery(context));
         assertEquals("[num_candidates] cannot exceed [100]", e.getMessage());
 

@@ -22,22 +22,26 @@ import java.util.Iterator;
  */
 public class PlannerProfile implements Writeable, ChunkedToXContentObject {
 
-    public static final PlannerProfile EMPTY = new PlannerProfile(false);
+    public static final PlannerProfile EMPTY = new PlannerProfile(false, "");
 
     private final boolean isLocalPlanning;
+    private final String nodeName;
 
     public static PlannerProfile readFrom(StreamInput in) throws IOException {
         boolean isLocalPlanning = in.readBoolean();
-        return new PlannerProfile(isLocalPlanning);
+        String nodeName = in.readString();
+        return new PlannerProfile(isLocalPlanning, nodeName);
     }
 
-    public PlannerProfile(boolean isLocalPlanning) {
+    public PlannerProfile(boolean isLocalPlanning, String nodeName) {
         this.isLocalPlanning = isLocalPlanning;
+        this.nodeName = nodeName;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(isLocalPlanning);
+        out.writeString(nodeName);
     }
 
     @Override

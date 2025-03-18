@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -189,10 +190,10 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
+        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext(), new PlannerProfile(false, ""));
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, emptyPolicyResolution()),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
         return logicalOptimizer.optimize(analyzer.analyze(new EsqlParser().createStatement(query)));
     }

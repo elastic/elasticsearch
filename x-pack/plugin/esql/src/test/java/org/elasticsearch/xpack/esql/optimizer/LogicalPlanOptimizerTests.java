@@ -129,6 +129,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -218,7 +219,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         public static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
 
         SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
-            super(optimizerContext);
+            super(optimizerContext, new PlannerProfile(false, ""));
         }
 
         @Override
@@ -231,7 +232,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public static void init() {
         parser = new EsqlParser();
         logicalOptimizerCtx = unboundLogicalOptimizerContext();
-        logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx);
+        logicalOptimizer = new LogicalPlanOptimizer(logicalOptimizerCtx, new PlannerProfile(false, ""));
         enrichResolution = new EnrichResolution();
         AnalyzerTestUtils.loadEnrichPolicyResolution(enrichResolution, "languages_idx", "id", "languages_idx", "mapping-languages.json");
 
@@ -247,7 +248,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 defaultLookupResolution(),
                 enrichResolution
             ),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
 
         // Some tests use data from the airports index, so we load it here, and use it in the plan_airports() function.
@@ -256,7 +257,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
 
         // Some tests need additional types, so we load that index here and use it in the plan_types() function.
@@ -265,7 +266,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResultTypes = IndexResolution.valid(types);
         analyzerTypes = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultTypes, enrichResolution),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
 
         // Some tests use mappings from mapping-extra.json to be able to test more types so we load it here
@@ -274,14 +275,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
         analyzerExtra = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultExtra, enrichResolution),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
 
         metricMapping = loadMapping("k8s-mappings.json");
         var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), metricsIndex, enrichResolution),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
 
         var multiIndexMapping = loadMapping("mapping-basic.json");
@@ -296,7 +297,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         );
         multiIndexAnalyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), multiIndex, enrichResolution),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
     }
 
@@ -5266,7 +5267,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResultAirports = IndexResolution.valid(empty);
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
 
         var plan = logicalOptimizer.optimize(analyzer.analyze(parser.createStatement("from empty_test")));

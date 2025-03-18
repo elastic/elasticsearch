@@ -96,11 +96,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
+        logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext(), new PlannerProfile(false, ""));
 
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
     }
 
@@ -400,17 +400,17 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         EsIndex index = new EsIndex("large", large, Map.of("large", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
-        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
+        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext(), new PlannerProfile(false, ""));
 
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
-            TEST_VERIFIER,
+            TEST_VERIFIER,new PlannerProfile(false, "")
         );
 
         var analyzed = analyzer.analyze(parser.createStatement(query));
         var optimized = logicalOptimizer.optimize(analyzed);
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
-        var plan = new LocalLogicalPlanOptimizer(localContext, new PlannerProfile(true)).localOptimize(optimized);
+        var plan = new LocalLogicalPlanOptimizer(localContext, new PlannerProfile(true, "")).localOptimize(optimized);
 
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(10));
@@ -561,7 +561,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     private LogicalPlan localPlan(LogicalPlan plan, SearchStats searchStats) {
         var localContext = new LocalLogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), searchStats);
         // System.out.println(plan);
-        var localPlan = new LocalLogicalPlanOptimizer(localContext, new PlannerProfile(true)).localOptimize(plan);
+        var localPlan = new LocalLogicalPlanOptimizer(localContext, new PlannerProfile(true, "")).localOptimize(plan);
         // System.out.println(localPlan);
         return localPlan;
     }

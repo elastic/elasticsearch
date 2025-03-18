@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -121,7 +122,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry(), getLicenseState()),
+            new PlanExecutor(
+                new IndexResolver(services.client()),
+                services.telemetryProvider().getMeterRegistry(),
+                getLicenseState(),
+                Node.NODE_NAME_SETTING.get(settings)
+            ),
             new ExchangeService(
                 services.clusterService().getSettings(),
                 services.threadPool(),

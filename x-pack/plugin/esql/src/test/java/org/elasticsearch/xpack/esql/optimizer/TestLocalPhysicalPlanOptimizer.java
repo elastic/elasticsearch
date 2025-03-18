@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 
 import java.util.List;
 
@@ -20,7 +21,7 @@ public class TestLocalPhysicalPlanOptimizer extends LocalPhysicalPlanOptimizer {
     }
 
     public TestLocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context, boolean esRules) {
-        super(context);
+        super(context, new PlannerProfile(true, ""));
         this.esRules = esRules;
     }
 

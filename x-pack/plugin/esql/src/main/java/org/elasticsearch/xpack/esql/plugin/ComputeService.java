@@ -27,6 +27,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceProvider;
@@ -360,7 +361,7 @@ public class ComputeService {
             );
         }
         final List<Driver> drivers;
-        final PlannerProfile localPlannerProfile = new PlannerProfile(true);
+        final PlannerProfile localPlannerProfile = new PlannerProfile(true, Node.NODE_NAME_SETTING.get(clusterService.getSettings()));
         try {
             LocalExecutionPlanner planner = new LocalExecutionPlanner(
                 context.sessionId(),

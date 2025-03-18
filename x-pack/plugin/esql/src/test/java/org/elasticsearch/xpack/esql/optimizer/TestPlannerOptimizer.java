@@ -28,7 +28,11 @@ public class TestPlannerOptimizer {
     private final Configuration config;
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
-        this(config, analyzer, new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small())));
+        this(
+            config,
+            analyzer,
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small()), new PlannerProfile(false, ""))
+        );
     }
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
@@ -37,7 +41,7 @@ public class TestPlannerOptimizer {
         this.logicalOptimizer = logicalOptimizer;
 
         parser = new EsqlParser();
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config), new PlannerProfile(false, ""));
         mapper = new Mapper();
 
     }
@@ -64,7 +68,8 @@ public class TestPlannerOptimizer {
         // individually hence why here the plan is kept as is
 
         var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
-            new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats), new PlannerProfile(true)
+            new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats),
+            new PlannerProfile(true, "")
         );
         var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(config, FoldContext.small(), searchStats),

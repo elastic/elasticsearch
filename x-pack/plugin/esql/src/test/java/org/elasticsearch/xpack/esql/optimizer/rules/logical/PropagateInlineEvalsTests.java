@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.junit.BeforeClass;
 
 import java.util.List;
@@ -65,7 +66,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
                 defaultLookupResolution(),
                 new EnrichResolution()
             ),
-            TEST_VERIFIER,
+            TEST_VERIFIER, new PlannerProfile(false, "")
         );
     }
 

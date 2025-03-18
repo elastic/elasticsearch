@@ -126,6 +126,7 @@ public class EsqlSession {
 
     public EsqlSession(
         String sessionId,
+        String nodeName,
         Configuration configuration,
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
@@ -146,7 +147,7 @@ public class EsqlSession {
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
         this.mapper = mapper;
-        this.plannerProfile = new PlannerProfile(false);
+        this.plannerProfile = new PlannerProfile(false, nodeName);
         this.logicalPlanOptimizer = new LogicalPlanOptimizer(logicalOptimizerContext, this.plannerProfile);
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration), this.plannerProfile);
         this.planTelemetry = planTelemetry;

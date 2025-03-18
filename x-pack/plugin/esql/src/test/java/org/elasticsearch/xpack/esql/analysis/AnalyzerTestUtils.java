@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.util.ArrayList;
@@ -59,7 +60,7 @@ public final class AnalyzerTestUtils {
                 defaultLookupResolution(),
                 defaultEnrichResolution()
             ),
-            verifier,
+            verifier, new PlannerProfile(false, "")
         );
     }
 
@@ -72,14 +73,14 @@ public final class AnalyzerTestUtils {
                 lookupResolution,
                 defaultEnrichResolution()
             ),
-            verifier,
+            verifier, new PlannerProfile(false, "")
         );
     }
 
     public static Analyzer analyzer(IndexResolution indexResolution, Verifier verifier, Configuration config) {
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), indexResolution, defaultLookupResolution(), defaultEnrichResolution()),
-            verifier,
+            verifier, new PlannerProfile(false, "")
         );
     }
 
@@ -92,7 +93,7 @@ public final class AnalyzerTestUtils {
                 defaultLookupResolution(),
                 defaultEnrichResolution()
             ),
-            verifier,
+            verifier, new PlannerProfile(false, "")
         );
     }
 

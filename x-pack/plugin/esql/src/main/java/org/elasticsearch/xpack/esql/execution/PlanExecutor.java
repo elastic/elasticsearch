@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -42,8 +41,9 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
+    private final String nodeName;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState) {
+    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, XPackLicenseState licenseState, String nodeName) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
@@ -51,6 +51,7 @@ public class PlanExecutor {
         this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics, licenseState);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
+        this.nodeName = nodeName;
     }
 
     public void esql(
@@ -63,11 +64,11 @@ public class PlanExecutor {
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
         TransportActionServices services,
-        ActionListener<Result> listener
-    ) {
+        ActionListener<Result> listener) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
         final var session = new EsqlSession(
             sessionId,
+            nodeName,
             cfg,
             indexResolver,
             enrichPolicyResolver,
@@ -78,8 +79,7 @@ public class PlanExecutor {
             verifier,
             planTelemetry,
             indicesExpressionGrouper,
-            services
-        );
+            services);
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
 

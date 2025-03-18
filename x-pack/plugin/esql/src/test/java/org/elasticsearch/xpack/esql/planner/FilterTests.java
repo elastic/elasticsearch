@@ -78,13 +78,17 @@ public class FilterTests extends ESTestCase {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
         EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
-        logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext());
-        physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG));
+        logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext(), new PlannerProfile(false, ""));
+        physicalPlanOptimizer = new PhysicalPlanOptimizer(
+            new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG),
+            new PlannerProfile(false, "")
+        );
         mapper = new Mapper();
 
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
             TEST_VERIFIER,
+            new PlannerProfile(false, "")
         );
     }
 

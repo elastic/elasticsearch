@@ -47,7 +47,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         return new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, new EnrichResolution()),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L)),
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L)), new PlannerProfile(false, "")
         );
     }
 

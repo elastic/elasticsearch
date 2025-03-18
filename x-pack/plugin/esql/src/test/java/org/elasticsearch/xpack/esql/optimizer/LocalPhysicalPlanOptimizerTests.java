@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.FilterTests;
+import org.elasticsearch.xpack.esql.planner.PlannerProfile;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -178,7 +179,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L)),
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L)), new PlannerProfile(false, "")
         );
     }
 
@@ -414,7 +415,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     public void testSingleCountWithStatsFilter() {
         // an optimizer that filters out the ExtractAggregateCommonFilter rule
-        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext()) {
+        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext(), new PlannerProfile(false, "")) {
             @Override
             protected List<Batch<LogicalPlan>> batches() {
                 var oldBatches = super.batches();

@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.action.FetchShardCommitsInUseAction;
+import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
@@ -57,6 +58,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -64,6 +66,7 @@ import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -73,6 +76,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -101,6 +105,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -125,9 +130,13 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class StatelessCommitServiceTests extends ESTestCase {
 
@@ -2302,6 +2311,82 @@ public class StatelessCommitServiceTests extends ESTestCase {
             // new commit notification is sent, there's still a slight chance of the upload decRef running
             // after we call commitService.unregister.
             assertBusy(() -> assertThat(deletedCommits, is(equalTo(staleCommits(commits, shardId)))));
+        }
+    }
+
+    public void testReadVirtualBatchedCompoundCommitChunkWillWorkForHugeVBCC() throws IOException {
+        final VirtualBatchedCompoundCommit virtualBcc = mock(VirtualBatchedCompoundCommit.class);
+        final long vbccSize = randomLongBetween(Long.MAX_VALUE / 2, Long.MAX_VALUE);
+        when(virtualBcc.getTotalSizeInBytes()).thenReturn(vbccSize);
+        try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected StatelessCommitService createCommitService() {
+                return new StatelessCommitService(
+                    nodeSettings,
+                    clusterService,
+                    objectStoreService,
+                    indicesService,
+                    () -> clusterService.localNode().getEphemeralId(),
+                    this::getShardRoutingTable,
+                    clusterService.threadPool(),
+                    client,
+                    new StatelessCommitCleaner(null, null, null),
+                    sharedCacheService,
+                    warmingService,
+                    telemetryProvider
+                ) {
+                    @Override
+                    protected ShardCommitState createShardCommitState(
+                        ShardId shardId,
+                        long primaryTerm,
+                        BooleanSupplier inititalizingNoSearchSupplier,
+                        TriConsumer<
+                            Long,
+                            GlobalCheckpointListeners.GlobalCheckpointListener,
+                            TimeValue> addGlobalCheckpointListenerFunction,
+                        Runnable triggerTranslogReplicator
+                    ) {
+                        return new ShardCommitState(
+                            shardId,
+                            primaryTerm,
+                            inititalizingNoSearchSupplier,
+                            addGlobalCheckpointListenerFunction,
+                            triggerTranslogReplicator
+                        ) {
+                            @Override
+                            public VirtualBatchedCompoundCommit getVirtualBatchedCompoundCommit(
+                                PrimaryTermAndGeneration primaryTermAndGeneration
+                            ) {
+                                return virtualBcc;
+                            }
+                        };
+                    }
+                };
+            }
+        }) {
+            final long primaryTerm = randomLongBetween(1, 42);
+            final long generation = randomLongBetween(1, 9999);
+            final long offset = randomLongBetween(0, Long.MAX_VALUE / 2);
+            final int length = randomNonNegativeInt();
+            final var request = new GetVirtualBatchedCompoundCommitChunkRequest(
+                testHarness.shardId,
+                primaryTerm,
+                generation,
+                offset,
+                length,
+                "_na_"
+            );
+            final StreamOutput output = mock(StreamOutput.class);
+            testHarness.commitService.readVirtualBatchedCompoundCommitChunk(request, output);
+
+            final long effectiveLength;
+            final long availableVbccSize = vbccSize - offset;
+            if (availableVbccSize > Integer.MAX_VALUE) {
+                effectiveLength = length;
+            } else {
+                effectiveLength = length < availableVbccSize ? length : availableVbccSize;
+            }
+            verify(virtualBcc, times(1)).getBytesByRange(eq(offset), eq(effectiveLength), eq(output));
         }
     }
 

@@ -25,9 +25,7 @@ import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommit
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
-import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
-import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -43,7 +41,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -55,7 +52,6 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
@@ -65,13 +61,13 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -94,13 +90,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CHUNK_REQUESTS_REJECTED_METRIC;
 import static co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure.CURRENT_CHUNKS_BYTES_METRIC;
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
+import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_NUMBER_COMMITS_HISTOGRAM_METRIC;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.BCC_TOTAL_SIZE_HISTOGRAM_METRIC;
@@ -108,6 +104,7 @@ import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE;
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
+import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.action.search.SearchTransportService.QUERY_ACTION_NAME;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
@@ -119,6 +116,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -136,8 +134,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
      * A plugin that:
      * <ul>
      *   <li>Gives the ability to override the
-     *       {@link IndexEngine#readVirtualBatchedCompoundCommitChunk(GetVirtualBatchedCompoundCommitChunkRequest, StreamOutput)} function
-     *       on an indexing node to produce file not found failures when given offset is of a specific value (Long.MAX_VALUE)</li>
+     *       {@link StatelessCommitService#readVirtualBatchedCompoundCommitChunk(GetVirtualBatchedCompoundCommitChunkRequest, StreamOutput)}
+     *       function on an indexing node to produce file not found failures when given offset is of a specific value (Long.MAX_VALUE)</li>
      *   <li>Prevents VBCC automatic uploads (uploads can be manually triggered).</li>
      *   <li>Disables pre warming.</li>
      * </ul>
@@ -146,44 +144,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
         public TestStateless(Settings settings) {
             super(settings);
-        }
-
-        @Override
-        protected IndexEngine newIndexEngine(
-            EngineConfig engineConfig,
-            TranslogReplicator translogReplicator,
-            Function<String, BlobContainer> translogBlobContainer,
-            StatelessCommitService statelessCommitService,
-            HollowShardsService hollowShardsService,
-            SharedBlobCacheWarmingService sharedBlobCacheWarmingService,
-            RefreshThrottler.Factory refreshThrottlerFactory,
-            DocumentParsingProvider documentParsingProvider,
-            IndexEngine.EngineMetrics engineMetrics
-        ) {
-            return new IndexEngine(
-                engineConfig,
-                translogReplicator,
-                translogBlobContainer,
-                statelessCommitService,
-                hollowShardsService,
-                sharedBlobCacheWarmingService,
-                refreshThrottlerFactory,
-                statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
-                statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
-                documentParsingProvider,
-                engineMetrics
-            ) {
-                @Override
-                public void readVirtualBatchedCompoundCommitChunk(
-                    final GetVirtualBatchedCompoundCommitChunkRequest request,
-                    final StreamOutput output
-                ) throws IOException {
-                    if (request.getOffset() == Long.MAX_VALUE) {
-                        throw randomFrom(new FileNotFoundException("simulated"), new NoSuchFileException("simulated"));
-                    }
-                    super.readVirtualBatchedCompoundCommitChunk(request, output);
-                }
-            };
         }
 
         @Override
@@ -220,7 +180,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 cacheService,
                 cacheWarmingService,
                 telemetryProvider
-            );
+            ) {
+                @Override
+                public void readVirtualBatchedCompoundCommitChunk(GetVirtualBatchedCompoundCommitChunkRequest request, StreamOutput output)
+                    throws IOException {
+
+                    if (request.getOffset() == Long.MAX_VALUE) {
+                        throw randomFrom(new FileNotFoundException("simulated"), new NoSuchFileException("simulated"));
+                    }
+                    super.readVirtualBatchedCompoundCommitChunk(request, output);
+                }
+            };
         }
 
         @Override
@@ -235,9 +205,6 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     }
 
     public static class TestStatelessCommitService extends StatelessCommitService {
-
-        private final AtomicReference<Consumer<VirtualBatchedCompoundCommit>> uploadingVbccConsumerRef = new AtomicReference<>();
-
         public TestStatelessCommitService(
             Settings settings,
             ObjectStoreService objectStoreService,
@@ -1346,6 +1313,63 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         // after which we should recover and not lose any documents (they should be recovered from the translog)
         ensureGreen(indexName);
         validateSearchResponse(indexName, randomFrom(TestSearchType.values()), indexedDocs);
+    }
+
+    public void testVirtualBatchedCompoundCommitChunksOnHollowShards() throws Exception {
+        var settings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), true)
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .build();
+        var indexNode = startMasterAndIndexNode(settings);
+        // Disable the cache so all search requests have to fetch data from the index node
+        startSearchNode(Settings.builder().put(SHARED_CACHE_SIZE_SETTING.getKey(), 0).build());
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var indexNode2 = startMasterAndIndexNode(settings);
+
+        var numberOfBulks = randomIntBetween(4, 10);
+        for (int i = 0; i < numberOfBulks; i++) {
+            indexDocs(indexName, randomIntBetween(50, 100));
+        }
+        refresh(indexName);
+
+        var getVBCCChunkReceived = new CountDownLatch(1);
+        var getVBCCChunkBlocked = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                (handler, request, channel, task) -> {
+                    getVBCCChunkReceived.countDown();
+                    safeAwait(getVBCCChunkBlocked);
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+
+        var searchRequest = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).execute();
+        safeAwait(getVBCCChunkReceived);
+
+        var primaryContextHandoffReceived = new CountDownLatch(1);
+        var primaryContextHandoffBlocked = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode2)
+            .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                primaryContextHandoffReceived.countDown();
+                safeAwait(primaryContextHandoffBlocked);
+                handler.messageReceived(request, channel, task);
+            });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNode2));
+
+        safeAwait(primaryContextHandoffReceived);
+
+        var indexShard = findIndexShard(resolveIndex(indexName), 0, indexNode);
+        assertThat(indexShard.getEngineOrNull(), instanceOf(HollowIndexEngine.class));
+
+        getVBCCChunkBlocked.countDown();
+        assertResponse(searchRequest, ElasticsearchAssertions::assertNoFailures);
+        primaryContextHandoffBlocked.countDown();
     }
 
     private void assertMeasurement(Measurement measurement, long value) {

@@ -81,6 +81,9 @@ public class GetVirtualBatchedCompoundCommitChunkActionTests extends ESTestCase 
             shard,
             bigArrays,
             vbccChunksPressure,
+            (req, output) -> {
+                assert false : "Unexpected call";
+            },
             ActionListener.wrap(response -> fail("should have failed"), e -> {
                 assertTrue(e instanceof CircuitBreakingException);
                 latch.countDown();

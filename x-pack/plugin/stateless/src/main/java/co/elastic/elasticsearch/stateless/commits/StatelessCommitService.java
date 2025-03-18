@@ -19,6 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -51,6 +52,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -388,12 +390,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         };
     }
 
-    public @Nullable VirtualBatchedCompoundCommit getVirtualBatchedCompoundCommit(
-        ShardId shardId,
-        PrimaryTermAndGeneration primaryTermAndGeneration
-    ) {
-        ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
-        return commitState.getVirtualBatchedCompoundCommit(primaryTermAndGeneration);
+    public void readVirtualBatchedCompoundCommitChunk(final GetVirtualBatchedCompoundCommitChunkRequest request, final StreamOutput output)
+        throws IOException {
+        ShardCommitState commitState = getSafe(shardsCommitsStates, request.getShardId());
+        commitState.readVirtualBatchedCompoundCommitChunk(request, output);
     }
 
     public long getRecoveredGeneration(ShardId shardId) {
@@ -1307,6 +1307,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             }
 
             return null;
+        }
+
+        public void readVirtualBatchedCompoundCommitChunk(
+            final GetVirtualBatchedCompoundCommitChunkRequest request,
+            final StreamOutput output
+        ) throws IOException {
+            PrimaryTermAndGeneration vbccTermGen = new PrimaryTermAndGeneration(
+                request.getPrimaryTerm(),
+                request.getVirtualBatchedCompoundCommitGeneration()
+            );
+            var vbcc = getVirtualBatchedCompoundCommit(vbccTermGen);
+            if (vbcc == null) {
+                // If the VBCC was not found, then it is already uploaded, so let the search shard query the blob store
+                throw VirtualBatchedCompoundCommit.buildResourceNotFoundException(shardId, vbccTermGen);
+            } else {
+                // This length adjustment is needed because the last CC is not padded in a vBCC
+                long length = Math.min(request.getLength(), vbcc.getTotalSizeInBytes() - request.getOffset());
+                vbcc.getBytesByRange(request.getOffset(), length, output);
+            }
         }
 
         private Optional<VirtualBatchedCompoundCommit> getMaxPendingUploadBcc() {

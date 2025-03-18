@@ -18,11 +18,9 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.Stateless;
-import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -34,7 +32,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -345,54 +342,6 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 expectedClosedReaderGenerations.add(generation);
                 assertThat(closedReaderGenerations, equalTo(expectedClosedReaderGenerations));
             }
-        }
-    }
-
-    public void testReadVirtualBatchedCompoundCommitChunkWillWorkForHugeVBCC() throws IOException {
-        TranslogReplicator translogReplicator = mock(TranslogReplicator.class);
-        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
-        StatelessCommitService commitService = mockCommitService(Settings.EMPTY);
-        final VirtualBatchedCompoundCommit virtualBcc = mock(VirtualBatchedCompoundCommit.class);
-        final long vbccSize = randomLongBetween(Long.MAX_VALUE / 2, Long.MAX_VALUE);
-        when(virtualBcc.getTotalSizeInBytes()).thenReturn(vbccSize);
-        try (
-            var engine = newIndexEngine(
-                indexConfig(Settings.EMPTY, nodeSettings, () -> 1L, NoMergePolicy.INSTANCE),
-                translogReplicator,
-                mock(ObjectStoreService.class),
-                commitService,
-                mock(HollowShardsService.class)
-            )
-        ) {
-            final long primaryTerm = randomLongBetween(1, 42);
-            final long generation = randomLongBetween(1, 9999);
-            when(
-                commitService.getVirtualBatchedCompoundCommit(
-                    eq(engine.config().getShardId()),
-                    eq(new PrimaryTermAndGeneration(primaryTerm, generation))
-                )
-            ).thenReturn(virtualBcc);
-            final long offset = randomLongBetween(0, Long.MAX_VALUE / 2);
-            final int length = randomNonNegativeInt();
-            final var request = new GetVirtualBatchedCompoundCommitChunkRequest(
-                engine.config().getShardId(),
-                primaryTerm,
-                generation,
-                offset,
-                length,
-                "_na_"
-            );
-            final StreamOutput output = mock(StreamOutput.class);
-            engine.readVirtualBatchedCompoundCommitChunk(request, output);
-
-            final long effectiveLength;
-            final long availableVbccSize = vbccSize - offset;
-            if (availableVbccSize > Integer.MAX_VALUE) {
-                effectiveLength = length;
-            } else {
-                effectiveLength = length < availableVbccSize ? length : availableVbccSize;
-            }
-            verify(virtualBcc, times(1)).getBytesByRange(eq(offset), eq(effectiveLength), eq(output));
         }
     }
 

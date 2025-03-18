@@ -49,29 +49,34 @@ public class PolicyUtils {
 
     private static final String POLICY_FILE_NAME = "entitlement-policy.yaml";
 
-    public static Map<String, Policy> createPluginPolicies(Collection<PluginData> pluginData, Map<String, String> overrides, String version)
-        throws IOException {
+    public static Map<String, Policy> createPluginPolicies(
+        Collection<PluginData> pluginData,
+        Map<String, String> pluginPolicyPatches,
+        String version
+    ) throws IOException {
         Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
         for (var entry : pluginData) {
             Path pluginRoot = entry.pluginPath();
+            Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
             String pluginName = pluginRoot.getFileName().toString();
             final Set<String> moduleNames = getModuleNames(pluginRoot, entry.isModular());
 
-            var overriddenPolicy = parseEncodedPolicyIfExists(
-                overrides.get(pluginName),
+            var pluginPolicyPatch = parseEncodedPolicyIfExists(
+                pluginPolicyPatches.get(pluginName),
                 version,
                 entry.isExternalPlugin(),
                 pluginName,
                 moduleNames
             );
-            if (overriddenPolicy != null) {
-                pluginPolicies.put(pluginName, overriddenPolicy);
-            } else {
-                Path policyFile = pluginRoot.resolve(POLICY_FILE_NAME);
-                var policy = parsePolicyIfExists(pluginName, policyFile, entry.isExternalPlugin());
-                validatePolicyScopes(pluginName, policy, moduleNames, policyFile.toString());
-                pluginPolicies.put(pluginName, policy);
-            }
+            var pluginPolicy = parsePolicyIfExists(pluginName, policyFile, entry.isExternalPlugin());
+            validatePolicyScopes(pluginName, pluginPolicy, moduleNames, policyFile.toString());
+
+            pluginPolicies.put(
+                pluginName,
+                pluginPolicyPatch == null
+                    ? pluginPolicy
+                    : new Policy(pluginPolicy.name(), PolicyUtils.mergeScopes(pluginPolicy.scopes(), pluginPolicyPatch.scopes()))
+            );
         }
         return pluginPolicies;
     }

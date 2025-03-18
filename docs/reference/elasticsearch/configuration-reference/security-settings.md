@@ -144,6 +144,22 @@ Large real-time clock inconsistency across cluster nodes can cause problems with
 `xpack.security.authc.api_key.hashing.algorithm`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the hashing algorithm that is used for securing API key credentials. See [Table 3, Secure token hashing algorithms](#secure-token-hashing-algorithms). Defaults to `ssha256`.
 
+`xpack.security.authc.realms.saml.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   To learn more on how to enable SAML and related user settings, check [secure your clusters with SAML](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/saml.md).
+
+`xpack.security.authc.realms.oidc.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   To learn more on how to enable OpenID Connect and related user settings, check [secure your clusters with OpenID Connect](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/openid-connect.md).
+
+`xpack.security.authc.realms.kerberos.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   To learn more on how to enable Kerberos and relate user settings, check [secure your clusters with Kerberos](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/kerberos.md).
+
+`xpack.security.authc.realms.jwt.*` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   To learn more on how to enable JWT and related user settings, check [secure your clusters with JWT](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/jwt.md).
+
+::::{note}
+All SAML, OpenID Connect, Kerberos, and JWT settings are allowlisted.
+::::
+
 
 ### Security domain settings [security-domain-settings]
 
@@ -1839,6 +1855,9 @@ You can configure the following TLS/SSL settings.
 
     For more information, see Oracle’s [Java Cryptography Architecture documentation](https://docs.oracle.com/en/java/javase/11/security/oracle-providers.md#GUID-7093246A-31A3-4304-AC5F-5FB6400405E2).
 
+`xpack.security.transport.ssl.trust_restrictions.x509_fields` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   Specifies which field(s) from the TLS certificate is used to match for the restricted trust management that is used for remote clusters connections. This should only be set when a self managed cluster can not create certificates that follow the Elastic Cloud pattern. The default value is ["subjectAltName.otherName.commonName"], the Elastic Cloud pattern. "subjectAltName.dnsName" is also supported and can be configured in addition to or in replacement of the default.
+
 
 ### Transport TLS/SSL key and trusted certificate settings [security-transport-tls-ssl-key-trusted-certificate-settings]
 
@@ -1875,6 +1894,8 @@ When using PEM encoded files, use the following settings:
 
     This setting and `ssl.truststore.path` cannot be used at the same time.
 
+`xpack.security.loginAssistanceMessage` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   Adds a message to the login screen. Useful for displaying corporate messages.
 
 
 ### Java keystore files [_java_keystore_files_3]

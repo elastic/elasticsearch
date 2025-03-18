@@ -58,4 +58,8 @@ $$$indices-query-bool-max-nested-depth$$$
 
     This setting limits the nesting depth of queries. Deep nesting of queries may lead to stack overflow errors.
 
+The following search settings are supported:
+
+* `search.aggs.rewrite_to_filter_by_filter`
+
 

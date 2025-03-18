@@ -61,6 +61,15 @@ This setting also affects the following built-in component templates:
 * `synthetics@mapping`
 * `synthetics@settings`
 
+### Universal Profiling settings 
+
+The following settings for Elastic Universal Profiling are supported:
+
+`xpack.profiling.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   *Version 8.7.0+*: Specifies whether the Universal Profiling Elasticsearch plugin is enabled. Defaults to *true*.
+
+`xpack.profiling.templates.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   *Version 8.9.0+*: Specifies whether Universal Profiling related index templates should be created on startup. Defaults to *false*.
 
 
 ## Reindex settings [reindex-settings]

@@ -2,8 +2,6 @@ toc:
   - file: index.md
   - file: elasticsearch/configuration-reference/index.md
     children:
-      - file: elasticsearch/configuration-reference/elasticsearch-settings.md
-      - file: elasticsearch/configuration-reference/elastic-cloud-serverless-elasticsearch-settings.md
       - file: elasticsearch/configuration-reference/circuit-breaker-settings.md
       - file: elasticsearch/configuration-reference/auding-settings.md
       - file: elasticsearch/configuration-reference/enrich-settings.md

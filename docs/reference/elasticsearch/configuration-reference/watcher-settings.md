@@ -28,6 +28,12 @@ $$$xpack-watcher-encrypt-sensitive-data$$$
 `xpack.watcher.max.history.record.size`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The maximum size watcher history record that can be written into the watcher history index. Any larger history record will have some of its larger fields removed. Defaults to 10mb.
 
+`xpack.watcher.trigger.schedule.engine` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   Defines when the watch should start, based on date and time [Learn more](docs-content://explore-analyze/alerts-cases/watcher/schedule-types.md).
+
+`xpack.watcher.history.cleaner_service.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   Controls [whether old watcher indices are automatically deleted](/reference/elasticsearch/configuration-reference/watcher-settings.md#general-notification-settings).
+
 `xpack.http.proxy.host`
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the address of the proxy server to use to connect to HTTP services.
 
@@ -566,6 +572,13 @@ $$$pagerduty-account-attributes$$$
 
     `attach_payload`
     :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Whether or not to provide the watch payload as context for the event by default. Valid values: `true`, `false`.
+
+`xpack.notification.webhook.additional_token_enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+:   When set to `true`, {{es}} automatically sets a token which enables the bypassing of traffic filters for calls initiated by Watcher towards {{es}} or {{kib}}. The default is `false` and the feature is available starting with {{es}} version 8.7.1 and later.
+
+    ::::{important}
+    This setting only applies to the Watcher `webhook` action, not the `http` input action.
+    ::::
 
 
 

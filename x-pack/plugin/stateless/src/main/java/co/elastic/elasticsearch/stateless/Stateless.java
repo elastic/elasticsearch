@@ -1231,6 +1231,7 @@ public class Stateless extends Plugin
                 EngineConfig newConfig = new EngineConfig(
                     config.getShardId(),
                     config.getThreadPool(),
+                    config.getThreadPoolMergeExecutorService(),
                     config.getIndexSettings(),
                     config.getWarmer(),
                     config.getStore(),

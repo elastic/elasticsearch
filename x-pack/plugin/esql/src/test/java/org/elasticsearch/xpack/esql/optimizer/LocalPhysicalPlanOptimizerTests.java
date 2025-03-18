@@ -91,11 +91,18 @@ import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -232,7 +239,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var plan = plannerOptimizer.plan("from test | where emp_no > 10040 | stats c = count(emp_no)", IS_SV_STATS);
         var stat = queryStatsFor(plan);
         assertThat(stat.type(), is(StatsType.COUNT));
-        assertThat(stat.query(), is(QueryBuilders.existsQuery("emp_no")));
+        assertThat(stat.query(), is(existsQuery("emp_no")));
     }
 
     /**
@@ -260,7 +267,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
-        assertThat(stat.query(), is(QueryBuilders.existsQuery("salary")));
+        assertThat(stat.query(), is(existsQuery("salary")));
     }
 
     // optimized doesn't know yet how to push down count over field
@@ -282,11 +289,11 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
         Source source = new Source(2, 8, "salary > 1000");
-        var exists = QueryBuilders.existsQuery("salary");
+        var exists = existsQuery("salary");
         assertThat(stat.query(), is(exists));
-        var range = wrapWithSingleQuery(query, QueryBuilders.rangeQuery("salary").gt(1000), "salary", source);
-        var expected = QueryBuilders.boolQuery().must(range).must(exists);
-        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
+        var range = wrapWithSingleQuery(query, unscore(rangeQuery("salary").gt(1000)), "salary", source);
+        var expected = boolQuery().must(range).must(unscore(exists));
+        assertThat(esStatsQuery.query().toString(), is(expected.toString()));
     }
 
     // optimized doesn't know yet how to push down count over field
@@ -391,7 +398,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
-        var expected = wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
+        var expected = wrapWithSingleQuery(query, unscore(rangeQuery("emp_no").gt(10010)), "emp_no", source);
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
@@ -442,7 +449,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                         {
                             "exists": {
                                 "field": "hire_date",
-                                "boost": 1.0
+                                "boost": 0.0
                             }
                         },
                         {
@@ -452,7 +459,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                                     "range": {
                                         "emp_no": {
                                             "lt": 10042,
-                                            "boost": 1.0
+                                            "boost": 0.0
                                         }
                                     }
                                 },
@@ -519,9 +526,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 37, "emp_no > 10000");
-        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
+        var range = wrapWithSingleQuery(queryText, unscore(rangeQuery("emp_no").gt(10010)), "emp_no", filterSource);
         var queryString = QueryBuilders.queryStringQuery("last_name: Smith");
-        var expected = QueryBuilders.boolQuery().must(queryString).must(range);
+        var expected = boolQuery().must(queryString).must(range);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -554,9 +561,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 37, "cidr_match(ip, \"127.0.0.1/32\")");
-        var terms = wrapWithSingleQuery(queryText, QueryBuilders.termsQuery("ip", "127.0.0.1/32"), "ip", filterSource);
+        var terms = wrapWithSingleQuery(queryText, unscore(termsQuery("ip", "127.0.0.1/32")), "ip", filterSource);
         var queryString = QueryBuilders.queryStringQuery("last_name: Smith");
-        var expected = QueryBuilders.boolQuery().must(queryString).must(terms);
+        var expected = boolQuery().must(queryString).must(terms);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -589,9 +596,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(3, 8, "emp_no > 10000");
-        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
+        var range = wrapWithSingleQuery(queryText, unscore(rangeQuery("emp_no").gt(10010)), "emp_no", filterSource);
         var queryString = QueryBuilders.queryStringQuery("last_name: Smith");
-        var expected = QueryBuilders.boolQuery().must(queryString).must(range);
+        var expected = boolQuery().must(queryString).must(range);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -623,7 +630,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var queryStringLeft = QueryBuilders.queryStringQuery("last_name: Smith");
         var queryStringRight = QueryBuilders.queryStringQuery("emp_no: [10010 TO *]");
-        var expected = QueryBuilders.boolQuery().must(queryStringLeft).must(queryStringRight);
+        var expected = boolQuery().must(queryStringLeft).must(queryStringRight);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -680,9 +687,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 38, "emp_no > 10000");
-        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
+        var range = wrapWithSingleQuery(queryText, unscore(rangeQuery("emp_no").gt(10010)), "emp_no", filterSource);
         var queryString = QueryBuilders.matchQuery("last_name", "Smith").lenient(true);
-        var expected = QueryBuilders.boolQuery().must(queryString).must(range);
+        var expected = boolQuery().must(queryString).must(range);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -715,9 +722,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 32, "cidr_match(ip, \"127.0.0.1/32\")");
-        var terms = wrapWithSingleQuery(queryText, QueryBuilders.termsQuery("ip", "127.0.0.1/32"), "ip", filterSource);
+        var terms = wrapWithSingleQuery(queryText, unscore(termsQuery("ip", "127.0.0.1/32")), "ip", filterSource);
         var queryString = QueryBuilders.matchQuery("text", "beta").lenient(true);
-        var expected = QueryBuilders.boolQuery().must(queryString).must(terms);
+        var expected = boolQuery().must(queryString).must(terms);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -749,9 +756,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(3, 8, "emp_no > 10000");
-        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
+        var range = wrapWithSingleQuery(queryText, unscore(rangeQuery("emp_no").gt(10010)), "emp_no", filterSource);
         var queryString = QueryBuilders.matchQuery("last_name", "Smith").lenient(true);
-        var expected = QueryBuilders.boolQuery().must(queryString).must(range);
+        var expected = boolQuery().must(queryString).must(range);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -782,7 +789,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var queryStringLeft = QueryBuilders.matchQuery("last_name", "Smith").lenient(true);
         var queryStringRight = QueryBuilders.matchQuery("first_name", "John").lenient(true);
-        var expected = QueryBuilders.boolQuery().must(queryStringLeft).must(queryStringRight);
+        var expected = boolQuery().must(queryStringLeft).must(queryStringRight);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -839,9 +846,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 36, "emp_no > 10000");
-        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
+        var range = wrapWithSingleQuery(queryText, unscore(rangeQuery("emp_no").gt(10010)), "emp_no", filterSource);
         var kqlQuery = kqlQueryBuilder("last_name: Smith");
-        var expected = QueryBuilders.boolQuery().must(kqlQuery).must(range);
+        var expected = boolQuery().must(kqlQuery).must(range);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -874,9 +881,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 36, "cidr_match(ip, \"127.0.0.1/32\")");
-        var terms = wrapWithSingleQuery(queryText, QueryBuilders.termsQuery("ip", "127.0.0.1/32"), "ip", filterSource);
+        var terms = wrapWithSingleQuery(queryText, unscore(termsQuery("ip", "127.0.0.1/32")), "ip", filterSource);
         var kqlQuery = kqlQueryBuilder("last_name: Smith");
-        var expected = QueryBuilders.boolQuery().must(kqlQuery).must(terms);
+        var expected = boolQuery().must(kqlQuery).must(terms);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -909,9 +916,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(3, 8, "emp_no > 10000");
-        var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
+        var range = wrapWithSingleQuery(queryText, unscore(rangeQuery("emp_no").gt(10010)), "emp_no", filterSource);
         var kqlQuery = kqlQueryBuilder("last_name: Smith");
-        var expected = QueryBuilders.boolQuery().must(kqlQuery).must(range);
+        var expected = boolQuery().must(kqlQuery).must(range);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -943,7 +950,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         var kqlQueryLeft = kqlQueryBuilder("last_name: Smith");
         var kqlQueryRight = kqlQueryBuilder("emp_no > 10010");
-        var expected = QueryBuilders.boolQuery().must(kqlQueryLeft).must(kqlQueryRight);
+        var expected = boolQuery().must(kqlQueryLeft).must(kqlQueryRight);
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -1006,7 +1013,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
-        var expected = QueryBuilders.existsQuery("emp_no");
+        var expected = unscore(existsQuery("emp_no"));
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -1030,7 +1037,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
-        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
+        var expected = boolQuery().mustNot(unscore(existsQuery("emp_no")));
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -1056,7 +1063,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var partialAgg = as(exchange.child(), AggregateExec.class);
         var fieldExtract = as(partialAgg.child(), FieldExtractExec.class);
         var query = as(fieldExtract.child(), EsQueryExec.class);
-        var expected = QueryBuilders.existsQuery(textField);
+        var expected = unscore(existsQuery(textField));
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -1079,7 +1086,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var fieldExtract = as(project.child(), FieldExtractExec.class);
         var query = as(fieldExtract.child(), EsQueryExec.class);
-        var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery(textField));
+        var expected = boolQuery().mustNot(unscore(existsQuery(textField)));
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -1142,7 +1149,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(esStatsQuery.limit(), is(nullValue()));
         assertThat(Expressions.names(esStatsQuery.output()), contains("$$c$count", "$$c$seen"));
         var stat = as(esStatsQuery.stats().get(0), Stat.class);
-        assertThat(stat.query(), is(QueryBuilders.existsQuery("job")));
+        assertThat(stat.query(), is(existsQuery("job")));
     }
 
     private record OutOfRangeTestCase(String fieldName, String tooLow, String tooHigh) {};
@@ -1206,7 +1213,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
                 assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
 
-                assertThat(actualLuceneQuery.next(), equalTo(QueryBuilders.matchAllQuery()));
+                assertThat(actualLuceneQuery.next(), equalTo(unscore(matchAllQuery())));
             }
 
             for (String falsePredicate : alwaysFalsePredicates) {
@@ -1221,7 +1228,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 assertThat(actualLuceneQuery.field(), equalTo(testCase.fieldName));
                 assertThat(actualLuceneQuery.source(), equalTo(expectedSource));
 
-                var expectedInnerQuery = QueryBuilders.boolQuery().mustNot(QueryBuilders.matchAllQuery());
+                var expectedInnerQuery = unscore(boolQuery().mustNot(unscore(matchAllQuery())));
                 assertThat(actualLuceneQuery.next(), equalTo(expectedInnerQuery));
             }
         }
@@ -1487,7 +1494,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         Source filterSource = new Source(4, 8, "emp_no > 10000");
         var expectedLuceneQuery = new BoolQueryBuilder().must(new MatchQueryBuilder("first_name", "Anna").lenient(true))
             .must(new MatchQueryBuilder("first_name", "Anneke").lenient(true))
-            .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10000), "emp_no", filterSource))
+            .must(wrapWithSingleQuery(query, unscore(rangeQuery("emp_no").gt(10000)), "emp_no", filterSource))
             .must(new MatchQueryBuilder("last_name", "Xinglin").lenient(true));
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
@@ -1587,7 +1594,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
         assertThat(as(query.limit(), Literal.class).value(), is(1000));
-        var expected = QueryBuilders.termQuery("last_name", "Smith");
+        var expected = termQuery("last_name", "Smith");
         assertThat(query.query().toString(), is(expected.toString()));
     }
 
@@ -1650,7 +1657,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
         Source source = new Source(2, 38, "salary > 10000");
         BoolQueryBuilder expected = new BoolQueryBuilder().must(new MatchQueryBuilder("last_name", "Smith").lenient(true))
-            .must(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("salary").gt(10000), "salary", source));
+            .must(wrapWithSingleQuery(query, unscore(rangeQuery("salary").gt(10000)), "salary", source));
         assertThat(esQuery.query().toString(), equalTo(expected.toString()));
     }
 
@@ -1687,7 +1694,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var esQuery = as(fieldExtract.child(), EsQueryExec.class);
         Source source = new Source(2, 37, "emp_no > 10");
         BoolQueryBuilder expected = new BoolQueryBuilder().should(new MatchQueryBuilder("last_name", "Smith").lenient(true))
-            .should(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10), "emp_no", source));
+            .should(wrapWithSingleQuery(query, unscore(rangeQuery("emp_no").gt(10)), "emp_no", source));
         assertThat(esQuery.query().toString(), equalTo(expected.toString()));
     }
 

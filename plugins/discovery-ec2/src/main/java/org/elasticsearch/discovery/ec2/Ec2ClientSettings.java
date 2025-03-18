@@ -20,7 +20,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -63,7 +62,6 @@ final class Ec2ClientSettings {
     );
 
     /** Previously, the protocol to use to connect to ec2, but now has no effect */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
     static final Setting<HttpScheme> PROTOCOL_SETTING = new Setting<>(
         "discovery.ec2.protocol",
         "https",

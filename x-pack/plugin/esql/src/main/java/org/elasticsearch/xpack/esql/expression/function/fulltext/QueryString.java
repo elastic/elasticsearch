@@ -382,7 +382,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new QueryString(source(), newChildren.getFirst(), newChildren.size() == 1 ? null : newChildren.get(1), queryBuilder());
+        return new QueryString(source(), newChildren.get(0), newChildren.size() == 1 ? null : newChildren.get(1), queryBuilder());
     }
 
     @Override

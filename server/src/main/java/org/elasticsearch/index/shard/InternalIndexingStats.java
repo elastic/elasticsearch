@@ -22,6 +22,8 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
+
 /**
  * Internal class that maintains relevant indexing statistics / metrics.
  * @see IndexShard
@@ -187,13 +189,15 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 recentIndexingLoadAtShardStarted
             );
             logger.debug(
-                "Generating stats for an index shard with indexing time {} sec and active time {} sec giving unweighted write load {} "
-                    + "while the recency-weighted write load is {} using a half-life of {} sec",
-                totalIndexingTimeSinceShardStartedInNanos * 1.0e-9,
-                timeSinceShardStartedInNanos * 1.0e-9,
-                1.0 * totalIndexingTimeSinceShardStartedInNanos / timeSinceShardStartedInNanos,
-                recentIndexingLoadSinceShardStarted,
-                recentIndexMetric.getHalfLife() * 1.0e-9
+                () -> String.format(
+                    "Generating stats for an index shard with indexing time %s and active time %s giving unweighted write load %g, "
+                        + "while the recency-weighted write load is %g using a half-life of %s",
+                    timeValueNanos(totalIndexingTimeSinceShardStartedInNanos),
+                    timeValueNanos(timeSinceShardStartedInNanos),
+                    1.0 * totalIndexingTimeSinceShardStartedInNanos / timeSinceShardStartedInNanos,
+                    recentIndexingLoadSinceShardStarted,
+                    timeValueNanos((long) recentIndexMetric.getHalfLife())
+                )
             );
             return new IndexingStats.Stats(
                 indexMetric.count(),

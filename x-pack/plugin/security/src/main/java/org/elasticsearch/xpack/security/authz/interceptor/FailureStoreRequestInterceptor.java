@@ -48,7 +48,6 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
 
     @Override
     boolean supports(IndicesRequest request) {
-        // TODO: check if this is the right approach or should we only intercept search requests
         if (request.indicesOptions().allowSelectors()) {
             for (String index : request.indices()) {
                 if (hasFailureStoreSelectorSuffix(index)) {

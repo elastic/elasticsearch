@@ -964,7 +964,7 @@ public final class DateFieldMapper extends FieldMapper {
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
             Function<String, Long> dateParser = this::parse;
 
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<Long>(nullValue) {
+            return new FallbackSyntheticSourceBlockLoader.SingleValueReader<Long>(nullValue) {
                 @Override
                 public void convertValue(Object value, List<Long> accumulator) {
                     try {

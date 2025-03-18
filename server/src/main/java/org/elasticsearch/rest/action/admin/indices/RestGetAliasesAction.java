@@ -22,7 +22,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -52,7 +51,6 @@ import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetAliasesAction extends BaseRestHandler {
 
-    @UpdateForV9 // reject the deprecated ?local parameter
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestGetAliasesAction.class);
 
     @Override

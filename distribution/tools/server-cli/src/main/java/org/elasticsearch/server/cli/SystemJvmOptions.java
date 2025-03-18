@@ -12,7 +12,6 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
@@ -82,7 +81,6 @@ final class SystemJvmOptions {
         ).flatMap(s -> s).toList();
     }
 
-    @UpdateForV9    // only use CLDR in v9+
     private static String getLocaleProviders() {
         /*
          * When on pre-23, use COMPAT instead to maintain existing date formats as much as we can,

@@ -85,7 +85,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -554,7 +553,6 @@ class NodeConstruction {
         return settingsModule;
     }
 
-    @UpdateForV9
     private static void addBwcSearchWorkerSettings(List<Setting<?>> additionalSettings) {
         // TODO remove the below settings, they are unused and only here to enable BwC for deployments that still use them
         additionalSettings.add(

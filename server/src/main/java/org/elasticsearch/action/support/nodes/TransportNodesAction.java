@@ -32,7 +32,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -277,7 +276,6 @@ public abstract class TransportNodesAction<
      * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
      * @param in            The {@link StreamInput} in which to skip the unneeded data.
      */
-    @UpdateForV9 // no longer necessary in v9
     public static void skipLegacyNodesRequestHeader(TransportVersion fixVersion, StreamInput in) throws IOException {
         if (in.getTransportVersion().before(fixVersion)) {
             TaskId.readFromStream(in);
@@ -296,7 +294,6 @@ public abstract class TransportNodesAction<
      * @param fixVersion    The {@link TransportVersion} in which the request representation was fixed, so no skipping is needed.
      * @param out           The {@link StreamOutput} to which to send the dummy data.
      */
-    @UpdateForV9 // no longer necessary in v9
     public static void sendLegacyNodesRequestHeader(TransportVersion fixVersion, StreamOutput out) throws IOException {
         if (out.getTransportVersion().before(fixVersion)) {
             TaskId.EMPTY_TASK_ID.writeTo(out);

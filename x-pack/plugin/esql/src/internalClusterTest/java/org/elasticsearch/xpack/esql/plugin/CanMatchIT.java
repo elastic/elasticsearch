@@ -250,12 +250,21 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
         try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message")) {
             assertThat(getValuesList(resp), hasSize(5));
         }
+
         internalCluster().stopNode(logsOnlyNode);
         ensureClusterSizeConsistency();
 
         // when one shard is unavailable
-        expectThrows(Exception.class, containsString("no shard copies found"), () -> run("from events,logs | KEEP timestamp,message"));
-        expectThrows(Exception.class, containsString("no shard copies found"), () -> run("from * | KEEP timestamp,message"));
+        expectThrows(
+            Exception.class,
+            containsString("index [logs] has no active shard copy"),
+            () -> run("from events,logs | KEEP timestamp,message")
+        );
+        expectThrows(
+            Exception.class,
+            containsString("index [logs] has no active shard copy"),
+            () -> run("from * | KEEP timestamp,message")
+        );
     }
 
     public void testSkipOnIndexName() {

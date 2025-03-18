@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.index;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.core.Nullable;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -25,24 +24,26 @@ public final class IndexResolution {
     public static IndexResolution valid(
         EsIndex index,
         Set<String> resolvedIndices,
+        FieldCapabilitiesFailure localResolutionFailure,
         Map<String, FieldCapabilitiesFailure> unavailableClusters
     ) {
         Objects.requireNonNull(index, "index must not be null if it was found");
         Objects.requireNonNull(resolvedIndices, "resolvedIndices must not be null");
+        Objects.requireNonNull(resolvedIndices, "resolutionFailures must not be null");
         Objects.requireNonNull(unavailableClusters, "unavailableClusters must not be null");
-        return new IndexResolution(index, null, resolvedIndices, unavailableClusters);
+        return new IndexResolution(index, null, resolvedIndices, localResolutionFailure, unavailableClusters);
     }
 
     /**
      * Use this method only if the set of concrete resolved indices is the same as EsIndex#concreteIndices().
      */
     public static IndexResolution valid(EsIndex index) {
-        return valid(index, index.concreteIndices(), Collections.emptyMap());
+        return valid(index, index.concreteIndices(), null, Map.of());
     }
 
     public static IndexResolution invalid(String invalid) {
         Objects.requireNonNull(invalid, "invalid must not be null to signal that the index is invalid");
-        return new IndexResolution(null, invalid, Collections.emptySet(), Collections.emptyMap());
+        return new IndexResolution(null, invalid, Set.of(), null, Map.of());
     }
 
     public static IndexResolution notFound(String name) {
@@ -56,6 +57,8 @@ public final class IndexResolution {
 
     // all indices found by field-caps
     private final Set<String> resolvedIndices;
+    @Nullable
+    private final FieldCapabilitiesFailure localResolutionFailure;
     // remote clusters included in the user's index expression that could not be connected to
     private final Map<String, FieldCapabilitiesFailure> unavailableClusters;
 
@@ -63,11 +66,13 @@ public final class IndexResolution {
         EsIndex index,
         @Nullable String invalid,
         Set<String> resolvedIndices,
+        @Nullable FieldCapabilitiesFailure localResolutionFailure,
         Map<String, FieldCapabilitiesFailure> unavailableClusters
     ) {
         this.index = index;
         this.invalid = invalid;
         this.resolvedIndices = resolvedIndices;
+        this.localResolutionFailure = localResolutionFailure;
         this.unavailableClusters = unavailableClusters;
     }
 
@@ -107,6 +112,14 @@ public final class IndexResolution {
      */
     public Set<String> resolvedIndices() {
         return resolvedIndices;
+    }
+
+    /**
+     * @return local cluster index resolution failure if present
+     */
+    @Nullable
+    public FieldCapabilitiesFailure getLocalResolutionFailure() {
+        return localResolutionFailure;
     }
 
     @Override

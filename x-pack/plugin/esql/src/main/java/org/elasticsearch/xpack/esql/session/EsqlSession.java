@@ -482,7 +482,13 @@ public class EsqlSession {
                     indexExpressionToResolve,
                     result.fieldNames,
                     requestFilter,
-                    listener.map(indexResolution -> result.withIndexResolution(indexResolution))
+                    listener.delegateFailure((l, indexResolution) -> {
+                        if (configuration.allowPartialResults() == false && indexResolution.getLocalResolutionFailure() != null) {
+                            l.onFailure(indexResolution.getLocalResolutionFailure().getException());
+                        } else {
+                            l.onResponse(result.withIndexResolution(indexResolution));
+                        }
+                    })
                 );
             }
         } else {

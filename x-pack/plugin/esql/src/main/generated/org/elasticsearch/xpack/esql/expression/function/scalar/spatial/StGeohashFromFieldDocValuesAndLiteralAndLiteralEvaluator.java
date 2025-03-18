@@ -9,70 +9,62 @@ import java.lang.Override;
 import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link StGeohash}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class StGeohashFromFieldAndFieldEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator in;
+  private final EvalOperator.ExpressionEvaluator encoded;
 
-  private final EvalOperator.ExpressionEvaluator precision;
+  private final int precision;
+
+  private final Rectangle bounds;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public StGeohashFromFieldAndFieldEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
-      EvalOperator.ExpressionEvaluator precision, DriverContext driverContext) {
+  public StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator encoded, int precision, Rectangle bounds,
+      DriverContext driverContext) {
     this.source = source;
-    this.in = in;
+    this.encoded = encoded;
     this.precision = precision;
+    this.bounds = bounds;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock inBlock = (BytesRefBlock) in.eval(page)) {
-      try (IntBlock precisionBlock = (IntBlock) precision.eval(page)) {
-        return eval(page.getPositionCount(), inBlock, precisionBlock);
-      }
+    try (LongBlock encodedBlock = (LongBlock) encoded.eval(page)) {
+      return eval(page.getPositionCount(), encodedBlock);
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock inBlock, IntBlock precisionBlock) {
+  public BytesRefBlock eval(int positionCount, LongBlock encodedBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
         boolean allBlocksAreNulls = true;
-        if (!inBlock.isNull(p)) {
+        if (!encodedBlock.isNull(p)) {
           allBlocksAreNulls = false;
-        }
-        if (precisionBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (precisionBlock.getValueCount(p) != 1) {
-          if (precisionBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
         }
         if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
         try {
-          StGeohash.fromFieldAndField(result, p, inBlock, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p)));
+          StGeohash.fromFieldDocValuesAndLiteralAndLiteral(result, p, encodedBlock, this.precision, this.bounds);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -84,12 +76,12 @@ public final class StGeohashFromFieldAndFieldEvaluator implements EvalOperator.E
 
   @Override
   public String toString() {
-    return "StGeohashFromFieldAndFieldEvaluator[" + "in=" + in + ", precision=" + precision + "]";
+    return "StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", precision=" + precision + ", bounds=" + bounds + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(in, precision);
+    Releasables.closeExpectNoException(encoded);
   }
 
   private Warnings warnings() {
@@ -107,25 +99,28 @@ public final class StGeohashFromFieldAndFieldEvaluator implements EvalOperator.E
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory in;
+    private final EvalOperator.ExpressionEvaluator.Factory encoded;
 
-    private final EvalOperator.ExpressionEvaluator.Factory precision;
+    private final int precision;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
-        EvalOperator.ExpressionEvaluator.Factory precision) {
+    private final Rectangle bounds;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory encoded, int precision,
+        Rectangle bounds) {
       this.source = source;
-      this.in = in;
+      this.encoded = encoded;
       this.precision = precision;
+      this.bounds = bounds;
     }
 
     @Override
-    public StGeohashFromFieldAndFieldEvaluator get(DriverContext context) {
-      return new StGeohashFromFieldAndFieldEvaluator(source, in.get(context), precision.get(context), context);
+    public StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator get(DriverContext context) {
+      return new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator(source, encoded.get(context), precision, bounds, context);
     }
 
     @Override
     public String toString() {
-      return "StGeohashFromFieldAndFieldEvaluator[" + "in=" + in + ", precision=" + precision + "]";
+      return "StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator[" + "encoded=" + encoded + ", precision=" + precision + ", bounds=" + bounds + "]";
     }
   }
 }

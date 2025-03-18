@@ -10,9 +10,7 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -48,15 +46,7 @@ public final class StGeohashFromFieldDocValuesAndFieldEvaluator implements EvalO
   public Block eval(Page page) {
     try (LongBlock encodedBlock = (LongBlock) encoded.eval(page)) {
       try (IntBlock precisionBlock = (IntBlock) precision.eval(page)) {
-        LongVector encodedVector = encodedBlock.asVector();
-        if (encodedVector == null) {
-          return eval(page.getPositionCount(), encodedBlock, precisionBlock);
-        }
-        IntVector precisionVector = precisionBlock.asVector();
-        if (precisionVector == null) {
-          return eval(page.getPositionCount(), encodedBlock, precisionBlock);
-        }
-        return eval(page.getPositionCount(), encodedVector, precisionVector);
+        return eval(page.getPositionCount(), encodedBlock, precisionBlock);
       }
     }
   }
@@ -64,16 +54,9 @@ public final class StGeohashFromFieldDocValuesAndFieldEvaluator implements EvalO
   public BytesRefBlock eval(int positionCount, LongBlock encodedBlock, IntBlock precisionBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (encodedBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (encodedBlock.getValueCount(p) != 1) {
-          if (encodedBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        boolean allBlocksAreNulls = true;
+        if (!encodedBlock.isNull(p)) {
+          allBlocksAreNulls = false;
         }
         if (precisionBlock.isNull(p)) {
           result.appendNull();
@@ -86,23 +69,12 @@ public final class StGeohashFromFieldDocValuesAndFieldEvaluator implements EvalO
           result.appendNull();
           continue position;
         }
-        try {
-          result.appendBytesRef(StGeohash.fromFieldDocValuesAndField(encodedBlock.getLong(encodedBlock.getFirstValueIndex(p)), precisionBlock.getInt(precisionBlock.getFirstValueIndex(p))));
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
+        if (allBlocksAreNulls) {
           result.appendNull();
+          continue position;
         }
-      }
-      return result.build();
-    }
-  }
-
-  public BytesRefBlock eval(int positionCount, LongVector encodedVector,
-      IntVector precisionVector) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
         try {
-          result.appendBytesRef(StGeohash.fromFieldDocValuesAndField(encodedVector.getLong(p), precisionVector.getInt(p)));
+          StGeohash.fromFieldDocValuesAndField(result, p, encodedBlock, precisionBlock.getInt(precisionBlock.getFirstValueIndex(p)));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

@@ -12,12 +12,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -27,19 +30,23 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 
 /**
  * Calculates the geohash of geo_point geometries.
  */
-public class StGeohash extends UnarySpatialBinaryFunction implements EvaluatorMapper {
+public class StGeohash extends SpatialGridFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "StGeohash",
@@ -62,13 +69,19 @@ public class StGeohash extends UnarySpatialBinaryFunction implements EvaluatorMa
             name = "precision",
             type = { "integer" },
             description = "Expression of type `integer`. If `null`, the function returns `null`."
-        ) Expression precision
+        ) Expression precision,
+        @Param(
+            name = "bounds",
+            type = { "geo_shape", "geo_point" },
+            description = "Bounds to filter the grid tiles, either a geo_shape BBOX or an array of two points for top-left and bottom-right",
+            optional = true
+        ) Expression bounds
     ) {
-        this(source, field, precision, false);
+        this(source, field, precision, bounds, false);
     }
 
-    private StGeohash(Source source, Expression field, Expression precision, boolean spatialDocValues) {
-        super(source, field, precision, spatialDocValues);
+    private StGeohash(Source source, Expression field, Expression precision, Expression bounds, boolean spatialDocValues) {
+        super(source, field, precision, bounds, spatialDocValues);
     }
 
     private StGeohash(StreamInput in) throws IOException {
@@ -76,10 +89,10 @@ public class StGeohash extends UnarySpatialBinaryFunction implements EvaluatorMa
     }
 
     @Override
-    public UnarySpatialBinaryFunction withDocValues(boolean useDocValues) {
+    public SpatialGridFunction withDocValues(boolean useDocValues) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean leftDV = this.spatialDocsValues || useDocValues;
-        return new StGeohash(source(), left(), right(), leftDV);
+        boolean docValues = this.spatialDocsValues || useDocValues;
+        return new StGeohash(source(), spatialField, parameter, bounds, docValues);
     }
 
     @Override
@@ -93,13 +106,13 @@ public class StGeohash extends UnarySpatialBinaryFunction implements EvaluatorMa
     }
 
     @Override
-    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
-        return new StGeohash(source(), newLeft, newRight);
+    protected SpatialGridFunction replaceChildren(Expression newSpatialField, Expression newParameter, Expression newBounds) {
+        return new StGeohash(source(), newSpatialField, newParameter, newBounds);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StGeohash::new, left(), right());
+        return NodeInfo.create(this, StGeohash::new, spatialField, parameter, bounds, false);
     }
 
     @Override
@@ -108,70 +121,142 @@ public class StGeohash extends UnarySpatialBinaryFunction implements EvaluatorMa
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isGeoPoint(left(), sourceText());
+        TypeResolution resolution = isGeoPoint(spatialField(), sourceText());
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = isWholeNumber(right(), sourceText(), SECOND);
+        resolution = isWholeNumber(parameter(), sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
+        }
+
+        if (bounds() != null) {
+            resolution = isGeoShape(bounds(), sourceText());
+            if (resolution.unresolved()) {
+                return resolution;
+            }
         }
 
         return TypeResolution.TYPE_RESOLVED;
     }
 
     protected static Expression.TypeResolution isGeoPoint(Expression e, String operationName) {
-
         return isType(e, t -> t.equals(GEO_POINT), operationName, FIRST, GEO_POINT.typeName());
+    }
+
+    protected static Expression.TypeResolution isGeoShape(Expression e, String operationName) {
+        return isType(e, t -> t.equals(GEO_SHAPE), operationName, THIRD, GEO_SHAPE.typeName());
+    }
+
+    private static Rectangle asRectangle(BytesRef boundsBytesRef) {
+        var geometry = GEO.wkbToGeometry(boundsBytesRef);
+        if (geometry instanceof Rectangle rectangle) {
+            return rectangle;
+        }
+        var envelope = SpatialEnvelopeVisitor.visitGeo(geometry, SpatialEnvelopeVisitor.WrapLongitude.WRAP);
+        if (envelope.isPresent()) {
+            return envelope.get();
+        }
+        throw new IllegalArgumentException("Cannot determine envelope of bounds geometry");
     }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        // TODO: Implement
-        if (left().foldable()) {
-            // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
-            var point = (BytesRef) left().fold(toEvaluator.foldCtx());
-            return new StGeohashFromLiteralAndFieldEvaluator.Factory(source(), point, toEvaluator.apply(right()));
-        } else if (right().foldable()) {
-            // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
-            int precision = (int) right().fold(toEvaluator.foldCtx());
-            return spatialDocsValues
-                ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(left()), precision)
-                : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(left()), precision);
+        if (bounds != null) {
+            if (bounds.foldable() == false) {
+                throw new IllegalArgumentException("bounds must foldable");
+            }
+            Rectangle bbox = asRectangle((BytesRef) bounds.fold(toEvaluator.foldCtx()));
+            if (spatialField().foldable()) {
+                // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
+                var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
+                return new StGeohashFromLiteralAndFieldAndLiteralEvaluator.Factory(source(), point, toEvaluator.apply(parameter()), bbox);
+            } else if (parameter().foldable()) {
+                // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
+                int precision = (int) parameter.fold(toEvaluator.foldCtx());
+                return spatialDocsValues
+                    ? new StGeohashFromFieldDocValuesAndLiteralAndLiteralEvaluator.Factory(
+                        source(),
+                        toEvaluator.apply(spatialField()),
+                        precision,
+                        bbox
+                    )
+                    : new StGeohashFromFieldAndLiteralAndLiteralEvaluator.Factory(
+                        source(),
+                        toEvaluator.apply(spatialField),
+                        precision,
+                        bbox
+                    );
+            } else {
+                // Both arguments come from index fields
+                return spatialDocsValues
+                    ? new StGeohashFromFieldDocValuesAndFieldAndLiteralEvaluator.Factory(
+                        source(),
+                        toEvaluator.apply(spatialField),
+                        toEvaluator.apply(parameter),
+                        bbox
+                    )
+                    : new StGeohashFromFieldAndFieldAndLiteralEvaluator.Factory(
+                        source(),
+                        toEvaluator.apply(spatialField),
+                        toEvaluator.apply(parameter),
+                        bbox
+                    );
+            }
         } else {
-            // Both arguments come from index fields
-            return spatialDocsValues
-                ? new StGeohashFromFieldDocValuesAndFieldEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()))
-                : new StGeohashFromFieldAndFieldEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            if (spatialField().foldable()) {
+                // Assume right is not foldable, since that would be dealt with in isFoldable() and fold()
+                var point = (BytesRef) spatialField.fold(toEvaluator.foldCtx());
+                return new StGeohashFromLiteralAndFieldEvaluator.Factory(source(), point, toEvaluator.apply(parameter()));
+            } else if (parameter().foldable()) {
+                // Assume left is not foldable, since that would be dealt with in isFoldable() and fold()
+                int precision = (int) parameter.fold(toEvaluator.foldCtx());
+                return spatialDocsValues
+                    ? new StGeohashFromFieldDocValuesAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField()), precision)
+                    : new StGeohashFromFieldAndLiteralEvaluator.Factory(source(), toEvaluator.apply(spatialField), precision);
+            } else {
+                // Both arguments come from index fields
+                return spatialDocsValues
+                    ? new StGeohashFromFieldDocValuesAndFieldEvaluator.Factory(
+                        source(),
+                        toEvaluator.apply(spatialField),
+                        toEvaluator.apply(parameter)
+                    )
+                    : new StGeohashFromFieldAndFieldEvaluator.Factory(
+                        source(),
+                        toEvaluator.apply(spatialField),
+                        toEvaluator.apply(parameter)
+                    );
+            }
         }
     }
 
     @Override
     public Object fold(FoldContext ctx) {
-        var point = (BytesRef) left().fold(ctx);
-        int precision = (int) right().fold(ctx);
+        var point = (BytesRef) spatialField().fold(ctx);
+        int precision = (int) parameter().fold(ctx);
         return calculateGeohash(GEO.wkbAsPoint(point), precision);
     }
 
     @Evaluator(extraName = "FromFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromFieldAndLiteral(BytesRef in, @Fixed int precision) {
-        return calculateGeohash(GEO.wkbAsPoint(in), precision);
+    static void fromFieldAndLiteral(BytesRefBlock.Builder results, int p, BytesRefBlock wkbBlock, @Fixed int precision) {
+        fromWKB(results, p, wkbBlock, precision);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndLiteral", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromFieldDocValuesAndLiteral(long encoded, @Fixed int precision) {
-        return calculateGeohash(GEO.longAsPoint(encoded), precision);
+    static void fromFieldDocValuesAndLiteral(BytesRefBlock.Builder results, int p, LongBlock encoded, @Fixed int precision) {
+        fromEncodedLong(results, p, encoded, precision);
     }
 
     @Evaluator(extraName = "FromFieldAndField", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromFieldAndField(BytesRef in, int precision) {
-        return calculateGeohash(GEO.wkbAsPoint(in), precision);
+    static void fromFieldAndField(BytesRefBlock.Builder results, int p, BytesRefBlock in, int precision) {
+        fromWKB(results, p, in, precision);
     }
 
     @Evaluator(extraName = "FromFieldDocValuesAndField", warnExceptions = { IllegalArgumentException.class })
-    static BytesRef fromFieldDocValuesAndField(long encoded, int precision) {
-        return calculateGeohash(GEO.longAsPoint(encoded), precision);
+    static void fromFieldDocValuesAndField(BytesRefBlock.Builder results, int p, LongBlock encoded, int precision) {
+        fromEncodedLong(results, p, encoded, precision);
     }
 
     @Evaluator(extraName = "FromLiteralAndField", warnExceptions = { IllegalArgumentException.class })
@@ -181,5 +266,174 @@ public class StGeohash extends UnarySpatialBinaryFunction implements EvaluatorMa
 
     protected static BytesRef calculateGeohash(Point point, int precision) {
         return new BytesRef(Geohash.stringEncode(point.getX(), point.getY(), precision));
+    }
+
+    @Evaluator(extraName = "FromFieldAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
+    static void fromFieldAndLiteralAndLiteral(
+        BytesRefBlock.Builder results,
+        int p,
+        BytesRefBlock in,
+        @Fixed int precision,
+        @Fixed Rectangle bounds
+    ) {
+        fromWKB(results, p, in, precision, bounds);
+    }
+
+    @Evaluator(extraName = "FromFieldDocValuesAndLiteralAndLiteral", warnExceptions = { IllegalArgumentException.class })
+    static void fromFieldDocValuesAndLiteralAndLiteral(
+        BytesRefBlock.Builder results,
+        int p,
+        LongBlock encoded,
+        @Fixed int precision,
+        @Fixed Rectangle bounds
+    ) {
+        fromEncodedLong(results, p, encoded, precision, bounds);
+    }
+
+    @Evaluator(extraName = "FromFieldAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
+    static void fromFieldAndFieldAndLiteral(
+        BytesRefBlock.Builder results,
+        int p,
+        BytesRefBlock in,
+        int precision,
+        @Fixed Rectangle bounds
+    ) {
+        fromWKB(results, p, in, precision, bounds);
+    }
+
+    @Evaluator(extraName = "FromFieldDocValuesAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
+    static void fromFieldDocValuesAndFieldAndLiteral(
+        BytesRefBlock.Builder results,
+        int p,
+        LongBlock encoded,
+        int precision,
+        @Fixed Rectangle bounds
+    ) {
+        fromEncodedLong(results, p, encoded, precision, bounds);
+    }
+
+    @Evaluator(extraName = "FromLiteralAndFieldAndLiteral", warnExceptions = { IllegalArgumentException.class })
+    static BytesRef fromLiteralAndFieldAndLiteral(@Fixed BytesRef in, int precision, @Fixed Rectangle bounds) {
+        return calculateGeohash(GEO.wkbAsPoint(in), precision, bounds);
+    }
+
+    private static void fromWKB(BytesRefBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision) {
+        int valueCount = wkbBlock.getValueCount(position);
+        if (valueCount < 1) {
+            results.appendNull();
+        } else {
+            final BytesRef scratch = new BytesRef();
+            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
+            if (valueCount == 1) {
+                results.appendBytesRef(calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision));
+            } else {
+                results.beginPositionEntry();
+                for (int i = 0; i < valueCount; i++) {
+                    results.appendBytesRef(calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision));
+                }
+                results.endPositionEntry();
+            }
+        }
+    }
+
+    private static void fromEncodedLong(BytesRefBlock.Builder results, int position, LongBlock encoded, int precision) {
+        int valueCount = encoded.getValueCount(position);
+        if (valueCount < 1) {
+            results.appendNull();
+        } else {
+            final int firstValueIndex = encoded.getFirstValueIndex(position);
+            if (valueCount == 1) {
+                results.appendBytesRef(calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision));
+            } else {
+                results.beginPositionEntry();
+                for (int i = 0; i < valueCount; i++) {
+                    results.appendBytesRef(calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision));
+                }
+                results.endPositionEntry();
+            }
+        }
+    }
+
+    protected static BytesRef calculateGeohash(Point point, int precision, Rectangle bounds) {
+        // For points, filtering the point is as good as filtering the tile
+        if (inBounds(point, bounds)) {
+            return new BytesRef(Geohash.stringEncode(point.getX(), point.getY(), precision));
+        }
+        return null;
+    }
+
+    protected static boolean inBounds(Point point, Rectangle bounds) {
+        // TODO: consider bounds across the dateline
+        return point.getX() >= bounds.getMinX()
+            && point.getY() >= bounds.getMinY()
+            && point.getX() <= bounds.getMaxX()
+            && point.getY() <= bounds.getMaxY();
+    }
+
+    private static void fromWKB(BytesRefBlock.Builder results, int position, BytesRefBlock wkbBlock, int precision, Rectangle bounds) {
+        int valueCount = wkbBlock.getValueCount(position);
+        if (valueCount < 1) {
+            results.appendNull();
+        } else {
+            final BytesRef scratch = new BytesRef();
+            final int firstValueIndex = wkbBlock.getFirstValueIndex(position);
+            if (valueCount == 1) {
+                BytesRef grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex, scratch)), precision, bounds);
+                if (grid == null) {
+                    results.appendNull();
+                } else {
+                    results.appendBytesRef(grid);
+                }
+            } else {
+                var gridIds = new ArrayList<BytesRef>(valueCount);
+                for (int i = 0; i < valueCount; i++) {
+                    var grid = calculateGeohash(GEO.wkbAsPoint(wkbBlock.getBytesRef(firstValueIndex + i, scratch)), precision, bounds);
+                    if (grid != null) {
+                        gridIds.add(grid);
+                    }
+                }
+                addGrids(results, gridIds);
+            }
+        }
+    }
+
+    private static void fromEncodedLong(BytesRefBlock.Builder results, int position, LongBlock encoded, int precision, Rectangle bounds) {
+        int valueCount = encoded.getValueCount(position);
+        if (valueCount < 1) {
+            results.appendNull();
+        } else {
+            final int firstValueIndex = encoded.getFirstValueIndex(position);
+            if (valueCount == 1) {
+                BytesRef grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex)), precision, bounds);
+                if (grid == null) {
+                    results.appendNull();
+                } else {
+                    results.appendBytesRef(grid);
+                }
+            } else {
+                var gridIds = new ArrayList<BytesRef>(valueCount);
+                for (int i = 0; i < valueCount; i++) {
+                    var grid = calculateGeohash(GEO.longAsPoint(encoded.getLong(firstValueIndex + i)), precision, bounds);
+                    if (grid != null) {
+                        gridIds.add(grid);
+                    }
+                }
+                addGrids(results, gridIds);
+            }
+        }
+    }
+
+    private static void addGrids(BytesRefBlock.Builder results, List<BytesRef> gridIds) {
+        if (gridIds.isEmpty()) {
+            results.appendNull();
+        } else if (gridIds.size() == 1) {
+            results.appendBytesRef(gridIds.getFirst());
+        } else {
+            results.beginPositionEntry();
+            for (BytesRef gridId : gridIds) {
+                results.appendBytesRef(gridId);
+            }
+            results.endPositionEntry();
+        }
     }
 }

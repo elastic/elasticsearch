@@ -7,10 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -25,7 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 public final class StGeohashFromFieldAndLiteralEvaluator implements EvalOperator.ExpressionEvaluator {
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator in;
+  private final EvalOperator.ExpressionEvaluator wkbBlock;
 
   private final int precision;
 
@@ -33,57 +31,34 @@ public final class StGeohashFromFieldAndLiteralEvaluator implements EvalOperator
 
   private Warnings warnings;
 
-  public StGeohashFromFieldAndLiteralEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
-      int precision, DriverContext driverContext) {
+  public StGeohashFromFieldAndLiteralEvaluator(Source source,
+      EvalOperator.ExpressionEvaluator wkbBlock, int precision, DriverContext driverContext) {
     this.source = source;
-    this.in = in;
+    this.wkbBlock = wkbBlock;
     this.precision = precision;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock inBlock = (BytesRefBlock) in.eval(page)) {
-      BytesRefVector inVector = inBlock.asVector();
-      if (inVector == null) {
-        return eval(page.getPositionCount(), inBlock);
-      }
-      return eval(page.getPositionCount(), inVector);
+    try (BytesRefBlock wkbBlockBlock = (BytesRefBlock) wkbBlock.eval(page)) {
+      return eval(page.getPositionCount(), wkbBlockBlock);
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock inBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock wkbBlockBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef inScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (inBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        boolean allBlocksAreNulls = true;
+        if (!wkbBlockBlock.isNull(p)) {
+          allBlocksAreNulls = false;
         }
-        if (inBlock.getValueCount(p) != 1) {
-          if (inBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
         try {
-          result.appendBytesRef(StGeohash.fromFieldAndLiteral(inBlock.getBytesRef(inBlock.getFirstValueIndex(p), inScratch), this.precision));
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
-      }
-      return result.build();
-    }
-  }
-
-  public BytesRefBlock eval(int positionCount, BytesRefVector inVector) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef inScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        try {
-          result.appendBytesRef(StGeohash.fromFieldAndLiteral(inVector.getBytesRef(p, inScratch), this.precision));
+          StGeohash.fromFieldAndLiteral(result, p, wkbBlockBlock, this.precision);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -95,12 +70,12 @@ public final class StGeohashFromFieldAndLiteralEvaluator implements EvalOperator
 
   @Override
   public String toString() {
-    return "StGeohashFromFieldAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + "]";
+    return "StGeohashFromFieldAndLiteralEvaluator[" + "wkbBlock=" + wkbBlock + ", precision=" + precision + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(in);
+    Releasables.closeExpectNoException(wkbBlock);
   }
 
   private Warnings warnings() {
@@ -118,24 +93,25 @@ public final class StGeohashFromFieldAndLiteralEvaluator implements EvalOperator
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory in;
+    private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
 
     private final int precision;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in, int precision) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock,
+        int precision) {
       this.source = source;
-      this.in = in;
+      this.wkbBlock = wkbBlock;
       this.precision = precision;
     }
 
     @Override
     public StGeohashFromFieldAndLiteralEvaluator get(DriverContext context) {
-      return new StGeohashFromFieldAndLiteralEvaluator(source, in.get(context), precision, context);
+      return new StGeohashFromFieldAndLiteralEvaluator(source, wkbBlock.get(context), precision, context);
     }
 
     @Override
     public String toString() {
-      return "StGeohashFromFieldAndLiteralEvaluator[" + "in=" + in + ", precision=" + precision + "]";
+      return "StGeohashFromFieldAndLiteralEvaluator[" + "wkbBlock=" + wkbBlock + ", precision=" + precision + "]";
     }
   }
 }

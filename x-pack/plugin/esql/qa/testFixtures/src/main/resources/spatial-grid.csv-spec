@@ -78,6 +78,26 @@ count:long | centroid:geo_point                             | geohash:keyword
 // end::st_geohash-grid-result[]
 ;
 
+gridGeohashStatsByBounds
+FROM airports
+| EVAL geohash = ST_GEOHASH(location, 2, TO_GEOSHAPE("BBOX(0, 12, 60, 30)"))
+| WHERE geohash IS NOT NULL
+| STATS
+    count = COUNT(*),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohash
+| SORT count DESC, geohash ASC
+;
+
+count:long | centroid:geo_point                           | geohash:keyword
+19         | POINT (6.360728044651057 47.94084087577894)  | u0             
+8          | POINT (6.351574736181647 51.8981519783847)   | u1             
+7          | POINT (5.268637698941997 42.747250193330856) | sp             
+4          | POINT (7.7012718468904495 36.39783004182391) | sn             
+2          | POINT (11.7787727387622 48.351816879585385)  | u2             
+1          | POINT (5.629810290411115 58.88215648010373)  | u4             
+;
+
 gridGeohashStatsByWhereUK
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
@@ -92,6 +112,24 @@ FROM airports
 count:long | centroid:geo_point                            | geohash:keyword
 14         | POINT (-2.5644131543646966 53.38093495994274) | gc
 3          | POINT (-2.7510103583335876 58.79020635969937) | gf
+;
+
+gridGeohashStatsByBoundsUK
+FROM airports
+| EVAL bounds = ST_ENVELOPE(TO_GEOSHAPE("POLYGON((1.2305 60.8449, -1.582 61.6899, -10.7227 58.4017, -7.1191 55.3291, -7.9102 54.2139, -5.4492 54.0078, -5.2734 52.3756, -7.8223 49.6676, -5.0977 49.2678, 0.9668 50.5134, 2.5488 52.1065, 2.6367 54.0078, -0.9668 56.4625, 1.2305 60.8449))"))
+| EVAL geohash = ST_GEOHASH(location, 2, bounds)
+| WHERE geohash IS NOT NULL
+| STATS
+    count = COUNT(location),
+    centroid = ST_CENTROID_AGG(location)
+      BY geohash
+| SORT count DESC
+;
+
+count:long | centroid:geo_point                            | geohash:keyword
+17         | POINT (-3.5034258844440473 53.25306422789307) | gc             
+3          | POINT (-2.7510103583335876 58.79020635969937) | gf             
+1          | POINT (0.15865350142121315 49.36166098807007) | u0             
 ;
 
 gridGeohashInStatsBy

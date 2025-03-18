@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
-import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.UnarySpatialBinaryFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialGridFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -113,7 +113,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 List<Alias> changed = fields.stream()
                     .map(
                         f -> (Alias) f.transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
-                            .transformDown(UnarySpatialBinaryFunction.class, s -> withDocValues(s, foundAttributes))
+                            .transformDown(SpatialGridFunction.class, s -> withDocValues(s, foundAttributes))
                     )
                     .toList();
                 if (changed.equals(fields) == false) {
@@ -125,7 +125,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                 // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
                 var condition = filterExec.condition()
                     .transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
-                    .transformDown(UnarySpatialBinaryFunction.class, s -> withDocValues(s, foundAttributes));
+                    .transformDown(SpatialGridFunction.class, s -> withDocValues(s, foundAttributes));
                 if (filterExec.condition().equals(condition) == false) {
                     exec = new FilterExec(filterExec.source(), filterExec.child(), condition);
                 }
@@ -155,9 +155,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;
     }
 
-    private UnarySpatialBinaryFunction withDocValues(UnarySpatialBinaryFunction spatial, Set<FieldAttribute> foundAttributes) {
+    private SpatialGridFunction withDocValues(SpatialGridFunction spatial, Set<FieldAttribute> foundAttributes) {
         // Only update the docValues flags if the field is found in the attributes
-        boolean found = foundField(spatial.left(), foundAttributes);
+        boolean found = foundField(spatial.spatialField(), foundAttributes);
         return found ? spatial.withDocValues(found) : spatial;
     }
 

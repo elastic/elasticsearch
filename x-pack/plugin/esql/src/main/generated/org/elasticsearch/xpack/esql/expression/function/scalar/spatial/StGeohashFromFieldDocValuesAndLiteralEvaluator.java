@@ -10,7 +10,6 @@ import java.lang.String;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -44,44 +43,23 @@ public final class StGeohashFromFieldDocValuesAndLiteralEvaluator implements Eva
   @Override
   public Block eval(Page page) {
     try (LongBlock encodedBlock = (LongBlock) encoded.eval(page)) {
-      LongVector encodedVector = encodedBlock.asVector();
-      if (encodedVector == null) {
-        return eval(page.getPositionCount(), encodedBlock);
-      }
-      return eval(page.getPositionCount(), encodedVector);
+      return eval(page.getPositionCount(), encodedBlock);
     }
   }
 
   public BytesRefBlock eval(int positionCount, LongBlock encodedBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (encodedBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        boolean allBlocksAreNulls = true;
+        if (!encodedBlock.isNull(p)) {
+          allBlocksAreNulls = false;
         }
-        if (encodedBlock.getValueCount(p) != 1) {
-          if (encodedBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        if (allBlocksAreNulls) {
           result.appendNull();
           continue position;
         }
         try {
-          result.appendBytesRef(StGeohash.fromFieldDocValuesAndLiteral(encodedBlock.getLong(encodedBlock.getFirstValueIndex(p)), this.precision));
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
-      }
-      return result.build();
-    }
-  }
-
-  public BytesRefBlock eval(int positionCount, LongVector encodedVector) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      position: for (int p = 0; p < positionCount; p++) {
-        try {
-          result.appendBytesRef(StGeohash.fromFieldDocValuesAndLiteral(encodedVector.getLong(p), this.precision));
+          StGeohash.fromFieldDocValuesAndLiteral(result, p, encodedBlock, this.precision);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();

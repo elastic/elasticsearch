@@ -68,6 +68,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -303,6 +305,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var threadPool = registerThreadPool(
             new TestThreadPool(getTestName() + "[" + shardId + "][index]", Stateless.statelessExecutorBuilders(Settings.EMPTY, true))
         );
+        var threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            Settings.builder()
+                .put(settings)
+                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+                .build()
+        );
         var directory = newDirectory();
         if (Lucene.indexExists(directory)) {
             throw new AssertionError("Lucene index already exist for shard " + shardId);
@@ -320,6 +329,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         return new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             null,
             store,
@@ -370,6 +380,10 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var shardId = indexEngine.getEngineConfig().getShardId();
         var indexSettings = indexEngine.getEngineConfig().getIndexSettings();
         var threadPool = deterministicTaskQueue.getThreadPool();
+        var threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            indexSettings.getNodeSettings()
+        );
         var nodeEnvironment = newNodeEnvironment();
         var cache = new StatelessSharedBlobCacheService(
             nodeEnvironment,
@@ -389,6 +403,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         final EngineConfig searchConfig = new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             null,
             store,
@@ -450,6 +465,10 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 )
             )
         );
+        var threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            indexSettings.getNodeSettings()
+        );
         var directory = new SearchDirectory(
             sharedBlobCacheService,
             new CacheBlobReaderService(indexSettings.getSettings(), sharedBlobCacheService, mock(Client.class), threadPool),
@@ -460,6 +479,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         return new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             null,
             store,

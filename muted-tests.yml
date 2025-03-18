@@ -483,3 +483,6 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: staged, expectedAssembleTaskName:
     extractedAssemble, #1]"
   issue: https://github.com/elastic/elasticsearch/issues/119870
+- class: org.elasticsearch.discovery.ec2.Ec2DiscoveryTests
+  method: testFilterByMultipleTags
+  issue: https://github.com/elastic/elasticsearch/issues/125166

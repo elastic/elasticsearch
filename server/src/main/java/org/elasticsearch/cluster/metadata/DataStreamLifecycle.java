@@ -279,8 +279,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 out.writeOptionalTimeValue(dataRetention);
             } else {
                 out.writeBoolean(dataRetention != null);
@@ -291,8 +290,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
         }
         if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 out.writeOptionalCollection(downsampling);
             } else {
                 out.writeBoolean(downsampling != null);
@@ -306,8 +304,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
     public DataStreamLifecycle(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 dataRetention = in.readOptionalTimeValue();
             } else {
                 // When the data retention is not null, for bwc reasons we need an extra flag
@@ -318,8 +315,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             dataRetention = null;
         }
         if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                 downsampling = in.readOptionalCollectionAsList(DownsamplingRound::read);
             } else {
                 // When the data retention is not null, for bwc reasons we need an extra flag
@@ -624,16 +620,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         public void writeTo(StreamOutput out) throws IOException {
             // The order of the fields is like this for bwc reasons
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
-                    || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                     ResettableValue.write(out, dataRetention, StreamOutput::writeTimeValue);
                 } else {
                     writeLegacyValue(out, dataRetention, StreamOutput::writeTimeValue);
                 }
             }
             if (out.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
-                    || out.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+                if (out.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                     ResettableValue.write(out, downsampling, StreamOutput::writeCollection);
                 } else {
                     writeLegacyValue(out, downsampling, StreamOutput::writeCollection);
@@ -683,16 +677,14 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
 
             // The order of the fields is like this for bwc reasons
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
-                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                     dataRetention = ResettableValue.read(in, StreamInput::readTimeValue);
                 } else {
                     dataRetention = readLegacyValues(in, StreamInput::readTimeValue);
                 }
             }
             if (in.getTransportVersion().onOrAfter(ADDED_ENABLED_FLAG_VERSION)) {
-                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)
-                    || in.getTransportVersion().isPatchFrom(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE_8_19)) {
+                if (in.getTransportVersion().onOrAfter(TransportVersions.INTRODUCE_LIFECYCLE_TEMPLATE)) {
                     downsampling = ResettableValue.read(in, i -> i.readCollectionAsList(DownsamplingRound::read));
                 } else {
                     downsampling = readLegacyValues(in, i -> i.readCollectionAsList(DownsamplingRound::read));

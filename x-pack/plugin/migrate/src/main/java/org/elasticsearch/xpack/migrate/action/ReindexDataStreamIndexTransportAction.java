@@ -12,6 +12,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -35,9 +36,12 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Assertions;
@@ -52,6 +56,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
@@ -60,6 +65,7 @@ import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
@@ -101,6 +107,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
     private final ClusterService clusterService;
     private final Client client;
+    private final TransportService transportService;
+    private final AtomicInteger ingestNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
     @Inject
     public ReindexDataStreamIndexTransportAction(
@@ -119,6 +127,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         );
         this.clusterService = clusterService;
         this.client = client;
+        this.transportService = transportService;
     }
 
     @Override
@@ -305,7 +314,23 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                 listener.onResponse(bulkByScrollResponse);
             }
         }, listener::onFailure);
-        client.execute(ReindexAction.INSTANCE, reindexRequest, checkForFailuresListener);
+        final DiscoveryNode[] ingestNodes = clusterService.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
+        if (ingestNodes.length == 0) {
+            listener.onFailure(new NoNodeAvailableException("No ingest nodes in cluster"));
+        } else {
+            DiscoveryNode ingestNode = ingestNodes[Math.floorMod(ingestNodeGenerator.incrementAndGet(), ingestNodes.length)];
+            logger.debug("Sending reindex request to {}", ingestNode.getName());
+            transportService.sendRequest(
+                ingestNode,
+                ReindexAction.NAME,
+                reindexRequest,
+                new ActionListenerResponseHandler<>(
+                    checkForFailuresListener,
+                    BulkByScrollResponse::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
+            );
+        }
     }
 
     private void updateSettings(

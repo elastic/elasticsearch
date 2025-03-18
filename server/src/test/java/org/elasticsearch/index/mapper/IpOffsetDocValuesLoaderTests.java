@@ -10,9 +10,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
 
 public class IpOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCase {
 
@@ -38,7 +35,7 @@ public class IpOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCase 
     }
 
     @Override
-    protected void randomValue(XContentBuilder b) throws IOException {
-        b.value(NetworkAddress.format(randomIp(true)));
+    protected Object randomValue() {
+        return NetworkAddress.format(randomIp(true));
     }
 }

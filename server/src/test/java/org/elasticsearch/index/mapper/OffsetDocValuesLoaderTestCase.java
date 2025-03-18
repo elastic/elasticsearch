@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.HashSet;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.nullValue;
@@ -162,13 +163,18 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         String values;
         int numValues = randomIntBetween(0, 256);
 
+        var previousValues = new HashSet<Object>();
         try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());) {
             b.startArray();
             for (int i = 0; i < numValues; i++) {
                 if (randomInt(10) == 1) {
                     b.nullValue();
+                } else if (randomInt(10) == 1 && previousValues.size() > 0) {
+                    b.value(randomFrom(previousValues));
                 } else {
-                    randomValue(b);
+                    Object value = randomValue();
+                    previousValues.add(value);
+                    b.value(value);
                 }
             }
             b.endArray();
@@ -179,7 +185,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
 
     protected abstract String getFieldTypeName();
 
-    protected abstract void randomValue(XContentBuilder b) throws IOException;
+    protected abstract Object randomValue();
 
     protected void verifyOffsets(String source) throws IOException {
         verifyOffsets(source, source);

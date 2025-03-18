@@ -9,10 +9,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.xcontent.XContentBuilder;
-
-import java.io.IOException;
-
 public class LongOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCase {
 
     public void testOffsetArray() throws Exception {
@@ -32,7 +28,7 @@ public class LongOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCas
     }
 
     @Override
-    protected void randomValue(XContentBuilder b) throws IOException {
-        b.value(randomLong());
+    protected Object randomValue() {
+        return randomLong();
     }
 }

@@ -96,6 +96,7 @@ import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
@@ -193,6 +194,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
     private final ThreadPool threadPool;
+    @Nullable
+    private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final MapperService mapperService;
     private final IndexCache indexCache;
     private final Store store;
@@ -317,6 +320,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexEventListener indexEventListener,
         final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         final ThreadPool threadPool,
+        final ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         final BigArrays bigArrays,
         final Engine.Warmer warmer,
         final List<SearchOperationListener> searchOperationListener,
@@ -344,6 +348,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
+        this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats(relativeTimeInNanosSupplier, indexingStatsSettings);
@@ -3551,6 +3556,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             warmer,
             store,

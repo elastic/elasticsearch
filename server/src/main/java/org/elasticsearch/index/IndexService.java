@@ -49,6 +49,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -155,6 +156,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     private final AsyncTrimTranslogTask trimTranslogTask;
     private final ThreadPool threadPool;
+    @Nullable
+    private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
@@ -180,6 +183,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
         ThreadPool threadPool,
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         ScriptService scriptService,
         ClusterService clusterService,
         Client client,
@@ -264,6 +268,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexFoldersDeletionListener = indexFoldersDeletionListener;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
+        this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.client = client;
@@ -560,6 +565,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 eventListener,
                 readerWrapper,
                 threadPool,
+                threadPoolMergeExecutorService,
                 bigArrays,
                 engineWarmer,
                 searchOperationListeners,
@@ -823,6 +829,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public ThreadPool getThreadPool() {
         return threadPool;
+    }
+
+    public @Nullable ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
+        return threadPoolMergeExecutorService;
     }
 
     /**

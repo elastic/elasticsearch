@@ -1,0 +1,5 @@
+pr: 125117
+summary: Permanently switch from `SecurityManager` to Entitlements
+area: Infra/Entitlements
+type: upgrade
+issues: []

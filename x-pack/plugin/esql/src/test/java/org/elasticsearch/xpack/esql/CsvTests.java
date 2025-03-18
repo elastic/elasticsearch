@@ -127,7 +127,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -255,7 +254,7 @@ public class CsvTests extends ESTestCase {
             );
             assumeFalse(
                 "can't use rereank in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.RERANK.capabilityName())
             );
             assumeFalse(
                 "can't use match in csv tests",

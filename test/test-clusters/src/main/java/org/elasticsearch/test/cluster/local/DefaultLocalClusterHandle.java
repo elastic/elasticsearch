@@ -201,12 +201,12 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     @Override
-    public void writeAhHocConfigFile(int index, String fileName, String content) {
+    public void writeAdHocConfigFile(int index, String fileName, String content) {
         nodes.get(index).writeAdHocConfigFile(fileName, content);
     }
 
     @Override
-    public void deleteAhHocConfigFile(int index, String fileName) {
+    public void deleteAdHocConfigFile(int index, String fileName) {
         nodes.get(index).removeAdHocConfigFile(fileName);
     }
 

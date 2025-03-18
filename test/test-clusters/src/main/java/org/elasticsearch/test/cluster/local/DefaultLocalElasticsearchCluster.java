@@ -170,13 +170,13 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     }
 
     @Override
-    public void writeAhHocConfigFile(int index, String fileName, String content) {
-        handle.writeAhHocConfigFile(index, fileName, content);
+    public void writeAdHocConfigFile(int index, String fileName, String content) {
+        handle.writeAdHocConfigFile(index, fileName, content);
     }
 
     @Override
-    public void deleteAhHocConfigFile(int index, String fileName) {
-        handle.deleteAhHocConfigFile(index, fileName);
+    public void deleteAdHocConfigFile(int index, String fileName) {
+        handle.deleteAdHocConfigFile(index, fileName);
     }
 
     @Override

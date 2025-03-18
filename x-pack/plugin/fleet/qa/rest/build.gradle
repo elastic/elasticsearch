@@ -20,10 +20,10 @@ artifacts {
 }
 
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 tasks.named('yamlRestCompatTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 if (buildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC

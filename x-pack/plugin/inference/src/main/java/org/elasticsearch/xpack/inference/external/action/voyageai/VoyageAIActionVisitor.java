@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.voyageai;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
@@ -15,7 +14,7 @@ import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerank
 import java.util.Map;
 
 public interface VoyageAIActionVisitor {
-    ExecutableAction create(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType);
+    ExecutableAction create(VoyageAIEmbeddingsModel model, Map<String, Object> taskSettings);
 
     ExecutableAction create(VoyageAIRerankModel model, Map<String, Object> taskSettings);
 }

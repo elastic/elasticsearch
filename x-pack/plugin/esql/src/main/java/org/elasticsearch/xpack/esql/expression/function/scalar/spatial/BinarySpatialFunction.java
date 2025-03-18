@@ -138,7 +138,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
 
         protected TypeResolution resolveType() {
             if (left().foldable() && right().foldable() == false || isNull(left().dataType())) {
-                // Left is literal, but right is not, check the left field's type against the right field
+                // Left is literal, but right is not, check the left field’s type against the right field
                 return resolveType(right(), left(), SECOND, FIRST);
             } else {
                 // All other cases check the right against the left

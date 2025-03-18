@@ -110,10 +110,7 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
     );
 
     // package private so it can be replaced by tests
-    List<JdkBuild> builds = List.of(
-        getBundledJdkBuild(),
-        new EarlyAccessJdkBuild(JavaLanguageVersion.of(25))
-    );
+    List<JdkBuild> builds = List.of(getBundledJdkBuild(), new EarlyAccessJdkBuild(JavaLanguageVersion.of(25)));
 
     private JdkBuild getBundledJdkBuild() {
         String bundledJdkVersion = VersionProperties.getBundledJdkVersion();

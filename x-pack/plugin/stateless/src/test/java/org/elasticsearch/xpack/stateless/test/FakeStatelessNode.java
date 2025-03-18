@@ -393,6 +393,7 @@ public class FakeStatelessNode implements Closeable {
                         commitFiles,
                         additionalFiles,
                         primaryTerm,
+                        0,
                         0
                     );
                     commits.add(statelessCommitRef);
@@ -452,6 +453,7 @@ public class FakeStatelessNode implements Closeable {
                         commitFiles,
                         additionalFiles,
                         primaryTerm,
+                        0,
                         0
                     );
                     commits.add(statelessCommitRef);

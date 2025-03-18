@@ -38,7 +38,12 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
     private final Set<String> additionalFiles;
     private final AtomicBoolean released;
     private final long primaryTerm;
+    // The translog recovery start file is encoded in the commit user data and in the CC header, and is used to pinpoint the starting
+    // translog compound file number to start scanning from for recovering operations indexed after the commit. It takes a special value
+    // of {@link #HOLLOW_TRANSLOG_RECOVERY_START_FILE} to indicate that the commit is hollow and has no translog to recover from.
     private final long translogRecoveryStartFile;
+    // The translog release end file is used so that the {@link TranslogReplicator} can release any translog files before this one.
+    private final long translogReleaseEndFile;
 
     public StatelessCommitRef(
         ShardId shardId,
@@ -46,7 +51,8 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
         Collection<String> commitFiles,
         Set<String> additionalFiles,
         long primaryTerm,
-        long translogRecoveryStartFile
+        long translogRecoveryStartFile,
+        long translogReleaseEndFile
     ) {
         super(indexCommitRef.getIndexCommit());
         this.shardId = Objects.requireNonNull(shardId);
@@ -55,7 +61,16 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
         this.additionalFiles = Objects.requireNonNull(additionalFiles);
         this.primaryTerm = primaryTerm;
         this.translogRecoveryStartFile = translogRecoveryStartFile;
+        this.translogReleaseEndFile = translogReleaseEndFile;
         this.released = new AtomicBoolean();
+        assert translogReleaseEndFile < 0 || translogRecoveryStartFile == translogReleaseEndFile || isHollow()
+            : "translog start file for cleaning ("
+                + translogReleaseEndFile
+                + ") must be the same as translog recovery start file ("
+                + translogRecoveryStartFile
+                + ") for non-hollow commits or negative (ineffective)";
+        assert translogReleaseEndFile != HOLLOW_TRANSLOG_RECOVERY_START_FILE
+            : translogReleaseEndFile + " == " + HOLLOW_TRANSLOG_RECOVERY_START_FILE;
     }
 
     public long getPrimaryTerm() {
@@ -83,6 +98,10 @@ public class StatelessCommitRef extends FilterIndexCommit implements Closeable {
 
     public long getTranslogRecoveryStartFile() {
         return translogRecoveryStartFile;
+    }
+
+    public long getTranslogReleaseEndFile() {
+        return translogReleaseEndFile;
     }
 
     public boolean isHollow() {

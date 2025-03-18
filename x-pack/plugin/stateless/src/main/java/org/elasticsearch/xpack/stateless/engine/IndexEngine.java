@@ -71,6 +71,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -93,6 +94,7 @@ import static org.elasticsearch.index.engine.Engine.FlushResult.NO_FLUSH;
 public class IndexEngine extends InternalEngine {
 
     public static final String TRANSLOG_RECOVERY_START_FILE = "translog_recovery_start_file";
+    public static final String TRANSLOG_RELEASE_END_FILE = "translog_release_end_file";
     // A flag for whether the flush call is originated from a refresh
     private static final ThreadLocal<Boolean> IS_FLUSH_BY_REFRESH = ThreadLocal.withInitial(() -> false);
 
@@ -420,6 +422,8 @@ public class IndexEngine extends InternalEngine {
     @Override
     protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
         var accumulatorUserData = documentSizeAccumulator.getAsCommitUserData(getLastCommittedSegmentInfos());
+        final Map<String, String> commitExtraUserData;
+
         long translogRecoveryStartFile = translogStartFileForNextCommit;
         // We check the local checkpoint to ensure that only a commit that has committed all operations is marked as hollow.
         if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && localCheckpoint == hollowMaxSeqNo) {
@@ -430,9 +434,16 @@ public class IndexEngine extends InternalEngine {
                     + getMaxSeqNo()
                     + "]";
             logger.info("flushing hollow commit with max seq no {}", hollowMaxSeqNo);
+            commitExtraUserData = Maps.newMapWithExpectedSize(2 + accumulatorUserData.size());
+            commitExtraUserData.put(TRANSLOG_RELEASE_END_FILE, Long.toString(translogRecoveryStartFile));
             translogRecoveryStartFile = HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+        } else {
+            commitExtraUserData = Maps.newMapWithExpectedSize(1 + accumulatorUserData.size());
         }
-        return Maps.copyMapWithAddedEntry(accumulatorUserData, TRANSLOG_RECOVERY_START_FILE, Long.toString(translogRecoveryStartFile));
+
+        commitExtraUserData.putAll(accumulatorUserData);
+        commitExtraUserData.put(TRANSLOG_RECOVERY_START_FILE, Long.toString(translogRecoveryStartFile));
+        return Collections.unmodifiableMap(commitExtraUserData);
     }
 
     @Override

@@ -10,6 +10,12 @@ applies_to:
 
 # Elasticsearch audit events [elasticsearch-audit-events]
 
+:::{note}
+This section provides detailed **reference information** for Elasticsearch audit events.
+
+Refer to [Security event audit logging](docs-content://deploy-manage/security/logging-configuration/security-event-audit-logging.md) in the **Deploy and manage** section for overview, getting started and conceptual information about audit logging.
+:::
+
 When you are [auditing security events](docs-content://deploy-manage/monitor/logging-configuration/enabling-audit-logs.md), a single client request might generate multiple audit events, across multiple cluster nodes. The common `request.id` attribute can be used to correlate the associated events.
 
 This document provides a reference for all types of audit events and their associated [attributes](#audit-event-attributes) in {{es}}. Use [audit event settings](./configuration-reference/auding-settings.md) options to control what gets logged.

@@ -1729,8 +1729,7 @@ public class NumberFieldMapper extends FieldMapper {
             };
         }
 
-        abstract static class NumberFallbackSyntheticSourceReader extends FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<
-            Number> {
+        abstract static class NumberFallbackSyntheticSourceReader extends FallbackSyntheticSourceBlockLoader.SingleValueReader<Number> {
             private final NumberType type;
             private final Number nullValue;
             private final boolean coerce;
@@ -1912,7 +1911,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            if (hasDocValues()) {
+            if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return type.blockLoaderFromDocValues(name());
             }
 
@@ -1920,7 +1919,8 @@ public class NumberFieldMapper extends FieldMapper {
                 return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce);
             }
 
-            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+            BlockSourceReader.LeafIteratorLookup lookup = hasDocValues() == false && (isStored() || isIndexed())
+                // We only write the field names field if there aren't doc values or norms
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return type.blockLoaderFromSource(sourceValueFetcher(blContext.sourcePaths(name())), lookup);

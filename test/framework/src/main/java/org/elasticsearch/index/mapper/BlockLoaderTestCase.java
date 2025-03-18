@@ -150,7 +150,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     private void runTest(Template template, Mapping mapping, String fieldName) throws IOException {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
-        var mapperService = params.syntheticSource ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
+        var mapperService = params.syntheticSource
+            ? createSytheticSourceMapperService(mappingXContent)
+            : createMapperService(mappingXContent);
 
         var document = documentGenerator.generate(template, mapping);
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);

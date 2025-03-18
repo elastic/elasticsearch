@@ -1,0 +1,5 @@
+pr: 122823
+summary: Prevent Query Rule Creation with Invalid Numeric Match Criteria
+area: Relevance
+type: bug
+issues: []

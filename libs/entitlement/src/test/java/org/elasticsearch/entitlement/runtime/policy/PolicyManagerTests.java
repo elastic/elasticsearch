@@ -23,6 +23,7 @@ import org.elasticsearch.test.jar.JarUtils;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.lang.StackWalker.StackFrame;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
 import java.net.URL;
@@ -101,12 +102,12 @@ public class PolicyManagerTests extends ESTestCase {
 
         assertEquals(
             "No policy for the unnamed module",
-            policyManager.defaultEntitlements("plugin1", plugin1SourcePath),
+            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName()),
             policyManager.getEntitlements(callerClass)
         );
 
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath)),
+            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName())),
             policyManager.moduleEntitlementsMap
         );
     }
@@ -131,12 +132,12 @@ public class PolicyManagerTests extends ESTestCase {
 
         assertEquals(
             "No policy for this plugin",
-            policyManager.defaultEntitlements("plugin1", plugin1SourcePath),
+            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName()),
             policyManager.getEntitlements(callerClass)
         );
 
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath)),
+            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName())),
             policyManager.moduleEntitlementsMap
         );
     }
@@ -159,18 +160,24 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals(policyManager.defaultEntitlements("plugin1", plugin1SourcePath), policyManager.getEntitlements(callerClass));
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath)),
+            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName()),
+            policyManager.getEntitlements(callerClass)
+        );
+        assertEquals(
+            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName())),
             policyManager.moduleEntitlementsMap
         );
 
         // A second time
-        assertEquals(policyManager.defaultEntitlements("plugin1", plugin1SourcePath), policyManager.getEntitlements(callerClass));
+        assertEquals(
+            policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName()),
+            policyManager.getEntitlements(callerClass)
+        );
 
         // Nothing new in the map
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath)),
+            Map.of(requestingModule, policyManager.defaultEntitlements("plugin1", plugin1SourcePath, requestingModule.getName())),
             policyManager.moduleEntitlementsMap
         );
     }
@@ -218,12 +225,15 @@ public class PolicyManagerTests extends ESTestCase {
 
         assertEquals(
             "No policy for this module in server",
-            policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath),
+            policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, requestingModule.getName()),
             policyManager.getEntitlements(mockServerClass)
         );
 
         assertEquals(
-            Map.of(requestingModule, policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath)),
+            Map.of(
+                requestingModule,
+                policyManager.defaultEntitlements(SERVER_COMPONENT_NAME, mockServerSourcePath, requestingModule.getName())
+            ),
             policyManager.moduleEntitlementsMap
         );
     }
@@ -320,18 +330,21 @@ public class PolicyManagerTests extends ESTestCase {
         assertEquals(
             "Skip entitlement library and the instrumented method",
             requestingClass,
-            policyManager.findRequestingClass(Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass)).orElse(null)
+            policyManager.findRequestingFrame(
+                Stream.of(entitlementsClass, instrumentedClass, requestingClass, ignorableClass).map(MockFrame::new)
+            ).map(StackFrame::getDeclaringClass).orElse(null)
         );
         assertEquals(
             "Skip multiple library frames",
             requestingClass,
-            policyManager.findRequestingClass(Stream.of(entitlementsClass, entitlementsClass, instrumentedClass, requestingClass))
-                .orElse(null)
+            policyManager.findRequestingFrame(
+                Stream.of(entitlementsClass, entitlementsClass, instrumentedClass, requestingClass).map(MockFrame::new)
+            ).map(StackFrame::getDeclaringClass).orElse(null)
         );
         assertThrows(
             "Non-modular caller frames are not supported",
             NullPointerException.class,
-            () -> policyManager.findRequestingClass(Stream.of(entitlementsClass, null))
+            () -> policyManager.findRequestingFrame(Stream.of(entitlementsClass, null).map(MockFrame::new))
         );
     }
 
@@ -657,4 +670,47 @@ public class PolicyManagerTests extends ESTestCase {
         );
         return moduleController.layer();
     }
+
+    record MockFrame(Class<?> declaringClass) implements StackFrame {
+        @Override
+        public String getClassName() {
+            return getDeclaringClass().getName();
+        }
+
+        @Override
+        public String getMethodName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Class<?> getDeclaringClass() {
+            return declaringClass;
+        }
+
+        @Override
+        public int getByteCodeIndex() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String getFileName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int getLineNumber() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isNativeMethod() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public StackTraceElement toStackTraceElement() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
 }

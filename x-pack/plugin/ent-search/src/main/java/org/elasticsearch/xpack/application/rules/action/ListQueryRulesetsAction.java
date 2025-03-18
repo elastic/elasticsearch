@@ -107,7 +107,6 @@ public class ListQueryRulesetsAction {
         final QueryPage<QueryRulesetListItem> queryPage;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryPage = new QueryPage<>(in, QueryRulesetListItem::new);
         }
 

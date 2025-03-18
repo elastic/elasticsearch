@@ -41,6 +41,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunkLegacy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -139,37 +140,43 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public void testModelSettingsValidation() {
         NullPointerException npe = expectThrows(NullPointerException.class, () -> {
-            new MinimalServiceSettings(null, 10, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
+            new MinimalServiceSettings("service", null, 10, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(npe.getMessage(), equalTo("task type must not be null"));
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, 10, null, null);
+            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, 10, null, null);
         });
         assertThat(ex.getMessage(), containsString("[dimensions] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE, null);
+            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("[similarity] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
+            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(ex.getMessage(), containsString("[element_type] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.TEXT_EMBEDDING, null, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
+            new MinimalServiceSettings(
+                "service",
+                TaskType.TEXT_EMBEDDING,
+                null,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            );
         });
         assertThat(ex.getMessage(), containsString("required [dimensions] field is missing"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.TEXT_EMBEDDING, 10, null, DenseVectorFieldMapper.ElementType.FLOAT);
+            new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, null, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(ex.getMessage(), containsString("required [similarity] field is missing"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
+            new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
@@ -179,13 +186,18 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
         assert elementType == DenseVectorFieldMapper.ElementType.BYTE || elementType == DenseVectorFieldMapper.ElementType.BIT;
 
-        List<TextEmbeddingByteResults.Chunk> chunks = new ArrayList<>();
+        List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             byte[] values = new byte[embeddingLength];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomByte();
             }
-            chunks.add(new TextEmbeddingByteResults.Chunk(values, new ChunkedInference.TextOffset(0, input.length())));
+            chunks.add(
+                new EmbeddingResults.Chunk(
+                    new TextEmbeddingByteResults.Embedding(values),
+                    new ChunkedInference.TextOffset(0, input.length())
+                )
+            );
         }
         return new ChunkedInferenceEmbedding(chunks);
     }
@@ -195,13 +207,18 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
         assert elementType == DenseVectorFieldMapper.ElementType.FLOAT;
 
-        List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>();
+        List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             float[] values = new float[embeddingLength];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomFloat();
             }
-            chunks.add(new TextEmbeddingFloatResults.Chunk(values, new ChunkedInference.TextOffset(0, input.length())));
+            chunks.add(
+                new EmbeddingResults.Chunk(
+                    new TextEmbeddingFloatResults.Embedding(values),
+                    new ChunkedInference.TextOffset(0, input.length())
+                )
+            );
         }
         return new ChunkedInferenceEmbedding(chunks);
     }
@@ -211,13 +228,18 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingSparse(List<String> inputs, boolean withFloats) {
-        List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>();
+        List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             var tokens = new ArrayList<WeightedToken>();
             for (var token : input.split("\\s+")) {
                 tokens.add(new WeightedToken(token, withFloats ? randomFloat() : randomIntBetween(1, 255)));
             }
-            chunks.add(new SparseEmbeddingResults.Chunk(tokens, new ChunkedInference.TextOffset(0, input.length())));
+            chunks.add(
+                new EmbeddingResults.Chunk(
+                    new SparseEmbeddingResults.Embedding(tokens, false),
+                    new ChunkedInference.TextOffset(0, input.length())
+                )
+            );
         }
         return new ChunkedInferenceEmbedding(chunks);
     }
@@ -259,7 +281,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         while (inputsIt.hasNext() && chunkIt.hasNext()) {
             String input = inputsIt.next();
             var chunk = chunkIt.next();
-            chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, chunk, useLegacyFormat));
+            chunks.add(useLegacyFormat ? toSemanticTextFieldChunkLegacy(input, chunk) : toSemanticTextFieldChunk(offsetAdjustment, chunk));
 
             // When using the inference metadata fields format, all the input values are concatenated so that the
             // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment
@@ -309,7 +331,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     ) {
         switch (field.inference().modelSettings().taskType()) {
             case SPARSE_EMBEDDING -> {
-                List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>();
+                List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
                 for (var entry : field.inference().chunks().entrySet()) {
                     String entryField = entry.getKey();
                     List<SemanticTextField.Chunk> entryChunks = entry.getValue();
@@ -320,7 +342,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         String matchedText = matchedTextIt.next();
                         ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, chunk, matchedText);
                         var tokens = parseWeightedTokens(chunk.rawEmbeddings(), field.contentType());
-                        chunks.add(new SparseEmbeddingResults.Chunk(tokens, offset));
+                        chunks.add(new EmbeddingResults.Chunk(new SparseEmbeddingResults.Embedding(tokens, false), offset));
                     }
                 }
                 return new ChunkedInferenceEmbedding(chunks);
@@ -343,11 +365,11 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                         String matchedText = matchedTextIt.next();
                         ChunkedInference.TextOffset offset = createOffset(useLegacyFormat, entryChunk, matchedText);
                         double[] values = parseDenseVector(entryChunk.rawEmbeddings(), embeddingLength, field.contentType());
-                        EmbeddingResults.Chunk chunk = switch (elementType) {
-                            case FLOAT -> new TextEmbeddingFloatResults.Chunk(FloatConversionUtils.floatArrayOf(values), offset);
-                            case BYTE, BIT -> new TextEmbeddingByteResults.Chunk(byteArrayOf(values), offset);
+                        EmbeddingResults.Embedding<?> embedding = switch (elementType) {
+                            case FLOAT -> new TextEmbeddingFloatResults.Embedding(FloatConversionUtils.floatArrayOf(values));
+                            case BYTE, BIT -> new TextEmbeddingByteResults.Embedding(byteArrayOf(values));
                         };
-                        chunks.add(chunk);
+                        chunks.add(new EmbeddingResults.Chunk(embedding, offset));
                     }
                 }
                 return new ChunkedInferenceEmbedding(chunks);

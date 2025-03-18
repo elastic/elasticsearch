@@ -167,6 +167,13 @@ public class Setting<T> implements ToXContentObject {
         IndexSettingDeprecatedInV8AndRemovedInV9,
 
         /**
+         * Indicates that this index-level setting was deprecated in {@link Version#V_9_1_0} and is
+         * forbidden in indices created from V10 onwards.
+         * TODO Should be checked in {@link Setting#isDeprecatedAndRemoved}
+         */
+        IndexSettingDeprecatedInV9AndRemovedInV10,
+
+        /**
          * Indicates that this setting is accessible by non-operator users (public) in serverless
          * Users will be allowed to set and see values of this setting.
          * All other settings will be rejected when used on a PUT request
@@ -188,7 +195,8 @@ public class Setting<T> implements ToXContentObject {
         Property.Deprecated,
         Property.DeprecatedWarning,
         Property.IndexSettingDeprecatedInV7AndRemovedInV8,
-        Property.IndexSettingDeprecatedInV8AndRemovedInV9
+        Property.IndexSettingDeprecatedInV8AndRemovedInV9,
+        Property.IndexSettingDeprecatedInV9AndRemovedInV10
     );
 
     @SuppressWarnings("this-escape")
@@ -229,6 +237,7 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV7AndRemovedInV8);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV8AndRemovedInV9);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV9AndRemovedInV10);
             checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
         }
@@ -464,7 +473,8 @@ public class Setting<T> implements ToXContentObject {
         return properties.contains(Property.Deprecated)
             || properties.contains(Property.DeprecatedWarning)
             || properties.contains(Property.IndexSettingDeprecatedInV7AndRemovedInV8)
-            || properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9);
+            || properties.contains(Property.IndexSettingDeprecatedInV8AndRemovedInV9)
+            || properties.contains(Property.IndexSettingDeprecatedInV9AndRemovedInV10);
     }
 
     private boolean isDeprecatedWarningOnly() {

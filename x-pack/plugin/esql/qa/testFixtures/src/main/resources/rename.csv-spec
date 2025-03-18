@@ -216,6 +216,7 @@ Simmel
 ;
 
 swappingNames
+required_capability: rename_sequential_processing
 FROM employees
 | SORT emp_no ASC
 | KEEP first_name, last_name
@@ -229,6 +230,7 @@ Bezalel
 ;
 
 complexSwappingNames
+required_capability: rename_sequential_processing
 FROM employees
 | SORT emp_no ASC
 | KEEP first_name, last_name, emp_no
@@ -243,6 +245,7 @@ Bezalel
 
 
 reuseRenamedAlias
+required_capability: rename_sequential_processing
 FROM employees
 | SORT emp_no ASC
 | KEEP first_name, last_name
@@ -257,6 +260,7 @@ Bezalel     | Simmel
 
 
 multipleRenamesToSameAliasLastOnePrevails
+required_capability: rename_sequential_processing
 FROM employees
 | SORT emp_no ASC
 | KEEP first_name, last_name
@@ -271,6 +275,7 @@ Simmel
 
 
 swapNames
+required_capability: rename_sequential_processing
 ROW a="keyword", b=5
 | RENAME a AS temp, b AS a, temp AS b
 ;
@@ -281,6 +286,7 @@ keyword   | 5
 
 
 multipleRenames
+required_capability: rename_sequential_processing
 ROW a="keyword", b=5, c=null
 | RENAME a AS c, b AS a
 | RENAME c AS b

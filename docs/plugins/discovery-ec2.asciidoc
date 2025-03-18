@@ -83,8 +83,8 @@ The available settings for the EC2 discovery plugin are as follows.
 
 `discovery.ec2.protocol`::
 
-    The protocol to use to connect to the EC2 service endpoint, which may be
-    either `http` or `https`. Defaults to `https`.
+    This setting has no effect. To use HTTP to connect to the EC2 service
+    endpoint, set `discovery.ec2.endpoint` to a URL that starts with `http://`.
 
 `discovery.ec2.proxy.host`::
 

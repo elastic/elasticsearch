@@ -336,7 +336,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         }
 
         @Override
-        protected CacheBlobReader getCacheBlobReader(BlobLocation location) {
+        protected CacheBlobReader getCacheBlobReader(String fileName, BlobLocation location) {
             // Use the direct executor so we can use the thread name in testBackgroundMergeCanRetainDeletedGenerationalFile
             return new MeteringCacheBlobReader(
                 new ObjectStoreCacheBlobReader(

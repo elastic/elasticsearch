@@ -88,6 +88,7 @@ public class CacheBlobReaderService {
      * @param totalBytesReadFromObjectStore counts how many bytes were read from object store
      * @param totalBytesReadFromIndexing counts how many bytes were read from indexing nodes
      * @param cachePopulationReason The reason that we're reading from the data source
+     * @param fileName The actual (lucene) file that's requested from the blob location
      * @return a {@link CacheBlobReader} for the given shard and blob
      */
     public CacheBlobReader getCacheBlobReader(
@@ -98,7 +99,8 @@ public class CacheBlobReaderService {
         LongConsumer totalBytesReadFromObjectStore,
         LongConsumer totalBytesReadFromIndexing,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-        Executor objectStoreFetchExecutor
+        Executor objectStoreFetchExecutor,
+        String fileName
     ) {
         final var locationPrimaryTermAndGeneration = location.getBatchedCompoundCommitTermAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
@@ -109,12 +111,7 @@ public class CacheBlobReaderService {
                 rangeSize,
                 objectStoreFetchExecutor
             ),
-            createReadCompleteCallback(
-                location.blobName(),
-                totalBytesReadFromObjectStore,
-                CachePopulationSource.BlobStore,
-                cachePopulationReason
-            )
+            createReadCompleteCallback(fileName, totalBytesReadFromObjectStore, CachePopulationSource.BlobStore, cachePopulationReason)
         );
         var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
         if (latestUploadInfo.isUploaded()) {
@@ -129,12 +126,7 @@ public class CacheBlobReaderService {
                     indexingShardCacheBlobReaderChunkSize,
                     threadPool
                 ),
-                createReadCompleteCallback(
-                    location.blobName(),
-                    totalBytesReadFromIndexing,
-                    CachePopulationSource.Peer,
-                    cachePopulationReason
-                )
+                createReadCompleteCallback(fileName, totalBytesReadFromIndexing, CachePopulationSource.Peer, cachePopulationReason)
             );
             return new SwitchingCacheBlobReader(
                 tracker,
@@ -146,7 +138,7 @@ public class CacheBlobReaderService {
     }
 
     private MeteringCacheBlobReader.ReadCompleteCallback createReadCompleteCallback(
-        String blobFile,
+        String fileName,
         LongConsumer bytesReadCounter,
         CachePopulationSource cachePopulationSource,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason
@@ -154,7 +146,7 @@ public class CacheBlobReaderService {
         return (bytesRead, readTimeNanos) -> {
             bytesReadCounter.accept(bytesRead);
             cacheService.getBlobCacheMetrics()
-                .recordCachePopulationMetrics(blobFile, bytesRead, readTimeNanos, cachePopulationReason, cachePopulationSource);
+                .recordCachePopulationMetrics(fileName, bytesRead, readTimeNanos, cachePopulationReason, cachePopulationSource);
         };
     }
 }

@@ -473,3 +473,6 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/120148
+- class: org.elasticsearch.index.mapper.ShapeGeometryFieldMapperTests
+  method: testCartesianBoundsBlockLoader
+  issue: https://github.com/elastic/elasticsearch/issues/125129

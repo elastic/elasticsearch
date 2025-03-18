@@ -63,8 +63,9 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    protected CacheBlobReader getCacheBlobReader(BlobLocation location) {
+    protected CacheBlobReader getCacheBlobReader(String fileName, BlobLocation location) {
         return createCacheBlobReader(
+            fileName,
             getBlobContainer(location.primaryTerm()),
             location.blobName(),
             getCacheService().getShardReadThreadPoolExecutor(),
@@ -74,8 +75,9 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     @Override
-    public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation location) {
+    public CacheBlobReader getCacheBlobReaderForWarming(String fileName, BlobLocation location) {
         return createCacheBlobReader(
+            fileName,
             getBlobContainer(location.primaryTerm()),
             location.blobName(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -86,6 +88,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
     }
 
     private MeteringCacheBlobReader createCacheBlobReader(
+        String fileName,
         BlobContainer blobContainer,
         String blobName,
         Executor fetchExecutor,
@@ -96,19 +99,19 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         assert expectedThreadPoolNames.length == 0 || ThreadPool.assertCurrentThreadPool(expectedThreadPoolNames);
         return new MeteringCacheBlobReader(
             new ObjectStoreCacheBlobReader(blobContainer, blobName, getCacheService().getRangeSize(), fetchExecutor),
-            createReadCompleteCallback(blobName, bytesReadAdder, cachePopulationReason)
+            createReadCompleteCallback(fileName, bytesReadAdder, cachePopulationReason)
         );
     }
 
     private MeteringCacheBlobReader.ReadCompleteCallback createReadCompleteCallback(
-        String blobName,
+        String fileName,
         LongAdder bytesReadAdder,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason
     ) {
         return (bytesRead, readTimeNanos) -> {
             bytesReadAdder.add(bytesRead);
             cacheService.getBlobCacheMetrics()
-                .recordCachePopulationMetrics(blobName, bytesRead, readTimeNanos, cachePopulationReason, CachePopulationSource.BlobStore);
+                .recordCachePopulationMetrics(fileName, bytesRead, readTimeNanos, cachePopulationReason, CachePopulationSource.BlobStore);
         };
     }
 
@@ -122,8 +125,9 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         ) {
 
             @Override
-            protected CacheBlobReader getCacheBlobReader(BlobLocation location) {
+            protected CacheBlobReader getCacheBlobReader(String fileName, BlobLocation location) {
                 return createCacheBlobReader(
+                    fileName,
                     getBlobContainer(location.primaryTerm()),
                     location.blobName(),
                     getCacheService().getShardReadThreadPoolExecutor(),
@@ -134,8 +138,9 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
             }
 
             @Override
-            public CacheBlobReader getCacheBlobReaderForWarming(BlobLocation location) {
+            public CacheBlobReader getCacheBlobReaderForWarming(String fileName, BlobLocation location) {
                 return createCacheBlobReader(
+                    fileName,
                     getBlobContainer(location.primaryTerm()),
                     location.blobName(),
                     EsExecutors.DIRECT_EXECUTOR_SERVICE,

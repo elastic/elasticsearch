@@ -270,7 +270,11 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
      * @return an {@link IndexInput}
      */
     protected final IndexInput doOpenInput(String name, IOContext context, BlobFileRanges blobFileRanges, @Nullable Releasable releasable) {
-        var reader = new CacheFileReader(getCacheFile(blobFileRanges), getCacheBlobReader(blobFileRanges.blobLocation()), blobFileRanges);
+        var reader = new CacheFileReader(
+            getCacheFile(blobFileRanges),
+            getCacheBlobReader(name, blobFileRanges.blobLocation()),
+            blobFileRanges
+        );
         return new BlobCacheIndexInput(name, context, reader, releasable, blobFileRanges.fileLength(), blobFileRanges.fileOffset());
     }
 
@@ -286,9 +290,24 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         );
     }
 
-    protected abstract CacheBlobReader getCacheBlobReader(BlobLocation blobLocation);
+    /**
+     * Returns a CacheBlobReader for reading a specific file from the blob store.
+     *
+     * @param fileName the name of the file to be read
+     * @param blobLocation the location of the blob containing the file
+     * @return a CacheBlobReader for reading the specified file
+     */
+    protected abstract CacheBlobReader getCacheBlobReader(String fileName, BlobLocation blobLocation);
 
-    public abstract CacheBlobReader getCacheBlobReaderForWarming(BlobLocation blobLocation);
+    /**
+     * Returns a CacheBlobReader for reading a specific file from the blob store
+     * for warming purposes.
+     *
+     * @param fileName the name of the file to be read
+     * @param blobLocation the location of the blob containing the file
+     * @return a CacheBlobReader for reading the specified file
+     */
+    public abstract CacheBlobReader getCacheBlobReaderForWarming(String fileName, BlobLocation blobLocation);
 
     @Override
     public void close() throws IOException {

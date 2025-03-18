@@ -221,7 +221,8 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                         LongConsumer totalBytesReadFromObjectStore,
                         LongConsumer totalBytesReadFromIndexing,
                         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-                        Executor objectStoreFetchExecutor
+                        Executor objectStoreFetchExecutor,
+                        String fileName
                     ) {
                         return new ObjectStoreCacheBlobReader(
                             blobContainer.apply(location.primaryTerm()),

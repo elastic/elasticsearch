@@ -781,7 +781,7 @@ public class SharedBlobCacheWarmingService {
                                 WarmBlobLocationTask.this,
                                 cacheKey.fileName(),
                                 ByteRange.of(offset, offset + cacheService.getRegionSize()),
-                                directory.getCacheBlobReaderForWarming(blobLocation),
+                                directory.getCacheBlobReaderForWarming(cacheKey.fileName(), blobLocation),
                                 () -> writeBuffer.get().clear(),
                                 totalBytesCopied::addAndGet,
                                 Stateless.PREWARM_THREAD_POOL
@@ -842,7 +842,7 @@ public class SharedBlobCacheWarmingService {
                             }
 
                             var blobLocation = item.blobLocation();
-                            var cacheBlobReader = directory.getCacheBlobReaderForWarming(blobLocation);
+                            var cacheBlobReader = directory.getCacheBlobReaderForWarming(cacheKey.fileName(), blobLocation);
                             var itemListener = ActionListener.releaseAfter(item.listener(), Releasables.assertOnce(refs.acquire()));
                             maybeFetchBlobRange(item, cacheBlobReader, cacheKey, itemListener.delegateResponse((l, e) -> {
                                 if (ExceptionsHelper.unwrap(e, ResourceAlreadyUploadedException.class) != null) {

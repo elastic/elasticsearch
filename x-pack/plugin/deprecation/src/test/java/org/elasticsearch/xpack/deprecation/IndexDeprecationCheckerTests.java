@@ -203,6 +203,44 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         assertEquals(expected, issuesByIndex);
     }
 
+    public void testOldIndicesWithIncompatibleDateFormatsCheck() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(settings(OLD_VERSION))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .putMapping("""
+                {
+                  "properties": {
+                    "date": {
+                      "type": "date",
+                      "format": "qqqq yyyy"
+                    }
+                  }
+                }""")
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "Field mappings with incompatible date format patterns in old index",
+            "https://www.elastic.co/blog/locale-changes-elasticsearch-8-16-jdk-23",
+            "The index was created before 8.0 and contains mappings that must be reindexed due to locale changes in 8.16+. "
+                + "Manual reindexing is required. Field [date] with format pattern [qqqq yyyy].",
+            false,
+            null
+        );
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+        List<DeprecationIssue> issues = issuesByIndex.get("test");
+        assertEquals(singletonList(expected), issues);
+    }
+
     private IndexMetadata indexMetadata(String indexName, IndexVersion indexVersion) {
         return IndexMetadata.builder(indexName)
             .settings(settings(indexVersion))

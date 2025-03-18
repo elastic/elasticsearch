@@ -11,4 +11,4 @@ It is calculated as the median of each data point’s deviation from the median 
 FROM employees
 | STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)
 ```
-Note: Like <<esql-percentile>>, `MEDIAN_ABSOLUTE_DEVIATION` is <<esql-percentile-approximate,usually approximate>>.
+Note: Like [`PERCENTILE`](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile), `MEDIAN_ABSOLUTE_DEVIATION` is [usually approximate](/reference/query-languages/esql/esql-functions-operators.md#esql-percentile-approximate).

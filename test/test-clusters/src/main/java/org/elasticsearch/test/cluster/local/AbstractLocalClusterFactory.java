@@ -436,15 +436,17 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 // Patch jvm.options file to update paths
                 String content = Files.readString(jvmOptionsFile);
-                Map<String, String> expansions = getJvmOptionsReplacements();
-                for (String key : expansions.keySet()) {
+                Map<ReplacementKey, String> expansions = getJvmOptionsReplacements();
+                for (var entry : expansions.entrySet()) {
+                    ReplacementKey replacement = entry.getKey();
+                    String key = replacement.key();
                     if (content.contains(key) == false) {
-                        LOGGER.warn("Template property '" + key + "' not found in template.");
-                        continue;
-                        // temporarily just warn during backports for https://github.com/elastic/elasticsearch/pull/124966
-                        // throw new IOException("Template property '" + key + "' not found in template.");
+                        key = replacement.fallback();
+                        if (content.contains(key) == false) {
+                             throw new IOException("Template property '" + replacement + "' not found in template.");
+                        }
                     }
-                    content = content.replace(key, expansions.get(key));
+                    content = content.replace(key, entry.getValue());
                 }
                 Files.writeString(jvmOptionsFile, content);
             } catch (IOException e) {
@@ -910,28 +912,36 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return environment;
         }
 
-        private Map<String, String> getJvmOptionsReplacements() {
-            var expansions = new HashMap<String, String>();
+        private record ReplacementKey(String key, String fallback) {}
+
+        private Map<ReplacementKey, String> getJvmOptionsReplacements() {
+            var expansions = new HashMap<ReplacementKey, String>();
             var version = spec.getVersion();
-            String heapDumpPathSub = "# -XX:HeapDumpPath=/heap/dump/path";
-            // temporarily duplicate the expansion so both old and new exist during backport
-            expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + logsDir);
+
+            ReplacementKey heapDumpPathSub;
             if (version.before("8.18.0") && version.onOrAfter("6.3.0")) {
-                heapDumpPathSub = "-XX:HeapDumpPath=/heap/dump/path";
+                heapDumpPathSub = new ReplacementKey("-XX:HeapDumpPath=data", "");
+            } else {
+                // temporarily fall back to the old substitution so both old and new work during backport
+                heapDumpPathSub = new ReplacementKey("# -XX:HeapDumpPath=/heap/dump/path", "-XX:HeapDumpPath=data");
             }
             expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + logsDir);
-            String gcLogSub = "gc.log";
-            // temporarily duplicate the expansion so both old and new exist during backport
-            expansions.put(gcLogSub, logsDir.resolve("gc.log").toString());
+
+            ReplacementKey gcLogSub;
             if (version.before("8.18.0") && version.onOrAfter("6.2.0")) {
-                gcLogSub = "logs/gc.log";
+                gcLogSub = new ReplacementKey("logs/gc.log", "");
+            } else {
+                // temporarily check the old substitution first so both old and new work during backport
+                gcLogSub = new ReplacementKey("logs/gc.log", "gc.log");
             }
             expansions.put(gcLogSub, logsDir.resolve("gc.log").toString());
-            // temporarily duplicate the expansion so both old and new exist during backport
-            String errorFileSub = "-XX:ErrorFile=hs_err_pid%p.log";
-            expansions.put(errorFileSub, "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log"));
+
+            ReplacementKey errorFileSub;
             if (version.before("8.18.0") && version.getMajor() >= 7) {
-                errorFileSub = "-XX:ErrorFile=logs/hs_err_pid%p.log";
+                errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "");
+            } else {
+                // temporarily check the old substitution first so both old and new work during backport
+                errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=hs_err_pid%p.log");
             }
             expansions.put(errorFileSub, "-XX:ErrorFile=" + logsDir.resolve("hs_err_pid%p.log"));
             return expansions;

@@ -1435,15 +1435,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Path jvmOptions = configFileRoot.resolve("jvm.options");
         try {
             String content = new String(Files.readAllBytes(jvmOptions));
-            Map<String, String> expansions = jvmOptionExpansions();
-            for (String origin : expansions.keySet()) {
-                if (content.contains(origin) == false) {
-                    LOGGER.warn("template property '" + origin + "' not found in template.");
-                    continue;
-                    // temporarily just warn during backports for https://github.com/elastic/elasticsearch/pull/124966
-                    // throw new IOException("template property '" + origin + "' not found in template.");
+            Map<ReplacementKey, String> expansions = jvmOptionExpansions();
+            for (var entry : expansions.entrySet()) {
+                ReplacementKey replacement = entry.getKey();
+                String key = replacement.key();
+                if (content.contains(key) == false) {
+                    key = replacement.fallback();
+                    if (content.contains(key) == false) {
+                        throw new IOException("Template property '" + replacement + "' not found in template.");
+                    }
                 }
-                content = content.replace(origin, expansions.get(origin));
+                content = content.replace(key, entry.getValue());
             }
             Files.write(jvmOptions, content.getBytes());
         } catch (IOException ioException) {
@@ -1451,30 +1453,39 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private Map<String, String> jvmOptionExpansions() {
-        Map<String, String> expansions = new HashMap<>();
+    private record ReplacementKey(String key, String fallback) {}
+
+    private Map<ReplacementKey, String> jvmOptionExpansions() {
+        Map<ReplacementKey, String> expansions = new HashMap<>();
         Version version = getVersion();
-        String heapDumpPathSub = "# -XX:HeapDumpPath=/heap/dump/path";
-        // temporarily duplicate the expansion so both old and new exist during backport
-        expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + confPathLogs);
+
+        ReplacementKey heapDumpPathSub;
         if (version.before("8.18.0") && version.onOrAfter("6.3.0")) {
-            heapDumpPathSub = "-XX:HeapDumpPath=/heap/dump/path";
+            heapDumpPathSub = new ReplacementKey("-XX:HeapDumpPath=data", "");
+        } else {
+            // temporarily fall back to the old substitution so both old and new work during backport
+            heapDumpPathSub = new ReplacementKey("# -XX:HeapDumpPath=/heap/dump/path", "-XX:HeapDumpPath=data");
         }
         expansions.put(heapDumpPathSub, "-XX:HeapDumpPath=" + confPathLogs);
-        String gcLogSub = "gc.log";
-        expansions.put(gcLogSub, confPathLogs.resolve("gc.log").toString());
-        // temporarily duplicate the expansion so both old and new exist during backport
+
+        ReplacementKey gcLogSub;
         if (version.before("8.18.0") && version.onOrAfter("6.2.0")) {
-            gcLogSub = "logs/gc.log";
+            gcLogSub = new ReplacementKey("logs/gc.log", "");
+        } else {
+            // temporarily check the old substitution first so both old and new work during backport
+            gcLogSub = new ReplacementKey("logs/gc.log", "gc.log");
         }
         expansions.put(gcLogSub, confPathLogs.resolve("gc.log").toString());
-        String errorFileSub = "-XX:ErrorFile=hs_err_pid%p.log";
-        // temporarily duplicate the expansion so both old and new exist during backport
-        expansions.put(errorFileSub, "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
-        if (version.before("8.18.0") && getVersion().getMajor() >= 7) {
-            errorFileSub = "-XX:ErrorFile=logs/hs_err_pid%p.log";
+
+        ReplacementKey errorFileSub;
+        if (version.before("8.18.0") && version.getMajor() >= 7) {
+            errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "");
+        } else {
+            // temporarily check the old substitution first so both old and new work during backport
+            errorFileSub = new ReplacementKey("-XX:ErrorFile=logs/hs_err_pid%p.log", "-XX:ErrorFile=hs_err_pid%p.log");
         }
         expansions.put(errorFileSub, "-XX:ErrorFile=" + confPathLogs.resolve("hs_err_pid%p.log"));
+
         return expansions;
     }
 

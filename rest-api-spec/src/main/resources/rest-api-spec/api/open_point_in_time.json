@@ -54,7 +54,6 @@
       "keep_alive": {
         "type": "string",
         "description": "Specific the time to live for the point in time",
-        "required": true
       },
       "allow_partial_search_results": {
         "type": "boolean",

@@ -91,9 +91,6 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
             }
 
             switch (version) {
-                case 24:
-                    // latest explicitly found build number for 24
-                    return "29";
                 case 25:
                     return "3";
                 default:
@@ -115,8 +112,6 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(
         getBundledJdkBuild(),
-        // release candidate of JDK 24
-        new ReleaseJdkBuild(JavaLanguageVersion.of(24), "download.java.net", "24", "36", "1f9ff9062db4449d8ca828c504ffae90"),
         new EarlyAccessJdkBuild(JavaLanguageVersion.of(25))
     );
 

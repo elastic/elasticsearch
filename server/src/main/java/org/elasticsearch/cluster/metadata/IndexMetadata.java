@@ -1990,7 +1990,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             Arrays.fill(newPrimaryTerms, this.primaryTerms.length, newPrimaryTerms.length, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
             primaryTerms = newPrimaryTerms;
-            // routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
+            // This will change the routingNumShards to 1024 (for 2 shard index)
+            routingNumShards = MetadataCreateIndexService.calculateNumRoutingShards(shardCount, indexVersionCreated);
+            System.out.println("New routingNumShards: " + routingNumShards);
             return this;
         }
 

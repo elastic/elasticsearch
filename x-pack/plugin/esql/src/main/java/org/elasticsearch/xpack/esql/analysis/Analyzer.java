@@ -685,8 +685,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
                 }
                 // resolve the using columns against the left and the right side then assemble the new join config
-                List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
-                List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
+
+                List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), false, "left");
+                List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), true, "right");
 
                 config = new JoinConfig(coreJoin, leftKeys, leftKeys, rightKeys);
                 join = new LookupJoin(join.source(), join.left(), join.right(), config);
@@ -711,11 +712,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new Fork(fork.source(), fork.child(), newSubPlans);
         }
 
-        private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
+        private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, boolean ignoreQualifier, String side) {
             List<Attribute> resolved = new ArrayList<>(cols.size());
             for (Attribute col : cols) {
                 if (col instanceof UnresolvedAttribute ua) {
-                    Attribute resolvedField = maybeResolveAttribute(ua, output);
+                    Attribute resolvedField = maybeResolveAttribute(ua, output, ignoreQualifier);
                     if (resolvedField instanceof UnresolvedAttribute ucol) {
                         String message = ua.unresolvedMessage();
                         String match = "column [" + ucol.name() + "]";
@@ -780,23 +781,37 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
-            return maybeResolveAttribute(ua, childrenOutput, log);
+            return maybeResolveAttribute(ua, childrenOutput, false);
         }
 
-        private static Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+        private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, boolean ignoreQualifier) {
+            return maybeResolveAttribute(ua, childrenOutput, ignoreQualifier, log);
+        }
+
+        private static Attribute maybeResolveAttribute(
+            UnresolvedAttribute ua,
+            List<Attribute> childrenOutput,
+            boolean ignoreQualifier,
+            Logger logger
+        ) {
             if (ua.customMessage()) {
                 return ua;
             }
-            return resolveAttribute(ua, childrenOutput, logger);
+            return resolveAttribute(ua, childrenOutput, ignoreQualifier, logger);
         }
 
         private Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {
-            return resolveAttribute(ua, childrenOutput, log);
+            return resolveAttribute(ua, childrenOutput, false, log);
         }
 
-        private static Attribute resolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput, Logger logger) {
+        private static Attribute resolveAttribute(
+            UnresolvedAttribute ua,
+            List<Attribute> childrenOutput,
+            boolean ignoreQualifier,
+            Logger logger
+        ) {
             Attribute resolved = ua;
-            var named = resolveAgainstList(ua, childrenOutput);
+            var named = resolveAgainstList(ua, childrenOutput, ignoreQualifier);
             // if resolved, return it; otherwise keep it in place to be resolved later
             if (named.size() == 1) {
                 resolved = named.get(0);
@@ -958,7 +973,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         projections.removeIf(x -> x.qualifier() == null && x.name().equals(alias.name()));
                     }
 
-                    var resolved = maybeResolveAttribute(ua, childrenOutput, logger);
+                    var resolved = maybeResolveAttribute(ua, childrenOutput, false, logger);
                     if (resolved instanceof UnsupportedAttribute || resolved.resolved()) {
                         var realiased = (NamedExpression) alias.replaceChildren(List.of(resolved));
                         projections.replaceAll(x -> x.equals(resolved) ? realiased : x);
@@ -1061,7 +1076,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList) {
-        var matches = AnalyzerRules.maybeResolveAgainstList(ua, attrList, a -> Analyzer.handleSpecialFields(ua, a));
+        return resolveAgainstList(ua, attrList, false);
+    }
+
+    private static List<Attribute> resolveAgainstList(UnresolvedAttribute ua, Collection<Attribute> attrList, boolean ignoreQualifier) {
+        Predicate<Attribute> predicate = ignoreQualifier ? (attr -> attr.name().equals(ua.name())) : ua::match;
+        var matches = AnalyzerRules.maybeResolveAgainstList(predicate, () -> ua, attrList, false, a -> Analyzer.handleSpecialFields(ua, a));
         return potentialCandidatesIfNoMatchesFound(
             ua,
             matches,

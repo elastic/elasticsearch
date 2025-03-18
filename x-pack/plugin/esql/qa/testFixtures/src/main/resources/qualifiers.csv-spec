@@ -61,7 +61,7 @@ main message:keyword | event_duration:long
 Connection error     | 725448
 ;
 
-lookupJoin
+lookupJoinLeftNoQualifier
 required_capability: join_lookup_v12
 required_capability: name_qualifiers
 
@@ -76,7 +76,7 @@ FROM employees main
 main emp_no:integer | main languages:integer | language_code:integer | right language_code:integer | right language_name:keyword
 ;
 
-lookupJoinIgnoresQualifier
+lookupJoinLeftQualifier
 // Same as above, but this time we use a name with a non-null qualifier in ON
 required_capability: join_lookup_v12
 required_capability: name_qualifiers

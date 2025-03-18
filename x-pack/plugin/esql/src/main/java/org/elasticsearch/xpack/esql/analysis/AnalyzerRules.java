@@ -69,15 +69,6 @@ public final class AnalyzerRules {
     }
 
     public static List<Attribute> maybeResolveAgainstList(
-        UnresolvedAttribute u,
-        Collection<Attribute> attrList,
-        java.util.function.Function<Attribute, Attribute> fieldInspector
-    ) {
-        Predicate<Attribute> predicate = u::match;
-        return maybeResolveAgainstList(predicate, () -> u, attrList, false, fieldInspector);
-    }
-
-    public static List<Attribute> maybeResolveAgainstList(
         Predicate<Attribute> matcher,
         Supplier<UnresolvedAttribute> unresolved,
         Collection<Attribute> attrList,

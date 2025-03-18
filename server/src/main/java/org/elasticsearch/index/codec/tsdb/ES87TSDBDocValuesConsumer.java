@@ -14,11 +14,14 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocIDMerger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
@@ -46,7 +49,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.BULK_MERGE_ENABLED;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.OPTIMIZED_MERGE_ENABLED;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SORTED_SET;
@@ -516,6 +521,247 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             }
             addressesWriter.finish();
             meta.writeLong(data.getFilePointer() - start);
+        }
+    }
+
+    @Override
+    public void mergeSortedNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
+        // TODO: support skip index
+        // TODO: add escape hatch
+        boolean compatibleWithBulkMerge = OPTIMIZED_MERGE_ENABLED
+            && mergeState.needsIndexSort
+            && mergeFieldInfo.docValuesSkipIndexType() == DocValuesSkipIndexType.NONE;
+        long sumNumValues = 0;
+        int sumNumDocsWithField = 0;
+
+        if (compatibleWithBulkMerge) {
+            for (DocValuesProducer docValuesProducer : mergeState.docValuesProducers) {
+                if (docValuesProducer instanceof ES87TSDBDocValuesProducer tsdbProducer) {
+                    if (tsdbProducer.version != ES87TSDBDocValuesFormat.VERSION_CURRENT) {
+                        compatibleWithBulkMerge = false;
+                        break;
+                    }
+
+                    ES87TSDBDocValuesProducer.SortedNumericEntry entry = tsdbProducer.sortedNumerics.get(mergeFieldInfo.name);
+                    assert entry != null;
+                    // TODO: support also fields with offsets
+                    if (entry.docsWithFieldOffset != -1) {
+                        compatibleWithBulkMerge = false;
+                        break;
+                    }
+                    sumNumValues += entry.numValues;
+                    sumNumDocsWithField += entry.numDocsWithField;
+                } else {
+                    compatibleWithBulkMerge = false;
+                    break;
+                }
+            }
+        }
+        if (compatibleWithBulkMerge) {
+            if (Math.toIntExact(sumNumValues) != sumNumDocsWithField) {
+                compatibleWithBulkMerge = false;
+            }
+        }
+        if (compatibleWithBulkMerge) {
+            // Documents marked as deleted should be rare. Maybe in the case of noop operation?
+            for (int i = 0; i < mergeState.liveDocs.length; i++) {
+                if (mergeState.liveDocs[i] != null) {
+                    compatibleWithBulkMerge = false;
+                    break;
+                }
+            }
+        }
+
+        if (compatibleWithBulkMerge == false) {
+            super.mergeSortedNumericField(mergeFieldInfo, mergeState);
+            return;
+        }
+
+        meta.writeInt(mergeFieldInfo.number);
+        meta.writeByte(ES87TSDBDocValuesFormat.SORTED_NUMERIC);
+
+        // meta[-1, 0]: All documents have values
+        meta.writeLong(-1); // docsWithFieldOffset
+        meta.writeLong(0L); // docsWithFieldLength
+        meta.writeShort((short) -1); // jumpTableEntryCount
+        meta.writeByte((byte) -1); // denseRankPower
+        meta.writeLong(sumNumValues);
+        // no maxOrd, just write
+        meta.writeInt(-1);
+
+        List<NumericDocValuesSub> subs = new ArrayList<>();
+        assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
+        for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+            ES87TSDBDocValuesProducer.BulkSortedNumericDocValues values = null;
+            DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+            if (docValuesProducer != null) {
+                FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
+                if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.NUMERIC) {
+                    values = (ES87TSDBDocValuesProducer.BulkSortedNumericDocValues) docValuesProducer.getSortedNumeric(readerFieldInfo);
+                }
+            }
+            if (values != null) {
+                subs.add(new NumericDocValuesSub(mergeState.docMaps[i], values));
+            }
+        }
+
+        final SortedNumericDocValues values = mergeNumericValues(subs, mergeState.needsIndexSort);
+        final ByteBuffersDataOutput indexOut = new ByteBuffersDataOutput();
+        final DirectMonotonicWriter indexWriter = DirectMonotonicWriter.getInstance(
+            meta,
+            new ByteBuffersIndexOutput(indexOut, "temp-dv-index", "temp-dv-index"),
+            1L + ((sumNumValues - 1) >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT),
+            ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT
+        );
+
+        final long[] buffer = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        int bufferSize = 0;
+        final TSDBDocValuesEncoder encoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
+        final long valuesDataOffset = data.getFilePointer();
+
+        if (ES87TSDBDocValuesFormat.BULK_MERGE_ENABLED) {
+            final var docIDMerger = DocIDMerger.of(subs, mergeState.needsIndexSort);
+            var sub = docIDMerger.next();
+            while (sub != null) {
+                int fromDocID = sub.docID;
+                int toDocID = fromDocID;
+                final var current = sub;
+                while ((sub = docIDMerger.next()) == current) {
+                    ++toDocID;
+                    assert sub.docID == toDocID;
+                }
+                ++toDocID; // exclusive bound
+
+                // Is there the opportunity to bulk merge?
+                if (bufferSize == 0) {
+                    int bulkToDocId = current.values.canBulkEncode(fromDocID, toDocID);
+                    if (bulkToDocId != -1) {
+                        current.values.bulkEncode(data, indexWriter, fromDocID, bulkToDocId);
+                    }
+                    if (bulkToDocId == toDocID) {
+                        continue;
+                    } else {
+                        fromDocID = bulkToDocId;
+                    }
+                }
+
+                // Fallback to doc by doc decoding and encoding:
+                for (int i = fromDocID; i < toDocID; i++) {
+                    buffer[bufferSize++] = values.nextValue();
+                    if (bufferSize == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
+                        indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                        encoder.encode(buffer, data);
+                        bufferSize = 0;
+                    }
+                }
+            }
+        } else {
+            for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
+                assert values.docValueCount() == 1 : "for now only single valued dense sorted numeric docvalues are supported";
+                buffer[bufferSize++] = values.nextValue();
+                if (bufferSize == ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
+                    indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                    encoder.encode(buffer, data);
+                    bufferSize = 0;
+                }
+            }
+            if (bufferSize > 0) {
+                indexWriter.add(data.getFilePointer() - valuesDataOffset);
+                // Fill unused slots in the block with zeroes rather than junk
+                Arrays.fill(buffer, bufferSize, ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE, 0L);
+                encoder.encode(buffer, data);
+            }
+        }
+
+        final long valuesDataLength = data.getFilePointer() - valuesDataOffset;
+        indexWriter.finish();
+        final long indexDataOffset = data.getFilePointer();
+        data.copyBytes(indexOut.toDataInput(), indexOut.size());
+        meta.writeLong(indexDataOffset);
+        meta.writeLong(data.getFilePointer() - indexDataOffset);
+
+        meta.writeLong(valuesDataOffset);
+        meta.writeLong(valuesDataLength);
+
+        // only for sorted set numeric:
+        meta.writeInt(sumNumDocsWithField);
+    }
+
+    private static SortedNumericDocValues mergeNumericValues(
+        List<NumericDocValuesSub> subs,
+        boolean indexIsSorted
+    ) throws IOException {
+        long cost = 0;
+        for (NumericDocValuesSub sub : subs) {
+            cost += sub.values.cost();
+        }
+        final long finalCost = cost;
+
+        final DocIDMerger<NumericDocValuesSub> docIDMerger = DocIDMerger.of(subs, indexIsSorted);
+
+        // DocValues.singleton(...)
+        return new SortedNumericDocValues() {
+            private int docID = -1;
+            private NumericDocValuesSub current;
+
+            @Override
+            public int docID() {
+                return docID;
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                current = docIDMerger.next();
+                if (current == null) {
+                    docID = NO_MORE_DOCS;
+                } else {
+                    docID = current.mappedDocID;
+                }
+                return docID;
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                return finalCost;
+            }
+
+            @Override
+            public long nextValue() throws IOException {
+                return current.values.nextValue();
+            }
+
+            @Override
+            public int docValueCount() {
+                return current.values.docValueCount();
+            }
+
+        };
+    }
+
+    static class NumericDocValuesSub extends DocIDMerger.Sub {
+
+        final ES87TSDBDocValuesProducer.BulkSortedNumericDocValues values;
+        int docID = -1;
+
+        NumericDocValuesSub(MergeState.DocMap docMap, ES87TSDBDocValuesProducer.BulkSortedNumericDocValues values) {
+            super(docMap);
+            this.values = values;
+            assert values.docID() == -1;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return docID = values.nextDoc();
         }
     }
 

@@ -34,32 +34,37 @@ import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
+import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
 
+import java.io.DataOutput;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
 public class ES87TSDBDocValuesProducer extends DocValuesProducer {
-    private final Map<String, NumericEntry> numerics;
+    final Map<String, NumericEntry> numerics;
     private final Map<String, BinaryEntry> binaries;
     private final Map<String, SortedEntry> sorted;
     private final Map<String, SortedSetEntry> sortedSets;
-    private final Map<String, SortedNumericEntry> sortedNumerics;
+    final Map<String, SortedNumericEntry> sortedNumerics;
     private final Map<String, DocValuesSkipperEntry> skippers;
     private final IndexInput data;
     private final int maxDoc;
-    private final int version;
+    final int version;
     private final boolean merging;
 
     ES87TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
@@ -1126,7 +1131,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            return new NumericDocValues() {
+            return new BulkNumberDocValues() {
 
                 private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
@@ -1182,6 +1187,56 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                         }
                     }
                     return currentBlock[blockInIndex];
+                }
+
+                @Override
+                void bulkEncode(IndexOutput dataOut, DirectMonotonicWriter indexWriter, int fromIndex, int toIndex) throws IOException {
+                    int fromBlockIndex = fromIndex >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                    int fromBlockInIndex = fromIndex & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                    int toBlockIndex = toIndex >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                    int toBlockInIndex = toIndex & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                    long fromPos = indexReader.get(fromBlockIndex);
+                    valuesData.seek(fromPos);
+                    long toPos = indexReader.get(toBlockInIndex) + toBlockInIndex;
+                    dataOut.copyBytes(valuesData, toPos - fromPos);
+                }
+
+                @Override
+                int canBulkEncode(int from, int to) {
+                    if ((from - to) < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE) {
+                        return -1;
+                    }
+
+                    int fromBlockIndex = from >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                    if (fromBlockIndex == currentBlockIndex) {
+                        // We're already decoded the current block, no point in bulk copying.
+                        return -1;
+                    }
+
+                    int fromBlockInIndex = from & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                    if (fromBlockInIndex != 0) {
+                        // We're not at the beginning of a block, bulk copying isn't possible.
+                        return -1;
+                    }
+
+                    int toBlockIndex = to >>> ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+                    int toBlockInIndex = to & ES87TSDBDocValuesFormat.NUMERIC_BLOCK_MASK;
+                    if (fromBlockIndex == toBlockIndex) {
+                        // we can only do bulk copying if entire block is requested:
+                        if (toBlockInIndex == (ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - 1)) {
+                            return to;
+                        } else {
+                            return -1;
+                        }
+                    } else {
+                        // Multiple un-decoded blocks, figure out where to index lands, so that we can bulk copy only complete blocks
+                        assert fromBlockIndex < toBlockIndex;
+                        if (toBlockInIndex == (ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE - 1)) {
+                            return to;
+                        } else {
+                            return to - fromBlockInIndex;
+                        }
+                    }
                 }
             };
         } else {
@@ -1248,6 +1303,22 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    abstract static class BulkNumberDocValues extends NumericDocValues {
+
+        abstract void bulkEncode(IndexOutput dataOutput, DirectMonotonicWriter indexWriter, int from, int to) throws IOException;
+
+        abstract int canBulkEncode(int from, int to);
+
+    }
+
+    abstract static class BulkSortedNumericDocValues extends SortedNumericDocValues {
+
+        abstract void bulkEncode(IndexOutput dataOutput, DirectMonotonicWriter indexWriter, int from, int to) throws IOException;
+
+        abstract int canBulkEncode(int from, int to);
+
+    }
+
     private NumericValues getValues(NumericEntry entry, final long maxOrd) throws IOException {
         assert entry.numValues > 0;
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
@@ -1284,7 +1355,58 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd) throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
-            return DocValues.singleton(getNumeric(entry, maxOrd));
+            if (maxOrd == -1 && entry.docsWithFieldOffset == -1) {
+                BulkNumberDocValues bulkNumberDocValues = (BulkNumberDocValues) getNumeric(entry, maxOrd);
+                return new BulkSortedNumericDocValues() {
+
+                    @Override
+                    int canBulkEncode(int from, int to) {
+                        return bulkNumberDocValues.canBulkEncode(from, to);
+                    }
+
+                    @Override
+                    void bulkEncode(IndexOutput dataOutput, DirectMonotonicWriter indexWriter, int from, int to) throws IOException {
+                        bulkNumberDocValues.bulkEncode(dataOutput, indexWriter, from, to);
+                    }
+
+                    @Override
+                    public long nextValue() throws IOException {
+                        return bulkNumberDocValues.longValue();
+                    }
+
+                    @Override
+                    public int docValueCount() {
+                        return 1;
+                    }
+
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        return bulkNumberDocValues.advanceExact(target);
+                    }
+
+                    @Override
+                    public int docID() {
+                        return bulkNumberDocValues.docID();
+                    }
+
+                    @Override
+                    public int nextDoc() throws IOException {
+                        return bulkNumberDocValues.nextDoc();
+                    }
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        return bulkNumberDocValues.advance(target);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return bulkNumberDocValues.cost();
+                    }
+                };
+            } else {
+                return DocValues.singleton(getNumeric(entry, maxOrd));
+            }
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
@@ -1416,7 +1538,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId) {}
 
-    private static class NumericEntry {
+    static class NumericEntry {
         long docsWithFieldOffset;
         long docsWithFieldLength;
         short jumpTableEntryCount;
@@ -1444,7 +1566,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         DirectMonotonicReader.Meta addressesMeta;
     }
 
-    private static class SortedNumericEntry extends NumericEntry {
+    static class SortedNumericEntry extends NumericEntry {
         int numDocsWithField;
         DirectMonotonicReader.Meta addressesMeta;
         long addressesOffset;

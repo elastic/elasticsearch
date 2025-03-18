@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
 
@@ -73,6 +74,25 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             // remove the byte levels added in the previous level
             SKIP_INDEX_JUMP_LENGTH_PER_LEVEL[level] -= (1 << ((level - 1) * SKIP_INDEX_LEVEL_SHIFT));
         }
+    }
+
+    // Escape hatches:
+    static final boolean OPTIMIZED_MERGE_ENABLED;
+    static final FeatureFlag TSDB_DOC_VALUES_OPTIMIZED_MERGE = new FeatureFlag("tsdb_doc_values_optimized_merge");
+    static final String OPTIMIZED_MERGE_ENABLED_NAME = ES87TSDBDocValuesConsumer.class.getName() + ".enableOptimizedMerge";
+
+    static final boolean BULK_MERGE_ENABLED;
+    static final FeatureFlag TSDB_DOC_VALUES_BULK_MERGE = new FeatureFlag("tsdb_doc_values_bulk_merge");
+    static final String BULK_MERGE_ENABLED_NAME = ES87TSDBDocValuesConsumer.class.getName() + ".enableBulkMerge";
+
+    static {
+        boolean optimizedMergeDefault = TSDB_DOC_VALUES_OPTIMIZED_MERGE.isEnabled();
+        OPTIMIZED_MERGE_ENABLED = Boolean.parseBoolean(
+            System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.toString(optimizedMergeDefault))
+        );
+        boolean bulkMergeDefault = TSDB_DOC_VALUES_BULK_MERGE.isEnabled();
+//        BULK_MERGE_ENABLED = Boolean.parseBoolean(System.getProperty(BULK_MERGE_ENABLED_NAME, Boolean.toString(bulkMergeDefault)));
+        BULK_MERGE_ENABLED = false;
     }
 
     private final int skipIndexIntervalSize;

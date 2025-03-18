@@ -21,13 +21,11 @@ package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
-import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
-import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -42,9 +40,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -70,6 +70,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 
 public class TransportGetVirtualBatchedCompoundCommitChunkAction extends TransportAction<
@@ -84,6 +85,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
     private final TransportService transportService;
     private final ClusterService clusterService;
     private final GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure;
+    private final StatelessCommitService statelessCommitService;
 
     @Inject
     public TransportGetVirtualBatchedCompoundCommitChunkAction(
@@ -92,7 +94,8 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         TransportService transportService,
         IndicesService indicesService,
         ClusterService clusterService,
-        GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure
+        GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure,
+        StatelessCommitService statelessCommitService
     ) {
         super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.bigArrays = bigArrays;
@@ -100,6 +103,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.vbccChunksPressure = vbccChunksPressure;
+        this.statelessCommitService = statelessCommitService;
         this.transportPrimaryAction = actionName + "[p]";
 
         transportService.registerRequestHandler(
@@ -115,7 +119,14 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                     final Index index = shardId.getIndex();
                     final IndexShard shard = indicesService.indexServiceSafe(index).getShard(request.getShardId().id());
                     assert shard.routingEntry().primary() : shard + " not primary on node " + transportService.getLocalNode();
-                    primaryShardOperation(request, shard, bigArrays, vbccChunksPressure, l);
+                    primaryShardOperation(
+                        request,
+                        shard,
+                        bigArrays,
+                        vbccChunksPressure,
+                        statelessCommitService::readVirtualBatchedCompoundCommitChunk,
+                        l
+                    );
                 });
             }
         );
@@ -213,6 +224,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         IndexShard shard,
         BigArrays bigArrays,
         GetVirtualBatchedCompoundCommitChunksPressure vbccChunksPressure,
+        CheckedBiConsumer<GetVirtualBatchedCompoundCommitChunkRequest, StreamOutput, IOException> vbccChunkReader,
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
     ) {
         ActionListener.run(listener, (l) -> {
@@ -234,17 +246,6 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             if (engine == null) {
                 throw new ShardNotFoundException(shard.shardId(), "engine not started");
             }
-            if (engine instanceof HollowIndexEngine) {
-                // TODO ES-10799 Better handling of IndexEngine -> HollowIndexEngine transition
-                throw new ResourceNotFoundException("Shard is hollow");
-            }
-            if (engine instanceof IndexEngine == false) {
-                final var exception = new ElasticsearchException("expecting IndexEngine but got " + engine);
-                logger.error("unexpected", exception);
-                assert false : exception;
-                throw exception;
-            }
-            IndexEngine indexEngine = (IndexEngine) engine;
 
             try {
                 // The pressure releasable is got first, so that we do not allocate memory if the pressure outright rejects the chunk size.
@@ -256,7 +257,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                     // If an exception happens during reading the VBCC, the `finally` block must release both the pressure and the
                     // allocation
                     finalReleasable = Releasables.wrap(output, finalReleasable);
-                    indexEngine.readVirtualBatchedCompoundCommitChunk(request, output);
+                    vbccChunkReader.accept(request, output);
                     // Transfer responsibility of releasing the pressure and the allocation to a ReleasableBytesReference for the response.
                     var transfer = new ReleasableBytesReference(output.bytes(), finalReleasable);
                     finalReleasable = null;

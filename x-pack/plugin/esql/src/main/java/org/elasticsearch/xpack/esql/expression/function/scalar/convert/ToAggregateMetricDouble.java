@@ -49,7 +49,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
     private static final Map<DataType, AbstractConvertFunction.BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(AGGREGATE_METRIC_DOUBLE, (source, fieldEval) -> fieldEval),
+        Map.entry(AGGREGATE_METRIC_DOUBLE, (fieldEval, source) -> fieldEval),
         Map.entry(DOUBLE, DoubleFactory::new),
         Map.entry(INTEGER, IntFactory::new),
         Map.entry(LONG, LongFactory::new),
@@ -166,7 +166,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public DoubleFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public DoubleFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator, Source source) {
             this.fieldEvaluator = fieldEvaluator;
             this.source = source;
         }
@@ -266,7 +266,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public IntFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public IntFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator, Source source) {
             this.fieldEvaluator = fieldEvaluator;
             this.source = source;
         }
@@ -366,7 +366,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public LongFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public LongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator, Source source) {
             this.fieldEvaluator = fieldEvaluator;
             this.source = source;
         }
@@ -466,7 +466,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         private final EvalOperator.ExpressionEvaluator.Factory fieldEvaluator;
 
-        public UnsignedLongFactory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldEvaluator) {
+        public UnsignedLongFactory(EvalOperator.ExpressionEvaluator.Factory fieldEvaluator, Source source) {
             this.fieldEvaluator = fieldEvaluator;
             this.source = source;
         }

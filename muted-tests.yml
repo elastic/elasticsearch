@@ -396,6 +396,18 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/610_function_score/Random}
   issue: https://github.com/elastic/elasticsearch/issues/125010
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test010Install
+  issue: https://github.com/elastic/elasticsearch/issues/119441
+- class: org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiEmbeddingsActionTests
+  method: testExecute_ReturnsSuccessfulResponse
+  issue: https://github.com/elastic/elasticsearch/issues/125057
+- class: org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequestTests
+  method: testCreateRequest_TaskSettingsInputType
+  issue: https://github.com/elastic/elasticsearch/issues/125059
+- class: org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTests
+  method: testCreateRequest_WithEntraIdDefined
+  issue: https://github.com/elastic/elasticsearch/issues/125061
 
 # Examples:
 #

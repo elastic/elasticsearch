@@ -212,7 +212,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testGetFieldValueNull() {
         try {
-            document.getFieldValue((String) null, String.class);
+            document.getFieldValue(null, String.class);
             fail("get field value should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -284,7 +284,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testHasFieldNull() {
         try {
-            document.hasField((String) null);
+            document.hasField(null);
             fail("has field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -945,7 +945,7 @@ public class IngestDocumentTests extends ESTestCase {
 
     public void testRemoveNullField() {
         try {
-            document.removeField((String) null);
+            document.removeField(null);
             fail("remove field should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("path cannot be null nor empty"));
@@ -961,7 +961,7 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testIngestMetadataTimestamp() throws Exception {
+    public void testIngestMetadataTimestamp() {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         long after = System.currentTimeMillis();
@@ -1058,7 +1058,7 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(copy.getSourceAndMetadata().get("afterClockChange"), equalTo(original.getSourceAndMetadata().get("afterClockChange")));
     }
 
-    public void testSetInvalidSourceField() throws Exception {
+    public void testSetInvalidSourceField() {
         Map<String, Object> document = new HashMap<>();
         Object randomObject = randomFrom(new ArrayList<>(), new HashMap<>(), 12, 12.34);
         document.put("source_field", randomObject);

@@ -258,11 +258,7 @@ class StatelessIndexEventListener implements IndexEventListener {
 
             statelessCommitService.addConsumerForNewUploadedBcc(
                 indexShard.shardId(),
-                info -> translogReplicator.markShardCommitUploaded(
-                    indexShard.shardId(),
-                    // Use the largest translog start file from all CCs to release translog files
-                    info.uploadedBcc().lastCompoundCommit().translogRecoveryStartFile()
-                )
+                info -> translogReplicator.markShardCommitUploaded(indexShard.shardId(), info.translogReleaseEndFile())
             );
             return null;
         });

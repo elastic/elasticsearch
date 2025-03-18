@@ -574,7 +574,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                         indexCommitRef.getIndexCommit().getFileNames(),
                         additionalFiles,
                         primaryTerm,
-                        0   // not used, stubbing value for translogRecoveryStartFile
+                        0,   // not used, stubbing value for translogRecoveryStartFile
+                        0    // not used, stubbing value for translogReleaseEndFile
                     ),
                     randomBoolean()
                 );

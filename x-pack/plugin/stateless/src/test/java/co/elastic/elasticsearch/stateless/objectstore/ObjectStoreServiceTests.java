@@ -236,6 +236,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                             commitFiles,
                             additionalFiles,
                             1,
+                            0,
                             0
                         )
                     );

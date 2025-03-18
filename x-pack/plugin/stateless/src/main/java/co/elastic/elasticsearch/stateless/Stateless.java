@@ -240,6 +240,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING;
@@ -1367,7 +1368,34 @@ public class Stateless extends Plugin
                 Set<String> additionalFiles
             ) {
                 final long translogRecoveryStartFile;
-                translogRecoveryStartFile = getTranslogRecoveryStartFile(indexCommitRef);
+                final long translogReleaseEndFile;
+                try {
+                    Map<String, String> userData = indexCommitRef.getIndexCommit().getUserData();
+                    String startFile = userData.get(IndexEngine.TRANSLOG_RECOVERY_START_FILE);
+                    String releaseFile = userData.get(IndexEngine.TRANSLOG_RELEASE_END_FILE);
+                    if (startFile == null) {
+                        // If we don't have it in the user data, then this is the first commit and no operations have been processed on
+                        // this node. So we set the translog start file to the next possible translog file, and the translog release end
+                        // file to the ineffective value of -1.
+                        assert releaseFile == null : "release file is set to " + releaseFile + " but start file is not set";
+                        translogRecoveryStartFile = translogReplicator.get().getMaxUploadedFile() + 1;
+                        translogReleaseEndFile = -1;
+                    } else {
+                        translogRecoveryStartFile = Long.parseLong(startFile);
+                        if (releaseFile == null) {
+                            // Only hollow commits contain a release file in the commit user data. If the release file is not set, then
+                            // this is a regular non-hollow commit, and we can re-use the start file as the release file.
+                            translogReleaseEndFile = translogRecoveryStartFile;
+                        } else {
+                            assert translogRecoveryStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE
+                                : "start file is set to " + startFile + " and release file is set to " + releaseFile;
+                            translogReleaseEndFile = Long.parseLong(releaseFile);
+                        }
+                    }
+                } catch (IOException e) {
+                    assert false : e; // should never happen, none of the Lucene implementations throw this.
+                    throw new UncheckedIOException(e);
+                }
 
                 statelessCommitService.onCommitCreation(
                     new StatelessCommitRef(
@@ -1376,7 +1404,8 @@ public class Stateless extends Plugin
                         getIndexCommitFileNames(indexCommitRef.getIndexCommit()),
                         additionalFiles,
                         primaryTerm,
-                        translogRecoveryStartFile
+                        translogRecoveryStartFile,
+                        translogReleaseEndFile
                     )
                 );
             }
@@ -1584,25 +1613,6 @@ public class Stateless extends Plugin
             bccUploadMaxSize.getStringRep(),
             virtualBccUploadMaxAge.getStringRep()
         );
-    }
-
-    private long getTranslogRecoveryStartFile(Engine.IndexCommitRef indexCommitRef) {
-        final long translogRecoveryStartFile;
-        try {
-            Map<String, String> userData = indexCommitRef.getIndexCommit().getUserData();
-            String startFile = userData.get(IndexEngine.TRANSLOG_RECOVERY_START_FILE);
-            if (startFile == null) {
-                // If we don't have the TRANSLOG_RECOVERY_START_FILE in the user data, then this is the first commit after a recovery and no
-                // operations have been processed on this node.
-                translogRecoveryStartFile = translogReplicator.get().getMaxUploadedFile() + 1;
-            } else {
-                translogRecoveryStartFile = Long.parseLong(startFile);
-            }
-        } catch (IOException e) {
-            assert false : e; // should never happen, none of the Lucene implementations throw this.
-            throw new UncheckedIOException(e);
-        }
-        return translogRecoveryStartFile;
     }
 
     private static Collection<String> getIndexCommitFileNames(IndexCommit commit) {

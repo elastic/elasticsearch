@@ -136,8 +136,8 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     DeprecationIssue.Level.CRITICAL,
                     "Field mappings with incompatible date format patterns in old index",
                     "https://www.elastic.co/blog/locale-changes-elasticsearch-8-16-jdk-23",
-                    "This index has a compatibility version < 8.0 and field mappings with format patterns that are incompatible "
-                        + "with Elasticsearch 9.0. Manual reindexing may be required. "
+                    "The index was created before 8.0 and contains mappings that must be reindexed due to locale changes in 8.16+. "
+                        + "Manual reindexing is required. "
                         + String.join(", ", cldrIncompatibleFieldMappings),
                     false,
                     null

@@ -388,8 +388,10 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected InferenceAction.Request mutateInstanceForVersion(InferenceAction.Request instance, TransportVersion version) {
+        InferenceAction.Request mutated;
+
         if (version.before(TransportVersions.V_8_12_0)) {
-            return new InferenceAction.Request(
+            mutated = new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
                 null,
@@ -400,7 +402,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 false
             );
         } else if (version.before(TransportVersions.V_8_13_0)) {
-            return new InferenceAction.Request(
+            mutated = new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
                 null,
@@ -414,7 +416,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             && (instance.getInputType() == InputType.UNSPECIFIED
                 || instance.getInputType() == InputType.CLASSIFICATION
                 || instance.getInputType() == InputType.CLUSTERING)) {
-                    return new InferenceAction.Request(
+                    mutated = new InferenceAction.Request(
                         instance.getTaskType(),
                         instance.getInferenceEntityId(),
                         null,
@@ -426,7 +428,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     );
                 } else if (version.before(TransportVersions.V_8_13_0)
                     && (instance.getInputType() == InputType.CLUSTERING || instance.getInputType() == InputType.CLASSIFICATION)) {
-                        return new InferenceAction.Request(
+                        mutated = new InferenceAction.Request(
                             instance.getTaskType(),
                             instance.getInferenceEntityId(),
                             null,
@@ -437,7 +439,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             false
                         );
                     } else if (version.before(TransportVersions.V_8_14_0)) {
-                        return new InferenceAction.Request(
+                        mutated = new InferenceAction.Request(
                             instance.getTaskType(),
                             instance.getInferenceEntityId(),
                             null,
@@ -449,7 +451,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                         );
                     } else if (version.before(TransportVersions.INFERENCE_CONTEXT)
                         && version.isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X) == false) {
-                            return new InferenceAction.Request(
+                            mutated = new InferenceAction.Request(
                                 instance.getTaskType(),
                                 instance.getInferenceEntityId(),
                                 instance.getQuery(),
@@ -460,9 +462,18 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                                 false,
                                 InferenceContext.EMPTY_INSTANCE
                             );
+                        } else {
+                            mutated = instance;
                         }
 
-        return instance;
+        // We always assume that a request has been rerouted, if it came from a node without adaptive rate limiting
+        if (version.before(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
+            mutated.setHasBeenRerouted(true);
+        } else {
+            mutated.setHasBeenRerouted(instance.hasBeenRerouted());
+        }
+
+        return mutated;
     }
 
     public void testWriteTo_WhenVersionIsOnAfterUnspecifiedAdded() throws IOException {

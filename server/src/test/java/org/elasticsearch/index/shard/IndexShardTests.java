@@ -5033,6 +5033,7 @@ public class IndexShardTests extends IndexShardTestCase {
             EngineConfig configWithWarmer = new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
+                config.getThreadPoolMergeExecutorService(),
                 config.getIndexSettings(),
                 warmer,
                 config.getStore(),

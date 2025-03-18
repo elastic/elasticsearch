@@ -2064,13 +2064,7 @@ public class VerifierTests extends ESTestCase {
         query("FROM test | WHERE match(first_name, \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
 
         // Check all data types for available options
-        DataType[] optionTypes = new DataType[] {
-            INTEGER,
-            LONG,
-            DataType.FLOAT,
-            DataType.DOUBLE,
-            DataType.KEYWORD,
-            BOOLEAN };
+        DataType[] optionTypes = new DataType[] { INTEGER, LONG, DataType.FLOAT, DataType.DOUBLE, DataType.KEYWORD, BOOLEAN };
         for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();

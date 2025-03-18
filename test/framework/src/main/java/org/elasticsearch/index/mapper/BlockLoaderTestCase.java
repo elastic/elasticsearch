@@ -163,7 +163,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         assertEquals(expected, blockLoaderResult);
     }
 
-    protected abstract Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource);
+    protected abstract Object expected(Map<String, Object> fieldMapping, Object value);
 
     private Object getFieldValue(Map<String, Object> document, String fieldName) {
         var rawValues = new ArrayList<>();

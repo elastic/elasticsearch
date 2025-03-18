@@ -18,6 +18,7 @@ public class LongOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCas
     public void testOffsetArray() throws Exception {
         verifyOffsets("{\"field\":[26,24,25,3,2,1]}");
         verifyOffsets("{\"field\":[26,null,25,3,null,1]}");
+        verifyOffsets("{\"field\":[5,5,6,-3,-9,-9,5,2,5,6,-3,-9]}");
     }
 
     public void testOffsetNestedArray() throws Exception {

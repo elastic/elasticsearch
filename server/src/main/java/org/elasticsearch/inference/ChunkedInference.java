@@ -10,12 +10,14 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
 
-public interface ChunkedInference {
+public interface ChunkedInference extends ToXContentObject {
 
     /**
      * Implementations of this function serialize their embeddings to {@link BytesReference} for storage in semantic text fields.
@@ -33,5 +35,14 @@ public interface ChunkedInference {
      */
     record Chunk(TextOffset textOffset, BytesReference bytesReference) {}
 
-    record TextOffset(int start, int end) {}
+    record TextOffset(int start, int end) implements ToXContentObject {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("start", start);
+            builder.field("end", end);
+            builder.endObject();
+            return builder;
+        }
+    }
 }

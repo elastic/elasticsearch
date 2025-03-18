@@ -672,5 +672,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
             return Collections.emptyIterator();
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
+        }
     }
 }

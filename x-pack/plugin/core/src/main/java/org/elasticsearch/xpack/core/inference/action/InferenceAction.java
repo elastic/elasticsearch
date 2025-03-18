@@ -61,6 +61,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         public static final ParseField TASK_SETTINGS = new ParseField("task_settings");
         public static final ParseField QUERY = new ParseField("query");
         public static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField CHUNKING_ENABLED = new ParseField("chunking_enabled");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
@@ -69,6 +70,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
             PARSER.declareString(Request.Builder::setQuery, QUERY);
             PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
+            PARSER.declareBoolean(Request.Builder::setChunkingEnabled, CHUNKING_ENABLED);
         }
 
         private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
@@ -92,6 +94,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final List<String> input;
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
+        private final boolean chunkingEnabled;
         private final TimeValue inferenceTimeout;
         private final boolean stream;
 
@@ -137,6 +140,31 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.taskSettings = taskSettings;
             this.inputType = inputType;
             this.inferenceTimeout = inferenceTimeout;
+            this.chunkingEnabled = false; // TODO: Decide if this makes sense or if we should merge the two constructors
+            this.stream = stream;
+        }
+
+        public Request(
+            TaskType taskType,
+            String inferenceEntityId,
+            String query,
+            List<String> input,
+            Map<String, Object> taskSettings,
+            InputType inputType,
+            TimeValue inferenceTimeout,
+            boolean chunkingEnabled,
+            boolean stream,
+            InferenceContext context
+        ) {
+            super(context);
+            this.taskType = taskType;
+            this.inferenceEntityId = inferenceEntityId;
+            this.query = query;
+            this.input = input;
+            this.taskSettings = taskSettings;
+            this.inputType = inputType;
+            this.inferenceTimeout = inferenceTimeout;
+            this.chunkingEnabled = chunkingEnabled;
             this.stream = stream;
         }
 
@@ -163,6 +191,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.query = null;
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
+
+            this.chunkingEnabled = in.readBoolean();
 
             // streaming is not supported yet for transport traffic
             this.stream = false;
@@ -194,6 +224,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public TimeValue getInferenceTimeout() {
             return inferenceTimeout;
+        }
+
+        public boolean isChunkingEnabled() {
+            return chunkingEnabled;
         }
 
         public boolean isStreaming() {
@@ -235,6 +269,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return e;
             }
 
+            if (chunkingEnabled && ((taskType.equals(TaskType.SPARSE_EMBEDDING) || taskType.equals(TaskType.TEXT_EMBEDDING)) == false)) {
+                var e = new ActionRequestValidationException();
+                e.addValidationError(format("Field [chunking_enabled] cannot be true for task type [%s]", taskType));
+                return e;
+            }
+
             return null;
         }
 
@@ -258,6 +298,9 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeOptionalString(query);
                 out.writeTimeValue(inferenceTimeout);
             }
+
+            // TODO: Check if transport version is needed
+            out.writeBoolean(chunkingEnabled);
         }
 
         // default for easier testing
@@ -313,6 +356,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private Map<String, Object> taskSettings = Map.of();
             private String query;
             private TimeValue timeout = DEFAULT_TIMEOUT;
+            private boolean chunkingEnabled = false;
             private boolean stream = false;
             private InferenceContext context;
 
@@ -362,6 +406,11 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
+            public Builder setChunkingEnabled(boolean chunkingEnabled) {
+                this.chunkingEnabled = chunkingEnabled;
+                return this;
+            }
+
             public Builder setStream(boolean stream) {
                 this.stream = stream;
                 return this;
@@ -373,7 +422,18 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             }
 
             public Request build() {
-                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream, context);
+                return new Request(
+                    taskType,
+                    inferenceEntityId,
+                    query,
+                    input,
+                    taskSettings,
+                    inputType,
+                    timeout,
+                    chunkingEnabled,
+                    stream,
+                    context
+                );
             }
         }
 
@@ -394,6 +454,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 + this.getInferenceTimeout()
                 + ", context="
                 + this.getContext()
+                + ", chunkingEnabled="
+                + this.isChunkingEnabled()
                 + ")";
         }
     }

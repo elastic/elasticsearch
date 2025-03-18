@@ -18,7 +18,6 @@ import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
@@ -119,11 +118,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Embe
             .toList();
     }
 
-    public record Embedding(List<WeightedToken> tokens, boolean isTruncated)
-        implements
-            Writeable,
-            ToXContentObject,
-            EmbeddingResults.Embedding<Embedding> {
+    public record Embedding(List<WeightedToken> tokens, boolean isTruncated) implements Writeable, EmbeddingResults.Embedding<Embedding> {
 
         public static final String EMBEDDING = "embedding";
         public static final String IS_TRUNCATED = "is_truncated";

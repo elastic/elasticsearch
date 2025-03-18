@@ -17,12 +17,20 @@ import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.SearchProfileDfsPhaseResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -31,6 +39,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ThreadPoolExecutor;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DfsPhaseTests extends ESTestCase {
 
@@ -102,4 +113,37 @@ public class DfsPhaseTests extends ESTestCase {
             reader.close();
         }
     }
+
+    public void testNumCandidatesExceedsMax() {
+        Settings settings = Settings.builder().put("index.max_knn_num_candidates", 100).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+
+        SearchContext context = mock(SearchContext.class);
+        when(context.indexShard()).thenAnswer(invocation -> {
+            IndexShard mockIndexShard = mock(IndexShard.class);
+            when(mockIndexShard.indexSettings()).thenReturn(indexSettings);
+            return mockIndexShard;
+        });
+
+        // 构造超过最大值的查询参数
+        KnnSearchBuilder queryBuilder = new KnnSearchBuilder(
+            "float_vector",
+            new float[] { 0, 0, 0 },
+            10,
+            150, // 超过maxKnnNumCandidates的值
+            null,
+            null
+        );
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.knnSearch(List.of(queryBuilder));
+        ShardSearchRequest searchRequest = mock(ShardSearchRequest.class);
+        when(searchRequest.source()).thenReturn(source);
+        when(context.request()).thenReturn(searchRequest);
+
+        // 验证异常抛出
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DfsPhase.executeKnnVectorQuery(context));
+        assertEquals("[num_candidates] cannot exceed [100]", e.getMessage());
+
+    }
+
 }

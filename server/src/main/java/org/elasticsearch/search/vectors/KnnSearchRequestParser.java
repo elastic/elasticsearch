@@ -195,7 +195,6 @@ public class KnnSearchRequestParser {
 
     // visible for testing
     static class KnnSearch {
-        private static final int NUM_CANDS_LIMIT = 10000;
         static final ParseField FIELD_FIELD = new ParseField("field");
         static final ParseField K_FIELD = new ParseField("k");
         static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
@@ -252,9 +251,6 @@ public class KnnSearchRequestParser {
                 throw new IllegalArgumentException(
                     "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot be less than " + "[" + K_FIELD.getPreferredName() + "]"
                 );
-            }
-            if (numCands > NUM_CANDS_LIMIT) {
-                throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
             }
             return new KnnVectorQueryBuilder(field, queryVector, numCands, numCands, null, null);
         }

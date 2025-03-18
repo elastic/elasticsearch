@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -177,7 +178,7 @@ public class DfsPhase {
         return null;
     };
 
-    private static void executeKnnVectorQuery(SearchContext context) throws IOException {
+    static void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();
         if (source == null || source.knnSearch().isEmpty()) {
             return;
@@ -186,6 +187,15 @@ public class DfsPhase {
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         List<KnnSearchBuilder> knnSearch = source.knnSearch();
         List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        int maxKnnNumCandidates = context.indexShard().indexSettings().getMaxKnnNumCandidates();
+        for (KnnVectorQueryBuilder knnVectorQueryBuilder : knnVectorQueryBuilders) {
+            if (knnVectorQueryBuilder.numCands() != null && knnVectorQueryBuilder.numCands() > maxKnnNumCandidates) {
+                throw new IllegalArgumentException(
+                    "[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + maxKnnNumCandidates + "]"
+                );
+            }
+        }
+
         // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
         knnVectorQueryBuilders.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
 

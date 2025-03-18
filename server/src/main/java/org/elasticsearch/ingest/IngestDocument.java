@@ -196,7 +196,7 @@ public final class IngestDocument {
         ResolveResult result = resolve(fieldPath.pathElements, fieldPath.pathElements.length, path, context);
         if (result.wasSuccessful) {
             return cast(path, result.resolvedObject, clazz);
-        } else if (ignoreMissing && hasField(path) == false) {
+        } else if (ignoreMissing) {
             return null;
         } else {
             throw new IllegalArgumentException(result.errorMessage);

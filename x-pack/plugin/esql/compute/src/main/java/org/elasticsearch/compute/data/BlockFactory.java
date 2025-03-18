@@ -436,10 +436,6 @@ public class BlockFactory {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
 
-    public AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleVectorBuilder newAggregateMetricDoubleVectorBuilder(int estimatedSize) {
-        return new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleVectorBuilder(estimatedSize, this);
-    }
-
     public final Block newConstantAggregateMetricDoubleBlock(
         AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
         int positions

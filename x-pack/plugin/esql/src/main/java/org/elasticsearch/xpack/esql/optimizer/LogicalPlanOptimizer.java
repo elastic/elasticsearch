@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineProjections;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConstantFolding;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ConvertStringToByteRef;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.DropIndexMode;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
@@ -139,6 +140,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SubstituteSurrogates(),
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
             new TranslateMetricsAggregate(),
+            new DropIndexMode(),
             new ReplaceAggregateNestedExpressionWithEval(),
             // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
             // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin

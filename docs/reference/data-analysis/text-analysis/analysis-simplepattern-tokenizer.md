@@ -11,7 +11,7 @@ The `simple_pattern` tokenizer uses a regular expression to capture matching tex
 
 This tokenizer does not support splitting the input on a pattern match, unlike the [`pattern`](/reference/data-analysis/text-analysis/analysis-pattern-tokenizer.md) tokenizer. To split on pattern matches using the same restricted regular expression subset, see the [`simple_pattern_split`](/reference/data-analysis/text-analysis/analysis-simplepatternsplit-tokenizer.md) tokenizer.
 
-This tokenizer uses [Lucene regular expressions](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/util/automaton/RegExp.html). For an explanation of the supported features and syntax, see [Regular Expression Syntax](/reference/query-languages/regexp-syntax.md).
+This tokenizer uses [Lucene regular expressions](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/util/automaton/RegExp.html). For an explanation of the supported features and syntax, see [Regular Expression Syntax](/reference/query-languages/query-dsl/regexp-syntax.md).
 
 The default pattern is the empty string, which produces no terms. This tokenizer should always be configured with a non-default pattern.
 

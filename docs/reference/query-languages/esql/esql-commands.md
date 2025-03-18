@@ -1200,7 +1200,7 @@ FROM employees
 
 For matching text, you can use [full text search functions](/reference/query-languages/esql/esql-functions-operators.md#esql-search-functions) like `MATCH`.
 
-Use [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match) to perform a [match query](/reference/query-languages/query-dsl-match-query.md) on a specified field.
+Use [`MATCH`](/reference/query-languages/esql/esql-functions-operators.md#esql-match) to perform a [match query](/reference/query-languages/query-dsl/query-dsl-match-query.md) on a specified field.
 
 Match can be used on text fields, as well as other field types like boolean, dates, and numeric types.
 
@@ -1265,7 +1265,7 @@ ROW message = "foo * bar"
 | WHERE message LIKE """foo \* bar"""
 ```
 
-Use `RLIKE` to filter data based on string patterns using using [regular expressions](/reference/query-languages/regexp-syntax.md). `RLIKE` usually acts on a field placed on the left-hand side of the operator, but it can also act on a constant (literal) expression. The right-hand side of the operator represents the pattern.
+Use `RLIKE` to filter data based on string patterns using using [regular expressions](/reference/query-languages/query-dsl/regexp-syntax.md). `RLIKE` usually acts on a field placed on the left-hand side of the operator, but it can also act on a constant (literal) expression. The right-hand side of the operator represents the pattern.
 
 **Supported types**
 

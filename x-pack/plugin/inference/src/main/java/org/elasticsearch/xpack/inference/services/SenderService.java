@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -22,7 +23,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
@@ -67,15 +68,29 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     ) {
         init();
-        var inferenceInput = createInput(model, input, query, stream);
-        doInfer(model, inferenceInput, taskSettings, inputType, timeout, listener);
+        var inferenceInput = createInput(this, model, input, inputType, query, stream);
+        doInfer(model, inferenceInput, taskSettings, timeout, listener);
     }
 
-    private static InferenceInputs createInput(Model model, List<String> input, @Nullable String query, boolean stream) {
+    private static InferenceInputs createInput(
+        SenderService service,
+        Model model,
+        List<String> input,
+        InputType inputType,
+        @Nullable String query,
+        boolean stream
+    ) {
         return switch (model.getTaskType()) {
             case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
             case RERANK -> new QueryAndDocsInputs(query, input, stream);
-            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> new DocumentsOnlyInput(input, stream);
+            case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
+                ValidationException validationException = new ValidationException();
+                service.validateInputType(inputType, model, validationException);
+                if (validationException.validationErrors().isEmpty() == false) {
+                    throw validationException;
+                }
+                yield new EmbeddingsInput(input, inputType, stream);
+            }
             default -> throw new ElasticsearchStatusException(
                 Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),
                 RestStatus.BAD_REQUEST
@@ -105,18 +120,26 @@ public abstract class SenderService implements InferenceService {
         ActionListener<List<ChunkedInference>> listener
     ) {
         init();
+
+        ValidationException validationException = new ValidationException();
+        validateInputType(inputType, model, validationException);
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
         // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, timeout, listener);
+        doChunkedInfer(model, new EmbeddingsInput(input, inputType), taskSettings, inputType, timeout, listener);
     }
 
     protected abstract void doInfer(
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );
+
+    protected abstract void validateInputType(InputType inputType, Model model, ValidationException validationException);
 
     protected abstract void doUnifiedCompletionInfer(
         Model model,
@@ -127,7 +150,7 @@ public abstract class SenderService implements InferenceService {
 
     protected abstract void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,

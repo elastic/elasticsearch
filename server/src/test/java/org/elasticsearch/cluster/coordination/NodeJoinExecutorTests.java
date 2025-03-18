@@ -1259,7 +1259,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         + node2.descriptionWithoutAttributes()
                         + "] with reason ["
                         + testReasonWithLink.message()
-                        + "]; for troubleshooting guidance, see https://www.elastic.co/guide/en/elasticsearch/reference/*"
+                        + "]; for troubleshooting guidance, see "
+                        + "https://www.elastic.co/docs/troubleshoot/elasticsearch/troubleshooting-unstable-cluster*"
                 )
             );
             assertNull(

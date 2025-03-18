@@ -65,7 +65,6 @@ public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
         searcher.setSimilarity(new ClassicSimilarity());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98127")
     public void testQueryExtractor() throws IOException {
         addDocs(
             new String[] { "the quick brown fox", "the slow brown fox", "the grey dog", "yet another string" },
@@ -86,6 +85,8 @@ public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
             new QueryExtractorBuilder(
                 "matching_missing_field",
                 QueryProvider.fromParsedQuery(QueryBuilders.termQuery("missing_text", "quick fox"))
+            ).rewrite(ctx),
+            new QueryExtractorBuilder("phrase_score", QueryProvider.fromParsedQuery(QueryBuilders.matchPhraseQuery(TEXT_FIELD_NAME, "slow brown fox"))
             ).rewrite(ctx)
         );
         SearchExecutionContext dummySEC = createSearchExecutionContext();
@@ -117,11 +118,15 @@ public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
         // First two only match the text field
         assertThat(extractedFeatures.get(0), hasEntry("text_score", 1.7135582f));
         assertThat(extractedFeatures.get(0), not(hasKey("number_score")));
+        assertThat(extractedFeatures.get(0), not(hasKey("phrase_score")));
         assertThat(extractedFeatures.get(1), hasEntry("text_score", 0.7554128f));
         assertThat(extractedFeatures.get(1), not(hasKey("number_score")));
+        assertThat(extractedFeatures.get(1), hasEntry("phrase_score", 2.468971f));
+
         // Only matches the range query
         assertThat(extractedFeatures.get(2), hasEntry("number_score", 1f));
         assertThat(extractedFeatures.get(2), not(hasKey("text_score")));
+        assertThat(extractedFeatures.get(2), not(hasKey("phrase_score")));
         // No query matches
         assertThat(extractedFeatures.get(3), anEmptyMap());
         reader.close();

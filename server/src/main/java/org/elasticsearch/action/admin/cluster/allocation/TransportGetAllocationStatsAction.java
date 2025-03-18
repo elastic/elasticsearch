@@ -157,7 +157,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.nodeAllocationStats = in.readImmutableMap(StreamInput::readString, NodeAllocationStats::new);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 this.diskThresholdSettings = in.readOptionalWriteable(DiskThresholdSettings::readFrom);

@@ -1,0 +1,5 @@
+pr: 124843
+summary: Ignore _JAVA_OPTIONS
+area: Infra/CLI
+type: enhancement
+issues: []

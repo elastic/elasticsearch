@@ -889,6 +889,16 @@ public class EsqlCapabilities {
         TO_LOWER_MV,
 
         /**
+         * Use double parameter markers to represent field or function names.
+         */
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * Non full text functions do not contribute to score
+         */
+        NON_FULL_TEXT_FUNCTIONS_SCORING,
+
+        /**
          * Support implicit casting for union typed numeric and date/date_nanos fields
          */
         IMPLICIT_CASTING_UNION_TYPED_NUMERIC_AND_DATE;

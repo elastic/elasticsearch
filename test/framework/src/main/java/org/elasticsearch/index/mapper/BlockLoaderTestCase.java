@@ -109,10 +109,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public void testBlockLoader() throws IOException {
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
-        var syntheticSource = randomBoolean();
         var mapping = mappingGenerator.generate(template);
 
-        runTest(template, mapping, syntheticSource, fieldName);
+        runTest(template, mapping, fieldName);
     }
 
     @SuppressWarnings("unchecked")
@@ -136,30 +135,28 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         currentLevel.put(fieldName, new Template.Leaf(fieldName, fieldType));
         var template = new Template(top);
 
-        var syntheticSource = randomBoolean();
-
         var mapping = mappingGenerator.generate(template);
 
-        if (syntheticSource && randomBoolean()) {
+        if (params.syntheticSource && randomBoolean()) {
             // force fallback synthetic source in the hierarchy
             var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
             var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
             topLevelMapping.put("synthetic_source_keep", "all");
         }
 
-        runTest(template, mapping, syntheticSource, fullFieldName.toString());
+        runTest(template, mapping, fullFieldName.toString());
     }
 
-    private void runTest(Template template, Mapping mapping, boolean syntheticSource, String fieldName) throws IOException {
+    private void runTest(Template template, Mapping mapping, String fieldName) throws IOException {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
-        var mapperService = syntheticSource ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
+        var mapperService = params.syntheticSource ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
 
         var document = documentGenerator.generate(template, mapping);
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
         Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, fieldName);
-        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), syntheticSource);
+        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName));
         assertEquals(expected, blockLoaderResult);
     }
 
@@ -284,8 +281,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
             @Override
             public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                // TODO randomize when adding support for fields that care about this
-                return MappedFieldType.FieldExtractPreference.NONE;
+                return params.preference;
             }
 
             @Override

@@ -46,6 +46,7 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
@@ -57,6 +58,7 @@ import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -727,7 +729,11 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+    protected ElasticsearchMergeScheduler createMergeScheduler(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+    ) {
         if (ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.get(indexSettings.getSettings())) {
             return new ThreadPoolMergeScheduler(
                 shardId,
@@ -754,7 +760,7 @@ public class IndexEngine extends InternalEngine {
                 this::estimateMergeBytes
             );
         } else {
-            return super.createMergeScheduler(shardId, indexSettings);
+            return super.createMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
         }
     }
 

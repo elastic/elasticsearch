@@ -239,12 +239,8 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case REGION_ISO_CODE -> {
-                        // ISO 3166-2 code for country subdivisions.
-                        // See iso.org/iso-3166-country-codes.html
-                        String countryIso = country.getIsoCode();
-                        String subdivisionIso = subdivision.getIsoCode();
-                        if (countryIso != null && subdivisionIso != null) {
-                            String regionIsoCode = countryIso + "-" + subdivisionIso;
+                        String regionIsoCode = regionIsoCode(country, subdivision);
+                        if (regionIsoCode != null) {
                             data.put("region_iso_code", regionIsoCode);
                         }
                     }
@@ -510,12 +506,8 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case REGION_ISO_CODE -> {
-                        // ISO 3166-2 code for country subdivisions.
-                        // See iso.org/iso-3166-country-codes.html
-                        String countryIso = country.getIsoCode();
-                        String subdivisionIso = subdivision.getIsoCode();
-                        if (countryIso != null && subdivisionIso != null) {
-                            String regionIsoCode = countryIso + "-" + subdivisionIso;
+                        String regionIsoCode = regionIsoCode(country, subdivision);
+                        if (regionIsoCode != null) {
                             data.put("region_iso_code", regionIsoCode);
                         }
                     }
@@ -782,5 +774,17 @@ final class MaxmindIpDataLookups {
         // isInEuropeanUnion is a lowercase-b boolean so it cannot be null, but it really only makes sense for us to return a value
         // for this if there's actually a real country here, as opposed to an empty null-object country, so we check for an iso code first
         return (country.getIsoCode() == null) ? null : country.isInEuropeanUnion();
+    }
+
+    @Nullable
+    private static String regionIsoCode(final com.maxmind.geoip2.record.Country country, final Subdivision subdivision) {
+        // ISO 3166-2 code for country subdivisions, see https://www.iso.org/iso-3166-country-codes.html
+        final String countryIso = country.getIsoCode();
+        final String subdivisionIso = subdivision.getIsoCode();
+        if (countryIso != null && subdivisionIso != null) {
+            return countryIso + "-" + subdivisionIso;
+        } else {
+            return null;
+        }
     }
 }

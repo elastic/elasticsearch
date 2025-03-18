@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.logging;
 
+import org.apache.logging.log4j.LogBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
@@ -24,7 +25,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
@@ -104,15 +104,7 @@ public class Throttler implements Closeable {
         }
     }
 
-    public void warn(Logger logger, String message) {
-        execute(message, logger::warn);
-    }
-
-    public void warn(Logger logger, String message, Throwable t) {
-        execute(message, enrichedMessage -> logger.warn(enrichedMessage, t));
-    }
-
-    private void execute(String message, Consumer<String> logCallback) {
+    public void execute(LogBuilder builder, String message) {
         if (isRunning.get() == false) {
             return;
         }
@@ -123,7 +115,7 @@ public class Throttler implements Closeable {
         try {
             var logExecutor = logExecutors.compute(
                 message,
-                (key, value) -> Objects.requireNonNullElseGet(value, () -> new LogExecutor(clock, logCallback, message))
+                (key, value) -> Objects.requireNonNullElseGet(value, () -> new LogExecutor(clock, builder, message))
             );
 
             logExecutor.logFirstMessage();
@@ -162,13 +154,13 @@ public class Throttler implements Closeable {
         private final AtomicLong skippedLogCalls = new AtomicLong(INITIAL_LOG_COUNTER_VALUE);
         private final AtomicReference<Instant> timeOfLastLogCall;
         private final Clock clock;
-        private final Consumer<String> throttledConsumer;
+        private final LogBuilder throttledLogger;
         private final String originalMessage;
 
-        LogExecutor(Clock clock, Consumer<String> throttledConsumer, String originalMessage) {
+        LogExecutor(Clock clock, LogBuilder builder, String originalMessage) {
             this.clock = Objects.requireNonNull(clock);
             timeOfLastLogCall = new AtomicReference<>(Instant.now(this.clock));
-            this.throttledConsumer = Objects.requireNonNull(throttledConsumer);
+            this.throttledLogger = Objects.requireNonNull(builder);
             this.originalMessage = Objects.requireNonNull(originalMessage);
         }
 
@@ -190,7 +182,7 @@ public class Throttler implements Closeable {
                 );
             }
 
-            throttledConsumer.accept(enrichedMessage);
+            throttledLogger.log(enrichedMessage);
         }
 
         private static boolean hasRepeatedLogsToEmit(long numSkippedLogCalls) {
@@ -201,7 +193,7 @@ public class Throttler implements Closeable {
             timeOfLastLogCall.set(Instant.now(this.clock));
 
             if (hasLoggedOriginalMessage(skippedLogCalls.getAndIncrement()) == false) {
-                this.throttledConsumer.accept(originalMessage);
+                throttledLogger.log(originalMessage);
             }
         }
 

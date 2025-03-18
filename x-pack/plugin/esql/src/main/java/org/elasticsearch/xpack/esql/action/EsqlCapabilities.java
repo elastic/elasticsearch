@@ -835,7 +835,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be scored when being part of a disjunction
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
+         * Non full text functions do not contribute to score
+         */
+        NON_FULL_TEXT_FUNCTIONS_SCORING;
 
         private final boolean enabled;
 

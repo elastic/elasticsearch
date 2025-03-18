@@ -18,24 +18,24 @@ import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 import java.util.Map;
 import java.util.Set;
 
-public class ModelRegistryMetadataDiffTests extends SimpleDiffableWireSerializationTestCase<Metadata.ProjectCustom> {
+public class ModelRegistryMetadataDiffTests extends SimpleDiffableWireSerializationTestCase<Metadata.Custom> {
     @Override
-    protected Metadata.ProjectCustom createTestInstance() {
+    protected Metadata.Custom createTestInstance() {
         return ModelRegistryMetadataTests.randomInstance();
     }
 
     @Override
-    protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
+    protected Writeable.Reader<Metadata.Custom> instanceReader() {
         return ModelRegistryMetadata::new;
     }
 
     @Override
-    protected Metadata.ProjectCustom makeTestChanges(Metadata.ProjectCustom testInstance) {
+    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
         return mutateInstance((ModelRegistryMetadata) testInstance);
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.ProjectCustom>> diffReader() {
+    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
         return ModelRegistryMetadata::readDiffFrom;
     }
 
@@ -45,7 +45,7 @@ public class ModelRegistryMetadataDiffTests extends SimpleDiffableWireSerializat
     }
 
     @Override
-    protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
+    protected Metadata.Custom mutateInstance(Metadata.Custom instance) {
         return mutateInstance((ModelRegistryMetadata) instance);
     }
 

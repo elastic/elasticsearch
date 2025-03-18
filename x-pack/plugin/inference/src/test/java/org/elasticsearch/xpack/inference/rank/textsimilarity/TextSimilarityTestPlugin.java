@@ -227,7 +227,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                             inferenceText,
                             docFeatures,
                             Map.of("throwing", true),
-                            InputType.SEARCH,
+                            InputType.INTERNAL_SEARCH,
                             InferenceAction.Request.DEFAULT_TIMEOUT,
                             false
                         );

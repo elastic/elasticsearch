@@ -66,7 +66,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 eq(TEST_INPUT),
                 eq(false),
                 eq(Map.of()),
-                eq(InputType.INGEST),
+                eq(InputType.INTERNAL_INGEST),
                 eq(InferenceAction.Request.DEFAULT_TIMEOUT),
                 any()
             );
@@ -107,7 +107,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
                 eq(TEST_INPUT),
                 eq(false),
                 eq(Map.of()),
-                eq(InputType.INGEST),
+                eq(InputType.INTERNAL_INGEST),
                 eq(InferenceAction.Request.DEFAULT_TIMEOUT),
                 any()
             );
@@ -123,7 +123,7 @@ public class SimpleServiceIntegrationValidatorTests extends ESTestCase {
             eq(TEST_INPUT),
             eq(false),
             eq(Map.of()),
-            eq(InputType.INGEST),
+            eq(InputType.INTERNAL_INGEST),
             eq(InferenceAction.Request.DEFAULT_TIMEOUT),
             any()
         );

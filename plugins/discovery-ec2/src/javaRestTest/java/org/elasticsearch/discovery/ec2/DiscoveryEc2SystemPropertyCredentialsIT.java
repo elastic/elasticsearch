@@ -41,7 +41,7 @@ public class DiscoveryEc2SystemPropertyCredentialsIT extends DiscoveryEc2Cluster
         .setting(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), ec2ApiFixture::getAddress)
         .environment("AWS_REGION", REGION)
         .systemProperty("aws.accessKeyId", ACCESS_KEY)
-        .systemProperty("aws.secretKey", ESTestCase::randomSecretKey)
+        .systemProperty("aws.secretAccessKey", ESTestCase::randomSecretKey)
         .build();
 
     private static List<String> getAvailableTransportEndpoints() {

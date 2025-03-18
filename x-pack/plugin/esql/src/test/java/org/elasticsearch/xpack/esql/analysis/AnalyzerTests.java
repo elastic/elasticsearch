@@ -3278,6 +3278,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveRerankInferenceId() {
+        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
+
         {
             LogicalPlan plan = analyze(
                 " FROM books METADATA _score | RERANK \"italian food recipe\" ON title WITH \"reranking-inference-id\"",
@@ -3411,6 +3413,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testRerankRequiresScore() {
+        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
 
         VerificationException ve = expectThrows(
             VerificationException.class,

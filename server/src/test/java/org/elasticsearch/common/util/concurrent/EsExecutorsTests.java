@@ -888,11 +888,11 @@ public class EsExecutorsTests extends ESTestCase {
                 }
             }
 
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < 100; i++) {
                 logger.trace("--> attempt [{}]", i);
                 final var doneLatch = new CountDownLatch(1);
-                executor.execute(new Task(between(1, 500), doneLatch));
-                safeAwait(doneLatch, TimeValue.ONE_MINUTE);
+                executor.execute(new Task(between(1, 100), doneLatch));
+                safeAwait(doneLatch);
             }
         } finally {
             ThreadPool.terminate(executor, 1, TimeUnit.SECONDS);

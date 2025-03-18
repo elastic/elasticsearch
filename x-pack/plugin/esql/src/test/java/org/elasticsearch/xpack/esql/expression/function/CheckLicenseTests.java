@@ -92,7 +92,8 @@ public class CheckLicenseTests extends ESTestCase {
     private static Analyzer analyzer(EsqlFunctionRegistry registry, License.OperationMode operationMode) {
         return new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, registry, analyzerDefaultMapping(), defaultEnrichResolution()),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), getLicenseState(operationMode)), new PlannerProfile(false, "")
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), getLicenseState(operationMode)),
+            new PlannerProfile(false, "")
         );
     }
 

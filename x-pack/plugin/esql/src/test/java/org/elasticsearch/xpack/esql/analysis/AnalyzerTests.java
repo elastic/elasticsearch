@@ -2175,7 +2175,8 @@ public class AnalyzerTests extends ESTestCase {
                 Map.of("foobar", missingLookupIndex),
                 defaultEnrichResolution()
             ),
-            TEST_VERIFIER,new PlannerProfile(false, "")
+            TEST_VERIFIER,
+            new PlannerProfile(false, "")
         );
 
         String query = "FROM test | LOOKUP JOIN foobar ON last_name";

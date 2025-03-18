@@ -100,7 +100,8 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
-            TEST_VERIFIER, new PlannerProfile(false, "")
+            TEST_VERIFIER,
+            new PlannerProfile(false, "")
         );
     }
 
@@ -404,7 +405,8 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         var analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
-            TEST_VERIFIER,new PlannerProfile(false, "")
+            TEST_VERIFIER,
+            new PlannerProfile(false, "")
         );
 
         var analyzed = analyzer.analyze(parser.createStatement(query));

@@ -66,7 +66,8 @@ public class PropagateInlineEvalsTests extends ESTestCase {
                 defaultLookupResolution(),
                 new EnrichResolution()
             ),
-            TEST_VERIFIER, new PlannerProfile(false, "")
+            TEST_VERIFIER,
+            new PlannerProfile(false, "")
         );
     }
 

@@ -34,7 +34,7 @@ public class PrefixQuery extends Query {
     }
 
     @Override
-    protected QueryBuilder asBuilder() {
+    public QueryBuilder asBuilder() {
         return prefixQuery(field, query).caseInsensitive(caseInsensitive);
     }
 

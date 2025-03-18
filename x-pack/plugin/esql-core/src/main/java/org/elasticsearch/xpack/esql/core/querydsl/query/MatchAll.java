@@ -17,7 +17,7 @@ public class MatchAll extends Query {
     }
 
     @Override
-    protected QueryBuilder asBuilder() {
+    public QueryBuilder asBuilder() {
         return matchAllQuery();
     }
 

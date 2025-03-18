@@ -21,7 +21,7 @@ public class ExistsQuery extends Query {
     }
 
     @Override
-    protected QueryBuilder asBuilder() {
+    public QueryBuilder asBuilder() {
         return existsQuery(name);
     }
 

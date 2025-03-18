@@ -43,7 +43,7 @@ public class BoolQuery extends Query {
     }
 
     @Override
-    protected QueryBuilder asBuilder() {
+    public QueryBuilder asBuilder() {
         BoolQueryBuilder boolQuery = boolQuery();
         for (Query query : queries) {
             QueryBuilder queryBuilder = query.toQueryBuilder();

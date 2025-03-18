@@ -1,5 +1,5 @@
 pr: 124595
 summary: '`ToAggregateMetricDouble` function'
-area: "Compute Engine, TSDB"
+area: "ES|QL"
 type: enhancement
 issues: []

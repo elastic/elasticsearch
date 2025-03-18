@@ -197,20 +197,18 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                             }
                             int start = doubleBlock.getFirstValueIndex(p);
                             int end = start + valueCount;
-                            double current = doubleBlock.getDouble(start);
                             if (valueCount == 1) {
+                                double current = doubleBlock.getDouble(start);
                                 builder.min().appendDouble(current);
                                 builder.max().appendDouble(current);
                                 builder.sum().appendDouble(current);
                                 builder.count().appendInt(valueCount);
                                 continue;
                             }
-                            // First iteration of the loop is manual to support having -0.0 as an input consistently
-                            double min = current;
-                            double max = current;
-                            compensatedSum.reset(current, 0);
+                            double min = Double.POSITIVE_INFINITY;
+                            double max = Double.NEGATIVE_INFINITY;
                             for (int i = start + 1; i < end; i++) {
-                                current = doubleBlock.getDouble(i);
+                                double current = doubleBlock.getDouble(i);
                                 min = Math.min(min, current);
                                 max = Math.max(max, current);
                                 compensatedSum.add(current);
@@ -219,6 +217,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                             builder.max().appendDouble(max);
                             builder.sum().appendDouble(compensatedSum.value());
                             builder.count().appendInt(valueCount);
+                            compensatedSum.reset(0, 0);
                         }
                         return builder.build();
                     }

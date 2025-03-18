@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.voyageai.rerank;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -112,11 +111,10 @@ public class VoyageAIRerankModel extends VoyageAIModel {
      * Accepts a visitor to create an executable action. The returned action will not return documents in the response.
      * @param visitor _
      * @param taskSettings _
-     * @param inputType ignored for rerank task
      * @return the rerank action
      */
     @Override
-    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
+    public ExecutableAction accept(VoyageAIActionVisitor visitor, Map<String, Object> taskSettings) {
         return visitor.create(this, taskSettings);
     }
 

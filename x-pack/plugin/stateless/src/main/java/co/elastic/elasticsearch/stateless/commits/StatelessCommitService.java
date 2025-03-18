@@ -571,8 +571,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var generation = reference.getGeneration();
 
             ShardCommitState commitState = getSafe(shardsCommitsStates, reference.getShardId());
-            if (commitState.recoveredGeneration == generation || commitState.hollowGeneration == generation) {
+            if (commitState.recoveredGeneration == generation) {
                 logger.debug("{} skipping upload of recovered commit [{}]", shardId, generation);
+                IOUtils.closeWhileHandlingException(reference);
+                return;
+            }
+            if (commitState.hollowGeneration == generation) {
+                logger.debug("{} skipping upload of already handled hollow commit [{}]", shardId, generation);
                 IOUtils.closeWhileHandlingException(reference);
                 return;
             }

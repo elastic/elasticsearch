@@ -269,6 +269,17 @@ public record LifecycleExecutionState(
         return Collections.unmodifiableMap(result);
     }
 
+    public static String truncateWithExplanation(String input) {
+        if (input.length() > MAXIMUM_STEP_INFO_STRING_LENGTH) {
+            return Strings.cleanTruncate(input, MAXIMUM_STEP_INFO_STRING_LENGTH)
+                + "... ("
+                + (input.length() - MAXIMUM_STEP_INFO_STRING_LENGTH)
+                + " chars truncated)";
+        } else {
+            return input;
+        }
+    }
+
     public static class Builder {
         private String phase;
         private String action;
@@ -310,7 +321,7 @@ public record LifecycleExecutionState(
         }
 
         public Builder setStepInfo(String stepInfo) {
-            this.stepInfo = Strings.cleanTruncate(stepInfo, MAXIMUM_STEP_INFO_STRING_LENGTH);
+            this.stepInfo = truncateWithExplanation(stepInfo);
             return this;
         }
 

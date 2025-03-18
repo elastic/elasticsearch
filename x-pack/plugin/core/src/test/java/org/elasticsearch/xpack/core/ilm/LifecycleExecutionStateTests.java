@@ -28,9 +28,14 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         Map<String, String> custom = createCustomMetadata();
         LifecycleExecutionState state = LifecycleExecutionState.fromCustomMetadata(custom);
         assertThat(custom.get("step_info"), equalTo(state.stepInfo()));
-        String longStepInfo = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 20);
+        String longStepInfo = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100);
         LifecycleExecutionState newState = LifecycleExecutionState.builder(state).setStepInfo(longStepInfo).build();
-        assertThat(newState.stepInfo().length(), equalTo(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
+        // Length includes the post suffix
+        assertThat(newState.stepInfo().length(), equalTo(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 25));
+        assertThat(
+            newState.stepInfo().substring(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH, 1049),
+            equalTo("... (100 chars truncated)")
+        );
     }
 
     public void testEmptyValuesAreNotSerialized() {

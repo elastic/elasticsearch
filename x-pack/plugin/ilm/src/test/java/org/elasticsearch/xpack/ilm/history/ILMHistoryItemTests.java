@@ -119,6 +119,7 @@ public class ILMHistoryItemTests extends ESTestCase {
 
     public void testTruncateLongError() throws IOException {
         String longError = randomAlphaOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 20);
+
         ILMHistoryItem failure = ILMHistoryItem.failure(
             "index",
             "policy",
@@ -140,7 +141,7 @@ public class ILMHistoryItemTests extends ESTestCase {
                             // We subtract a number of characters here due to the truncation being based
                             // on the length of the whole string, not just the "reason" part.
                             + longError.substring(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - 47)
-                            + "\"}"
+                            + "... (5126 chars truncated)\"}"
                     )
                 );
             }

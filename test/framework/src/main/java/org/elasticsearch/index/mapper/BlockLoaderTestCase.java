@@ -305,4 +305,8 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             }
         });
     }
+
+    protected static boolean hasDocValues(Map<String, Object> fieldMapping, boolean defaultValue) {
+        return (boolean) fieldMapping.getOrDefault("doc_values", defaultValue);
+    }
 }

@@ -115,9 +115,9 @@ $$$script-painless-regex-limit-factor$$$
 
 ## EQL circuit breaker [circuit-breakers-page-eql]
 
-When a [sequence](/reference/query-languages/eql-syntax.md#eql-sequences) query is executed, the node handling the query needs to keep some structures in memory, which are needed by the algorithm implementing the sequence matching. When large amounts of data need to be processed, and/or a large amount of matched sequences is requested by the user (by setting the [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) query param), the memory occupied by those structures could potentially exceed the available memory of the JVM. This would cause an `OutOfMemory` exception which would bring down the node.
+When a [sequence](/reference/query-languages/eql/eql-syntax.md#eql-sequences) query is executed, the node handling the query needs to keep some structures in memory, which are needed by the algorithm implementing the sequence matching. When large amounts of data need to be processed, and/or a large amount of matched sequences is requested by the user (by setting the [size](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) query param), the memory occupied by those structures could potentially exceed the available memory of the JVM. This would cause an `OutOfMemory` exception which would bring down the node.
 
-To prevent this from happening, a special circuit breaker is used, which limits the memory allocation during the execution of a [sequence](/reference/query-languages/eql-syntax.md#eql-sequences) query. When the breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException` is thrown and a descriptive error message including `circuit_breaking_exception` is returned to the user.
+To prevent this from happening, a special circuit breaker is used, which limits the memory allocation during the execution of a [sequence](/reference/query-languages/eql/eql-syntax.md#eql-sequences) query. When the breaker is triggered, an `org.elasticsearch.common.breaker.CircuitBreakingException` is thrown and a descriptive error message including `circuit_breaking_exception` is returned to the user.
 
 This circuit breaker can be configured using the following settings:
 

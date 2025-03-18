@@ -22,7 +22,7 @@ restResources {
 }
 
 tasks.named("yamlRestTest").configure {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   ArrayList<String> blacklist = [
     /* These tests don't work on multi-project yet - we need to go through each of them and make them work */
     '^analytics/boxplot/*',

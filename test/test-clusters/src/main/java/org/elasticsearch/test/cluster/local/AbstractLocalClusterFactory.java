@@ -443,7 +443,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     if (content.contains(key) == false) {
                         key = replacement.fallback();
                         if (content.contains(key) == false) {
-                             throw new IOException("Template property '" + replacement + "' not found in template.");
+                            throw new IOException("Template property '" + replacement + "' not found in template.");
                         }
                     }
                     content = content.replace(key, entry.getValue());

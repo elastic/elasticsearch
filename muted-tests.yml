@@ -486,6 +486,3 @@ tests:
 - class: org.elasticsearch.discovery.ec2.Ec2DiscoveryTests
   method: testFilterByMultipleTags
   issue: https://github.com/elastic/elasticsearch/issues/125166
-- class: org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiEmbeddingsActionTests
-  method: testExecute_ReturnsSuccessfulResponse
-  issue: https://github.com/elastic/elasticsearch/issues/125057

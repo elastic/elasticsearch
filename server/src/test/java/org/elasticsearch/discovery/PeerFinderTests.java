@@ -915,7 +915,7 @@ public class PeerFinderTests extends ESTestCase {
                 Level.WARN,
                 "address ["
                     + unreachableMaster.getAddress()
-                    + "]* [current master according to *node-from-hosts-list*ClusterFormationFailureHelper*discovery-troubleshooting.html*"
+                    + "]* [current master according to *node-from-hosts-list*ClusterFormationFailureHelper*discovery-troubleshooting*"
             )
         );
 

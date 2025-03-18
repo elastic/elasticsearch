@@ -219,29 +219,8 @@ public class EsqlCCSUtils {
                     fatalErrorMessage += "; " + error;
                 }
             } else {
-                // no matching indices and no concrete index requested - just skip it, no error
-                EsqlExecutionInfo.Cluster.Status status;
-                ShardSearchFailure failure;
-                if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    // never mark local cluster as SKIPPED
-                    status = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                    failure = null;
-                } else {
-                    status = EsqlExecutionInfo.Cluster.Status.SKIPPED;
-                    failure = new ShardSearchFailure(new VerificationException("Unknown index [" + indexExpression + "]"));
-                }
-                executionInfo.swapCluster(c, (k, v) -> {
-                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
-                        .setTook(new TimeValue(0))
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0);
-                    if (failure != null) {
-                        builder.setFailures(List.of(failure));
-                    }
-                    return builder.build();
-                });
+                // no matching indices and no concrete index requested - just mark it as done, no error
+                markClusterWithFinalStateAndNoShards(executionInfo, c, Cluster.Status.SUCCESSFUL, null);
             }
         }
         if (fatalErrorMessage != null) {

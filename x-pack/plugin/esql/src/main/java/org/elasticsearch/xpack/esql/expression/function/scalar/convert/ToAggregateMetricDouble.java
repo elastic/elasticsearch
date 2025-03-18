@@ -196,14 +196,21 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                         CompensatedSum compensatedSum = new CompensatedSum();
                         for (int p = 0; p < positionCount; p++) {
                             int valueCount = doubleBlock.getValueCount(p);
-                            int start = doubleBlock.getFirstValueIndex(p);
-                            int end = start + valueCount;
                             if (valueCount == 0) {
                                 builder.appendNull();
                                 continue;
                             }
-                            // First iteration of the loop is manual to support having -0.0 as an input consistently
+                            int start = doubleBlock.getFirstValueIndex(p);
+                            int end = start + valueCount;
                             double current = doubleBlock.getDouble(start);
+                            if (valueCount == 1) {
+                                builder.min().appendDouble(current);
+                                builder.max().appendDouble(current);
+                                builder.sum().appendDouble(current);
+                                builder.count().appendInt(valueCount);
+                                continue;
+                            }
+                            // First iteration of the loop is manual to support having -0.0 as an input consistently
                             double min = current;
                             double max = current;
                             compensatedSum.reset(current, 0);
@@ -304,6 +311,14 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                                 builder.appendNull();
                                 continue;
                             }
+                            if (valueCount == 1) {
+                                double current = intBlock.getInt(start);
+                                builder.min().appendDouble(current);
+                                builder.max().appendDouble(current);
+                                builder.sum().appendDouble(current);
+                                builder.count().appendInt(valueCount);
+                                continue;
+                            }
                             double min = Double.POSITIVE_INFINITY;
                             double max = Double.NEGATIVE_INFINITY;
                             for (int i = start; i < end; i++) {
@@ -386,6 +401,14 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                             int end = start + valueCount;
                             if (valueCount == 0) {
                                 builder.appendNull();
+                                continue;
+                            }
+                            if (valueCount == 1) {
+                                double current = longBlock.getLong(start);
+                                builder.min().appendDouble(current);
+                                builder.max().appendDouble(current);
+                                builder.sum().appendDouble(current);
+                                builder.count().appendInt(valueCount);
                                 continue;
                             }
                             double min = Double.POSITIVE_INFINITY;
@@ -480,10 +503,18 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                                 builder.appendNull();
                                 continue;
                             }
+                            if (valueCount == 1) {
+                                double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                                builder.min().appendDouble(current);
+                                builder.max().appendDouble(current);
+                                builder.sum().appendDouble(current);
+                                builder.count().appendInt(valueCount);
+                                continue;
+                            }
                             double min = Double.POSITIVE_INFINITY;
                             double max = Double.NEGATIVE_INFINITY;
                             for (int i = start; i < end; i++) {
-                                var current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
+                                double current = EsqlDataTypeConverter.unsignedLongToDouble(longBlock.getLong(p));
                                 min = Math.min(min, current);
                                 max = Math.max(max, current);
                                 sum.add(current);

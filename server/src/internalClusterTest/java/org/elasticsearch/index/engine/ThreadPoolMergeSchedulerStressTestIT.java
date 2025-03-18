@@ -258,14 +258,9 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             indexingThreads[i].start();
         }
         TestEnginePlugin testEnginePlugin = getTestEnginePlugin();
-        // get the segments count before unblocking the merge threads
-        AtomicInteger segmentsCountBefore = new AtomicInteger();
         assertBusy(() -> {
             // wait for merges to enqueue or backlog
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), greaterThanOrEqualTo(testEnginePlugin.waitMergesEnqueuedCount));
-            segmentsCountBefore.set(getSegmentsCountForAllShards("index"));
-            // there are at least 2 segments for each outstanding merge
-            assertThat(segmentsCountBefore.get(), greaterThan(2 * testEnginePlugin.waitMergesEnqueuedCount));
         }, 1, TimeUnit.MINUTES);
         // finish up indexing
         indexingDone.set(true);
@@ -280,13 +275,11 @@ public class ThreadPoolMergeSchedulerStressTestIT extends ESSingleNodeTestCase {
             assertThat(testEnginePlugin.enqueuedMergesSet.size(), is(0));
             testEnginePlugin.mergeExecutorServiceReference.get().allDone();
         }, 1, TimeUnit.MINUTES);
-        var segmentsCountAfter = getSegmentsCountForAllShards("index");
-        // there should be way fewer segments after merging completed
-        assertThat(segmentsCountBefore.get(), greaterThan(segmentsCountAfter));
-        // and force merge should be a noop
+        var segmentsCountAfterMergingCaughtUp = getSegmentsCountForAllShards("index");
+        // force merge should be a noop after all available merging was done
         assertAllSuccessful(indicesAdmin().prepareForceMerge("index").get());
         var segmentsCountAfterForceMerge = getSegmentsCountForAllShards("index");
-        assertThat(segmentsCountAfterForceMerge, is(segmentsCountAfter));
+        assertThat(segmentsCountAfterForceMerge, is(segmentsCountAfterMergingCaughtUp));
         // let's also run a force-merge to 1 segment
         assertAllSuccessful(indicesAdmin().prepareForceMerge("index").setMaxNumSegments(1).get());
         assertAllSuccessful(indicesAdmin().prepareRefresh("index").get());

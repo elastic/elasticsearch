@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.logging;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
@@ -98,13 +99,13 @@ public class ThrottlerManager implements Closeable {
         Objects.requireNonNull(message);
         Objects.requireNonNull(e);
 
-        throttler.execute(logger.atWarn().withThrowable(e), message);
+        throttler.execute(logger, Level.WARN, message, e);
     }
 
     public void warn(Logger logger, String message) {
         Objects.requireNonNull(message);
 
-        throttler.execute(logger.atWarn(), message);
+        throttler.execute(logger, Level.WARN, message);
     }
 
     @Override

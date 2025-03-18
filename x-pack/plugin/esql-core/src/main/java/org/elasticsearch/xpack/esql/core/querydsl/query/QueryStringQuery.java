@@ -88,7 +88,7 @@ public class QueryStringQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         final QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(query);
         queryBuilder.fields(fields);
         options.forEach((k, v) -> {

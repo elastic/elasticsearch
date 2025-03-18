@@ -54,7 +54,7 @@ public class TermQuery extends Query {
     }
 
     @Override
-    public QueryBuilder asBuilder() {
+    protected QueryBuilder asBuilder() {
         TermQueryBuilder qb = termQuery(term, value);
         // ES does not allow case_insensitive to be set to "false", it should be either "true" or not specified
         return caseInsensitive == false ? qb : qb.caseInsensitive(caseInsensitive);

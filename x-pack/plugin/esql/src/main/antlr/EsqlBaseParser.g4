@@ -346,7 +346,7 @@ joinCommand
 joinTarget
     // TODO: qualifier shouldn't be indexPattern, that's too general.
     // TODO: Ambiguity in case that the qualifier is ON or other keyword? Should we use the AS keyword?
-    : index=indexPattern qualifier=indexPattern?
+    : index=indexPattern qualifier=indexString?
     ;
 
 joinCondition

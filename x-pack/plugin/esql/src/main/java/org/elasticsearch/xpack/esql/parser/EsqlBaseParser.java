@@ -5746,12 +5746,12 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class JoinTargetContext extends ParserRuleContext {
     public IndexPatternContext index;
-    public IndexPatternContext qualifier;
-    public List<IndexPatternContext> indexPattern() {
-      return getRuleContexts(IndexPatternContext.class);
+    public IndexStringContext qualifier;
+    public IndexPatternContext indexPattern() {
+      return getRuleContext(IndexPatternContext.class,0);
     }
-    public IndexPatternContext indexPattern(int i) {
-      return getRuleContext(IndexPatternContext.class,i);
+    public IndexStringContext indexString() {
+      return getRuleContext(IndexStringContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public JoinTargetContext(ParserRuleContext parent, int invokingState) {
@@ -5788,7 +5788,7 @@ public class EsqlBaseParser extends ParserConfig {
       if (_la==QUOTED_STRING || _la==UNQUOTED_SOURCE) {
         {
         setState(666);
-        ((JoinTargetContext)_localctx).qualifier = indexPattern();
+        ((JoinTargetContext)_localctx).qualifier = indexString();
         }
       }
 
@@ -6925,7 +6925,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u0000\u0000\u0293\u007f\u0001\u0000\u0000\u0000\u0294\u0295\u0007"+
     "\b\u0000\u0000\u0295\u0296\u0005{\u0000\u0000\u0296\u0297\u0003\u0082"+
     "A\u0000\u0297\u0298\u0003\u0084B\u0000\u0298\u0081\u0001\u0000\u0000\u0000"+
-    "\u0299\u029b\u0003(\u0014\u0000\u029a\u029c\u0003(\u0014\u0000\u029b\u029a"+
+    "\u0299\u029b\u0003(\u0014\u0000\u029a\u029c\u0003,\u0016\u0000\u029b\u029a"+
     "\u0001\u0000\u0000\u0000\u029b\u029c\u0001\u0000\u0000\u0000\u029c\u0083"+
     "\u0001\u0000\u0000\u0000\u029d\u029e\u0005a\u0000\u0000\u029e\u02a3\u0003"+
     "\u0086C\u0000\u029f\u02a0\u0005)\u0000\u0000\u02a0\u02a2\u0003\u0086C"+

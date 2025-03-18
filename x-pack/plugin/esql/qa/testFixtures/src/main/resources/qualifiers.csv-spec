@@ -66,11 +66,56 @@ required_capability: join_lookup_v12
 required_capability: name_qualifiers
 
 FROM employees main
+| KEEP main emp_no, main languages
 | WHERE main emp_no == 10001
 | EVAL language_code = main languages
-| LOOKUP JOIN languages_lookup right ON language_code
-| KEEP main emp_no, main language_code, right language_code, right language_name
+// TODO: Should ON without predicate even be allowed with qualifiers?
+| LOOKUP JOIN languages_lookup right ON language_code // equivalent to: ON language_code == right language_code
 ;
 
-main emp_no:integer | main language_code:integer | right language_code:integer | right language_name:keyword
+main emp_no:integer | main languages:integer | language_code:integer | right language_code:integer | right language_name:keyword
+;
+
+lookupJoinIgnoresQualifier
+// Same as above, but this time we use a name with a non-null qualifier in ON
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| KEEP main emp_no, main languages
+| WHERE main emp_no == 10001
+| EVAL main language_code = main languages
+| LOOKUP JOIN languages_lookup right ON main language_code // equivalent to: ON main language_code == right language_code
+;
+
+main emp_no:integer | main languages:integer | main language_code:integer | right language_code:integer | right language_name:keyword
+;
+
+lookupJoinOnlyMainHasQualifier
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| KEEP main emp_no, main languages
+| WHERE main emp_no == 10001
+| EVAL main language_code = main languages
+// TODO: should ON without == be allowed if the left side join key has a qualifier?
+| LOOKUP JOIN languages_lookup ON main language_code
+;
+
+// TODO: Should this include the `language_code` field, now that the `ON` clause used a qualified name?
+main emp_no:integer | main languages:integer | main language_code:integer | language_name:keyword
+;
+
+lookupJoinOnPredicate
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| KEEP main emp_no, main languages
+| WHERE main emp_no == 10001
+| LOOKUP JOIN languages_lookup right ON main languages == right language_code
+;
+
+main emp_no:integer | main languages:integer | right language_code:integer | right language_name:keyword
 ;

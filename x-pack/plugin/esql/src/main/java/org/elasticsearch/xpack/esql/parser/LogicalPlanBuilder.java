@@ -593,13 +593,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 rightPattern
             );
         }
+        String qualifier = null;
+        if (target.qualifier != null) {
+            qualifier = visitIndexString(target.qualifier);
+        }
 
         UnresolvedRelation right = new UnresolvedRelation(
             source(target),
             new IndexPattern(source(target.index), rightPattern),
             false,
-            // TODO: qualifier goes here.
-            null,
+            qualifier,
             emptyList(),
             IndexMode.LOOKUP,
             null
@@ -607,7 +610,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var condition = ctx.joinCondition();
 
-        // ON only with qualified names
+        // ON only with field names
         var predicates = expressions(condition.joinPredicate());
         List<Attribute> joinFields = new ArrayList<>(predicates.size());
         for (var f : predicates) {

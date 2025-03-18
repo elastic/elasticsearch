@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -115,6 +116,9 @@ public class MetadataReshardIndexService {
                             );
                         } else {
                             logger.trace("[{}] index reshard complete and shards acknowledged", request.index().getName());
+                            // No failure handling for cleanup here. Really, later this will be invoked by the last shard when all sources
+                            // are DONE, and that is where we'll want to redrive to termination. I don't think this path is worth hardening.
+                            finishReshard(request.projectId(), request.index());
                         }
                         return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
                     })
@@ -138,7 +142,7 @@ public class MetadataReshardIndexService {
             new AckedClusterStateUpdateTask(Priority.URGENT, masterNodeTimeout, ackTimeout, delegate.clusterStateUpdate()) {
 
                 @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
+                public ClusterState execute(ClusterState currentState) {
                     return applyReshardIndexRequest(currentState, request, false, delegate.reroute());
                 }
 
@@ -155,6 +159,33 @@ public class MetadataReshardIndexService {
         );
     }
 
+    /**
+     * When resharding is complete, finishReshard kicks off a task to remove resharding state from index metadata
+     * @param projectId Project containing the given index
+     * @param index index whose resharding state should be cleaned
+     */
+    private void finishReshard(final ProjectId projectId, final Index index) {
+        submitUnbatchedTask("finish-reshard-index [" + index.getName() + "]", new ClusterStateUpdateTask(Priority.URGENT) {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                final var projectState = currentState.projectState(projectId);
+                final var indexMetadata = projectState.metadata().getIndexSafe(index);
+                if (indexMetadata == null) {
+                    return currentState;
+                }
+
+                var projectMetadata = metadataRemoveReshardingState(projectState, index);
+
+                return ClusterState.builder(currentState).putProjectMetadata(projectMetadata).build();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Failed to remove reshard metadata for [{}:{}] from cluster state", projectId, index);
+            }
+        });
+    }
+
     public ClusterState applyReshardIndexRequest(
         ClusterState currentState,
         ReshardIndexClusterStateUpdateRequest request,
@@ -169,39 +200,42 @@ public class MetadataReshardIndexService {
         if (sourceMetadata == null) {
             return currentState;
         }
-        int sourceNumShards = sourceMetadata.getNumberOfShards();
-        int targetNumShards = sourceNumShards * 2;
+        final int sourceNumShards = sourceMetadata.getNumberOfShards();
+        // TODO: take from request
+        final int multiple = 2;
+        final var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(sourceNumShards, multiple);
+        final int targetNumShards = reshardingMetadata.shardCountAfter();
 
         // TODO: Is it possible that routingTableBuilder and newMetadata are not consistent with each other
-        var routingTableBuilder = reshardUpdateNumberOfShards(
+        final var routingTableBuilder = reshardUpdateNumberOfShards(
             projectState,
             allocationService.getShardRoutingRoleStrategy(),
             targetNumShards,
             index
         );
 
-        ProjectMetadata projectMetadata = metadataUpdateNumberOfShards(projectState, targetNumShards, index).build();
+        ProjectMetadata projectMetadata = metadataUpdateNumberOfShards(projectState, reshardingMetadata, index).build();
         // TODO: perhaps do not allow updating metadata of a closed index (are there any other conflicting operations ?)
-        ClusterState updated = ClusterState.builder(currentState)
+        final ClusterState updated = ClusterState.builder(currentState)
             .putProjectMetadata(projectMetadata)
             .putRoutingTable(projectId, routingTableBuilder.build())
             .build();
-        updated = allocationService.reroute(updated, "index [" + index.getName() + "] resharded", rerouteListener);
-        return updated;
+        logger.info("resharding index [{}]", index);
+        return allocationService.reroute(updated, "index [" + index.getName() + "] resharded", rerouteListener);
     }
 
     /**
      * Builder to update numberOfShards of an Index.
      * The new shard count must be a multiple of the original shardcount.
      * We do not support shrinking the shard count.
-     * @param projectState    Current project state
-     * @param numberOfShards  Target number of shards
-     * @param index           Index whose shard count is being modified
-     * @return
+     * @param projectState        Current project state
+     * @param reshardingMetadata  Persistent metadata holding resharding state
+     * @param index               Index whose shard count is being modified
+     * @return project metadata builder for chaining
      */
     public static ProjectMetadata.Builder metadataUpdateNumberOfShards(
         final ProjectState projectState,
-        final int numberOfShards,
+        final IndexReshardingMetadata reshardingMetadata,
         final Index index
     ) {
         ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
@@ -210,10 +244,29 @@ public class MetadataReshardIndexService {
             throw new IndexNotFoundException(index);
         }
         // Note that the IndexMetadata:version is incremented by the put operation
-        projectMetadataBuilder.put(
-            IndexMetadata.builder(indexMetadata).settingsVersion(indexMetadata.getSettingsVersion() + 1).reshardAddShards(numberOfShards)
+        return projectMetadataBuilder.put(
+            IndexMetadata.builder(indexMetadata)
+                .reshardingMetadata(reshardingMetadata)
+                .reshardAddShards(reshardingMetadata.shardCountAfter())
+                // adding shards is a settings change
+                .settingsVersion(indexMetadata.getSettingsVersion() + 1)
         );
-        return projectMetadataBuilder;
+    }
+
+    /**
+     * Builder to remove resharding metadata from an index.
+     * @param projectState Current project state
+     * @param index        Index to clean
+     * @return project metadata builder for chaining
+     */
+    public static ProjectMetadata.Builder metadataRemoveReshardingState(final ProjectState projectState, final Index index) {
+        var projectMetadataBuilder = ProjectMetadata.builder(projectState.metadata());
+        var indexMetadata = projectMetadataBuilder.getSafe(index);
+        if (indexMetadata == null) {
+            throw new IndexNotFoundException(index);
+        }
+
+        return projectMetadataBuilder.put(IndexMetadata.builder(indexMetadata).reshardingMetadata(null));
     }
 
     public static RoutingTable.Builder reshardUpdateNumberOfShards(

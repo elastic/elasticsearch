@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -85,9 +86,10 @@ public class ReshardUpdateNumberOfShardsTests extends ESAllocationTestCase {
             2,
             metadata.getProject().index(index).getIndex()
         ).build();
+        var reshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
         ProjectMetadata projectMetadata = MetadataReshardIndexService.metadataUpdateNumberOfShards(
             clusterState.projectState(),
-            2,
+            reshardingMetadata,
             metadata.getProject().index(index).getIndex()
         ).build();
         clusterState = ClusterState.builder(clusterState)

@@ -12,6 +12,7 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -189,7 +190,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 recentIndexingLoadAtShardStarted
             );
             logger.debug(
-                () -> String.format(
+                () -> Strings.format(
                     "Generating stats for an index shard with indexing time %s and active time %s giving unweighted write load %g, "
                         + "while the recency-weighted write load is %g using a half-life of %s",
                     timeValueNanos(totalIndexingTimeSinceShardStartedInNanos),

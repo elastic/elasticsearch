@@ -24,6 +24,7 @@ import static org.elasticsearch.xpack.inference.services.cohere.embeddings.Coher
 
 public record CohereEmbeddingsRequestEntity(
     List<String> input,
+    InputType inputType,
     CohereEmbeddingsTaskSettings taskSettings,
     @Nullable String model,
     @Nullable CohereEmbeddingType embeddingType
@@ -50,7 +51,10 @@ public record CohereEmbeddingsRequestEntity(
             builder.field(CohereServiceSettings.OLD_MODEL_ID_FIELD, model);
         }
 
-        if (taskSettings.getInputType() != null) {
+        // prefer the root level inputType over task settings input type
+        if (InputType.isSpecified(inputType)) {
+            builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
+        } else if (InputType.isSpecified(taskSettings.getInputType())) {
             builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
 
@@ -67,10 +71,10 @@ public record CohereEmbeddingsRequestEntity(
     }
 
     // default for testing
-    static String convertToString(InputType inputType) {
+    public static String convertToString(InputType inputType) {
         return switch (inputType) {
-            case INGEST -> SEARCH_DOCUMENT;
-            case SEARCH -> SEARCH_QUERY;
+            case INGEST, INTERNAL_INGEST -> SEARCH_DOCUMENT;
+            case SEARCH, INTERNAL_SEARCH -> SEARCH_QUERY;
             case CLASSIFICATION -> CLASSIFICATION;
             case CLUSTERING -> CLUSTERING;
             default -> {

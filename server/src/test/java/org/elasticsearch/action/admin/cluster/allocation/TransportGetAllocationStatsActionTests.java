@@ -43,14 +43,12 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
-
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -58,7 +56,7 @@ import static org.mockito.Mockito.when;
 public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
     private long startTimeMillis;
-    private TimeValue cacheTTL;
+    private TimeValue allocationStatsCacheTTL;
     private ControlledRelativeTimeThreadPool threadPool;
     private ClusterService clusterService;
     private TransportService transportService;
@@ -71,12 +69,14 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         startTimeMillis = 0L;
-        cacheTTL = TimeValue.timeValueMinutes(1);
+        allocationStatsCacheTTL = TimeValue.timeValueMinutes(1);
         threadPool = new ControlledRelativeTimeThreadPool(TransportClusterAllocationExplainActionTests.class.getName(), startTimeMillis);
         clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             new ClusterSettings(
-                Settings.builder().put(TransportGetAllocationStatsAction.CACHE_TTL_SETTING.getKey(), cacheTTL.toString()).build(),
+                Settings.builder()
+                    .put(TransportGetAllocationStatsAction.CACHE_TTL_SETTING.getKey(), allocationStatsCacheTTL.toString())
+                    .build(),
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
             )
         );
@@ -107,7 +107,17 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         transportService.close();
     }
 
+    private void disableAllocationStatsCache() {
+        setAllocationStatsCacheTTL(TimeValue.ZERO);
+    }
+
+    private void setAllocationStatsCacheTTL(TimeValue ttl) {
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(TransportGetAllocationStatsAction.CACHE_TTL_SETTING.getKey(), ttl.toString()).build());
+    };
+
     public void testReturnsOnlyRequestedStats() throws Exception {
+        disableAllocationStatsCache();
         int expectedNumberOfStatsServiceCalls = 0;
 
         for (final var metrics : List.of(
@@ -149,6 +159,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     }
 
     public void testDeduplicatesStatsComputations() throws InterruptedException {
+        disableAllocationStatsCache();
         final var requestCounter = new AtomicInteger();
         final var isExecuting = new AtomicBoolean();
         when(allocationStatsService.stats()).thenAnswer(invocation -> {
@@ -205,13 +216,6 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
             when(allocationStatsService.stats()).thenReturn(stats);
         };
 
-        final Consumer<TimeValue> setCacheTTL = (ttl) -> {
-            clusterService.getClusterSettings()
-                .applySettings(
-                    Settings.builder().put(TransportGetAllocationStatsAction.CACHE_TTL_SETTING.getKey(), ttl.toString()).build()
-                );
-        };
-
         final CheckedConsumer<ActionListener<Void>, Exception> threadTask = l -> {
             final var request = new TransportGetAllocationStatsAction.Request(
                 TEST_REQUEST_TIMEOUT,
@@ -233,7 +237,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         verify(allocationStatsService, times(++numExpectedAllocationStatsServiceCalls)).stats();
 
         // Force the cached stats to expire.
-        threadPool.setCurrentTimeInMillis(startTimeMillis + (2 * cacheTTL.getMillis()));
+        threadPool.setCurrentTimeInMillis(startTimeMillis + (2 * allocationStatsCacheTTL.getMillis()));
 
         // Expect a single call to the stats service on the cache miss.
         resetExpectedAllocationStats.run();
@@ -241,14 +245,14 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         verify(allocationStatsService, times(++numExpectedAllocationStatsServiceCalls)).stats();
 
         // Update the TTL setting to disable the cache, we expect a service call each time.
-        setCacheTTL.accept(TimeValue.ZERO);
+        setAllocationStatsCacheTTL(TimeValue.ZERO);
         threadTask.accept(ActionListener.noop());
         threadTask.accept(ActionListener.noop());
         numExpectedAllocationStatsServiceCalls += 2;
         verify(allocationStatsService, times(numExpectedAllocationStatsServiceCalls)).stats();
 
         // Re-enable the cache, only one thread should call the stats service.
-        setCacheTTL.accept(TimeValue.timeValueMinutes(5));
+        setAllocationStatsCacheTTL(TimeValue.timeValueMinutes(5));
         resetExpectedAllocationStats.run();
         ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
         verify(allocationStatsService, times(++numExpectedAllocationStatsServiceCalls)).stats();

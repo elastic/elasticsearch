@@ -86,8 +86,8 @@ import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler
  */
 class Elasticsearch {
 
-    private static final String PLUGIN_POLICY_OVERRIDE_PREFIX = "es.entitlements.policy.";
-    private static final String SERVER_POLICY_OVERRIDE = "es.entitlements.server_policy";
+    private static final String POLICY_PATCH_PREFIX = "es.entitlements.policy.";
+    private static final String SERVER_POLICY_PATCH_NAME = POLICY_PATCH_PREFIX + "server";
 
     /**
      * Main entry point for starting elasticsearch.
@@ -256,7 +256,7 @@ class Elasticsearch {
             var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);
             var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyPatches, Build.current().version());
             var serverPolicyPatch = PolicyUtils.parseEncodedPolicyIfExists(
-                System.getProperty(SERVER_POLICY_OVERRIDE),
+                System.getProperty(SERVER_POLICY_PATCH_NAME),
                 Build.current().version(),
                 false,
                 "server",
@@ -340,8 +340,11 @@ class Elasticsearch {
         var systemProperties = BootstrapInfo.getSystemProperties();
         systemProperties.keys().asIterator().forEachRemaining(key -> {
             var value = systemProperties.get(key);
-            if (key instanceof String k && k.startsWith(PLUGIN_POLICY_OVERRIDE_PREFIX) && value instanceof String v) {
-                policyPatches.put(k.substring(PLUGIN_POLICY_OVERRIDE_PREFIX.length()), v);
+            if (key instanceof String k
+                && value instanceof String v
+                && k.startsWith(POLICY_PATCH_PREFIX)
+                && k.equals(SERVER_POLICY_PATCH_NAME) == false) {
+                policyPatches.put(k.substring(POLICY_PATCH_PREFIX.length()), v);
             }
         });
         var pluginNames = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())

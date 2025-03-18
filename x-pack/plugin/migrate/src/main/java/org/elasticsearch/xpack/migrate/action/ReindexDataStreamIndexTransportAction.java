@@ -108,7 +108,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     private final ClusterService clusterService;
     private final Client client;
     private final TransportService transportService;
-    private final AtomicInteger ingestNodeGenerator = new AtomicInteger(Randomness.get().nextInt());
+    private final AtomicInteger ingestNodeOffsetGenerator = new AtomicInteger(Randomness.get().nextInt());
 
     @Inject
     public ReindexDataStreamIndexTransportAction(
@@ -314,11 +314,16 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                 listener.onResponse(bulkByScrollResponse);
             }
         }, listener::onFailure);
+        /*
+         * Reindex will potentially run a pipeline for each document. If we run all reindex requests on the same node (locally), that
+         * becomes a bottleneck. This code round-robins reindex requests to all ingest nodes to spread out the pipeline workload. When a
+         * data stream has many indices, this can improve performance a good bit.
+         */
         final DiscoveryNode[] ingestNodes = clusterService.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
         if (ingestNodes.length == 0) {
             listener.onFailure(new NoNodeAvailableException("No ingest nodes in cluster"));
         } else {
-            DiscoveryNode ingestNode = ingestNodes[Math.floorMod(ingestNodeGenerator.incrementAndGet(), ingestNodes.length)];
+            DiscoveryNode ingestNode = ingestNodes[Math.floorMod(ingestNodeOffsetGenerator.incrementAndGet(), ingestNodes.length)];
             logger.debug("Sending reindex request to {}", ingestNode.getName());
             transportService.sendRequest(
                 ingestNode,

@@ -16,9 +16,23 @@ By effectively using shards, {es} can scale horizontally and provide fault toler
 [[sizing-shard-guidelines]]
 === Sizing Shard Guidelines
 
-Proper shard sizing is crucial for maintaining the performance and stability of an {es} cluster. _Oversharding_ occurs when data is distributed across an excessive number of shards (primary or replica), which can degrade search performance and make the cluster unstable. Conversely, very large shards may slow down search operations and prolong recovery times after failures. 
+Balancing the number and size of your shards is important for the performance and stability of an {es} cluster:
 
-To strike the right balance, the <<shard-size-recommendation,general guidelines>> are to aim for shard sizes between 10GB and 50GB, keeping the per-shard document count below 200 million. To ensure that each node is working optimally, it's important to distribute shards evenly across nodes. Uneven distribution can cause some nodes to work harder than others, leading to performance degradation and instability. While Elasticsearch automatically balances shards, it’s important to configure your indices with an appropriate number of shards and replicas to facilitate even distribution across nodes.
+* Too many shards can degrade search performance and make the cluster unstable. This is referred to as _oversharding_.
+* Very large shards can slow down search operations and prolong recovery times after failures.
+
+To avoid either of these states, implement the following guidelines:
+
+==== General sizing guidelines
+
+* Aim for shard sizes between 10GB and 50GB
+* Keep the number of documents on each shard below 200 million
+
+==== Shard distribution guidelines
+
+To ensure that each node is working optimally, distribute shards evenly across nodes. Uneven distribution can cause some nodes to work harder than others, leading to performance degradation and instability. 
+
+While {es} automatically balances shards, you need to configure indices with an appropriate number of shards and replicas to allow for even distribution across nodes.
 
 If you are using <<data-streams>>, each data stream is backed by a sequence of indices, each index potentially having multiple shards. 
 

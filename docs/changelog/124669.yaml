@@ -1,9 +1,10 @@
 pr: 124669
-summary: Mark semantic text as GA in docs
-area: Relevance
+summary: Release semantic_text as a GA feature
+area: Mapping
 type: docs
 issues: []
 highlight:
-  title: Mark semantic text as GA in docs
-  body: Remove the beta warnings on the `semantic_text` docs
+  title: Release semantic_text as a GA feature
+  body: semantic_text is now an official GA (generally available) feature!
+        This means that we will support it in production environments in accordance with our support SLAs.
   notable: true

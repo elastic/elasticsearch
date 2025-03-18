@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/query-cache.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Node query cache settings [query-cache]

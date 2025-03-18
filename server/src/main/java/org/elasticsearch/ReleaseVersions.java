@@ -115,7 +115,6 @@ public class ReleaseVersions {
                     // maybe keep the release mapping around in the csv file?
                     // SEP for now
                     @UpdateForV9
-                    // @UpdateForV10
                     Version oldVersion = Version.fromId(id);
                     return oldVersion.toString();
                 }

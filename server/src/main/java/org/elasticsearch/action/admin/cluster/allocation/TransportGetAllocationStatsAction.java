@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -52,12 +51,14 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     public static final ActionType<TransportGetAllocationStatsAction.Response> TYPE = new ActionType<>("cluster:monitor/allocation/stats");
 
-    public static final Setting<TimeValue> CACHE_MAX_AGE_SETTING = Setting.timeSetting(
+    public static final TimeValue DEFAULT_CACHE_TTL = TimeValue.timeValueMinutes(1);
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.stats.cache.ttl",
-        TimeValue.timeValueMinutes(1),
+        DEFAULT_CACHE_TTL,
         TimeValue.ZERO,
         TimeValue.timeValueMinutes(10),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     private final AllocationStatsCache allocationStatsCache;
@@ -66,7 +67,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Inject
     public TransportGetAllocationStatsAction(
-        Settings settings,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -86,7 +86,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         final var managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
-        this.allocationStatsCache = new AllocationStatsCache(CACHE_MAX_AGE_SETTING.get(settings).millis(), threadPool);
+        this.allocationStatsCache = new AllocationStatsCache(threadPool, DEFAULT_CACHE_TTL);
         this.allocationStatsSupplier = new SingleResultDeduplicator<>(threadPool.getThreadContext(), l -> {
             final var cachedStats = allocationStatsCache.get();
             if (cachedStats != null) {
@@ -101,6 +101,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             }));
         });
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
+        clusterService.getClusterSettings().initializeAndWatch(CACHE_TTL_SETTING, this.allocationStatsCache::setTTL);
     }
 
     @Override
@@ -211,25 +212,33 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     private record CachedAllocationStats(Map<String, NodeAllocationStats> stats, long timestampMillis) {}
 
     private static class AllocationStatsCache {
-        private final long maxAgeMillis;
+        private volatile long ttlMillis;
         private final ThreadPool threadPool;
         private final AtomicReference<CachedAllocationStats> cachedStats;
 
-        AllocationStatsCache(long maxAgeMillis, ThreadPool threadPool) {
-            this.maxAgeMillis = maxAgeMillis;
+        AllocationStatsCache(ThreadPool threadPool, TimeValue ttl) {
             this.threadPool = threadPool;
             this.cachedStats = new AtomicReference<>();
+            setTTL(ttl);
+        }
+
+        void setTTL(TimeValue ttl) {
+            ttlMillis = ttl.millis();
+
+            if (ttlMillis == 0L) {
+                cachedStats.set(null);
+            }
         }
 
         Map<String, NodeAllocationStats> get() {
 
-            if (maxAgeMillis == 0L) {
+            if (ttlMillis == 0L) {
                 return null;
             }
 
             final var stats = cachedStats.get();
 
-            if (stats == null || threadPool.relativeTimeInMillis() - stats.timestampMillis > maxAgeMillis) {
+            if (stats == null || threadPool.relativeTimeInMillis() - stats.timestampMillis > ttlMillis) {
                 return null;
             }
 
@@ -238,7 +247,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         void put(Map<String, NodeAllocationStats> stats) {
 
-            if (maxAgeMillis > 0L) {
+            if (ttlMillis > 0L) {
                 cachedStats.set(new CachedAllocationStats(stats, threadPool.relativeTimeInMillis()));
             }
         }

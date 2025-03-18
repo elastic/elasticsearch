@@ -635,6 +635,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ShardsAvailabilityHealthIndicatorService.REPLICA_UNASSIGNED_BUFFER_TIME,
         DataStream.isFailureStoreFeatureFlagEnabled() ? DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING : null,
         IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING,
-        TransportGetAllocationStatsAction.CACHE_MAX_AGE_SETTING
+        TransportGetAllocationStatsAction.CACHE_TTL_SETTING
     ).filter(Objects::nonNull).collect(toSet());
 }

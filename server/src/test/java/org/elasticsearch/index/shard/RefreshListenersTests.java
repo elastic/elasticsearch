@@ -41,6 +41,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
@@ -89,6 +91,7 @@ public class RefreshListenersTests extends ESTestCase {
     private Engine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
+    private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private Store store;
 
     @Before
@@ -97,6 +100,11 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(2, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
+        Settings settings = Settings.builder()
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
+            .build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, settings);
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
@@ -105,7 +113,6 @@ public class RefreshListenersTests extends ESTestCase {
             new MeanMetric()
         );
 
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
         Directory directory = newDirectory();
         store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
@@ -134,6 +141,7 @@ public class RefreshListenersTests extends ESTestCase {
         EngineConfig config = new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             null,
             store,

@@ -25,12 +25,14 @@ import com.maxmind.geoip2.record.Continent;
 import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Postal;
 import com.maxmind.geoip2.record.Subdivision;
+import com.maxmind.geoip2.record.Traits;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.ingest.geoip.IpDataLookup.Result;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -353,70 +355,90 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Country extends AbstractBase<CountryResponse, CountryResponse> {
+    record CacheableCountryResponse(
+        Boolean isInEuropeanUnion,
+        String countryIsoCode,
+        String countryName,
+        String continentCode,
+        String continentName,
+        Boolean registeredCountryIsInEuropeanUnion,
+        String registeredCountryIsoCode,
+        String registeredCountryName
+    ) {}
+
+    static class Country extends AbstractBase<CountryResponse, Result<CacheableCountryResponse>> {
         Country(final Set<Database.Property> properties) {
             super(properties, CountryResponse.class, CountryResponse::new);
         }
 
         @Override
-        protected CountryResponse record(CountryResponse response) {
-            return response;
+        protected Result<CacheableCountryResponse> record(CountryResponse response) {
+            final com.maxmind.geoip2.record.Country country = response.getCountry();
+            final Continent continent = response.getContinent();
+            final com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
+            final Traits traits = response.getTraits();
+            return new Result<>(
+                new CacheableCountryResponse(
+                    isInEuropeanUnion(country),
+                    country.getIsoCode(),
+                    country.getName(),
+                    continent.getCode(),
+                    continent.getName(),
+                    isInEuropeanUnion(registeredCountry),
+                    registeredCountry.getIsoCode(),
+                    registeredCountry.getName()
+                ),
+                traits.getIpAddress(),
+                traits.getNetwork().toString()
+            );
         }
 
         @Override
-        protected Map<String, Object> transform(final CountryResponse response) {
-            com.maxmind.geoip2.record.Country country = response.getCountry();
-            com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
-            Continent continent = response.getContinent();
+        protected Map<String, Object> transform(final Result<CacheableCountryResponse> result) {
+            CacheableCountryResponse response = result.result();
 
             Map<String, Object> data = new HashMap<>();
             for (Database.Property property : this.properties) {
                 switch (property) {
-                    case IP -> data.put("ip", response.getTraits().getIpAddress());
+                    case IP -> data.put("ip", result.ip());
                     case COUNTRY_IN_EUROPEAN_UNION -> {
-                        Boolean isInEuropeanUnion = isInEuropeanUnion(country);
-                        if (isInEuropeanUnion != null) {
-                            data.put("country_in_european_union", isInEuropeanUnion);
+                        if (response.isInEuropeanUnion != null) {
+                            data.put("country_in_european_union", response.isInEuropeanUnion);
                         }
                     }
                     case COUNTRY_ISO_CODE -> {
-                        String countryIsoCode = country.getIsoCode();
-                        if (countryIsoCode != null) {
-                            data.put("country_iso_code", countryIsoCode);
+                        if (response.countryIsoCode != null) {
+                            data.put("country_iso_code", response.countryIsoCode);
                         }
                     }
                     case COUNTRY_NAME -> {
-                        String countryName = country.getName();
-                        if (countryName != null) {
-                            data.put("country_name", countryName);
+                        if (response.countryName != null) {
+                            data.put("country_name", response.countryName);
                         }
                     }
                     case CONTINENT_CODE -> {
-                        String continentCode = continent.getCode();
-                        if (continentCode != null) {
-                            data.put("continent_code", continentCode);
+                        if (response.continentCode != null) {
+                            data.put("continent_code", response.continentCode);
                         }
                     }
                     case CONTINENT_NAME -> {
-                        String continentName = continent.getName();
-                        if (continentName != null) {
-                            data.put("continent_name", continentName);
+                        if (response.continentName != null) {
+                            data.put("continent_name", response.continentName);
                         }
                     }
                     case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
-                        Boolean isInEuropeanUnion = isInEuropeanUnion(registeredCountry);
-                        if (isInEuropeanUnion != null) {
-                            data.put("registered_country_in_european_union", isInEuropeanUnion);
+                        if (response.registeredCountryIsInEuropeanUnion != null) {
+                            data.put("registered_country_in_european_union", response.registeredCountryIsInEuropeanUnion);
                         }
                     }
                     case REGISTERED_COUNTRY_ISO_CODE -> {
-                        if (registeredCountry.getIsoCode() != null) {
-                            data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        if (response.registeredCountryIsoCode != null) {
+                            data.put("registered_country_iso_code", response.registeredCountryIsoCode);
                         }
                     }
                     case REGISTERED_COUNTRY_NAME -> {
-                        if (registeredCountry.getName() != null) {
-                            data.put("registered_country_name", registeredCountry.getName());
+                        if (response.registeredCountryName != null) {
+                            data.put("registered_country_name", response.registeredCountryName);
                         }
                     }
                 }

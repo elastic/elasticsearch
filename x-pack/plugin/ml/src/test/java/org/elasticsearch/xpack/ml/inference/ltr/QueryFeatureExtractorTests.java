@@ -86,7 +86,9 @@ public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
                 "matching_missing_field",
                 QueryProvider.fromParsedQuery(QueryBuilders.termQuery("missing_text", "quick fox"))
             ).rewrite(ctx),
-            new QueryExtractorBuilder("phrase_score", QueryProvider.fromParsedQuery(QueryBuilders.matchPhraseQuery(TEXT_FIELD_NAME, "slow brown fox"))
+            new QueryExtractorBuilder(
+                "phrase_score",
+                QueryProvider.fromParsedQuery(QueryBuilders.matchPhraseQuery(TEXT_FIELD_NAME, "slow brown fox"))
             ).rewrite(ctx)
         );
         SearchExecutionContext dummySEC = createSearchExecutionContext();

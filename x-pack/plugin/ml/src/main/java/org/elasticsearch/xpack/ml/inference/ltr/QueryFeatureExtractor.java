@@ -81,6 +81,7 @@ public class QueryFeatureExtractor implements FeatureExtractor {
 
     private static class FeatureDisiWrapper extends DisiWrapper {
         final String featureName;
+
         FeatureDisiWrapper(Scorer scorer, String featureName) {
             super(scorer, false);
             this.featureName = featureName;

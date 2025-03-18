@@ -623,7 +623,26 @@ setup:
                 element_type: float
                 dims: 5
           settings:
-            index.max_knn_num_candidates: 100
+            index.max_knn_num_candidates: 500
+
+  - do:
+      search:
+        index: test_num_candidates
+        body:
+          knn:
+            field: vector
+            query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+            k: 2
+            num_candidates: 200
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      indices.put_settings:
+        index: test_num_candidates
+        body:
+          index.max_knn_num_candidates: 100
+
   - do:
       catch: /\[num_candidates\] cannot exceed \[100\]/
       search:

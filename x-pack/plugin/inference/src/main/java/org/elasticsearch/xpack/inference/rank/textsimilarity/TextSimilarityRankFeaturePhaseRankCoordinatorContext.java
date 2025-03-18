@@ -148,7 +148,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
             inferenceText,
             docFeatures,
             Map.of(),
-            InputType.SEARCH,
+            InputType.INTERNAL_SEARCH,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             false
         );

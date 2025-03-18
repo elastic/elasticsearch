@@ -120,7 +120,6 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
     private static class AggregateMetricDoubleVectorBuilder implements Releasable {
         private final DoubleVector.FixedBuilder valuesBuilder;
         private final BlockFactory blockFactory;
-        private boolean closed = false;
 
         private AggregateMetricDoubleVectorBuilder(int estimatedSize, BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
@@ -134,7 +133,6 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         private Block build() {
             Block[] blocks = new Block[4];
             Block block;
-            IntBlock countBlock;
             boolean success = false;
             try {
                 block = valuesBuilder.build().asBlock();
@@ -159,10 +157,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
 
         @Override
         public void close() {
-            if (closed == false) {
-                closed = true;
-                Releasables.closeExpectNoException(valuesBuilder);
-            }
+            Releasables.closeExpectNoException(valuesBuilder);
         }
     }
 

@@ -107,13 +107,18 @@ final class MaxmindIpDataLookups {
         };
     }
 
-    static class AnonymousIp extends AbstractBase<AnonymousIpResponse> {
+    static class AnonymousIp extends AbstractBase<AnonymousIpResponse, AnonymousIpResponse> {
         AnonymousIp(final Set<Database.Property> properties) {
             super(
                 properties,
                 AnonymousIpResponse.class,
                 (response, ipAddress, network, locales) -> new AnonymousIpResponse(response, ipAddress, network)
             );
+        }
+
+        @Override
+        protected AnonymousIpResponse record(AnonymousIpResponse response) {
+            return response;
         }
 
         @Override
@@ -153,9 +158,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Asn extends AbstractBase<AsnResponse> {
+    static class Asn extends AbstractBase<AsnResponse, AsnResponse> {
         Asn(Set<Database.Property> properties) {
             super(properties, AsnResponse.class, (response, ipAddress, network, locales) -> new AsnResponse(response, ipAddress, network));
+        }
+
+        @Override
+        protected AsnResponse record(AsnResponse response) {
+            return response;
         }
 
         @Override
@@ -189,9 +199,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class City extends AbstractBase<CityResponse> {
+    static class City extends AbstractBase<CityResponse, CityResponse> {
         City(final Set<Database.Property> properties) {
             super(properties, CityResponse.class, CityResponse::new);
+        }
+
+        @Override
+        protected CityResponse record(CityResponse response) {
+            return response;
         }
 
         @Override
@@ -305,13 +320,18 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class ConnectionType extends AbstractBase<ConnectionTypeResponse> {
+    static class ConnectionType extends AbstractBase<ConnectionTypeResponse, ConnectionTypeResponse> {
         ConnectionType(final Set<Database.Property> properties) {
             super(
                 properties,
                 ConnectionTypeResponse.class,
                 (response, ipAddress, network, locales) -> new ConnectionTypeResponse(response, ipAddress, network)
             );
+        }
+
+        @Override
+        protected ConnectionTypeResponse record(ConnectionTypeResponse response) {
+            return response;
         }
 
         @Override
@@ -333,9 +353,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Country extends AbstractBase<CountryResponse> {
+    static class Country extends AbstractBase<CountryResponse, CountryResponse> {
         Country(final Set<Database.Property> properties) {
             super(properties, CountryResponse.class, CountryResponse::new);
+        }
+
+        @Override
+        protected CountryResponse record(CountryResponse response) {
+            return response;
         }
 
         @Override
@@ -400,13 +425,18 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Domain extends AbstractBase<DomainResponse> {
+    static class Domain extends AbstractBase<DomainResponse, DomainResponse> {
         Domain(final Set<Database.Property> properties) {
             super(
                 properties,
                 DomainResponse.class,
                 (response, ipAddress, network, locales) -> new DomainResponse(response, ipAddress, network)
             );
+        }
+
+        @Override
+        protected DomainResponse record(DomainResponse response) {
+            return response;
         }
 
         @Override
@@ -428,9 +458,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Enterprise extends AbstractBase<EnterpriseResponse> {
+    static class Enterprise extends AbstractBase<EnterpriseResponse, EnterpriseResponse> {
         Enterprise(final Set<Database.Property> properties) {
             super(properties, EnterpriseResponse.class, EnterpriseResponse::new);
+        }
+
+        @Override
+        protected EnterpriseResponse record(EnterpriseResponse response) {
+            return response;
         }
 
         @Override
@@ -651,9 +686,14 @@ final class MaxmindIpDataLookups {
         }
     }
 
-    static class Isp extends AbstractBase<IspResponse> {
+    static class Isp extends AbstractBase<IspResponse, IspResponse> {
         Isp(final Set<Database.Property> properties) {
             super(properties, IspResponse.class, (response, ipAddress, network, locales) -> new IspResponse(response, ipAddress, network));
+        }
+
+        @Override
+        protected IspResponse record(IspResponse response) {
+            return response;
         }
 
         @Override
@@ -729,7 +769,7 @@ final class MaxmindIpDataLookups {
      *
      * @param <RESPONSE> the intermediate type of {@link AbstractResponse}
      */
-    private abstract static class AbstractBase<RESPONSE extends AbstractResponse> implements IpDataLookup {
+    private abstract static class AbstractBase<RESPONSE extends AbstractResponse, RECORD> implements IpDataLookup {
 
         protected final Set<Database.Property> properties;
         protected final Class<RESPONSE> clazz;
@@ -748,24 +788,30 @@ final class MaxmindIpDataLookups {
 
         @Override
         public final Map<String, Object> getData(final IpDatabase ipDatabase, final String ipAddress) {
-            final RESPONSE response = ipDatabase.getResponse(ipAddress, this::lookup);
+            final RECORD response = ipDatabase.getResponse(ipAddress, this::lookup);
             return (response == null) ? Map.of() : transform(response);
         }
 
         @Nullable
-        private RESPONSE lookup(final Reader reader, final String ipAddress) throws IOException {
+        private RECORD lookup(final Reader reader, final String ipAddress) throws IOException {
             final InetAddress ip = InetAddresses.forString(ipAddress);
             final DatabaseRecord<RESPONSE> record = reader.getRecord(ip, clazz);
             final RESPONSE data = record.getData();
-            return (data == null) ? null : builder.build(data, NetworkAddress.format(ip), record.getNetwork(), List.of("en"));
+            return (data == null) ? null : record(builder.build(data, NetworkAddress.format(ip), record.getNetwork(), List.of("en")));
         }
+
+        /**
+         * Given a fully-built response object, create a record that is suitable for caching. If the fully-built response object
+         * itself is suitable for caching, then it is acceptable to simply return it.
+         */
+        protected abstract RECORD record(RESPONSE response);
 
         /**
          * Extract the configured properties from the retrieved response
          * @param response the non-null response that was retrieved
          * @return a mapping of properties for the ip from the response
          */
-        protected abstract Map<String, Object> transform(RESPONSE response);
+        protected abstract Map<String, Object> transform(RECORD response);
     }
 
     @Nullable

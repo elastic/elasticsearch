@@ -32,8 +32,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -50,7 +50,8 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         Utils.storeSparseModel(client());
-        availableVersions = IndexVersionUtils.allReleasedVersions().stream()
+        availableVersions = IndexVersionUtils.allReleasedVersions()
+            .stream()
             .filter((version -> version.onOrAfter(SEMANTIC_TEXT_INTRODUCED_VERSION)))
             .collect(Collectors.toSet());
 
@@ -64,10 +65,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(otherSettings)
-            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-            .build();
+        return Settings.builder().put(otherSettings).put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
     }
 
     @Override
@@ -79,10 +77,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
      * Generate settings for an index with a specific version.
      */
     private Settings getIndexSettingsWithVersion(IndexVersion version) {
-        return Settings.builder()
-            .put(indexSettings())
-            .put("index.version.created", version)
-            .build();
+        return Settings.builder().put(indexSettings()).put("index.version.created", version).build();
     }
 
     /**
@@ -113,11 +108,18 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
 
             // Test index creation
             assertTrue("Index " + indexName + " should exist", indexExists(indexName));
-            assertEquals("Index version should match",
+            assertEquals(
+                "Index version should match",
                 version.id(),
-                client().admin().indices().prepareGetSettings(TimeValue.THIRTY_SECONDS, indexName)
-                    .get().getIndexToSettings().get(indexName)
-                    .getAsVersionId("index.version.created", IndexVersion::fromId).id());
+                client().admin()
+                    .indices()
+                    .prepareGetSettings(TimeValue.THIRTY_SECONDS, indexName)
+                    .get()
+                    .getIndexToSettings()
+                    .get(indexName)
+                    .getAsVersionId("index.version.created", IndexVersion::fromId)
+                    .id()
+            );
 
             // Test update mapping
             XContentBuilder mapping = XContentFactory.jsonBuilder()
@@ -130,19 +132,16 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 .endObject()
                 .endObject();
 
-            assertAcked(client().admin().indices().preparePutMapping(indexName)
-                .setSource(mapping)
-                .get());
+            assertAcked(client().admin().indices().preparePutMapping(indexName).setSource(mapping).get());
 
             // Test data ingestion
-            String[] text = new String[] {"inference test", "another inference test"};
+            String[] text = new String[] { "inference test", "another inference test" };
 
             DocWriteResponse response = client().prepareIndex(indexName).setSource(Map.of("semantic_field", text)).get();
 
             assertEquals("Document should be created", "created", response.getResult().toString().toLowerCase());
 
             client().admin().indices().refresh(new RefreshRequest(indexName)).get();
-
 
             // Simple search
             SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().trackTotalHits(true);
@@ -156,21 +155,23 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             // Search with query
             SearchResponse searchWithQueryResponse = null;
             if (version.after(SEMANTIC_TEXT_NEW_FORMAT)) {
-                searchWithQueryResponse = client().search(new SearchRequest(indexName)
-                        .source(sourceBuilder.query(QueryBuilders.matchQuery("semantic_field", "another inference test"))))
-                    .get();
+                searchWithQueryResponse = client().search(
+                    new SearchRequest(indexName).source(
+                        sourceBuilder.query(QueryBuilders.matchQuery("semantic_field", "another inference test"))
+                    )
+                ).get();
             } else {
                 String semanticQuery = """
-                {
-                  "semantic": {
-                    "field": "semantic_field",
-                    "query": "inference"
-                  }
-                }
-                """;
-                searchWithQueryResponse = client().search(new SearchRequest(indexName)
-                        .source(sourceBuilder.query(new SemanticQueryBuilder("semantic_field", "inference test"))))
-                    .get();
+                    {
+                      "semantic": {
+                        "field": "semantic_field",
+                        "query": "inference"
+                      }
+                    }
+                    """;
+                searchWithQueryResponse = client().search(
+                    new SearchRequest(indexName).source(sourceBuilder.query(new SemanticQueryBuilder("semantic_field", "inference test")))
+                ).get();
             }
 
             try {
@@ -178,7 +179,6 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             } finally {
                 searchResponse.decRef();
             }
-
 
         }
     }

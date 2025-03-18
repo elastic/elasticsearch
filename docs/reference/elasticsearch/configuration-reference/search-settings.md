@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Search settings [search-settings]

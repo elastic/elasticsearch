@@ -2,6 +2,10 @@
 navigation_title: "Monitoring settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/monitoring-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Monitoring settings in {{es}} [monitoring-settings]

@@ -2,6 +2,10 @@
 navigation_title: "Machine learning settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Machine learning settings in Elasticsearch [ml-settings]

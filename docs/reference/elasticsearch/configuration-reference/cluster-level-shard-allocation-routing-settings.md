@@ -1,6 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cluster.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Cluster-level shard allocation and routing settings [modules-cluster]

@@ -1,3 +1,10 @@
+---
+applies_to:
+  deployment:
+    ess:
+    self:
+---
+
 # Enrich settings [enrich_settings]
 
 You can configure these enrich settings in the `elasticsearch.yml` file. For more information, see [Set up an enrich processor](docs-content:///manage-data/ingest/transform-enrich/set-up-an-enrich-processor.md).

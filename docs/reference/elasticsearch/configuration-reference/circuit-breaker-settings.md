@@ -1,6 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/circuit-breaker.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Circuit breaker settings [circuit-breaker]

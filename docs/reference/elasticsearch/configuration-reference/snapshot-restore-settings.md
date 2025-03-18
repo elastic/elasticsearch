@@ -1,6 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshot-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Snapshot and restore settings [snapshot-settings]

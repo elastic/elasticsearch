@@ -2,6 +2,10 @@
 navigation_title: "Security settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/security-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Security settings in {{es}} [security-settings]

@@ -2,6 +2,10 @@
 navigation_title: "{{watcher}} settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/notification-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # {{watcher}} settings in Elasticsearch [notification-settings]

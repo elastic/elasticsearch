@@ -1,6 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-network.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Networking settings [modules-network]

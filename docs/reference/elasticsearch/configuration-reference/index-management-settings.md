@@ -1,6 +1,10 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/index-management-settings.html
+applies_to:
+  deployment:
+    ess:
+    self:
 ---
 
 # Index management settings [index-management-settings]

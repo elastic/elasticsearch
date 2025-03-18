@@ -855,6 +855,32 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Waits for the specified data stream to have the expected number of backing indices.
+     */
+    public static List<String> waitForDataStreamBackingIndices(String dataStreamName, int expectedSize) {
+        return waitForDataStreamIndices(dataStreamName, expectedSize, false);
+    }
+
+    /**
+     * Waits for the specified data stream to have the expected number of backing or failure indices.
+     */
+    public static List<String> waitForDataStreamIndices(String dataStreamName, int expectedSize, boolean failureStore) {
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var listener = ClusterServiceUtils.addTemporaryStateListener(clusterService, clusterState -> {
+            final var dataStream = clusterState.metadata().getProject().dataStreams().get(dataStreamName);
+            if (dataStream == null) {
+                return false;
+            }
+            return dataStream.getDataStreamIndices(failureStore).getIndices().size() == expectedSize;
+        });
+        final var state = safeAwait(listener);
+        // We will only reach the return statement when the data stream exists (and has the expected number of indices),
+        // so we can safely retrieve the data stream without worrying about NPEs.
+        final var indices = state.metadata().getProject().dataStreams().get(dataStreamName).getDataStreamIndices(failureStore).getIndices();
+        return indices.stream().map(Index::getName).toList();
+    }
+
+    /**
      * Returns a list of the data stream's backing index names.
      */
     public List<String> getDataStreamBackingIndexNames(String dataStreamName) {

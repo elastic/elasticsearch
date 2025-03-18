@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -124,7 +125,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
         MockRepository repository = getRepositoryOnMaster("test-repo");
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
-        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
+        SubscribableListener<ClusterState> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
         repository.blockOnDataFiles();
         try {
             clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
@@ -146,7 +147,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
         MockRepository repository = getRepositoryOnMaster("test-repo");
         PlainActionFuture<AcknowledgedResponse> requestCompleteListener = new PlainActionFuture<>();
-        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
+        SubscribableListener<ClusterState> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
         repository.blockOnDataFiles();
         try {
             clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
@@ -168,7 +169,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
      * @param repositoryName The repository to monitor for deletions
      * @return the listener
      */
-    private SubscribableListener<Void> createSnapshotDeletionListener(String repositoryName) {
+    private SubscribableListener<ClusterState> createSnapshotDeletionListener(String repositoryName) {
         AtomicBoolean deleteHasStarted = new AtomicBoolean(false);
         return ClusterServiceUtils.addTemporaryStateListener(
             internalCluster().getCurrentMasterNodeInstance(ClusterService.class),

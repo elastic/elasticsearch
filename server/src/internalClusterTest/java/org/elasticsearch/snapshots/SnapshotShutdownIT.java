@@ -657,7 +657,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         resetMockLog();
     }
 
-    private static SubscribableListener<Void> createSnapshotPausedListener(
+    private static SubscribableListener<ClusterState> createSnapshotPausedListener(
         ClusterService clusterService,
         String repoName,
         String indexName,

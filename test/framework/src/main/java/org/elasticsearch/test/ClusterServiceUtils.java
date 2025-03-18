@@ -263,14 +263,24 @@ public class ClusterServiceUtils {
         );
     }
 
-    public static SubscribableListener<Void> addTemporaryStateListener(ClusterService clusterService, Predicate<ClusterState> predicate) {
-        final var listener = new SubscribableListener<Void>();
+    public static SubscribableListener<ClusterState> addTemporaryStateListener(
+        ClusterService clusterService,
+        Predicate<ClusterState> predicate
+    ) {
+        final var listener = new SubscribableListener<ClusterState>();
+        final var initialState = clusterService.state();
+        if (predicate.test(initialState)) {
+            listener.onResponse(initialState);
+            // No need to add the cluster state listener if the predicate already passes.
+            return listener;
+        }
         final ClusterStateListener clusterStateListener = new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 try {
-                    if (predicate.test(event.state())) {
-                        listener.onResponse(null);
+                    final var state = event.state();
+                    if (predicate.test(state)) {
+                        listener.onResponse(state);
                     }
                 } catch (Exception e) {
                     listener.onFailure(e);
@@ -284,11 +294,7 @@ public class ClusterServiceUtils {
         };
         clusterService.addListener(clusterStateListener);
         listener.addListener(ActionListener.running(() -> clusterService.removeListener(clusterStateListener)));
-        if (predicate.test(clusterService.state())) {
-            listener.onResponse(null);
-        } else {
-            listener.addTimeout(ESTestCase.SAFE_AWAIT_TIMEOUT, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
-        }
+        listener.addTimeout(ESTestCase.SAFE_AWAIT_TIMEOUT, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         return listener;
     }
 }

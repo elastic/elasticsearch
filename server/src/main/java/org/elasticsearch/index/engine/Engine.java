@@ -245,11 +245,12 @@ public abstract class Engine implements Closeable {
         return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
     }
 
+    /**
+     * @throws AlreadyClosedException if the shard is closed
+     */
     public ShardFieldStats getShardFieldStats() {
         try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
             return getShardFieldStats(searcher.getLeafContexts());
-        } catch (AlreadyClosedException ignored) {
-            return null;
         }
     }
 

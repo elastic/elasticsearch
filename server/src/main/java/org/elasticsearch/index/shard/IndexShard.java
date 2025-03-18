@@ -4140,7 +4140,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (shardFieldStats == null || didRefresh) {
-                shardFieldStats = getEngine().getShardFieldStats();
+                try {
+                    shardFieldStats = getEngine().getShardFieldStats();
+                } catch (AlreadyClosedException ignored) {}
             }
         }
     }

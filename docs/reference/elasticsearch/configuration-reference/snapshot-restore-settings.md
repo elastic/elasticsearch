@@ -14,7 +14,7 @@ $$$snapshot-max-concurrent-ops$$$
 
     This limit applies in total to all ongoing snapshot creation, cloning, and deletion operations. {{es}} will reject any operations that would exceed this limit.
 
-`azure.client.CLIENT_NAME.endpoint_suffix` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`azure.client.CLIENT_NAME.endpoint_suffix` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   Allows providing the [endpoint_suffix client setting](docs-content://deploy-manage/tools/snapshot-and-restore/azure-repository.md#repository-azure-client-settings) for a non-internal Azure client used for snapshot/restore. Note that `CLIENT_NAME` should be replaced with the name of the created client.
 
 
@@ -44,7 +44,7 @@ $$$slm-health-failed-snapshot-warn-threshold$$$
 
 $$$repositories-url-allowed$$$
 
-`repositories.url.allowed_urls` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`repositories.url.allowed_urls` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Specifies the [read-only URL repositories](docs-content://deploy-manage/tools/snapshot-and-restore/read-only-url-repository.md) that snapshots can be restored from.
 
 

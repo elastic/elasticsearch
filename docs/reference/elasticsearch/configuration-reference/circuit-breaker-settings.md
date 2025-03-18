@@ -26,7 +26,7 @@ The parent-level breaker can be configured with the following settings:
 
 $$$indices-breaker-total-limit$$$
 
-`indices.breaker.total.limit` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`indices.breaker.total.limit` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Starting limit for overall parent breaker. Defaults to 70% of JVM heap if `indices.breaker.total.use_real_memory` is `false`. If `indices.breaker.total.use_real_memory` is `true`, defaults to 95% of the JVM heap.
 
 
@@ -36,12 +36,12 @@ The field data circuit breaker estimates the heap memory required to load a fiel
 
 $$$fielddata-circuit-breaker-limit$$$
 
-`indices.breaker.fielddata.limit` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`indices.breaker.fielddata.limit` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limit for fielddata breaker. Defaults to 40% of JVM heap.
 
 $$$fielddata-circuit-breaker-overhead$$$
 
-`indices.breaker.fielddata.overhead` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`indices.breaker.fielddata.overhead` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) A constant that all field data estimations are multiplied with to determine a final estimation. Defaults to `1.03`.
 
 
@@ -51,12 +51,12 @@ The request circuit breaker allows Elasticsearch to prevent per-request data str
 
 $$$request-breaker-limit$$$
 
-`indices.breaker.request.limit` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`indices.breaker.request.limit` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Limit for request breaker, defaults to 60% of JVM heap.
 
 $$$request-breaker-overhead$$$
 
-`indices.breaker.request.overhead` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`indices.breaker.request.overhead` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) A constant that all request estimations are multiplied with to determine a final estimation. Defaults to `1`.
 
 
@@ -89,7 +89,7 @@ Poorly written regular expressions can degrade cluster stability and performance
 
 $$$script-painless-regex-enabled$$$
 
-`script.painless.regex.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on {{ess}}")
+`script.painless.regex.enabled` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Enables regex in Painless scripts. Accepts:
 
     `limited` (Default)

@@ -13,7 +13,7 @@ Refer to [Elasticsearch configuration](docs-content://deploy-manage/deploy/cloud
 Configuration settings enable you to customize the behavior of Elasticsearch features.
 This reference provides details about each setting, such as its purpose, default behavior, and availability in Elastic Cloud environments.
 
-For details on updating user settings, see [Edit Elastic Stack settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md) for {{ech}}, [Add Elasticsearch user settings](docs-content://deploy-manage/deploy/cloud-enterprise/edit-stack-settings-elasticsearch.md) for {{ece}} and [Differences from other Elasticsearch offerings](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md) for ({{serverless-short}}).
+For details on updating user settings, see [Edit Elastic Stack settings](docs-content://deploy-manage/deploy/elastic-cloud/edit-stack-settings.md) for {{ech}}, [Add Elasticsearch user settings](docs-content://deploy-manage/deploy/cloud-enterprise/edit-stack-settings-elasticsearch.md) for {{ece}} and [Differences from other Elasticsearch offerings](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md) for {{serverless-short}}.
 
 The settings are grouped by feature or purpose, for example:
 

@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -103,6 +104,25 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(document.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class), equalTo(BOGUS_TIMESTAMP));
     }
 
+    public void testGetFieldValueIgnoreMissing() {
+        assertThat(document.getFieldValue("foo", String.class, randomBoolean()), equalTo("bar"));
+        assertThat(document.getFieldValue("int", Integer.class, randomBoolean()), equalTo(123));
+
+        // if ignoreMissing is true, we just return nulls for values that aren't found
+        assertThat(document.getFieldValue("nonsense", Integer.class, true), nullValue());
+        assertThat(document.getFieldValue("some.nonsense", Integer.class, true), nullValue());
+        assertThat(document.getFieldValue("fizz.some.nonsense", Integer.class, true), nullValue());
+
+        // if ignoreMissing is false, we throw an exception for values that aren't found
+        IllegalArgumentException e;
+        e = expectThrows(IllegalArgumentException.class, () -> document.getFieldValue("fizz.some.nonsense", Integer.class, false));
+        assertThat(e.getMessage(), is("field [some] not present as part of path [fizz.some.nonsense]"));
+
+        // if ignoreMissing is true, and the object is present-and-of-the-wrong-type, then we also throw an exception
+        e = expectThrows(IllegalArgumentException.class, () -> document.getFieldValue("int", Boolean.class, true));
+        assertThat(e.getMessage(), is("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.Boolean]"));
+    }
+
     public void testGetSourceObject() {
         try {
             document.getFieldValue("_source", Object.class);
@@ -146,6 +166,22 @@ public class IngestDocumentTests extends ESTestCase {
 
         try {
             document.getFieldValue("foo", Integer.class);
+            fail("getFieldValue should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [foo] of type [java.lang.String] cannot be cast to [java.lang.Integer]"));
+        }
+    }
+
+    public void testSimpleGetFieldValueIgnoreMissingAndTypeMismatch() {
+        try {
+            document.getFieldValue("int", String.class, randomBoolean());
+            fail("getFieldValue should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+        }
+
+        try {
+            document.getFieldValue("foo", Integer.class, randomBoolean());
             fail("getFieldValue should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [foo] of type [java.lang.String] cannot be cast to [java.lang.Integer]"));

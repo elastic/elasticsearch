@@ -30,6 +30,7 @@ public class InferenceFeatures implements FeatureSpecification {
     private static final NodeFeature TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE = new NodeFeature(
         "test_reranking_service.parse_text_as_score"
     );
+    private static final NodeFeature TEST_RULE_RETRIEVER_WITH_EMPTY_INDEX = new NodeFeature("test_rule_retriever.with_empty_index");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -51,7 +52,8 @@ public class InferenceFeatures implements FeatureSpecification {
             SEMANTIC_KNN_FILTER_FIX,
             TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE,
             SemanticTextFieldMapper.SEMANTIC_TEXT_BIT_VECTOR_SUPPORT,
-            SemanticTextFieldMapper.SEMANTIC_TEXT_HANDLE_EMPTY_INPUT
+            SemanticTextFieldMapper.SEMANTIC_TEXT_HANDLE_EMPTY_INPUT,
+            TEST_RULE_RETRIEVER_WITH_EMPTY_INDEX
         );
     }
 }

@@ -28,10 +28,15 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexClosedException;
@@ -39,7 +44,9 @@ import org.elasticsearch.indices.IndexClosedException;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -49,7 +56,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
-    public void testReshardWillRouteDocumentsToNewShard() {
+    public void testReshardWillRouteDocumentsToNewShard() throws Exception {
         String indexNode = startMasterAndIndexNode();
         String searchNode = startSearchNode();
 
@@ -65,7 +72,29 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
 
         assertThat(getIndexCount(client().admin().indices().prepareStats(indexName).execute().actionGet(), 0), equalTo(100L));
 
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+        var initialIndexMetadata = clusterService().state().projectState().metadata().index(indexName);
+        // before resharding there should be no resharding metadata
+        assertNull(initialIndexMetadata.getReshardingMetadata());
+
+        // there should be split metadata at some point during resharding
+        var splitState = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
+
+        logger.info("starting reshard");
+        var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
+
+        logger.info("getting reshard metadata");
+        var reshardingMetadata = splitState.get(30, TimeUnit.SECONDS).projectState().metadata().index(indexName).getReshardingMetadata();
+        assertNotNull(reshardingMetadata.getSplit());
+        assert reshardingMetadata.shardCountBefore() == 1;
+        assert reshardingMetadata.shardCountAfter() == 2;
+
+        reshardAction.actionGet(TimeValue.THIRTY_SECONDS);
+
+        // resharding data should eventually be removed after split executes
+        waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null).get(
+            30,
+            TimeUnit.SECONDS
+        );
 
         int oldShardDocs = 0;
         while (true) {
@@ -94,6 +123,36 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(postReshardSettingsResponse.getIndexToSettings().get(indexName)),
             equalTo(2)
         );
+    }
+
+    /**
+     * A future that waits if necessary for cluster state to match a given predicate, and returns that state
+     * @param predicate continue waiting for state updates until true
+     * @return A future whose get() will resolve to the cluster state that matches the supplied predicate
+     */
+    private PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {
+        var future = new PlainActionFuture<ClusterState>();
+        var listener = new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                logger.info("cluster state updated: version {}", state.version());
+                future.onResponse(state);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                future.onFailure(null);
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                future.onFailure(new TimeoutException(timeout.toString()));
+            }
+        };
+
+        ClusterStateObserver.waitForState(clusterService(), new ThreadContext(Settings.EMPTY), listener, predicate, null, logger);
+
+        return future;
     }
 
     public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() {

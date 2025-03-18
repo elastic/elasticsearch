@@ -632,7 +632,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
 
     public void testRelocateHollowableShardWithLingeringIngestionUponConnectionFailure() throws Exception {
         startMasterOnlyNode();
-        var indexNodeSettings = Settings.builder().put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1)).build();
+        var indexNodeSettings = Settings.builder()
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .build();
         var indexNodeA = startIndexNode(indexNodeSettings);
         var statelessCommitServiceA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
 
@@ -642,6 +647,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         var index = resolveIndex(indexName);
 
         var numDocs = between(20, 100);
+        logger.debug("--> indexing {} docs", numDocs);
         indexDocs(indexName, numDocs);
         flush(indexName);
         var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
@@ -659,7 +665,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
 
         var indexNodeB = startIndexNode(indexNodeSettings);
         ensureStableCluster(3);
-        logger.info("--> relocating hollowable shard from {} to {}", indexNodeA, indexNodeB);
+        logger.debug("--> relocating hollowable shard from {} to {}", indexNodeA, indexNodeB);
 
         // Relocation is stuck waiting for the flushed commit to upload (which keeps retrying due to object store failures)
         client().execute(
@@ -673,6 +679,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertBusy(() -> assertThat(statelessCommitServiceA.getMaxGenerationToUploadForFlush(indexShard.shardId()), equalTo(newGen)));
 
         // Index more docs, which will complete after the relocation failure and after unhollowing the shard
+        logger.debug("--> indexing {} docs", numDocs);
         var bulkRequest = client(indexNodeA).prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
@@ -687,15 +694,33 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         repository.setRandomDataFileIOExceptionRate(0.0);
         assertNoFailures(bulkFuture.get());
 
+        logger.debug("--> indexing {} docs", numDocs);
+        indexDocs(indexName, numDocs);
+
         // The lingering ingestion was blocked on primary permits until the relocation failure, after which it was blocked on the ingestion
         // blocker which initiated unhollowing and reset the engine to IndexEngine, after which ingestion was processed.
         // So, verify that all ingested docs are searchable.
-        logger.info("--> starting a search node");
+        logger.debug("--> starting a search node");
         startSearchNode();
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
+        logger.debug("--> indexing {} docs", numDocs);
         indexDocsAndRefresh(indexName, numDocs);
-        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), numDocs * 3);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), numDocs * 4);
+
+        // Restart node to ensure that translog recovery works
+        logger.debug("--> restarting node " + indexNodeA);
+        internalCluster().restartNode(indexNodeA);
+        ensureGreen(indexName);
+        long translogRecoveredOps = indicesAdmin().prepareRecoveries(indexName)
+            .get()
+            .shardRecoveryStates()
+            .get(indexName)
+            .stream()
+            .mapToLong(e -> e.getTranslog().recoveredOperations())
+            .sum();
+        assertThat(translogRecoveredOps, equalTo((long) numDocs * 3));
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), numDocs * 4);
     }
 
     public void testFlushesOnHollowShards() throws Exception {

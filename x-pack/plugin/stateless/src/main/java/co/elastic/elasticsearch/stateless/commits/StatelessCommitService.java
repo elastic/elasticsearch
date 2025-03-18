@@ -742,7 +742,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 @Override
                 public void onResponse(BatchedCompoundCommit uploadedBcc) {
                     try {
-                        commitState.markBccUploaded(uploadedBcc);
+                        // Use the largest translog release file from all CCs to release translog files for cleaning
+                        commitState.markBccUploaded(
+                            uploadedBcc,
+                            virtualBcc.getLastPendingCompoundCommit().getCommitReference().getTranslogReleaseEndFile()
+                        );
                         commitState.sendNewUploadedCommitNotification(blobReference, uploadedBcc);
                     } catch (Exception e) {
                         // TODO: we should assert false here once we fix https://elasticco.atlassian.net/browse/ES-8336
@@ -916,12 +920,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     }
 
     /**
-     * @param uploadedBcc the BCC that was uploaded
-     * @param blobFileRanges the individual files and blob file ranges that are still necessary to be able to access, including
-     *                      being held by open readers or being part of a commit that is not yet deleted by lucene.
-     *                      Always includes all files from the new commit.
+     * @param uploadedBcc            the BCC that was uploaded
+     * @param blobFileRanges         the individual files and blob file ranges that are still necessary to be able to access, including
+     *                               being held by open readers or being part of a commit that is not yet deleted by lucene.
+     *                               Always includes all files from the new commit.
+     * @param translogReleaseEndFile the translog files before this one can be decref'ed for the shard after the BCC is uploaded. Set to -1
+     *                               to make this ineffective.
      */
-    public record UploadedBccInfo(BatchedCompoundCommit uploadedBcc, Map<String, BlobFileRanges> blobFileRanges) {}
+    public record UploadedBccInfo(
+        BatchedCompoundCommit uploadedBcc,
+        Map<String, BlobFileRanges> blobFileRanges,
+        long translogReleaseEndFile
+    ) {}
 
     public void addConsumerForNewUploadedBcc(ShardId shardId, Consumer<UploadedBccInfo> listener) {
         requireNonNull(listener, "listener cannot be null");
@@ -1220,7 +1230,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             recoveredPrimaryTerm = recoveredCommit.primaryTerm();
             recoveredGeneration = recoveredCommit.generation();
             assert assertRecoveredCommitFilesHaveBlobLocations(Map.copyOf(recoveredCommit.commitFiles()), Map.copyOf(blobLocations));
-            handleUploadedBcc(recoveredBcc, false);
+            // We set the translog release end file to the ineffective value of -1 for the following reasons:
+            // * We cannot use the translog start file as the release file, as it may have the HOLLOW_TRANSLOG_RECOVERY_START_FILE value.
+            // * There should be no translog files to release for a recovering shard.
+            // * We do not need to get the translog release end file from the commit user data.
+            handleUploadedBcc(recoveredBcc, false, -1);
         }
 
         public void setTrackedSearchNodesPerCommitOnRelocationTarget(
@@ -1625,11 +1639,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             );
         }
 
-        public void markBccUploaded(BatchedCompoundCommit batchedCompoundCommit) {
-            handleUploadedBcc(batchedCompoundCommit, true);
+        public void markBccUploaded(BatchedCompoundCommit batchedCompoundCommit, final long translogReleaseEndFile) {
+            handleUploadedBcc(batchedCompoundCommit, true, translogReleaseEndFile);
         }
 
-        private void handleUploadedBcc(BatchedCompoundCommit uploadedBcc, boolean isUpload) {
+        private void handleUploadedBcc(BatchedCompoundCommit uploadedBcc, boolean isUpload, final long translogReleaseEndFile) {
             assert isDeleted == false : "shard " + shardId + " is deleted when trying to handle uploaded commit " + uploadedBcc;
             final long newBccGeneration = uploadedBcc.primaryTermAndGeneration().generation(); // for managing pending uploads
             final long newGeneration = uploadedBcc.lastCompoundCommit().generation(); // for notifying generation listeners
@@ -1685,7 +1699,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     blobLocation -> blobLocation.getBatchedCompoundCommitTermAndGeneration()
                         .onOrBefore(uploadedBcc.primaryTermAndGeneration())
                 ) : uploadedFilesBlobLocations + " vs " + uploadedBcc.primaryTermAndGeneration() + " " + uploadedBcc;
-            final var uploadedBccInfo = new UploadedBccInfo(uploadedBcc, uploadedFilesBlobLocations);
+            final var uploadedBccInfo = new UploadedBccInfo(uploadedBcc, uploadedFilesBlobLocations, translogReleaseEndFile);
             // upload consumers must be triggered in generation order, hence trigger before removing from `pendingUploadBccGenerations`.
             Exception exception = null;
             try {

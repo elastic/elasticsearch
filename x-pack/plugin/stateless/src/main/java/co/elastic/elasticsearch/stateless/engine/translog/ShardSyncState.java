@@ -32,8 +32,6 @@ import java.util.TreeMap;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
-
 class ShardSyncState {
 
     private final ShardId shardId;
@@ -43,7 +41,7 @@ class ShardSyncState {
     private final ThreadContext threadContext;
     private final PriorityQueue<SyncListener> listeners = new PriorityQueue<>();
     private final TreeMap<Long, TranslogReplicator.BlobTranslogFile> translogFiles = new TreeMap<>();
-    private long markedTranslogStartFile = -1;
+    private long markedTranslogReleaseEndFile = -1;
     private long markedTranslogDeleteGeneration = -1;
     private volatile Translog.Location processedLocation = new Translog.Location(0, 0, 0);
     private volatile Translog.Location syncedLocation = new Translog.Location(0, 0, 0);
@@ -128,9 +126,9 @@ class ShardSyncState {
         // ignore them here.
         if (primaryTerm == currentPrimaryTerm.getAsLong()) {
             synchronized (translogFiles) {
-                // Since this is call before initiating an upload, the marked translog start file should never be less than the recovery
-                // start file
-                assert translogFile.generation() >= markedTranslogStartFile;
+                // Since this is call before initiating an upload, the marked translog release end file should never be less than the
+                // recovery start file
+                assert translogFile.generation() >= markedTranslogReleaseEndFile;
                 assert translogFiles.keySet().stream().allMatch(l -> l < translogFile.generation());
                 if (isClosed == false) {
                     // Add if the shard is open. Ignore if the shard is closed. We cannot safely decrement as we don't know if the file will
@@ -159,23 +157,17 @@ class ShardSyncState {
         }
     }
 
-    public void markCommitUploaded(long translogStartFile) {
+    public void markCommitUploaded(long translogReleaseEndFile) {
         synchronized (translogFiles) {
             if (isClosed == false) {
-                // TODO Find a better way to holow translog recovery in https://elasticco.atlassian.net/browse/ES-10718
-                if (translogStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE) {
-                    for (var file : translogFiles.tailMap(markedTranslogStartFile, true).values()) {
-                        file.markUnsafeForDelete(shardId);
+                if (translogReleaseEndFile > markedTranslogReleaseEndFile) {
+                    for (TranslogReplicator.BlobTranslogFile file : translogFiles.subMap(
+                        markedTranslogReleaseEndFile,
+                        translogReleaseEndFile
+                    ).values()) {
                         file.decRef();
                     }
-                    translogFiles.clear();
-                    markedTranslogStartFile = -1;
-                } else if (translogStartFile > markedTranslogStartFile) {
-                    for (TranslogReplicator.BlobTranslogFile file : translogFiles.subMap(markedTranslogStartFile, translogStartFile)
-                        .values()) {
-                        file.decRef();
-                    }
-                    markedTranslogStartFile = translogStartFile;
+                    markedTranslogReleaseEndFile = translogReleaseEndFile;
                 }
             }
         }
@@ -249,7 +241,7 @@ class ShardSyncState {
             // The relocation hand-off forces a flush while holding the operation permits to a clean relocation should fully release the
             // files. If we get here and there are still referenced files we must mark them as unsafe for delete. This is because this shard
             // may be closed exceptionally and the files will still be necessary for a recovery.
-            translogFiles.tailMap(markedTranslogStartFile, true).forEach((ignored, blobTranslogFile) -> {
+            translogFiles.tailMap(markedTranslogReleaseEndFile, true).forEach((ignored, blobTranslogFile) -> {
                 blobTranslogFile.markUnsafeForDelete(shardId);
                 blobTranslogFile.decRef();
             });

@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.stream.LongStream;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.EngineTestCase.newUid;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -260,6 +261,38 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 assertEquals(
                     maxUploadedFile + 1,
                     Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE))
+                );
+                assertFalse(indexCommitRef.getIndexCommit().getUserData().containsKey(IndexEngine.TRANSLOG_RELEASE_END_FILE));
+            }
+        }
+    }
+
+    public void testStartingAndEndTranslogFilesForHollowCommitInUserData() throws Exception {
+        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
+
+        TranslogReplicator replicator = mock(TranslogReplicator.class);
+        long maxUploadedFile = randomLongBetween(10, 20);
+        when(replicator.getMaxUploadedFile()).thenReturn(maxUploadedFile, maxUploadedFile + 1);
+
+        try (
+            var engine = newIndexEngine(
+                indexConfig(
+                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60)).build(),
+                    nodeSettings
+                ),
+                replicator
+            )
+        ) {
+            engine.index(randomDoc(String.valueOf(0)));
+            engine.flushHollow(ActionListener.noop());
+            try (Engine.IndexCommitRef indexCommitRef = engine.acquireLastIndexCommit(false)) {
+                assertEquals(
+                    HOLLOW_TRANSLOG_RECOVERY_START_FILE,
+                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE))
+                );
+                assertEquals(
+                    maxUploadedFile + 1,
+                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(IndexEngine.TRANSLOG_RELEASE_END_FILE))
                 );
             }
         }

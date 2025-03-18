@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -170,7 +169,7 @@ public class ModelRegistryMetadata implements Metadata.Custom {
             .field(UPGRADED_FIELD.getPreferredName(), isUpgraded)
             .xContentObjectFields(MODELS_FIELD.getPreferredName(), modelMap);
         if (isUpgraded == false) {
-            builder.xContentObject(TOMBSTONES_FIELD.getPreferredName(), Iterators.map(tombstones.iterator(), e -> (b, p) -> b.value(e)));
+            builder.array(TOMBSTONES_FIELD.getPreferredName(), tombstones.toArray(String[]::new));
         }
         return builder;
     }

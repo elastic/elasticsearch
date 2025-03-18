@@ -184,12 +184,12 @@ public class CIDRMatch extends EsqlScalarFunction implements TranslationAware.Si
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
         var fa = LucenePushdownPredicates.checkIsFieldAttribute(ipField);
         Check.isTrue(Expressions.foldable(matches), "Expected foldable matches, but got [{}]", matches);
 
         String targetFieldName = handler.nameOf(fa.exactAttribute());
-        Set<Object> set = new LinkedHashSet<>(Expressions.fold(FoldContext.small() /* TODO remove me */, matches));
+        Set<Object> set = new LinkedHashSet<>(Expressions.fold(foldContext, matches));
 
         return new TermsQuery(source(), targetFieldName, set);
     }

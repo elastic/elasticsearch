@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -391,8 +392,8 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
-        return new QueryStringQuery(source(), Objects.toString(queryAsObject()), Map.of(), queryStringOptions());
+    protected Query translate(TranslatorHandler handler, FoldContext foldContext) {
+        return new QueryStringQuery(source(), Objects.toString(queryAsObject(foldContext)), Map.of(), queryStringOptions());
     }
 
     @Override

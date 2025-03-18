@@ -113,8 +113,8 @@ public abstract class FullTextFunction extends Function
      *
      * @return query expression as an object
      */
-    public Object queryAsObject() {
-        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
+    public Object queryAsObject(FoldContext foldContext) {
+        Object queryAsObject = query().fold(foldContext);
         return BytesRefs.toString(queryAsObject);
     }
 
@@ -153,15 +153,15 @@ public abstract class FullTextFunction extends Function
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(handler);
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
+        return queryBuilder != null ? new TranslationAwareExpressionQuery(source(), queryBuilder) : translate(handler, foldContext);
     }
 
     public QueryBuilder queryBuilder() {
         return queryBuilder;
     }
 
-    protected abstract Query translate(TranslatorHandler handler);
+    protected abstract Query translate(TranslatorHandler handler, FoldContext foldContext);
 
     public abstract Expression replaceQueryBuilder(QueryBuilder queryBuilder);
 

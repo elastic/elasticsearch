@@ -106,7 +106,7 @@ public class PushStatsToSource extends PhysicalOptimizerRules.ParameterizedOptim
                                     if (canPushToSource(count.filter()) == false) {
                                         return null; // can't push down
                                     }
-                                    var countFilter = TRANSLATOR_HANDLER.asQuery(count.filter());
+                                    var countFilter = TRANSLATOR_HANDLER.asQuery(count.filter(), context.foldCtx());
                                     query = Queries.combine(Queries.Clause.MUST, asList(countFilter.asBuilder(), query));
                                 }
                                 return new EsStatsQueryExec.Stat(fieldName, COUNT, query);

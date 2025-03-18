@@ -9,18 +9,23 @@
 
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
+import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
+
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SDKGlobalConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.retry.PredefinedRetryPolicies;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.s3.AmazonS3;
@@ -53,9 +58,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
@@ -263,22 +269,21 @@ class S3Service implements Closeable {
     }
 
     // pkg private for tests
-    static AWSCredentialsProvider buildCredentials(
+    static AwsCredentialsProvider buildCredentials(
         Logger logger,
         S3ClientSettings clientSettings,
         CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider
     ) {
-        final S3BasicCredentials credentials = clientSettings.credentials;
+        final AwsCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             if (webIdentityTokenCredentialsProvider.isActive()) {
                 logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials");
                 return new PrivilegedAWSCredentialsProvider(
-                    new AWSCredentialsProviderChain(
-                        List.of(
+                    AwsCredentialsProviderChain.builder()
+                        .credentialsProviders(
                             new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER),
                             new ErrorLoggingCredentialsProvider(new EC2ContainerCredentialsProviderWrapper(), LOGGER)
                         )
-                    )
                 );
             } else {
                 logger.debug("Using instance profile credentials");
@@ -286,7 +291,7 @@ class S3Service implements Closeable {
             }
         } else {
             logger.debug("Using basic key/secret credentials");
-            return new AWSStaticCredentialsProvider(credentials);
+            return StaticCredentialsProvider.create(credentials);
         }
     }
 
@@ -298,9 +303,6 @@ class S3Service implements Closeable {
         // clear previously cached clients, they will be build lazily
         clientsCache = emptyMap();
         derivedClientSettings = emptyMap();
-        // shutdown IdleConnectionReaper background thread
-        // it will be restarted on new client usage
-        IdleConnectionReaper.shutdown();
     }
 
     public void onBlobStoreClose() {
@@ -313,25 +315,41 @@ class S3Service implements Closeable {
         webIdentityTokenCredentialsProvider.shutdown();
     }
 
-    static class PrivilegedAWSCredentialsProvider implements AWSCredentialsProvider {
-        private final AWSCredentialsProvider credentialsProvider;
+    static class PrivilegedAWSCredentialsProvider implements AwsCredentialsProvider {
+        private final AwsCredentialsProvider delegate;
 
-        private PrivilegedAWSCredentialsProvider(AWSCredentialsProvider credentialsProvider) {
-            this.credentialsProvider = credentialsProvider;
+        private PrivilegedAWSCredentialsProvider(AwsCredentialsProvider delegate) {
+            this.delegate = delegate;
         }
 
-        AWSCredentialsProvider getCredentialsProvider() {
-            return credentialsProvider;
-        }
-
-        @Override
-        public AWSCredentials getCredentials() {
-            return SocketAccess.doPrivileged(credentialsProvider::getCredentials);
+        // exposed for tests
+        AwsCredentialsProvider getDelegate() {
+            return delegate;
         }
 
         @Override
-        public void refresh() {
-            SocketAccess.doPrivilegedVoid(credentialsProvider::refresh);
+        public AwsCredentials resolveCredentials() {
+            return null;
+        }
+
+        @Override
+        public Class<AwsCredentialsIdentity> identityType() {
+            return delegate.identityType();
+        }
+
+        @Override
+        public CompletableFuture<AwsCredentialsIdentity> resolveIdentity(ResolveIdentityRequest request) {
+            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(request));
+        }
+
+        @Override
+        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity(Consumer<ResolveIdentityRequest.Builder> consumer) {
+            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(consumer));
+        }
+
+        @Override
+        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
+            return SocketAccess.doPrivileged(delegate::resolveIdentity);
         }
     }
 
@@ -345,7 +363,7 @@ class S3Service implements Closeable {
      * <li>Supports gracefully shutting down the provider and the STS client.</li>
      * </ul>
      */
-    static class CustomWebIdentityTokenCredentialsProvider implements AWSCredentialsProvider {
+    static class CustomWebIdentityTokenCredentialsProvider implements AwsCredentialsProvider {
 
         private static final String STS_HOSTNAME = "https://sts.amazonaws.com";
 

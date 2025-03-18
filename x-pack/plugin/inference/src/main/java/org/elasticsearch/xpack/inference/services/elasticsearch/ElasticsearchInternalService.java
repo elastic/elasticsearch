@@ -88,7 +88,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     public static final String NAME = "elasticsearch";
     public static final String OLD_ELSER_SERVICE_NAME = "elser";
 
-    static final String MULTILINGUAL_E5_SMALL_MODEL_ID = ".multilingual-e5-small";
+    public static final String MULTILINGUAL_E5_SMALL_MODEL_ID = ".multilingual-e5-small";
     static final String MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 = ".multilingual-e5-small_linux-x86_64";
     public static final Set<String> MULTILINGUAL_E5_SMALL_VALID_IDS = Set.of(
         MULTILINGUAL_E5_SMALL_MODEL_ID,
@@ -858,7 +858,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         return List.of(
             new DefaultConfigId(DEFAULT_ELSER_ID, ElserInternalServiceSettings.minimalServiceSettings(), this),
             new DefaultConfigId(DEFAULT_E5_ID, MultilingualE5SmallInternalServiceSettings.minimalServiceSettings(), this),
-            new DefaultConfigId(DEFAULT_RERANK_ID, MinimalServiceSettings.rerank(), this)
+            new DefaultConfigId(DEFAULT_RERANK_ID, MinimalServiceSettings.rerank(NAME), this)
         );
     }
 

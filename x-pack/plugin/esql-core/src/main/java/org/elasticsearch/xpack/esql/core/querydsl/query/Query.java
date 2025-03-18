@@ -63,7 +63,7 @@ public abstract class Query {
     /**
      * Used internally to convert to retrieve a {@link QueryBuilder} by queries.
      */
-    public abstract QueryBuilder asBuilder();
+    protected abstract QueryBuilder asBuilder();
 
     /**
      * Used by {@link Query#toString()} to produce a pretty string.

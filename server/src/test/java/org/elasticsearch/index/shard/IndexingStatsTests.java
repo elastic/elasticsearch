@@ -34,9 +34,10 @@ public class IndexingStatsTests extends ESTestCase {
             10,
             1_800_000_000L, // totalIndexingTimeSinceShardStartedInNanos - 1.8sec
             3_000_000_000L, // totalActiveTimeInNanos - 3sec
-            0.1357 // recentWriteLoad
+            0.1357
         );
-        assertThat(stats.getWriteLoad(), closeTo(0.6, DOUBLE_TOLERANCE));
+        double expectedWriteLoad = 0.6; // 1.8sec / 3sec
+        assertThat(stats.getWriteLoad(), closeTo(expectedWriteLoad, DOUBLE_TOLERANCE));
     }
 
     public void testStatsAdd_indexCount() {
@@ -121,9 +122,11 @@ public class IndexingStatsTests extends ESTestCase {
         IndexingStats.Stats statsAgg = sumOfStats(stats1, stats2);
         // The unweighted write loads for the two shards are 0.5 (1sec / 2sec) and 0.7 (2.1sec / 3sec) respectively.
         // The aggregated value should be the average weighted by the times, i.e. by 2sec and 3sec, giving weights of 0.4 and 0.6.
-        assertThat(statsAgg.getWriteLoad(), closeTo(0.4 * 0.5 + 0.6 * 0.7, DOUBLE_TOLERANCE));
+        double expectedWriteLoad = 0.4 * 0.5 + 0.6 * 0.7;
         // The aggregated value for the recent write load should be the average with the same weights.
-        assertThat(statsAgg.getRecentWriteLoad(), closeTo(0.4 * 0.1357 + 0.6 * 0.2468, DOUBLE_TOLERANCE));
+        double expectedRecentWriteLoad = 0.4 * 0.1357 + 0.6 * 0.2468;
+        assertThat(statsAgg.getWriteLoad(), closeTo(expectedWriteLoad, DOUBLE_TOLERANCE));
+        assertThat(statsAgg.getRecentWriteLoad(), closeTo(expectedRecentWriteLoad, DOUBLE_TOLERANCE));
     }
 
     private static IndexingStats.Stats sumOfStats(IndexingStats.Stats stats1, IndexingStats.Stats stats2) {

@@ -24,14 +24,13 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,13 +42,14 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -65,40 +65,16 @@ public class RerankOperatorTests extends OperatorTestCase {
     private static final String SIMPLE_INFERENCE_ID = "test_reranker";
     private static final String SIMPLE_QUERY = "query text";
     private ThreadPool threadPool;
-    private Map<String, ElementType> inputChannelElementTypes;
-    private Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorFactories;
+    private List<ElementType> inputChannelElementTypes;
+    private Map<String, ExpressionEvaluator.Factory> rerankFieldsEvaluatorFactories;
     private int scoreChannel;
 
     @Before
     private void initChannels() {
         int channelCount = randomIntBetween(2, 10);
         scoreChannel = randomIntBetween(0, channelCount - 1);
-        inputChannelElementTypes = IntStream.range(0, channelCount).sorted().mapToObj(i -> {
-            return i == scoreChannel
-                ? Map.entry("_score", ElementType.DOUBLE)
-                : Map.entry(randomIdentifier(), randomFrom(ElementType.FLOAT, ElementType.DOUBLE, ElementType.LONG));
-        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e1, LinkedHashMap::new));
-
-        rerankFieldsEvaluatorFactories = randomMap(
-            1,
-            20,
-            () -> new Tuple<>(randomIdentifier(), context -> new EvalOperator.ExpressionEvaluator() {
-                private int channel = randomIntBetween(0, channelCount - 1);
-
-                @Override
-                public Block eval(Page page) {
-                    Block b = page.getBlock(channel);
-                    b.incRef();
-                    ;
-                    return b;
-                }
-
-                @Override
-                public void close() {
-
-                }
-            })
-        );
+        inputChannelElementTypes = IntStream.range(0, channelCount).sorted().mapToObj(this::randomElementType).collect(Collectors.toList());
+        rerankFieldsEvaluatorFactories = randomFieldEvaluators().collect(Collectors.toMap((e) -> randomIdentifier(), Function.identity()));
     }
 
     @Before
@@ -184,16 +160,24 @@ public class RerankOperatorTests extends OperatorTestCase {
 
             @Override
             protected Page createPage(int positionOffset, int length) {
+                Block[] blocks = new Block[inputChannelElementTypes.size()];
                 try {
                     currentPosition += length;
-                    ElementType[] elementTypes = inputChannelElementTypes.values().toArray(ElementType[]::new);
-                    Block[] blocks = new Block[inputChannelElementTypes.size()];
-                    for (int b = 0; b < elementTypes.length; b++) {
-                        blocks[b] = RandomBlock.randomBlock(blockFactory, elementTypes[b], length, randomBoolean(), 0, 10, 0, 10).block();
+                    for (int b = 0; b < inputChannelElementTypes.size(); b++) {
+                        blocks[b] = RandomBlock.randomBlock(
+                            blockFactory,
+                            inputChannelElementTypes.get(b),
+                            length,
+                            randomBoolean(),
+                            0,
+                            10,
+                            0,
+                            10
+                        ).block();
                     }
                     return new Page(blocks);
                 } catch (Exception e) {
-                    Releasables.closeExpectNoException();
+                    Releasables.closeExpectNoException(blocks);
                     throw (e);
                 }
             }
@@ -255,7 +239,40 @@ public class RerankOperatorTests extends OperatorTestCase {
         }
     }
 
-    void assertExpectedScore(DoubleBlock scoreBlockResult) {
+    private int inputChannelCount() {
+        return inputChannelElementTypes.size();
+    }
+
+    private int randomInputChannel() {
+        return randomIntBetween(0, inputChannelCount() - 1);
+    }
+
+    private ElementType randomElementType(int channel) {
+        return channel == scoreChannel ? ElementType.DOUBLE : randomFrom(ElementType.FLOAT, ElementType.DOUBLE, ElementType.LONG);
+    }
+
+    private Stream<ExpressionEvaluator.Factory> randomFieldEvaluators() {
+        return Stream.generate(() -> randomFieldEvaluator(randomInputChannel())).limit(randomIntBetween(0, 20));
+    }
+
+    private static ExpressionEvaluator.Factory randomFieldEvaluator(int channel) {
+        return context -> new ExpressionEvaluator() {
+            @Override
+            public Block eval(Page page) {
+                Block b = page.getBlock(channel);
+                b.incRef();
+                ;
+                return b;
+            }
+
+            @Override
+            public void close() {
+
+            }
+        };
+    }
+
+    private void assertExpectedScore(DoubleBlock scoreBlockResult) {
         assertRandomPositions(scoreBlockResult, (pos) -> {
             if (pos % 10 == 0) {
                 assertThat(scoreBlockResult.isNull(pos), equalTo(true));
@@ -291,13 +308,13 @@ public class RerankOperatorTests extends OperatorTestCase {
         });
     }
 
-    void assertRandomPositions(Block block, Consumer<Integer> consumer) {
+    private void assertRandomPositions(Block block, Consumer<Integer> consumer) {
         for (Integer pos : randomList(0, 100, () -> randomIntBetween(0, block.getPositionCount() - 1))) {
             consumer.accept(pos);
         }
     }
 
-    <V extends Block, U> void assertByteRefsBlockContentEquals(Block input, Block result, BytesRef readBuffer) {
+    private <V extends Block, U> void assertByteRefsBlockContentEquals(Block input, Block result, BytesRef readBuffer) {
         assertBlockContentEquals(input, result, (BytesRefBlock b, Integer pos) -> b.getBytesRef(pos, readBuffer), BytesRefBlock.class);
     }
 }

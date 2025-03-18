@@ -207,7 +207,7 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
                             }
                             double min = Double.POSITIVE_INFINITY;
                             double max = Double.NEGATIVE_INFINITY;
-                            for (int i = start + 1; i < end; i++) {
+                            for (int i = start; i < end; i++) {
                                 double current = doubleBlock.getDouble(i);
                                 min = Math.min(min, current);
                                 max = Math.max(max, current);

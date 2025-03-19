@@ -1,13 +1,8 @@
-/*
-* Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-* or more contributor license agreements. Licensed under the Elastic License
-* 2.0 and the Server Side Public License, v 1; you may not use this file except
-* in compliance with, at your election, the Elastic License 2.0 or the Server
-* Side Public License, v 1.
-*/
 
 package org.elasticsearch.ingest.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.util.ArrayList;
@@ -26,6 +21,8 @@ final class CefParser {
         this.ingestDocument = ingestDocument;
         this.removeEmptyValue = removeEmptyValue;
     }
+
+    private static final Logger logger = LogManager.getLogger(CefParser.class);
 
     // Existing patterns...
     private static final Pattern HEADER_PATTERN = Pattern.compile("(?:\\\\\\||\\\\\\\\|[^|])*?");
@@ -63,19 +60,70 @@ final class CefParser {
         EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\n", "\n");
         EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\r", "\n");
 
-        FIELD_MAPPING.put("src", "source.ip");
-        FIELD_MAPPING.put("spt", "source.port");
+        FIELD_MAPPING.put("app", "network.protocol");
+        FIELD_MAPPING.put("in", "source.bytes");
+        FIELD_MAPPING.put("out", "destination.bytes");
         FIELD_MAPPING.put("dst", "destination.ip");
+        FIELD_MAPPING.put("dlat", "destination.geo.location.lat");
+        FIELD_MAPPING.put("dlong", "destination.geo.location.lon");
+        FIELD_MAPPING.put("dhost", "destination.domain");
+        FIELD_MAPPING.put("dmac", "destination.mac");
+        FIELD_MAPPING.put("dntdom", "destination.registered_domain");
         FIELD_MAPPING.put("dpt", "destination.port");
-        FIELD_MAPPING.put("suser", "source.user.name");
+        FIELD_MAPPING.put("dpid", "destination.process.pid");
+        FIELD_MAPPING.put("dproc", "destination.process.name");
+        FIELD_MAPPING.put("duid", "destination.user.id");
         FIELD_MAPPING.put("duser", "destination.user.name");
+        FIELD_MAPPING.put("dpriv", "destination.user.group.name");
+        FIELD_MAPPING.put("act", "event.action");
+        FIELD_MAPPING.put("dvc", "observer.ip");
+        FIELD_MAPPING.put("deviceDirection", "network.direction");
+        FIELD_MAPPING.put("deviceDnsDomain", "observer.registered_domain");
+        FIELD_MAPPING.put("deviceExternalId", "observer.name");
+        FIELD_MAPPING.put("deviceFacility", "log.syslog.facility.code");
+        FIELD_MAPPING.put("dvchost", "observer.hostname");
+        FIELD_MAPPING.put("deviceInboundInterface", "observer.ingress.interface.name");
+        FIELD_MAPPING.put("dvcmac", "observer.mac");
+        FIELD_MAPPING.put("deviceOutboundInterface", "observer.egress.interface.name");
+        FIELD_MAPPING.put("dvcpid", "process.pid");
+        FIELD_MAPPING.put("deviceProcessName", "process.name");
+        FIELD_MAPPING.put("rt", "@timestamp");
+        FIELD_MAPPING.put("dtz", "event.timezone");
+        FIELD_MAPPING.put("deviceTranslatedAddress", "host.nat.ip");
+        FIELD_MAPPING.put("deviceVersion", "observer.version");
+        FIELD_MAPPING.put("end", "event.end");
+        FIELD_MAPPING.put("eventId", "event.id");
+        FIELD_MAPPING.put("outcome", "event.outcome");
+        FIELD_MAPPING.put("fileCreateTime", "file.created");
+        FIELD_MAPPING.put("fileHash", "file.hash");
+        FIELD_MAPPING.put("fileId", "file.inode");
+        FIELD_MAPPING.put("fileModificationTime", "file.mtime");
+        FIELD_MAPPING.put("fname", "file.name");
+        FIELD_MAPPING.put("filePath", "file.path");
+        FIELD_MAPPING.put("filePermission", "file.group");
+        FIELD_MAPPING.put("fsize", "file.size");
+        FIELD_MAPPING.put("fileType", "file.extension");
+        FIELD_MAPPING.put("mrt", "event.ingested");
+        FIELD_MAPPING.put("msg", "message");
+        FIELD_MAPPING.put("reason", "event.reason");
+        FIELD_MAPPING.put("requestClientApplication", "user_agent.original");
+        FIELD_MAPPING.put("requestContext", "http.request.referrer");
+        FIELD_MAPPING.put("requestMethod", "http.request.method");
+        FIELD_MAPPING.put("request", "url.original");
+        FIELD_MAPPING.put("src", "source.ip");
+        FIELD_MAPPING.put("sourceDnsDomain", "source.registered_domain");
+        FIELD_MAPPING.put("slat", "source.geo.location.lat");
+        FIELD_MAPPING.put("slong", "source.geo.location.lon");
+        FIELD_MAPPING.put("shost", "source.domain");
+        FIELD_MAPPING.put("smac", "source.mac");
+        FIELD_MAPPING.put("sntdom", "source.registered_domain");
+        FIELD_MAPPING.put("spt", "source.port");
+        FIELD_MAPPING.put("spid", "source.process.pid");
+        FIELD_MAPPING.put("sproc", "source.process.name");
+        FIELD_MAPPING.put("sourceServiceName", "source.service.name");
+        FIELD_MAPPING.put("start", "event.start");
+        FIELD_MAPPING.put("proto", "network.transport");
         // Add more mappings as needed
-
-        // Initialize decode mappings
-        DECODE_MAPPING.put("src", "sourceAddress");
-        DECODE_MAPPING.put("dst", "destinationAddress");
-        DECODE_MAPPING.put("spt", "sourcePort");
-        DECODE_MAPPING.put("dpt", "destinationPort");
     }
 
     void process(String cefString) {
@@ -107,7 +155,7 @@ final class CefParser {
         Map<String, String> extensions = parseExtensions(extensionString);
 
         if (removeEmptyValue) {
-            extensions = removeEmptyValue(extensions);
+            removeEmptyValue(extensions);
         }
 
         event.setExtensions(extensions);
@@ -124,6 +172,7 @@ final class CefParser {
 
     private Map<String, String> parseExtensions(String extensionString) {
         Map<String, String> extensions = new HashMap<>();
+        logger.info(extensionString);
         Matcher matcher = EXTENSION_NEXT_KEY_VALUE_PATTERN.matcher(extensionString);
         int lastEnd = 0;
         while (matcher.find()) {
@@ -145,6 +194,7 @@ final class CefParser {
         if (lastEnd < extensionString.length()) {
             throw new IllegalArgumentException("Invalid extensions; keyless value present: " + extensionString.substring(lastEnd));
         }
+        logger.info(extensions);
         return extensions;
     }
 

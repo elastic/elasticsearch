@@ -212,7 +212,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                 listener.onFailure(
                     ExceptionsHelper.conflictStatusException(
                         "Cannot upgrade snapshot [{}] for job [{}] as it is the current primary job snapshot and the job's state is [{}]. "
-                        + "Please close the job before upgrading the snapshot.",
+                            + "Please close the job before upgrading the snapshot.",
                         request.getSnapshotId(),
                         request.getJobId(),
                         MlTasks.getJobState(request.getJobId(), customMetadata)

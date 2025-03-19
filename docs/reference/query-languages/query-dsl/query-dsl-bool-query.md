@@ -95,7 +95,7 @@ GET /_search
 
 2. Matches in the `should` clauses are optional. They will only boost the relevance scores of documents that already match the required `must` criteria and don't add new documents to the result set. It is semantically equivalent to (status="active" AND title="quick brown fox")
 
-You can use the `minimum_should_match` parameter to require matches from the `should` clauses 
+You can use the `minimum_should_match` parameter to require matches from the `should` clauses.
 
 ::::{note}
 While nesting `bool` queries can be powerful, it can also lead to complex and slow queries. Try to keep your queries as flat as possible for the best performance.

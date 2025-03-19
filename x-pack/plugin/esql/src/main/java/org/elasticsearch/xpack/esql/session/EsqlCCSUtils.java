@@ -269,8 +269,8 @@ public class EsqlCCSUtils {
     // visible for testing
     static void updateExecutionInfoAtEndOfPlanning(EsqlExecutionInfo execInfo) {
         // TODO: this logic assumes a single phase execution model, so it may need to altered once INLINESTATS is made CCS compatible
+        execInfo.markEndPlanning();
         if (execInfo.isCrossClusterSearch()) {
-            execInfo.markEndPlanning();
             for (String clusterAlias : execInfo.clusterAliases()) {
                 EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
                 if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {

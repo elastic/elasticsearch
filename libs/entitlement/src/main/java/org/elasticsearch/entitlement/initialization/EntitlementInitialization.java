@@ -102,6 +102,11 @@ public class EntitlementInitialization {
         manager = initChecker();
 
         var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature());
+        var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
+
+        if (verifyBytecode) {
+            ensureClassesSensitiveToVerificationAreInitialized();
+        }
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
         Stream.of(
@@ -124,8 +129,23 @@ public class EntitlementInitialization {
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
         Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
-        inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
-        inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
+        var transformer = new Transformer(instrumenter, classesToTransform, verifyBytecode);
+        inst.addTransformer(transformer, true);
+
+        var classesToRetransform = findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform);
+        try {
+            inst.retransformClasses(classesToRetransform);
+        } catch (VerifyError e) {
+            // Turn on verification and try to retransform one class at the time to get detailed diagnostic
+            transformer.enableClassVerification();
+
+            for (var classToRetransform : classesToRetransform) {
+                inst.retransformClasses(classToRetransform);
+            }
+
+            // We should have failed already in the loop above, but just in case we did not, rethrow.
+            throw e;
+        }
     }
 
     private static Class<?>[] findClassesToRetransform(Class<?>[] loadedClasses, Set<String> classesToTransform) {
@@ -454,6 +474,24 @@ public class EntitlementInitialization {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    /**
+     * If bytecode verification is enabled, ensure these classes get loaded before transforming/retransforming them.
+     * For these classes, the order in which we transform and verify them matters. Verification during class transformation is at least an
+     * unforeseen (if not unsupported) scenario: we are loading a class, and while we are still loading it (during transformation) we try
+     * to verify it. This in turn leads to more classes loading (for verification purposes), which could turn into those classes to be
+     * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
+     */
+    private static void ensureClassesSensitiveToVerificationAreInitialized() {
+        var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
+        for (String className : classesToInitialize) {
+            try {
+                Class.forName(className);
+            } catch (ClassNotFoundException unexpected) {
+                throw new AssertionError(unexpected);
+            }
+        }
     }
 
     /**

@@ -679,6 +679,11 @@ public class EsqlCapabilities {
         MATCH_FUNCTION_OPTIONS,
 
         /**
+         * Support options in the query string function.
+         */
+        QUERY_STRING_FUNCTION_OPTIONS,
+
+        /**
          * Support for aggregate_metric_double type
          */
         AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
@@ -729,7 +734,17 @@ public class EsqlCapabilities {
         /**
          * Use double parameter markers to represent field or function names.
          */
-        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot());
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * Non full text functions do not contribute to score
+         */
+        NON_FULL_TEXT_FUNCTIONS_SCORING,
+
+        /**
+         * Support for to_aggregate_metric_double function
+         */
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

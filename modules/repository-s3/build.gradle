@@ -19,24 +19,27 @@ esplugin {
 }
 
 dependencies {
-  api "com.amazonaws:aws-java-sdk-s3:${versions.awsv1sdk}"
-  api "com.amazonaws:aws-java-sdk-core:${versions.awsv1sdk}"
-  api "com.amazonaws:aws-java-sdk-sts:${versions.awsv1sdk}"
-  api "com.amazonaws:jmespath-java:${versions.awsv1sdk}"
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-  api "joda-time:joda-time:2.10.14"
+  // TODO NOMERGE sort alphabetically
+  implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:metrics-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:aws-xml-protocol:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
 
-  // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
-  // and whitelist this hack in JarHell
-  api 'javax.xml.bind:jaxb-api:2.2.2'
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+
+  runtimeOnly "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
+  runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
+  runtimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "joda-time:joda-time:2.10.14"
 
   testImplementation project(':test:fixtures:s3-fixture')
 
@@ -68,10 +71,7 @@ restResources {
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
-  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
-  mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: 's3', to: 'aws-sdk-2'
 }
 
 esplugin.bundleSpec.from('config/repository-s3') {
@@ -139,17 +139,6 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
           'javax.jms.Message',
-          // We don't use the kms dependency
-          'com.amazonaws.services.kms.AWSKMS',
-          'com.amazonaws.services.kms.AWSKMSClient',
-          'com.amazonaws.services.kms.AWSKMSClientBuilder',
-          'com.amazonaws.services.kms.model.DecryptRequest',
-          'com.amazonaws.services.kms.model.DecryptResult',
-          'com.amazonaws.services.kms.model.EncryptRequest',
-          'com.amazonaws.services.kms.model.EncryptResult',
-          'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
-          'com.amazonaws.services.kms.model.GenerateDataKeyResult',
-          'javax.activation.DataHandler'
   )
 }
 

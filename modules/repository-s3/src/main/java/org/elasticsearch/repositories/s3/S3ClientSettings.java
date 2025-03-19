@@ -9,8 +9,9 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -76,10 +77,10 @@ final class S3ClientSettings {
     );
 
     /** The protocol to use to connect to s3. */
-    static final Setting.AffixSetting<Protocol> PROTOCOL_SETTING = Setting.affixKeySetting(
+    static final Setting.AffixSetting<HttpScheme> PROTOCOL_SETTING = Setting.affixKeySetting(
         PREFIX,
         "protocol",
-        key -> new Setting<>(key, "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
+        key -> new Setting<>(key, "https", s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope, Property.Deprecated)
     );
 
     /** The host name of a proxy to connect to s3 through. */
@@ -97,10 +98,10 @@ final class S3ClientSettings {
     );
 
     /** The proxy scheme for connecting to S3 through a proxy. */
-    static final Setting.AffixSetting<Protocol> PROXY_SCHEME_SETTING = Setting.affixKeySetting(
+    static final Setting.AffixSetting<HttpScheme> PROXY_SCHEME_SETTING = Setting.affixKeySetting(
         PREFIX,
         "proxy.scheme",
-        key -> new Setting<>(key, "http", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
+        key -> new Setting<>(key, "http", s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope)
     );
 
     /** The username of a proxy to connect to s3 through. */
@@ -121,28 +122,28 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
         PREFIX,
         "read_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope)
+        key -> Setting.timeSetting(key, Defaults.READ_TIMEOUT, Property.NodeScope)
     );
 
     /** The maximum number of concurrent connections to use. */
     static final Setting.AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_connections",
-        key -> Setting.intSetting(key, ClientConfiguration.DEFAULT_MAX_CONNECTIONS, 1, Property.NodeScope)
+        key -> Setting.intSetting(key, Defaults.MAX_CONNECTIONS, 1, Property.NodeScope)
     );
 
     /** The number of retries to use when an s3 request fails. */
     static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_retries",
-        key -> Setting.intSetting(key, ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry(), 0, Property.NodeScope)
+        key -> Setting.intSetting(key, Defaults.RETRY_COUNT, 0, Property.NodeScope)
     );
 
     /** Whether retries should be throttled (ie use backoff). */
     static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
-        key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope)
+        key -> Setting.boolSetting(key, Defaults.THROTTLE_RETRIES, Property.NodeScope)
     );
 
     /** Whether the s3 client should use path style access. */
@@ -174,13 +175,10 @@ final class S3ClientSettings {
     );
 
     /** Credentials to authenticate with s3. */
-    final S3BasicCredentials credentials;
+    final AwsCredentials credentials;
 
     /** The s3 endpoint the client should talk to, or empty string to use the default. */
     final String endpoint;
-
-    /** The protocol to use to talk to s3. Defaults to https. */
-    final Protocol protocol;
 
     /** An optional proxy host that requests to s3 should be made through. */
     final String proxyHost;
@@ -189,7 +187,7 @@ final class S3ClientSettings {
     final int proxyPort;
 
     /** The proxy scheme to use for connecting to s3 through a proxy. */
-    final Protocol proxyScheme;
+    final HttpScheme proxyScheme;
 
     // these should be "secure" yet the api for the s3 client only takes String, so storing them
     // as SecureString here won't really help with anything
@@ -224,12 +222,11 @@ final class S3ClientSettings {
     final String signerOverride;
 
     private S3ClientSettings(
-        S3BasicCredentials credentials,
+        AwsCredentials credentials,
         String endpoint,
-        Protocol protocol,
         String proxyHost,
         int proxyPort,
-        Protocol proxyScheme,
+        HttpScheme proxyScheme,
         String proxyUsername,
         String proxyPassword,
         int readTimeoutMillis,
@@ -243,7 +240,6 @@ final class S3ClientSettings {
     ) {
         this.credentials = credentials;
         this.endpoint = endpoint;
-        this.protocol = protocol;
         this.proxyHost = proxyHost;
         this.proxyPort = proxyPort;
         this.proxyScheme = proxyScheme;
@@ -273,10 +269,9 @@ final class S3ClientSettings {
             .build();
         final String newEndpoint = getRepoSettingOrDefault(ENDPOINT_SETTING, normalizedSettings, endpoint);
 
-        final Protocol newProtocol = getRepoSettingOrDefault(PROTOCOL_SETTING, normalizedSettings, protocol);
         final String newProxyHost = getRepoSettingOrDefault(PROXY_HOST_SETTING, normalizedSettings, proxyHost);
         final int newProxyPort = getRepoSettingOrDefault(PROXY_PORT_SETTING, normalizedSettings, proxyPort);
-        final Protocol newProxyScheme = getRepoSettingOrDefault(PROXY_SCHEME_SETTING, normalizedSettings, proxyScheme);
+        final HttpScheme newProxyScheme = getRepoSettingOrDefault(PROXY_SCHEME_SETTING, normalizedSettings, proxyScheme);
         final int newReadTimeoutMillis = Math.toIntExact(
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis()
         );
@@ -289,7 +284,7 @@ final class S3ClientSettings {
             normalizedSettings,
             disableChunkedEncoding
         );
-        final S3BasicCredentials newCredentials;
+        final AwsCredentials newCredentials;
         if (checkDeprecatedCredentials(repositorySettings)) {
             newCredentials = loadDeprecatedCredentials(repositorySettings);
         } else {
@@ -298,7 +293,6 @@ final class S3ClientSettings {
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
         final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
         if (Objects.equals(endpoint, newEndpoint)
-            && protocol == newProtocol
             && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort
             && proxyScheme == newProxyScheme
@@ -316,7 +310,6 @@ final class S3ClientSettings {
         return new S3ClientSettings(
             newCredentials,
             newEndpoint,
-            newProtocol,
             newProxyHost,
             newProxyPort,
             newProxyScheme,
@@ -335,7 +328,7 @@ final class S3ClientSettings {
 
     /**
      * Load all client settings from the given settings.
-     *
+     * <p>
      * Note this will always at least return a client named "default".
      */
     static Map<String, S3ClientSettings> load(Settings settings) {
@@ -377,17 +370,17 @@ final class S3ClientSettings {
     }
 
     // backcompat for reading keys out of repository settings (clusterState)
-    private static S3BasicCredentials loadDeprecatedCredentials(Settings repositorySettings) {
+    private static AwsCredentials loadDeprecatedCredentials(Settings repositorySettings) {
         assert checkDeprecatedCredentials(repositorySettings);
         try (
             SecureString key = S3Repository.ACCESS_KEY_SETTING.get(repositorySettings);
             SecureString secret = S3Repository.SECRET_KEY_SETTING.get(repositorySettings)
         ) {
-            return new S3BasicCredentials(key.toString(), secret.toString());
+            return AwsBasicCredentials.create(key.toString(), secret.toString());
         }
     }
 
-    private static S3BasicCredentials loadCredentials(Settings settings, String clientName) {
+    private static AwsCredentials loadCredentials(Settings settings, String clientName) {
         try (
             SecureString accessKey = getConfigValue(settings, clientName, ACCESS_KEY_SETTING);
             SecureString secretKey = getConfigValue(settings, clientName, SECRET_KEY_SETTING);
@@ -396,9 +389,9 @@ final class S3ClientSettings {
             if (accessKey.length() != 0) {
                 if (secretKey.length() != 0) {
                     if (sessionToken.length() != 0) {
-                        return new S3BasicSessionCredentials(accessKey.toString(), secretKey.toString(), sessionToken.toString());
+                        return AwsSessionCredentials.create(accessKey.toString(), secretKey.toString(), sessionToken.toString());
                     } else {
-                        return new S3BasicCredentials(accessKey.toString(), secretKey.toString());
+                        return AwsBasicCredentials.create(accessKey.toString(), secretKey.toString());
                     }
                 } else {
                     throw new IllegalArgumentException("Missing secret key for s3 client [" + clientName + "]");
@@ -425,7 +418,6 @@ final class S3ClientSettings {
             return new S3ClientSettings(
                 S3ClientSettings.loadCredentials(settings, clientName),
                 getConfigValue(settings, clientName, ENDPOINT_SETTING),
-                getConfigValue(settings, clientName, PROTOCOL_SETTING),
                 getConfigValue(settings, clientName, PROXY_HOST_SETTING),
                 getConfigValue(settings, clientName, PROXY_PORT_SETTING),
                 getConfigValue(settings, clientName, PROXY_SCHEME_SETTING),
@@ -459,7 +451,6 @@ final class S3ClientSettings {
             && throttleRetries == that.throttleRetries
             && Objects.equals(credentials, that.credentials)
             && Objects.equals(endpoint, that.endpoint)
-            && protocol == that.protocol
             && Objects.equals(proxyHost, that.proxyHost)
             && proxyScheme == that.proxyScheme
             && Objects.equals(proxyUsername, that.proxyUsername)
@@ -474,7 +465,6 @@ final class S3ClientSettings {
         return Objects.hash(
             credentials,
             endpoint,
-            protocol,
             proxyHost,
             proxyPort,
             proxyScheme,
@@ -500,5 +490,12 @@ final class S3ClientSettings {
             return getConfigValue(normalizedSettings, PLACEHOLDER_CLIENT, setting);
         }
         return defaultValue;
+    }
+
+    private static final class Defaults {
+        static final TimeValue READ_TIMEOUT = TimeValue.timeValueSeconds(50);// TODO NOMERGE confirm previous default
+        static final int MAX_CONNECTIONS = 50;// TODO NOMERGE confirm previous default
+        static final int RETRY_COUNT = 3;// TODO NOMERGE confirm previous default
+        static final boolean THROTTLE_RETRIES = true;// TODO NOMERGE confirm previous default
     }
 }

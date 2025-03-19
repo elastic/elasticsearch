@@ -3,7 +3,7 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 dependencies {

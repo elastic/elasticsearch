@@ -2,6 +2,9 @@
 navigation_title: "{{transforms-cap}} settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # {{transforms-cap}}  settings in Elasticsearch [transform-settings]

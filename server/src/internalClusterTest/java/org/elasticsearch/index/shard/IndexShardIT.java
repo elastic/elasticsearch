@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -625,6 +626,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             indexService.getIndexEventListener(),
             wrapper,
             indexService.getThreadPool(),
+            indexService.getThreadPoolMergeExecutorService(),
             indexService.getBigArrays(),
             null,
             Collections.emptyList(),
@@ -635,7 +637,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

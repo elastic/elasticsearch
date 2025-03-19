@@ -59,7 +59,7 @@ public class TemplateGenerator {
                     generateChildFields(children, depth + 1, nestedFieldsCount);
                 } else {
                     var fieldTypeInfo = fieldTypeGenerator.get();
-                    mapping.put(fieldName, new Template.Leaf(fieldName, fieldTypeInfo.fieldType()));
+                    mapping.put(fieldName, new Template.Leaf(fieldName, fieldTypeInfo.fieldType().toString()));
                 }
         }
     }

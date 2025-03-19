@@ -25,6 +25,8 @@ import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatEr
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.prettyPrintCollections;
 
 public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>>> {
+    private final Map<String, Map<String, Object>> mappingLookup;
+
     private final Map<String, MappingTransforms.FieldMapping> actualNormalizedMapping;
     private final Map<String, MappingTransforms.FieldMapping> expectedNormalizedMapping;
 
@@ -32,6 +34,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
     private final DynamicFieldMatcher dynamicFieldMatcher;
 
     public SourceMatcher(
+        final Map<String, Map<String, Object>> mappingLookup,
         final XContentBuilder actualMappings,
         final Settings.Builder actualSettings,
         final XContentBuilder expectedMappings,
@@ -41,6 +44,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         final boolean ignoringSort
     ) {
         super(actualMappings, actualSettings, expectedMappings, expectedSettings, actual, expected, ignoringSort);
+
+        this.mappingLookup = mappingLookup;
 
         var actualMappingAsMap = XContentHelper.convertToMap(BytesReference.bytes(actualMappings), false, actualMappings.contentType())
             .v2();
@@ -95,6 +100,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
                     new FieldSpecificMatcher.CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
                 );
                 put("boolean", new FieldSpecificMatcher.BooleanMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("geo_shape", new FieldSpecificMatcher.ShapeMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("shape", new FieldSpecificMatcher.ShapeMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
             }
         };
         this.dynamicFieldMatcher = new DynamicFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
@@ -114,8 +121,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             );
         }
 
-        var sortedAndFlattenedActual = actual.stream().map(SourceTransforms::normalize).toList();
-        var sortedAndFlattenedExpected = expected.stream().map(SourceTransforms::normalize).toList();
+        var sortedAndFlattenedActual = actual.stream().map(s -> SourceTransforms.normalize(s, mappingLookup)).toList();
+        var sortedAndFlattenedExpected = expected.stream().map(s -> SourceTransforms.normalize(s, mappingLookup)).toList();
 
         for (int i = 0; i < sortedAndFlattenedActual.size(); i++) {
             var actual = sortedAndFlattenedActual.get(i);

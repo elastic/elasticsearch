@@ -405,6 +405,9 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test012SecurityCanBeDisabled
   issue: https://github.com/elastic/elasticsearch/issues/116636
+- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
+  method: testSchedulerCloseWaitsForRunningMerge
+  issue: https://github.com/elastic/elasticsearch/issues/125236
 
 # Examples:
 #

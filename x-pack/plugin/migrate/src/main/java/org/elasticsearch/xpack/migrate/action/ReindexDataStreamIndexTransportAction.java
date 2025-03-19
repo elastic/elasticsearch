@@ -108,7 +108,13 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     private final ClusterService clusterService;
     private final Client client;
     private final TransportService transportService;
-    private final AtomicInteger ingestNodeOffsetGenerator = new AtomicInteger(Randomness.get().nextInt());
+    /*
+     * The following is incremented in order to keep track of the current round-robin position for ingest nodes that we send sliced requests
+     * to. We bound its random starting value to less than or equal to 2 ^ 30 (the default is Integer.MAX_VALUE or 2 ^ 31 - 1) only so that
+     * the unit test doesn't fail if it rolls over Integer.MAX_VALUE (since the node selected is the same for Integer.MAX_VALUE and
+     * Integer.MAX_VALUE + 1).
+     */
+    private final AtomicInteger ingestNodeOffsetGenerator = new AtomicInteger(Randomness.get().nextInt(2 ^ 30));
 
     @Inject
     public ReindexDataStreamIndexTransportAction(

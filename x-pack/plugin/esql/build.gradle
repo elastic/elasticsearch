@@ -170,8 +170,8 @@ tasks.named("test").configure {
       Closure replaceLinks = line -> {
         // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
         line.replaceAll(
-          /\]\(\/reference\//,
-          '](https://www.elastic.co/docs/reference/elasticsearch/'
+          /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
+          '](https://www.elastic.co/docs/reference/elasticsearch/$1$2)'
         )
       }
       if (countKibana == 0) {

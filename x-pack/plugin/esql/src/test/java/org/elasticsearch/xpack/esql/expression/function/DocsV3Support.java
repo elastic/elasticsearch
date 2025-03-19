@@ -58,6 +58,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -67,7 +68,6 @@ import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionT
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.definition;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.functionRegistered;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.shouldHideSignature;
-import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.signatures;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.mapParam;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.param;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.paramWithoutAnnotation;
@@ -190,7 +190,7 @@ public abstract class DocsV3Support {
         operatorEntry("match_operator", ":", MatchOperator.class, OperatorCategory.SEARCH)
     );
 
-    enum OperatorCategory {
+    public enum OperatorCategory {
         BINARY,
         UNARY,
         LOGICAL,
@@ -200,7 +200,7 @@ public abstract class DocsV3Support {
         SEARCH
     }
 
-    record OperatorConfig(String name, String symbol, Class<?> clazz, OperatorCategory category, boolean variadic) {}
+    public record OperatorConfig(String name, String symbol, Class<?> clazz, OperatorCategory category, boolean variadic) {}
 
     private static Map.Entry<String, OperatorConfig> operatorEntry(
         String name,
@@ -219,13 +219,13 @@ public abstract class DocsV3Support {
     protected final String category;
     protected final String name;
     protected final Logger logger;
-    protected final Class<?> testClass;
+    private final Supplier<Map<List<DataType>, DataType>> signatures;
 
-    private DocsV3Support(String category, String name, Class<?> testClass) {
+    private DocsV3Support(String category, String name, Class<?> testClass, Supplier<Map<List<DataType>, DataType>> signatures) {
         this.category = category;
         this.name = name;
         this.logger = LogManager.getLogger(testClass);
-        this.testClass = testClass;
+        this.signatures = signatures;
     }
 
     String replaceLinks(String text) {
@@ -378,7 +378,7 @@ public abstract class DocsV3Support {
 
     static class FunctionDocsSupport extends DocsV3Support {
         private FunctionDocsSupport(String name, Class<?> testClass) {
-            super("functions", name, testClass);
+            super("functions", name, testClass, () -> AbstractFunctionTestCase.signatures(testClass));
         }
 
         @Override
@@ -540,15 +540,25 @@ public abstract class DocsV3Support {
         }
     }
 
-    static class OperatorsDocsSupport extends DocsV3Support {
+    public static class OperatorsDocsSupport extends DocsV3Support {
+        private final OperatorConfig op;
 
         private OperatorsDocsSupport(String name, Class<?> testClass) {
-            super("operators", name, testClass);
+            this(name, testClass, OPERATORS.get(name), () -> AbstractFunctionTestCase.signatures(testClass));
+        }
+
+        public OperatorsDocsSupport(
+            String name,
+            Class<?> testClass,
+            OperatorConfig op,
+            Supplier<Map<List<DataType>, DataType>> signatures
+        ) {
+            super("operators", name, testClass, signatures);
+            this.op = op;
         }
 
         @Override
-        protected void renderSignature() throws IOException {
-            OperatorConfig op = OPERATORS.get(name);
+        public void renderSignature() throws IOException {
             String rendered = (switch (op.category()) {
                 case BINARY -> RailRoadDiagram.binaryOperator(op.symbol());
                 case UNARY -> RailRoadDiagram.unaryOperator(op.symbol());
@@ -564,8 +574,7 @@ public abstract class DocsV3Support {
         }
 
         @Override
-        protected void renderDocs() throws IOException {
-            DocsV3Support.OperatorConfig op = OPERATORS.get(name);
+        public void renderDocs() throws IOException {
             Constructor<?> ctor = constructorWithFunctionInfo(op.clazz());
             if (ctor != null) {
                 FunctionInfo functionInfo = ctor.getAnnotation(FunctionInfo.class);
@@ -715,8 +724,7 @@ public abstract class DocsV3Support {
         separator.append("--- |");
 
         List<String> table = new ArrayList<>();
-        var signatures = signatures(testClass);
-        for (Map.Entry<List<DataType>, DataType> sig : signatures(testClass).entrySet()) { // TODO flip to using sortedSignatures
+        for (Map.Entry<List<DataType>, DataType> sig : this.signatures.get().entrySet()) { // TODO flip to using sortedSignatures
             if (shouldHideSignature(sig.getKey(), sig.getValue())) {
                 continue;
             }
@@ -864,7 +872,7 @@ public abstract class DocsV3Support {
                 builder.startArray("params");
                 builder.endArray();
                 // There should only be one return type so just use that as the example
-                builder.field("returnType", signatures(testClass).values().iterator().next().esNameIfPossible());
+                builder.field("returnType", signatures.get().values().iterator().next().esNameIfPossible());
                 builder.endObject();
             } else {
                 int minArgCount = (int) args.stream().filter(a -> false == a.optional()).count();
@@ -931,7 +939,7 @@ public abstract class DocsV3Support {
     }
 
     private List<Map.Entry<List<DataType>, DataType>> sortedSignatures() {
-        List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures(testClass).entrySet());
+        List<Map.Entry<List<DataType>, DataType>> sortedSignatures = new ArrayList<>(signatures.get().entrySet());
         Collections.sort(sortedSignatures, (lhs, rhs) -> {
             int maxlen = Math.max(lhs.getKey().size(), rhs.getKey().size());
             for (int i = 0; i < maxlen; i++) {

@@ -17,18 +17,21 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.license.License;
@@ -36,6 +39,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -157,7 +161,8 @@ public class InferencePlugin extends Plugin
         MapperPlugin,
         SearchPlugin,
         InternalSearchPlugin,
-        ClusterPlugin {
+        ClusterPlugin,
+        CircuitBreakerPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -175,6 +180,13 @@ public class InferencePlugin extends Plugin
         Setting.Property.Dynamic
     );
 
+    public static final Setting<ByteSizeValue> INFERENCE_BYTES_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
+        "indices.breaker.inference.bytes.limit",
+        "25%",
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final LicensedFeature.Momentary INFERENCE_API_FEATURE = LicensedFeature.momentary(
         "inference",
         "api",
@@ -182,6 +194,8 @@ public class InferencePlugin extends Plugin
     );
 
     public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
+
+    public static final String INFERENCE_BYTES_CIRCUIT_BREAKER_NAME = "inference.bytes";
 
     public static final String NAME = "inference";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
@@ -199,6 +213,7 @@ public class InferencePlugin extends Plugin
     private final SetOnce<ElasticInferenceServiceComponents> elasticInferenceServiceComponents = new SetOnce<>();
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
+    private final SetOnce<CircuitBreaker> inferenceBytesBreaker = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -465,6 +480,7 @@ public class InferencePlugin extends Plugin
         settings.add(SKIP_VALIDATE_AND_START);
         settings.add(INDICES_INFERENCE_BATCH_SIZE);
         settings.addAll(ElasticInferenceServiceSettings.getSettingsDefinitions());
+        settings.add(INFERENCE_BYTES_CIRCUIT_BREAKER_LIMIT_SETTING);
 
         return settings;
     }
@@ -534,6 +550,23 @@ public class InferencePlugin extends Plugin
     @Override
     public Map<String, Highlighter> getHighlighters() {
         return Map.of(SemanticTextHighlighter.NAME, new SemanticTextHighlighter());
+    }
+
+    @Override
+    public BreakerSettings getCircuitBreaker(Settings settings) {
+        return new BreakerSettings(
+            INFERENCE_BYTES_CIRCUIT_BREAKER_NAME,
+            INFERENCE_BYTES_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+            1.0,
+            CircuitBreaker.Type.MEMORY,
+            CircuitBreaker.Durability.TRANSIENT
+        );
+    }
+
+    @Override
+    public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
+        assert circuitBreaker.getName().equals(INFERENCE_BYTES_CIRCUIT_BREAKER_NAME);
+        this.inferenceBytesBreaker.set(circuitBreaker);
     }
 
     @Override

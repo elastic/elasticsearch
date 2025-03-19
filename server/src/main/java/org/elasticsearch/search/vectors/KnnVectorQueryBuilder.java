@@ -482,7 +482,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
         int k;
         if (this.k != null) {
             k = this.k;
@@ -492,7 +491,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 k = Math.min(k, numCands);
             }
         }
-        int adjustedNumCands = numCands == null ? Math.round(NUM_CANDS_MULTIPLICATIVE_FACTOR * k) : numCands;
+
+        int maxKnnNumCandidates = context.getIndexSettings().getMaxKnnNumCandidates();
+        if (numCands != null && numCands > maxKnnNumCandidates) {
+            throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + maxKnnNumCandidates + "]");
+        }
+
+        int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k, maxKnnNumCandidates)) : numCands;
+
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             return new MatchNoDocsQuery();
         }

@@ -21,6 +21,8 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
@@ -34,6 +36,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -53,6 +56,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCase<KnnVectorQueryBuilder> {
     private static final String VECTOR_FIELD = "vector";
@@ -457,5 +462,18 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
         assertThat(rewritten.getVectorSimilarity(), equalTo(1f));
         assertThat(rewritten.filterQueries(), hasSize(numFilters));
         assertThat(rewritten.filterQueries(), equalTo(filters));
+    }
+
+    public void testMaxNumCandidatesExceeded() {
+        Settings settings = Settings.builder().put("index.max_knn_num_candidates", 100).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
+        when(context.getIndexSettings()).thenReturn(indexSettings);
+
+        KnnVectorQueryBuilder query = new KnnVectorQueryBuilder(VECTOR_FIELD, new float[] { 1.0f, 2.0f, 3.0f }, 5, 150, null, null);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.doToQuery(context));
+        assertThat(e.getMessage(), containsString("[num_candidates] cannot exceed [100]"));
     }
 }

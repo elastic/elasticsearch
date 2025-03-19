@@ -8,7 +8,7 @@ A shard is a basic unit of storage in {es}. Every index is divided into one or m
 
 [discrete]
 [[sizing-shard-guidelines]]
-=== Sizing Shard Guidelines
+=== General guidelines
 
 Balancing the number and size of your shards is important for the performance and stability of an {es} cluster:
 

@@ -289,7 +289,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
             throw new IllegalArgumentException("Log file " + logFile + " does not exist.");
         }
-        
+
         public LocalNodeSpec getSpec() {
             return spec;
         }

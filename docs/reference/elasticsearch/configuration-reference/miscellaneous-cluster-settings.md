@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/misc-cluster-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Miscellaneous cluster settings [misc-cluster-settings]

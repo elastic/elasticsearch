@@ -1871,7 +1871,7 @@ FROM employees, employees_incompatible
 | STATS c = MV_COUNT(VALUES(salary_change))
 ;
 
-c:integerq
+c:integer
 6
 ;
 

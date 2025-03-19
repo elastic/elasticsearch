@@ -52,11 +52,14 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
 
     @Override
     public Map<String, Object> asMap() {
-        Map<String, Object> map = new HashMap<>();
-        map.put(ChunkingSettingsOptions.STRATEGY.toString(), STRATEGY.toString().toLowerCase(Locale.ROOT));
-        map.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), maxChunkSize);
-        map.put(ChunkingSettingsOptions.OVERLAP.toString(), overlap);
-        return map;
+        return Map.of(
+            ChunkingSettingsOptions.STRATEGY.toString(),
+            STRATEGY.toString().toLowerCase(Locale.ROOT),
+            ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(),
+            maxChunkSize,
+            ChunkingSettingsOptions.OVERLAP.toString(),
+            overlap
+        );
     }
 
     public int maxChunkSize() {

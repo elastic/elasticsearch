@@ -318,9 +318,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 return;
             }
 
-            // Create a batch of requests that come in. The number of requests in the batch must be <= the configured batch size,
-            // and they must all have the same configured chunking settings. As requests must be processed in order, this means
-            // that some batches with several different chunking settings may result in more, smaller batches.
+            // Batch requests in the order they are specified, grouping by field and chunking settings.
+            // As each field may have different chunking settings specified, the size of the batch will be <= the configured batchSize.
             int currentBatchSize = Math.min(requests.size(), batchSize);
             final ChunkingSettings chunkingSettings = requests.isEmpty() == false ? requests.getFirst().chunkingSettings : null;
             final List<FieldInferenceRequest> currentBatch = new ArrayList<>();

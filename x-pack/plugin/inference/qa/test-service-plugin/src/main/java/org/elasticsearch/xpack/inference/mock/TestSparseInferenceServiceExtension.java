@@ -175,12 +175,13 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
                 for (String c : chunkedInput) {
                     var tokens = new ArrayList<WeightedToken>();
                     for (int i = 0; i < 5; i++) {
-                        tokens.add(new WeightedToken("feature_" + i, generateEmbedding(input, i)));
+                        tokens.add(new WeightedToken("feature_" + i, generateEmbedding(c, i)));
                     }
                     offset = input.indexOf(c, offset);
                     int endOffset = offset + c.length();
                     var embeddings = new SparseEmbeddingResults.Embedding(tokens, false);
                     chunks.add(new SparseEmbeddingResults.Chunk(embeddings, new ChunkedInference.TextOffset(offset, endOffset)));
+                    offset = endOffset;
                 }
                 ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
                 results.add(chunkedInferenceEmbedding);

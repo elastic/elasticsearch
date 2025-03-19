@@ -191,11 +191,12 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                     offset = input.indexOf(c, offset);
                     int endOffset = offset + c.length();
                     chunks.add(
-                        new EmbeddingResults.Chunk(
-                            makeResults(List.of(c), serviceSettings).embeddings().getFirst(),
+                        new TextEmbeddingFloatResults.Chunk(
+                            makeResults(List.of(c), serviceSettings).embeddings().get(0),
                             new ChunkedInference.TextOffset(offset, endOffset)
                         )
                     );
+                    offset = endOffset;
                 }
                 ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
                 results.add(chunkedInferenceEmbedding);

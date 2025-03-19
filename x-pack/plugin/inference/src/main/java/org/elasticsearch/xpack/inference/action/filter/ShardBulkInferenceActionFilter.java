@@ -484,10 +484,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     new SemanticTextField.InferenceResult(
                         inferenceFieldMetadata.getInferenceId(),
                         model != null ? new MinimalServiceSettings(model) : null,
+                        ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings(), false),
                         chunkMap
                     ),
-                    indexRequest.getContentType(),
-                    ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings(), false)
+                    indexRequest.getContentType()
                 );
 
                 if (useLegacyFormat) {

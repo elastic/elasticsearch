@@ -369,9 +369,13 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
                 useLegacyFormat,
                 SEMANTIC_TEXT_FIELD,
                 null,
-                new SemanticTextField.InferenceResult(INFERENCE_ID, modelSettings, Map.of(SEMANTIC_TEXT_FIELD, List.of())),
-                XContentType.JSON,
-                SemanticTextFieldTests.generateRandomChunkingSettings()
+                new SemanticTextField.InferenceResult(
+                    INFERENCE_ID,
+                    modelSettings,
+                    SemanticTextFieldTests.generateRandomChunkingSettings(),
+                    Map.of(SEMANTIC_TEXT_FIELD, List.of())
+                ),
+                XContentType.JSON
             );
 
             XContentBuilder builder = JsonXContent.contentBuilder().startObject();

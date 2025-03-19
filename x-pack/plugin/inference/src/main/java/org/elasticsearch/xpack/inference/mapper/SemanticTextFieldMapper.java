@@ -189,7 +189,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).chunkingSettings,
             XContentBuilder::field,
             Objects::toString
-        ).acceptsNull();
+        ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeChunkingSettings);
+
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
@@ -905,9 +906,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                         useLegacyFormat,
                         name(),
                         null,
-                        new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkMap),
-                        source.sourceContentType(),
-                        chunkingSettings
+                        new SemanticTextField.InferenceResult(inferenceId, modelSettings, chunkingSettings, chunkMap),
+                        source.sourceContentType()
                     )
                 );
             }
@@ -1023,6 +1023,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return true;
         }
         conflicts.addConflict("model_settings", "");
+        return false;
+    }
+
+    private static boolean canMergeChunkingSettings(ChunkingSettings previous, ChunkingSettings current, Conflicts conflicts) {
+        if (Objects.equals(previous, current)) {
+            return true;
+        }
+        if (previous == null || current == null) {
+            return true;
+        }
+        conflicts.addConflict("chunking_settings", "");
         return false;
     }
 }

@@ -51,15 +51,13 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  *                       {@link IndexVersions#INFERENCE_METADATA_FIELDS}, null otherwise.
  * @param inference The inference result.
  * @param contentType The {@link XContentType} used to store the embeddings chunks.
- * @param chunkingSettings The {@link ChunkingSettings} used to override model chunking defaults
  */
 public record SemanticTextField(
     boolean useLegacyFormat,
     String fieldName,
     @Nullable List<String> originalValues,
     InferenceResult inference,
-    XContentType contentType,
-    @Nullable ChunkingSettings chunkingSettings
+    XContentType contentType
 ) implements ToXContentObject {
 
     static final String TEXT_FIELD = "text";
@@ -75,7 +73,12 @@ public record SemanticTextField(
     static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
 
-    public record InferenceResult(String inferenceId, MinimalServiceSettings modelSettings, Map<String, List<Chunk>> chunks) {}
+    public record InferenceResult(
+        String inferenceId,
+        MinimalServiceSettings modelSettings,
+        ChunkingSettings chunkingSettings,
+        Map<String, List<Chunk>> chunks
+    ) {}
 
     public record Chunk(@Nullable String text, int startOffset, int endOffset, BytesReference rawEmbeddings) {}
 
@@ -131,12 +134,6 @@ public record SemanticTextField(
         }
         try {
             Map<String, Object> map = XContentMapValues.nodeMapValue(node, CHUNKING_SETTINGS_FIELD);
-            XContentParser parser = new MapXContentParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.IGNORE_DEPRECATIONS,
-                map,
-                XContentType.JSON
-            );
             return ChunkingSettingsBuilder.fromMap(map, false);
         } catch (Exception exc) {
             throw new ElasticsearchException(exc);
@@ -158,9 +155,9 @@ public record SemanticTextField(
         builder.startObject(INFERENCE_FIELD);
         builder.field(INFERENCE_ID_FIELD, inference.inferenceId);
         builder.field(MODEL_SETTINGS_FIELD, inference.modelSettings);
-        if (chunkingSettings != null) {
+        if (inference.chunkingSettings != null) {
             builder.startObject(CHUNKING_SETTINGS_FIELD);
-            builder.mapContents(chunkingSettings.asMap());
+            builder.mapContents(inference.chunkingSettings.asMap());
             builder.endObject();
         }
 
@@ -208,7 +205,6 @@ public record SemanticTextField(
         new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
             List<String> originalValues = (List<String>) args[0];
             InferenceResult inferenceResult = (InferenceResult) args[1];
-            ChunkingSettings chunkingSettings = (ChunkingSettings) args[2];
             if (context.useLegacyFormat() == false) {
                 if (originalValues != null && originalValues.isEmpty() == false) {
                     throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
@@ -220,8 +216,7 @@ public record SemanticTextField(
                 context.fieldName(),
                 originalValues,
                 inferenceResult,
-                context.xContentType(),
-                chunkingSettings
+                context.xContentType()
             );
         });
 
@@ -229,7 +224,13 @@ public record SemanticTextField(
     private static final ConstructingObjectParser<InferenceResult, ParserContext> INFERENCE_RESULT_PARSER = new ConstructingObjectParser<>(
         INFERENCE_FIELD,
         true,
-        args -> new InferenceResult((String) args[0], (MinimalServiceSettings) args[1], (Map<String, List<Chunk>>) args[2])
+        args -> {
+            String inferenceId = (String) args[0];
+            MinimalServiceSettings modelSettings = (MinimalServiceSettings) args[1];
+            Map<String, Object> chunkingSettings = (Map<String, Object>) args[2];
+            Map<String, List<Chunk>> chunks = (Map<String, List<Chunk>>) args[3];
+            return new InferenceResult(inferenceId, modelSettings, ChunkingSettingsBuilder.fromMap(chunkingSettings, false), chunks);
+        }
     );
 
     private static final ConstructingObjectParser<Chunk, ParserContext> CHUNKS_PARSER = new ConstructingObjectParser<>(
@@ -244,25 +245,9 @@ public record SemanticTextField(
         }
     );
 
-    private static final ConstructingObjectParser<ChunkingSettings, Void> CHUNKING_SETTINGS_PARSER = new ConstructingObjectParser<>(
-        CHUNKING_SETTINGS_FIELD,
-        true,
-        args -> {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> map = (Map<String, Object>) args[0];
-            return ChunkingSettingsBuilder.fromMap(map, false);
-        }
-    );
-
     static {
         SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TEXT_FIELD));
         SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), INFERENCE_RESULT_PARSER, new ParseField(INFERENCE_FIELD));
-        SEMANTIC_TEXT_FIELD_PARSER.declareObjectOrNull(
-            optionalConstructorArg(),
-            (p, c) -> CHUNKING_SETTINGS_PARSER.parse(p, null),
-            null,
-            new ParseField(CHUNKING_SETTINGS_FIELD)
-        );
 
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
         INFERENCE_RESULT_PARSER.declareObjectOrNull(
@@ -271,6 +256,7 @@ public record SemanticTextField(
             null,
             new ParseField(MODEL_SETTINGS_FIELD)
         );
+        INFERENCE_RESULT_PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), new ParseField(CHUNKING_SETTINGS_FIELD));
         INFERENCE_RESULT_PARSER.declareField(constructorArg(), (p, c) -> {
             if (c.useLegacyFormat()) {
                 return Map.of(c.fieldName, parseChunksArrayLegacy(p, c));

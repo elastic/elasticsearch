@@ -58,7 +58,7 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // do not add elements at the top-level as any element at this level is parsed as a new inference field
-        return field -> field.equals("") || field.equals(CHUNKING_SETTINGS_FIELD) || field.startsWith(CHUNKING_SETTINGS_FIELD + ".");
+        return field -> field.equals("") || field.contains(CHUNKING_SETTINGS_FIELD);
     }
 
     private static InferenceFieldMetadata createTestItem() {

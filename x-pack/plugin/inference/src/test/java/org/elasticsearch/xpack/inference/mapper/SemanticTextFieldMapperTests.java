@@ -868,10 +868,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             new SemanticTextField.InferenceResult(
                 randomSemanticText.inference().inferenceId(),
                 null,
+                chunkingSettings,
                 randomSemanticText.inference().chunks()
             ),
-            randomSemanticText.contentType(),
-            chunkingSettings
+            randomSemanticText.contentType()
         );
 
         MapperService mapperService = createMapperService(
@@ -914,9 +914,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             useLegacyFormat,
             fieldName,
             List.of(),
-            new SemanticTextField.InferenceResult(inferenceId, modelSettings, Map.of()),
-            XContentType.JSON,
-            generateRandomChunkingSettings()
+            new SemanticTextField.InferenceResult(inferenceId, modelSettings, generateRandomChunkingSettings(), Map.of()),
+            XContentType.JSON
         );
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         if (useLegacyFormat) {

@@ -6,5 +6,5 @@ issues: []
 highlight:
   title: Release semantic_text as a GA feature
   body: semantic_text is now an official GA (generally available) feature!
-        This means that we will support it in production environments in accordance with our support SLAs.
+        This field type allows you to easily set up and perform semantic search with minimal ramp up time.
   notable: true

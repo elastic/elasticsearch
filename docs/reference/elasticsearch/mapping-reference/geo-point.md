@@ -9,14 +9,14 @@ mapped_pages:
 
 Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 
-* to find geopoints within a [bounding box](/reference/query-languages/query-dsl-geo-bounding-box-query.md), within a certain [distance](/reference/query-languages/query-dsl-geo-distance-query.md) of a central point, or within a [`geo_shape` query](/reference/query-languages/query-dsl-geo-shape-query.md) (for example, points in a polygon).
+* to find geopoints within a [bounding box](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md), within a certain [distance](/reference/query-languages/query-dsl/query-dsl-geo-distance-query.md) of a central point, or within a [`geo_shape` query](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md) (for example, points in a polygon).
 * to aggregate documents by [distance](/reference/data-analysis/aggregations/search-aggregations-bucket-geodistance-aggregation.md) from a central point.
 * to aggregate documents by geographic grids: either [`geo_hash`](/reference/data-analysis/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md), [`geo_tile`](/reference/data-analysis/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md) or [`geo_hex`](/reference/data-analysis/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).
 * to aggregate geopoints into a track using the metrics aggregation [`geo_line`](/reference/data-analysis/aggregations/search-aggregations-metrics-geo-line.md).
-* to integrate distance into a document’s [relevance score](/reference/query-languages/query-dsl-function-score-query.md).
+* to integrate distance into a document’s [relevance score](/reference/query-languages/query-dsl/query-dsl-function-score-query.md).
 * to [sort](/reference/elasticsearch/rest-apis/sort-search-results.md#geo-sorting) documents by distance.
 
-As with [geo_shape](/reference/elasticsearch/mapping-reference/geo-shape.md) and [point](/reference/elasticsearch/mapping-reference/point.md), `geo_point` can be specified in [GeoJSON](http://geojson.org) and [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md) formats. However, there are a number of additional formats that are supported for convenience and historical reasons. In total there are six ways that a geopoint may be specified, as demonstrated below:
+As with [geo_shape](/reference/elasticsearch/mapping-reference/geo-shape.md) and [point](/reference/elasticsearch/mapping-reference/point.md), `geo_point` can be specified in [GeoJSON](http://geojson.org) and [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) formats. However, there are a number of additional formats that are supported for convenience and historical reasons. In total there are six ways that a geopoint may be specified, as demonstrated below:
 
 ```console
 PUT my-index-000001
@@ -92,7 +92,7 @@ GET my-index-000001/_search
 ```
 
 1. Geopoint expressed as an object, in [GeoJSON](https://geojson.org/) format, with `type` and `coordinates` keys.
-2. Geopoint expressed as a [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md) POINT with the format: `"POINT(lon lat)"`
+2. Geopoint expressed as a [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) POINT with the format: `"POINT(lon lat)"`
 3. Geopoint expressed as an object, with `lat` and `lon` keys.
 4. Geopoint expressed as an array with the format: [ `lon`, `lat`]
 5. Geopoint expressed as a string with the format: `"lat,lon"`.
@@ -105,7 +105,7 @@ GET my-index-000001/_search
 
 Please note that string geopoints are ordered as `lat,lon`, while array geopoints, GeoJSON and WKT are ordered as the reverse: `lon,lat`.
 
-The reasons for this are historical. Geographers traditionally write `latitude` before `longitude`, while recent formats specified for geographic data like [GeoJSON](https://geojson.org/) and [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md) order `longitude` before `latitude` (easting before northing) in order to match the mathematical convention of ordering `x` before `y`.
+The reasons for this are historical. Geographers traditionally write `latitude` before `longitude`, while recent formats specified for geographic data like [GeoJSON](https://geojson.org/) and [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) order `longitude` before `latitude` (easting before northing) in order to match the mathematical convention of ordering `x` before `y`.
 
 ::::
 

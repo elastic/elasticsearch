@@ -9,7 +9,7 @@ mapped_pages:
 
 Removes duplicate tokens in the same position.
 
-The `remove_duplicates` filter uses Lucene’s [RemoveDuplicatesTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/RemoveDuplicatesTokenFilter.md).
+The `remove_duplicates` filter uses Lucene’s [RemoveDuplicatesTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/RemoveDuplicatesTokenFilter.html).
 
 ## Example [analysis-remove-duplicates-tokenfilter-analyze-ex]
 

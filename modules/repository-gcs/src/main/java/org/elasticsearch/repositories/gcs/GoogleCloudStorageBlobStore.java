@@ -44,6 +44,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
@@ -72,6 +73,11 @@ import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 import static org.elasticsearch.core.Strings.format;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
+
+    /**
+     * see com.google.cloud.BaseWriteChannel#DEFAULT_CHUNK_SIZE
+     */
+    static final int SDK_DEFAULT_CHUNK_SIZE = 60 * 256 * 1024;
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageBlobStore.class);
 
@@ -124,7 +130,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.repositoryName = repositoryName;
         this.storageService = storageService;
         this.bigArrays = bigArrays;
-        this.stats = new GoogleCloudStorageOperationsStats(bucketName);
+        this.stats = new GoogleCloudStorageOperationsStats(bucketName, storageService.isStateless());
         this.bufferSize = bufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
     }
@@ -378,9 +384,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                             public void write(byte[] b, int off, int len) throws IOException {
                                 int written = 0;
                                 while (written < len) {
-                                    // at most write the default chunk size in one go to prevent allocating huge buffers in the SDK
-                                    // see com.google.cloud.BaseWriteChannel#DEFAULT_CHUNK_SIZE
-                                    final int toWrite = Math.min(len - written, 60 * 256 * 1024);
+                                    final int toWrite = Math.min(len - written, SDK_DEFAULT_CHUNK_SIZE);
                                     out.write(b, off + written, toWrite);
                                     written += toWrite;
                                 }
@@ -393,7 +397,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 final WritableByteChannel writeChannel = channelRef.get();
                 if (writeChannel != null) {
                     SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                    stats.trackPutOperation();
+                    stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
                 } else {
                     writeBlob(purpose, blobName, buffer.bytes(), failIfAlreadyExists);
                 }
@@ -463,7 +467,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 // we do with the GET/LIST operations since this operations
                 // can trigger multiple underlying http requests but only one
                 // operation is billed.
-                stats.trackPutOperation();
+                stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
@@ -515,7 +519,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // we do with the GET/LIST operations since this operations
             // can trigger multiple underlying http requests but only one
             // operation is billed.
-            stats.trackPostOperation();
+            stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
@@ -634,7 +638,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public Map<String, BlobStoreActionStats> stats() {
-        return stats.toMap();
+        return stats.tracker().toMap();
     }
 
     private static final class WritableBlobChannel implements WritableByteChannel {
@@ -745,7 +749,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                         Storage.BlobTargetOption.generationMatch()
                     )
                 );
-                stats.trackPostOperation();
+                stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
                 return OptionalBytesReference.of(expected);
             } catch (Exception e) {
                 final var serviceException = unwrapServiceException(e);

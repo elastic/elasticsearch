@@ -262,13 +262,17 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
         // When the search request executes, block all shards except 1.
         final List<SearchShardBlockingPlugin> searchShardBlockingPlugins = initSearchShardBlockingPlugin();
         AtomicBoolean letOneShardProceed = new AtomicBoolean();
+        // Ensure we have at least one task waiting on the latch
+        CountDownLatch waitingTaskLatch = new CountDownLatch(1);
         CountDownLatch shardTaskLatch = new CountDownLatch(1);
         for (SearchShardBlockingPlugin plugin : searchShardBlockingPlugins) {
             plugin.setRunOnNewReaderContext((ReaderContext c) -> {
                 if (letOneShardProceed.compareAndSet(false, true)) {
                     // Let one shard continue.
                 } else {
-                    safeAwait(shardTaskLatch, TimeValue.timeValueSeconds(30)); // Block the other shards.
+                    // Signal that we have a task waiting on the latch
+                    waitingTaskLatch.countDown();
+                    safeAwait(shardTaskLatch); // Block the other shards.
                 }
             });
         }
@@ -280,6 +284,9 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             plugin.disableBlock();
             plugin.setBeforeExecution(() -> {
                 if (oneThreadWillError.compareAndSet(false, true)) {
+                    // wait for some task to get to the latch
+                    safeAwait(waitingTaskLatch);
+                    // then throw the exception
                     throw new IllegalStateException("This will cancel the ContextIndexSearcher.search task");
                 }
             });

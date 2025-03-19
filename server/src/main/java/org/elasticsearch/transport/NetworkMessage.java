@@ -34,7 +34,7 @@ public abstract class NetworkMessage {
         this.threadContext = threadContext.captureAsWriteable();
         this.version = version;
         this.requestId = requestId;
-        this.compressionScheme = adjustedScheme(version, compressionScheme);
+        this.compressionScheme = compressionScheme;
         if (this.compressionScheme != null) {
             this.status = TransportStatus.setCompress(status);
         } else {
@@ -52,9 +52,5 @@ public abstract class NetworkMessage {
 
     boolean isError() {
         return TransportStatus.isError(status);
-    }
-
-    private static Compression.Scheme adjustedScheme(TransportVersion version, Compression.Scheme compressionScheme) {
-        return compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.Scheme.LZ4_VERSION) ? null : compressionScheme;
     }
 }

@@ -122,14 +122,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Set the timeout for the {@link #setWaitForCheckpoints(Map)} request.
-     */
-    public SearchRequestBuilder setWaitForCheckpointsTimeout(final TimeValue waitForCheckpointsTimeout) {
-        request.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
-        return this;
-    }
-
-    /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
      * <p>
      * For example indices that don't exist.

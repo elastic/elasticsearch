@@ -436,6 +436,14 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             this.indicesRouting = ImmutableOpenMap.builder(routingTable.indicesRouting);
         }
 
+        public IndexRoutingTable getIndexRoutingTable(String index) {
+            return indicesRouting.get(index);
+        }
+
+        public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
+            return shardRoutingRoleStrategy;
+        }
+
         private static void addShard(
             final Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders,
             final ShardRouting shardRoutingEntry

@@ -31,6 +31,10 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.fst.FST;
 import java.io.IOException;
 import java.util.Arrays;
 
+/**
+ * This is a copy of the class with same name shipped with Lucene, which is though package protected hence not accessible.
+ * We need to copy it because we have our own fork of {@link FieldReader}.
+ */
 final class SegmentTermsEnumFrame {
     // Our index in stack[]:
     final int ord;

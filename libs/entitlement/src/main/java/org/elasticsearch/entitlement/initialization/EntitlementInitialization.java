@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
@@ -22,6 +23,7 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
@@ -154,8 +156,10 @@ public class EntitlementInitialization {
             serverModuleFileDatas,
             // Base ES directories
             FileData.ofPath(bootstrapArgs.pluginsDir(), READ),
+            FileData.ofPath(bootstrapArgs.modulesDir(), READ),
             FileData.ofPath(bootstrapArgs.configDir(), READ),
             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+            FileData.ofPath(bootstrapArgs.libDir(), READ),
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
 
@@ -210,6 +214,7 @@ public class EntitlementInitialization {
                     new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
+            new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
             new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
             new Scope(
@@ -239,16 +244,22 @@ public class EntitlementInitialization {
             )
         );
 
-        Path trustStorePath = trustStorePath();
-        if (trustStorePath != null) {
+        // conditionally add FIPS entitlements if FIPS only functionality is enforced
+        if (Booleans.parseBoolean(System.getProperty("org.bouncycastle.fips.approved_only"), false)) {
+            // if custom trust store is set, grant read access to its location, otherwise use the default JDK trust store
+            String trustStore = System.getProperty("javax.net.ssl.trustStore");
+            Path trustStorePath = trustStore != null
+                ? Path.of(trustStore)
+                : Path.of(System.getProperty("java.home")).resolve("lib/security/jssecacerts");
+
             Collections.addAll(
                 serverScopes,
                 new Scope(
                     "org.bouncycastle.fips.tls",
                     List.of(
                         new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))),
-                        new OutboundNetworkEntitlement(),
-                        new ManageThreadsEntitlement()
+                        new ManageThreadsEntitlement(),
+                        new OutboundNetworkEntitlement()
                     )
                 ),
                 new Scope(
@@ -259,8 +270,13 @@ public class EntitlementInitialization {
             );
         }
 
-        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var serverPolicy = new Policy("server", serverScopes);
+        var serverPolicy = new Policy(
+            "server",
+            bootstrapArgs.serverPolicyPatch() == null
+                ? serverScopes
+                : PolicyUtils.mergeScopes(serverScopes, bootstrapArgs.serverPolicyPatch().scopes())
+        );
+
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
         // See also modules/apm/src/main/plugin-metadata/entitlement-policy.yaml
@@ -279,12 +295,12 @@ public class EntitlementInitialization {
                 )
             )
         );
-        var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,
             agentEntitlements,
             pluginPolicies,
-            resolver,
+            EntitlementBootstrap.bootstrapArgs().pluginResolver(),
+            EntitlementBootstrap.bootstrapArgs().sourcePaths(),
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
             pathLookup,
@@ -298,11 +314,6 @@ public class EntitlementInitialization {
             throw new IllegalStateException("user.home system property is required");
         }
         return PathUtils.get(userHome);
-    }
-
-    private static Path trustStorePath() {
-        String trustStore = System.getProperty("javax.net.ssl.trustStore");
-        return trustStore != null ? Path.of(trustStore) : null;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

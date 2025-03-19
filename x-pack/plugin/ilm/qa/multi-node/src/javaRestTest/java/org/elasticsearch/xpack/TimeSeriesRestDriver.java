@@ -96,7 +96,8 @@ public final class TimeSeriesRestDriver {
         RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
             .setWarningsHandler(warnings -> warnings.isEmpty() == false && List.of("""
                 [indices.lifecycle.rollover.only_if_has_documents] setting was deprecated in Elasticsearch \
-                and will be removed in a future release.""").equals(warnings) == false)
+                and will be removed in a future release. \
+                See the deprecation documentation for the next major version.""").equals(warnings) == false)
             .build();
 
         Request explainRequest = new Request("GET", indexPattern + "/_ilm/explain");

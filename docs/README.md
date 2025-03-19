@@ -49,14 +49,14 @@ To re-run CI checks, an Elastic employee can select the `Re-run this job` option
 
 > [!TIP]
 As of 9.0.0, we are currently only publishing from the `main` branch.
-**This means that backporting is currently not necessary for 9.0+ Elasticsearch docs.**
+We will continue to backport changes as usual, in case we need to revisit this approach in the future.
 
-However, if you need to update the `8.x` docs, you'll have to use the old `asciidoc` system. Refer to the [`8.x` README](https://github.com/elastic/elasticsearch/blob/8.x/docs/README.asciidoc) for more information.
+If you need to update the `8.x` docs, you'll have to use the old `asciidoc` system. Refer to the [`8.x` README](https://github.com/elastic/elasticsearch/blob/8.x/docs/README.asciidoc) for more information.
 
 > [!NOTE]
 > If you need to make changes to 9.x docs and 8.x docs, you'll need to use two different workflows:
 
-- **For `9.x` docs**, create a PR using the new Markdown system against the `main` branch.
+- **For `9.x` docs**, create a PR using the new Markdown system against the `main` branch and backport as necessary.
 - **For `8.x` docs**, create a PR using the old AsciiDoc system against the `8.x` branch and backport the changes to any other `8.x` branches needed.
 
 ## Test code snippets

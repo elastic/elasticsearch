@@ -12,11 +12,11 @@ Add shingles, or word [n-grams](https://en.wikipedia.org/wiki/N-gram), to a toke
 For example, many tokenizers convert `the lazy dog` to `[ the, lazy, dog ]`. You can use the `shingle` filter to add two-word shingles to this stream: `[ the, the lazy, lazy, lazy dog, dog ]`.
 
 ::::{tip}
-Shingles are often used to help speed up phrase queries, such as [`match_phrase`](/reference/query-languages/query-dsl-match-query-phrase.md). Rather than creating shingles using the `shingles` filter, we recommend you use the [`index-phrases`](/reference/elasticsearch/mapping-reference/index-phrases.md) mapping parameter on the appropriate [text](/reference/elasticsearch/mapping-reference/text.md) field instead.
+Shingles are often used to help speed up phrase queries, such as [`match_phrase`](/reference/query-languages/query-dsl/query-dsl-match-query-phrase.md). Rather than creating shingles using the `shingles` filter, we recommend you use the [`index-phrases`](/reference/elasticsearch/mapping-reference/index-phrases.md) mapping parameter on the appropriate [text](/reference/elasticsearch/mapping-reference/text.md) field instead.
 ::::
 
 
-This filter uses Lucene’s [ShingleFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/shingle/ShingleFilter.md).
+This filter uses Lucene’s [ShingleFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/shingle/ShingleFilter.html).
 
 ## Example [analysis-shingle-tokenfilter-analyze-ex]
 

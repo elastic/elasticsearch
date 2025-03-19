@@ -93,7 +93,7 @@ Response:
 
 ## High-precision requests [geotilegrid-high-precision]
 
-When requesting detailed buckets (typically for displaying a "zoomed in" map), a filter like [geo_bounding_box](/reference/query-languages/query-dsl-geo-bounding-box-query.md) should be applied to narrow the subject area. Otherwise, potentially millions of buckets will be created and returned.
+When requesting detailed buckets (typically for displaying a "zoomed in" map), a filter like [geo_bounding_box](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md) should be applied to narrow the subject area. Otherwise, potentially millions of buckets will be created and returned.
 
 $$$geotilegrid-high-precision-ex$$$
 
@@ -155,7 +155,7 @@ Response:
 
 ## Requests with additional bounding box filtering [geotilegrid-addtl-bounding-box-filtering]
 
-The `geotile_grid` aggregation supports an optional `bounds` parameter that restricts the cells considered to those that intersect the provided bounds. The `bounds` parameter accepts the same [bounding box formats](/reference/query-languages/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats) as the geo-bounding box query. This bounding box can be used with or without an additional `geo_bounding_box` query for filtering the points prior to aggregating. It is an independent bounding box that can intersect with, be equal to, or be disjoint to any additional `geo_bounding_box` queries defined in the context of the aggregation.
+The `geotile_grid` aggregation supports an optional `bounds` parameter that restricts the cells considered to those that intersect the provided bounds. The `bounds` parameter accepts the same [bounding box formats](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats) as the geo-bounding box query. This bounding box can be used with or without an additional `geo_bounding_box` query for filtering the points prior to aggregating. It is an independent bounding box that can intersect with, be equal to, or be disjoint to any additional `geo_bounding_box` queries defined in the context of the aggregation.
 
 $$$geotilegrid-aggregation-with-bounds$$$
 
@@ -220,7 +220,7 @@ precision
 :   (Optional, integer) Integer zoom of the key used to define cells/buckets in the results. Defaults to `7`. Values outside of [`0`,`29`] will be rejected.
 
 bounds
-:   (Optional, object) Bounding box used to filter the geo-points or geo-shapes in each bucket. Accepts the same bounding box formats as the [geo-bounding box query](/reference/query-languages/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats).
+:   (Optional, object) Bounding box used to filter the geo-points or geo-shapes in each bucket. Accepts the same bounding box formats as the [geo-bounding box query](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md#query-dsl-geo-bounding-box-query-accepted-formats).
 
 size
 :   (Optional, integer) Maximum number of buckets to return. Defaults to 10,000. When results are trimmed, buckets are prioritized based on the volume of documents they contain.

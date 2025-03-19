@@ -877,7 +877,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
         });
         safeAwait(listener);
         final var backingIndexNames = getDataStreamBackingIndexNames(dataStreamName, failureStore);
-        assertEquals("Retrieved number of data stream indices doesn't match expectation", expectedSize, backingIndexNames.size());
+        assertEquals(
+            Strings.format(
+                "Retrieved number of data stream indices doesn't match expectation for data stream [%s]. Expected %d but got %s",
+                dataStreamName,
+                expectedSize,
+                backingIndexNames
+            ),
+            expectedSize,
+            backingIndexNames.size()
+        );
         return backingIndexNames;
     }
 

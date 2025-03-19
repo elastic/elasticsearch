@@ -553,7 +553,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,
                 null,
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;

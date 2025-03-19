@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class LocalClusterSpec implements ClusterSpec {
@@ -105,7 +104,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final List<SystemPropertyProvider> systemPropertyProviders;
         private final Map<String, String> systemProperties;
         private final List<String> jvmArgs;
-        private final Function<String, Path> configDirFunction;
+        private final Path configDir;
         private Version version;
 
         public LocalNodeSpec(
@@ -128,7 +127,7 @@ public class LocalClusterSpec implements ClusterSpec {
             List<SystemPropertyProvider> systemPropertyProviders,
             Map<String, String> systemProperties,
             List<String> jvmArgs,
-            Function<String, Path> configDirFunction
+            Path configDir
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -149,7 +148,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.systemPropertyProviders = systemPropertyProviders;
             this.systemProperties = systemProperties;
             this.jvmArgs = jvmArgs;
-            this.configDirFunction = configDirFunction;
+            this.configDir = configDir;
         }
 
         void setVersion(Version version) {
@@ -208,8 +207,8 @@ public class LocalClusterSpec implements ClusterSpec {
             return jvmArgs;
         }
 
-        public Function<String, Path> getConfigDirFunction() {
-            return configDirFunction;
+        public Path getConfigDir() {
+            return configDir;
         }
 
         public boolean isSecurityEnabled() {
@@ -349,7 +348,7 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.systemPropertyProviders,
                         n.systemProperties,
                         n.jvmArgs,
-                        n.configDirFunction
+                        n.configDir
                     )
                 )
                 .toList();

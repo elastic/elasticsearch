@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -49,7 +48,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private DistributionType distributionType;
     private Version version;
     private String keystorePassword;
-    private Function<String, Path> configDirFunction;
+    private Path configDir;
 
     protected AbstractLocalSpecBuilder(AbstractLocalSpecBuilder<?> parent) {
         this.parent = parent;
@@ -274,13 +273,13 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     }
 
     @Override
-    public T withConfigDir(Function<String, Path> configDirFunction) {
-        this.configDirFunction = configDirFunction;
+    public T withConfigDir(Path configDir) {
+        this.configDir = configDir;
         return cast(this);
     }
 
-    public Function<String, Path> getConfigDirFunction() {
-        return inherit(() -> parent.getConfigDirFunction(), configDirFunction);
+    public Path getConfigDir() {
+        return inherit(() -> parent.getConfigDir(), configDir);
     }
 
     @Override

@@ -20,7 +20,6 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 
 import java.nio.file.Path;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -162,5 +161,5 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
      * Register a function to compute config directory based on the node name. The default config directory
      * is used when the function is null or the return value of the function is null.
      */
-    T withConfigDir(Function<String, Path> configDirFunction);
+    T withConfigDir(Path configDir);
 }

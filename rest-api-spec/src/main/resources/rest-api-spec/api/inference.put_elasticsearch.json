@@ -20,7 +20,7 @@
               "type": "string",
               "description": "The task type"
             },
-            "watsonx_inference_id": {
+            "elasticsearch_inference_id": {
               "type": "string",
               "description": "The inference Id"
             }

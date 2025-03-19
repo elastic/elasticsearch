@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -594,7 +595,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
             for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
-                writeIndexRolloverError = lifecycleService.getErrorStore().getError(writeIndexName);
+                writeIndexRolloverError = lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, writeIndexName);
                 if (writeIndexRolloverError != null) {
                     break;
                 }
@@ -671,7 +672,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
             for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
-                assertThat(lifecycleService.getErrorStore().getError(previousWriteInddex), nullValue());
+                assertThat(lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, previousWriteInddex), nullValue());
             }
         });
 
@@ -768,7 +769,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
 
                 for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
-                    recordedRetentionExecutionError = lifecycleService.getErrorStore().getError(firstGenerationIndex);
+                    recordedRetentionExecutionError = lifecycleService.getErrorStore()
+                        .getError(Metadata.DEFAULT_PROJECT_ID, firstGenerationIndex);
                     if (recordedRetentionExecutionError != null && recordedRetentionExecutionError.retryCount() > 3) {
                         break;
                     }
@@ -832,7 +834,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 // error stores don't contain anything for the first generation index anymore
                 Iterable<DataStreamLifecycleService> lifecycleServices = internalCluster().getInstances(DataStreamLifecycleService.class);
                 for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
-                    assertThat(lifecycleService.getErrorStore().getError(firstGenerationIndex), nullValue());
+                    assertThat(lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, firstGenerationIndex), nullValue());
                 }
             });
 

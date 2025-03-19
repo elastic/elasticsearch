@@ -4,6 +4,7 @@ toc:
     children:
       - file: configuration-reference/circuit-breaker-settings.md
       - file: configuration-reference/auding-settings.md
+      - file: configuration-reference/enrich-settings.md
       - file: configuration-reference/cluster-level-shard-allocation-routing-settings.md
       - file: configuration-reference/miscellaneous-cluster-settings.md
       - file: configuration-reference/cross-cluster-replication-settings.md
@@ -30,9 +31,6 @@ toc:
       - file: configuration-reference/transforms-settings.md
       - file: configuration-reference/thread-pool-settings.md
       - file: configuration-reference/watcher-settings.md
-      - file: configuration-reference/elastic-cloud-hosted-elasticsearch-settings.md
-      - file: configuration-reference/ece-elasticsearch-settings.md
-      - file: configuration-reference/elastic-cloud-serverless-elasticsearch-settings.md
   - file: jvm-settings.md
   - file: roles.md
   - file: security-privileges.md

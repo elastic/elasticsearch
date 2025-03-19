@@ -158,9 +158,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
-- class: org.elasticsearch.search.ccs.CrossClusterIT
-  method: testCancel
-  issue: https://github.com/elastic/elasticsearch/issues/108061
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testInvalidJSON
   issue: https://github.com/elastic/elasticsearch/issues/120482
@@ -399,15 +396,18 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test010Install
   issue: https://github.com/elastic/elasticsearch/issues/119441
-- class: org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiEmbeddingsActionTests
-  method: testExecute_ReturnsSuccessfulResponse
-  issue: https://github.com/elastic/elasticsearch/issues/125057
-- class: org.elasticsearch.xpack.inference.external.request.jinaai.JinaAIEmbeddingsRequestTests
-  method: testCreateRequest_TaskSettingsInputType
-  issue: https://github.com/elastic/elasticsearch/issues/125059
-- class: org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTests
-  method: testCreateRequest_WithEntraIdDefined
-  issue: https://github.com/elastic/elasticsearch/issues/125061
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testGetDataStreamResponse
+  issue: https://github.com/elastic/elasticsearch/issues/125083
+- class: org.elasticsearch.threadpool.ScalingThreadPoolTests
+  method: testScalingThreadPoolConfiguration
+  issue: https://github.com/elastic/elasticsearch/issues/125142
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test012SecurityCanBeDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/116636
+- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
+  method: testSchedulerCloseWaitsForRunningMerge
+  issue: https://github.com/elastic/elasticsearch/issues/125236
 
 # Examples:
 #

@@ -59,7 +59,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
             .feature(FeatureFlag.TIME_SERIES_MODE)
             .feature(FeatureFlag.FAILURE_STORE_ENABLED);
 
-        if (oldVersion.before(Version.fromString("8.19.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

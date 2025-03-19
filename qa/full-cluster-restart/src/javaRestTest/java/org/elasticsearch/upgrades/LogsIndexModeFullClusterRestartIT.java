@@ -49,7 +49,7 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial");
 
-        if (oldVersion.before(Version.fromString("8.19.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

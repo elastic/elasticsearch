@@ -364,7 +364,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             var nullValueEncoded = nullValueFormatted != null
                 ? (Number) unsignedToSortableSignedLong(parseUnsignedLong(nullValueFormatted))
                 : null;
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<Number>(nullValueFormatted) {
+            return new FallbackSyntheticSourceBlockLoader.SingleValueReader<Number>(nullValueFormatted) {
                 @Override
                 public void convertValue(Object value, List<Number> accumulator) {
                     if (value.equals("")) {

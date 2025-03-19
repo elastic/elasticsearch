@@ -11,6 +11,8 @@
 // - additional JVM arguments are added to distribution/src/config/jvm.options and ElasticsearchTestBasePlugin
 // - additional permissions are added to server/src/main/resources/org/elasticsearch/bootstrap/security.policy
 
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
@@ -81,4 +83,10 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.arrow.vector.BitVectorHelper',
     'org.apache.arrow.memory.util.ByteFunctionHelpers',
   )
+}
+
+tasks.withType(CheckForbiddenApisTask).configureEach {
+  // Remove server signatures as they will fail on classes missing in this lib's classpath,
+  // like org.apache.lucene.util.IOUtils
+  replaceSignatureFiles('jdk-signatures')
 }

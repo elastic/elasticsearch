@@ -43,7 +43,7 @@ GET /_analyze
 
 The filter produces the following token graph with `internet phonebook` as a multi-position token.
 
-:::{image} ../../images/token-graph-dns-synonym-ex2.svg
+:::{image} images/token-graph-dns-synonym-ex2.svg
 :alt: token graph dns synonym example
 :::
 
@@ -68,7 +68,7 @@ GET /_analyze
 
 The filter produces the following flattened token graph, which is suitable for indexing.
 
-:::{image} ../../images/token-graph-dns-synonym-flattened-ex2.svg
+:::{image} images/token-graph-dns-synonym-flattened-ex2.svg
 :alt: token graph dns flattened example
 :::
 

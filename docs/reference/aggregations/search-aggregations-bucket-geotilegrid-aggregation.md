@@ -208,7 +208,7 @@ Response:
 
 Aggregating on [Geoshape](/reference/elasticsearch/mapping-reference/geo-shape.md) fields works almost as it does for points, except that a single shape can be counted for in multiple tiles. A shape will contribute to the count of matching values if any part of its shape intersects with that tile. Below is an image that demonstrates this:
 
-![geoshape grid](../../images/geoshape_grid.png "")
+![geoshape grid](images/geoshape_grid.png "")
 
 
 ## Options [_options_5]

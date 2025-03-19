@@ -206,7 +206,7 @@ Aggregating on [Geoshape](/reference/elasticsearch/mapping-reference/geo-shape.m
 * When aggregating over `geo_point` data, points are considered within a hexagonal tile if they lie within the edges defined by great circles. In other words the calculation is done using spherical coordinates. However, when aggregating over `geo_shape` data, the shapes are considered within a hexagon if they lie within the edges defined as straight lines on an equirectangular projection. The reason is that Elasticsearch and Lucene treat edges using the equirectangular projection at index and search time. In order to ensure that search results and aggregation results are aligned, we therefore also use equirectangular projection in aggregations. For most data, the difference is subtle or not noticed. However, for low zoom levels (low precision), especially far from the equator,  this can be noticeable. For example, if the same point data is indexed as `geo_point` and `geo_shape`, it is possible  to get different results when aggregating at lower resolutions.
 * As is the case with [`geotile_grid`](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md#geotilegrid-aggregating-geo-shape), a single shape can be counted for in multiple tiles. A shape will contribute to the count of matching values if any part of its shape intersects with that tile. Below is an image that demonstrates this:
 
-![geoshape hexgrid](../../images/geoshape_hexgrid.png "")
+![geoshape hexgrid](images/geoshape_hexgrid.png "")
 
 
 ## Options [_options_4]

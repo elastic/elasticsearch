@@ -152,21 +152,21 @@ The X-axis shows the number of distinct values the aggregation has seen, and the
 
 This first chart shows precision `0.01`:
 
-![accuracy 01](../../images/accuracy_01.png "")
+![accuracy 01](images/accuracy_01.png "")
 
 And precision `0.001` (the default):
 
-![accuracy 001](../../images/accuracy_001.png "")
+![accuracy 001](images/accuracy_001.png "")
 
 And finally `precision 0.0001`:
 
-![accuracy 0001](../../images/accuracy_0001.png "")
+![accuracy 0001](images/accuracy_0001.png "")
 
 The default precision of `0.001` maintains an accuracy of < 2.5% for the tested conditions, and accuracy slowly degrades in a controlled, linear fashion as the number of distinct values increases.
 
 The default precision of `0.001` has a memory profile of `1.748⁻⁶ * n` bytes, where `n` is the number of distinct values the aggregation has seen (it can also be roughly eyeballed, e.g. 20 million unique values is about 30mb of memory). The memory usage is linear to the number of distinct values regardless of which precision is chosen, the precision only affects the slope of the memory profile as seen in this chart:
 
-![memory](../../images/memory.png "")
+![memory](images/memory.png "")
 
 For comparison, an equivalent terms aggregation at 20 million buckets would be roughly `20m * 69b == ~1.38gb` (with 69 bytes being a very optimistic estimate of an empty bucket cost, far lower than what the circuit breaker accounts for). So although the `rare_terms` agg is relatively heavy, it is still orders of magnitude smaller than the equivalent terms aggregation
 

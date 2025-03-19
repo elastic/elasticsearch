@@ -292,7 +292,7 @@ Both the `word_delimiter` and `word_delimiter_graph` produce the following token
 
 This graph does not contain multi-position tokens. All tokens span only one position.
 
-:::{image} ../../images/token-graph-basic.svg
+:::{image} images/token-graph-basic.svg
 :alt: token graph basic
 :::
 
@@ -303,7 +303,7 @@ The `word_delimiter_graph` filter produces the following token graph for `PowerS
 
 This graph correctly indicates the catenated `PowerShot` token spans two positions.
 
-:::{image} ../../images/token-graph-wdg.svg
+:::{image} images/token-graph-wdg.svg
 :alt: token graph wdg
 :::
 
@@ -314,7 +314,7 @@ When `catenate_words` is `true`, the `word_delimiter` filter produces the follow
 
 Note that the catenated `PowerShot` token should span two positions but only spans one in the token graph, making it invalid.
 
-:::{image} ../../images/token-graph-wd.svg
+:::{image} images/token-graph-wd.svg
 :alt: token graph wd
 :::
 

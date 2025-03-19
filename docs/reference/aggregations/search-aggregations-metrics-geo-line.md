@@ -77,7 +77,7 @@ The resulting [GeoJSON Feature](https://tools.ietf.org/html/rfc7946#section-3.2)
 
 This result could be displayed in a map user interface:
 
-![Kibana map with museum tour of Amsterdam](../../images/geo_line.png "")
+![Kibana map with museum tour of Amsterdam](images/geo_line.png "")
 
 ## Options [search-aggregations-metrics-geo-line-options]
 
@@ -383,13 +383,13 @@ Under these conditions the `geo_line` aggregation allocates memory to the `size`
 
 In order to demonstrate how much better line simplification is to line truncation, consider this example of the north shore of Kodiak Island. The data for this is only 209 points, but if we want to set `size` to `100` we get dramatic truncation.
 
-![North short of Kodiak Island truncated to 100 points](../../images/kodiak_geo_line_truncated.png "")
+![North short of Kodiak Island truncated to 100 points](images/kodiak_geo_line_truncated.png "")
 
 The grey line is the entire geometry of 209 points, while the blue line is the first 100 points, a very different geometry than the original.
 
 Now consider the same geometry simplified to 100 points.
 
-![North short of Kodiak Island simplified to 100 points](../../images/kodiak_geo_line_simplified.png "")
+![North short of Kodiak Island simplified to 100 points](images/kodiak_geo_line_simplified.png "")
 
 For comparison we have shown the original in grey, the truncated in blue and the new simplified geometry in magenta. It is possible to see where the new simplified line deviates from the original, but the overall geometry appears almost identical and is still clearly recognizable as the north shore of Kodiak Island.
 

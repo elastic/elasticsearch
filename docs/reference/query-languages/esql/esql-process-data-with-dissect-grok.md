@@ -9,7 +9,7 @@ mapped_pages:
 
 Your data may contain unstructured strings that you want to structure. This makes it easier to analyze the data. For example, log messages may contain IP addresses that you want to extract so you can find the most active IP addresses.
 
-:::{image} ../../../images/unstructured-data.png
+:::{image} ../images/unstructured-data.png
 :alt: unstructured data
 :::
 

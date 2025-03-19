@@ -15,7 +15,7 @@ Single periods are also useful for transforming data into a stationary series. I
 
 By calculating the first-difference, we de-trend the data (e.g. remove a constant, linear trend). We can see that the data becomes a stationary series (e.g. the first difference is randomly distributed around zero, and doesn’t seem to exhibit any pattern/behavior). The transformation reveals that the dataset is following a random-walk; the value is the previous value +/- a random amount. This insight allows selection of further tools for analysis.
 
-:::{image} ../../images/dow.png
+:::{image} images/dow.png
 :alt: dow
 :title: Dow Jones plotted and made stationary with first-differencing
 :name: serialdiff_dow
@@ -25,7 +25,7 @@ Larger periods can be used to remove seasonal / cyclic behavior. In this example
 
 The first-difference removes the constant trend, leaving just a sine wave. The 30th-difference is then applied to the first-difference to remove the cyclic behavior, leaving a stationary series which is amenable to other analysis.
 
-:::{image} ../../images/lemmings.png
+:::{image} images/lemmings.png
 :alt: lemmings
 :title: Lemmings data plotted made stationary with 1st and 30th difference
 :name: serialdiff_lemmings

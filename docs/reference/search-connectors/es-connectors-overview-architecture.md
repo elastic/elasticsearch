@@ -29,7 +29,7 @@ Summary:
 
 The following diagram provides a high-level overview of the self-managed internal knowledge search architecture.
 
-:::{image} ../../images/self-managed-architecture.png
+:::{image} images/self-managed-architecture.png
 :alt: self managed architecture
 :class: screenshot
 :::

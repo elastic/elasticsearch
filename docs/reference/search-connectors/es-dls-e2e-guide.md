@@ -375,7 +375,7 @@ If you’re building a frontend application, use the `encoded` field to pass the
 
 Here’s what this workflow looks like in a sequence diagram:
 
-:::{image} ../../images/dls-api-key-workflow.png
+:::{image} images/dls-api-key-workflow.png
 :alt: DLS API key and search application client workflow
 :class: screenshot
 :::

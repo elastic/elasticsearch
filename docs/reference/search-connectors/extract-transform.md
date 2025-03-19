@@ -11,7 +11,7 @@ Elastic connectors offer a number of tools for extracting, filtering, and transf
 
 The following diagram provides an overview of how content extraction, sync rules, and ingest pipelines can be orchestrated in your connector’s data pipeline.
 
-:::{image} ../../images/pipelines-extraction-sync-rules.png
+:::{image} images/pipelines-extraction-sync-rules.png
 :alt: Architecture diagram of data pipeline with content extraction
 :class: screenshot
 :::

@@ -117,6 +117,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.search.AbstractSearchAsyncAction.isTaskCancelledException;
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
@@ -1717,7 +1718,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logCCSError(f, clusterAlias, skipUnavailable);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
             if (skipUnavailable) {
-                if (cluster != null) {
+                if (cluster != null && isTaskCancelledException(e) == false) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
             } else {
@@ -1725,7 +1726,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, false);
                 }
                 Exception exception = e;
-                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false) {
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias) == false && isTaskCancelledException(e) == false) {
                     exception = wrapRemoteClusterFailure(clusterAlias, e);
                 }
                 if (exceptions.compareAndSet(null, exception) == false) {

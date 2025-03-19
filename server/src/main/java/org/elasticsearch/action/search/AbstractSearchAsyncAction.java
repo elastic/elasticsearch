@@ -483,7 +483,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    private static boolean isTaskCancelledException(Exception e) {
+    static boolean isTaskCancelledException(Exception e) {
         return ExceptionsHelper.unwrapCausesAndSuppressed(e, ex -> ex instanceof TaskCancelledException).isPresent();
     }
 

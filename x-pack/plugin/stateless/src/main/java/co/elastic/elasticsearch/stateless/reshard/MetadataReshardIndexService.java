@@ -108,20 +108,24 @@ public class MetadataReshardIndexService {
                     new String[] { request.index().getName() },
                     request.waitForActiveShards(),
                     waitForActiveShardsTimeout,
-                    delegate.map(shardsAcknowledged -> {
-                        if (shardsAcknowledged == false) {
-                            logger.debug(
-                                "[{}] index reshard complete, but the operation timed out while waiting for enough shards to be started.",
-                                request.index().getName()
-                            );
-                        } else {
-                            logger.trace("[{}] index reshard complete and shards acknowledged", request.index().getName());
-                            // No failure handling for cleanup here. Really, later this will be invoked by the last shard when all sources
-                            // are DONE, and that is where we'll want to redrive to termination. I don't think this path is worth hardening.
-                            finishReshard(request.projectId(), request.index());
-                        }
-                        return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
-                    })
+                    delegate.delegateFailureAndWrap(
+                        (shardsAcknowledgedListener, shardsAcknowledged) -> finishReshard(
+                            request.projectId(),
+                            request.index(),
+                            shardsAcknowledgedListener.map((voidResult) -> {
+                                if (shardsAcknowledged == false) {
+                                    logger.debug(
+                                        "[{}] index reshard complete, but the operation timed out while waiting for enough "
+                                            + "shards to be started.",
+                                        request.index().getName()
+                                    );
+                                } else {
+                                    logger.trace("[{}] index reshard complete and shards acknowledged", request.index().getName());
+                                }
+                                return ShardsAcknowledgedResponse.of(true, shardsAcknowledged);
+                            })
+                        )
+                    )
                 );
             } else {
                 logger.trace("index reshard not acknowledged for [{}]", request);
@@ -162,9 +166,10 @@ public class MetadataReshardIndexService {
     /**
      * When resharding is complete, finishReshard kicks off a task to remove resharding state from index metadata
      * @param projectId Project containing the given index
-     * @param index index whose resharding state should be cleaned
+     * @param index     Index whose resharding state should be cleaned
+     * @param listener  Callback fired when resharding metadata has been removed from cluster state
      */
-    private void finishReshard(final ProjectId projectId, final Index index) {
+    private void finishReshard(final ProjectId projectId, final Index index, ActionListener<Void> listener) {
         submitUnbatchedTask("finish-reshard-index [" + index.getName() + "]", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -180,8 +185,14 @@ public class MetadataReshardIndexService {
             }
 
             @Override
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                listener.onResponse(null);
+            }
+
+            @Override
             public void onFailure(Exception e) {
                 logger.warn("Failed to remove reshard metadata for [{}:{}] from cluster state", projectId, index);
+                listener.onFailure(e);
             }
         });
     }
@@ -199,6 +210,9 @@ public class MetadataReshardIndexService {
         final IndexMetadata sourceMetadata = projectState.metadata().getIndexSafe(index);
         if (sourceMetadata == null) {
             return currentState;
+        }
+        if (sourceMetadata.getReshardingMetadata() != null) {
+            throw new IllegalStateException("an existing resharding operation on " + index + " is unfinished");
         }
         final int sourceNumShards = sourceMetadata.getNumberOfShards();
         // TODO: take from request

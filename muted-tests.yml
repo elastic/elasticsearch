@@ -276,9 +276,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testLookupExplosionNoFetch
   issue: https://github.com/elastic/elasticsearch/issues/123432
-- class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
-  method: testDuplicatePrunedPaths
-  issue: https://github.com/elastic/elasticsearch/issues/124006
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
   issue: https://github.com/elastic/elasticsearch/issues/124052
@@ -306,9 +303,6 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testIndexCompatibilityChecks
   issue: https://github.com/elastic/elasticsearch/issues/124388
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
-  method: testFilesEntitlementsWithExclusive
-  issue: https://github.com/elastic/elasticsearch/issues/124420
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/124159

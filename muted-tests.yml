@@ -396,9 +396,6 @@ tests:
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testGetDataStreamResponse
   issue: https://github.com/elastic/elasticsearch/issues/125083
-- class: org.elasticsearch.threadpool.ScalingThreadPoolTests
-  method: testScalingThreadPoolConfiguration
-  issue: https://github.com/elastic/elasticsearch/issues/125142
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test012SecurityCanBeDisabled
   issue: https://github.com/elastic/elasticsearch/issues/116636

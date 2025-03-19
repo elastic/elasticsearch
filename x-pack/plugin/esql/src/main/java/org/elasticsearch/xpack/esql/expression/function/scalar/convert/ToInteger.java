@@ -46,7 +46,7 @@ public class ToInteger extends AbstractConvertFunction {
     );
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(INTEGER, (fieldEval, source) -> fieldEval),
+        Map.entry(INTEGER, (source, fieldEval) -> fieldEval),
         Map.entry(BOOLEAN, ToIntegerFromBooleanEvaluator.Factory::new),
         Map.entry(DATETIME, ToIntegerFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToIntegerFromStringEvaluator.Factory::new),
@@ -55,7 +55,7 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(DOUBLE, ToIntegerFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToIntegerFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new),
-        Map.entry(COUNTER_INTEGER, (fieldEval, source) -> fieldEval)
+        Map.entry(COUNTER_INTEGER, (source, fieldEval) -> fieldEval)
     );
 
     @FunctionInfo(
@@ -64,10 +64,10 @@ public class ToInteger extends AbstractConvertFunction {
             Converts an input value to an integer value.
             If the input parameter is of a date type, its value will be interpreted as milliseconds
             since the {wikipedia}/Unix_time[Unix epoch], converted to integer.
-            Boolean *true* will be converted to integer *1*, *false* to *0*.""",
+            Boolean `true` will be converted to integer `1`, `false` to `0`.""",
         examples = @Example(file = "ints", tag = "to_int-long", explanation = """
             Note that in this example, the last value of the multi-valued field cannot be converted as an integer.
-            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            When this happens, the result is a `null` value. In this case a _Warning_ header is added to the response.
             The header will provide information on the source of the failure:
 
             `"Line 1:61: evaluation of [TO_INTEGER(long)] failed, treating result as null. Only first 20 failures recorded."`

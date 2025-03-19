@@ -888,7 +888,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"))));
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "input_type", "document")));
         }
     }
 
@@ -927,7 +927,10 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "dimensions", 3)));
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "dimensions", 3, "input_type", "document"))
+            );
         }
     }
 
@@ -1116,6 +1119,43 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    public void testInfer_ThrowsValidationErrorForInvalidInputType() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var mockModel = getInvalidModel("model_id", "service_name");
+
+        try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    mockModel,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.CLASSIFICATION,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Input type [classification] is not supported for [Azure AI Studio];")
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = AzureAiStudioEmbeddingsModelTests.createModel(
             "id",
@@ -1205,10 +1245,10 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 0.0123f, -0.0123f },
-                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1217,10 +1257,10 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
+                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 1.0123f, -1.0123f },
-                    ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
+                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1231,9 +1271,10 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(2));
+            assertThat(requestMap.size(), Matchers.is(3));
             assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
+            assertThat(requestMap.get("input_type"), Matchers.is("document"));
         }
     }
 

@@ -55,10 +55,16 @@ else
   JAVA_TYPE="bundled JDK"
 fi
 
-# do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
+# do not let JAVA_TOOL_OPTIONS OR _JAVA_OPTIONS slip in (as the JVM does by default)
 if [ ! -z "$JAVA_TOOL_OPTIONS" ]; then
-  echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+  echo -n "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS; "
+  echo "pass JVM parameters via ES_JAVA_OPTS"
   unset JAVA_TOOL_OPTIONS
+fi
+if [ ! -z "$_JAVA_OPTIONS" ]; then
+  echo -n "warning: ignoring _JAVA_OPTIONS=$_JAVA_OPTIONS; "
+  echo "pass JVM parameters via ES_JAVA_OPTS"
+  unset _JAVA_OPTIONS
 fi
 
 # warn that we are not observing the value of JAVA_HOME

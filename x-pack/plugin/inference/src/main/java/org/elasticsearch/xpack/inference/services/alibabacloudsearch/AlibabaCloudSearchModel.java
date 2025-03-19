@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -41,7 +40,7 @@ public abstract class AlibabaCloudSearchModel extends Model {
         rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
-    public abstract ExecutableAction accept(AlibabaCloudSearchActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
+    public abstract ExecutableAction accept(AlibabaCloudSearchActionVisitor creator, Map<String, Object> taskSettings);
 
     public AlibabaCloudSearchRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;

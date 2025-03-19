@@ -309,7 +309,7 @@ public class AlibabaCloudSearchService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            chunkingSettings != null ? chunkingSettings : alibabaCloudSearchModel.getConfigurations().getChunkingSettings()
+            chunkingSettings
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

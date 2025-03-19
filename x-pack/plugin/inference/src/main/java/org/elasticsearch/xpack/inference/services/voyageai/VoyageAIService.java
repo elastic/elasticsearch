@@ -292,7 +292,7 @@ public class VoyageAIService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             getBatchSize(voyageaiModel),
-            chunkingSettings != null ? chunkingSettings : voyageaiModel.getConfigurations().getChunkingSettings()
+            chunkingSettings
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

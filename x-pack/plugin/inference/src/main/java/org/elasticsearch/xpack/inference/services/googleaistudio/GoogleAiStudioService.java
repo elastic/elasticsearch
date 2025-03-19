@@ -329,7 +329,7 @@ public class GoogleAiStudioService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            chunkingSettings != null ? chunkingSettings : googleAiStudioModel.getConfigurations().getChunkingSettings()
+            chunkingSettings
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

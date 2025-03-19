@@ -131,7 +131,7 @@ public class HuggingFaceService extends HuggingFaceBaseService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            chunkingSettings != null ? chunkingSettings : huggingFaceModel.getConfigurations().getChunkingSettings()
+            chunkingSettings
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

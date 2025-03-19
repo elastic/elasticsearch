@@ -232,7 +232,7 @@ public class GoogleVertexAiService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            chunkingSettings != null ? chunkingSettings : googleVertexAiModel.getConfigurations().getChunkingSettings()
+            chunkingSettings
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

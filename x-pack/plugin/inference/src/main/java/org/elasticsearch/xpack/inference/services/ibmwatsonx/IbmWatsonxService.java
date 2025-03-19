@@ -308,11 +308,8 @@ public class IbmWatsonxService extends SenderService {
     ) {
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
 
-        var batchedRequests = new EmbeddingRequestChunker<>(
-            input.getInputs(),
-            EMBEDDING_MAX_BATCH_SIZE,
-            chunkingSettings != null ? chunkingSettings : model.getConfigurations().getChunkingSettings()
-        ).batchRequestsWithListeners(listener);
+        var batchedRequests = new EmbeddingRequestChunker<>(input.getInputs(), EMBEDDING_MAX_BATCH_SIZE, chunkingSettings)
+            .batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
             var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());

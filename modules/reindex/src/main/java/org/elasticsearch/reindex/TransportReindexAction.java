@@ -101,7 +101,16 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             projectResolver,
             autoCreateIndex
         );
-        this.reindexer = new Reindexer(clusterService, projectResolver, client, threadPool, scriptService, sslConfig, reindexMetrics);
+        this.reindexer = new Reindexer(
+            clusterService,
+            transportService,
+            projectResolver,
+            client,
+            threadPool,
+            scriptService,
+            sslConfig,
+            reindexMetrics
+        );
     }
 
     @Override

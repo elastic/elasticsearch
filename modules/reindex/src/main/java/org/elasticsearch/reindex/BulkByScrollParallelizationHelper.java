@@ -9,7 +9,10 @@
 
 package org.elasticsearch.reindex;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -17,6 +20,8 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -26,12 +31,15 @@ import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -40,6 +48,8 @@ import java.util.stream.Collectors;
 class BulkByScrollParallelizationHelper {
 
     static final int AUTO_SLICE_CEILING = 20;
+    private static final AtomicInteger ingestNodeOffsetGenerator = new AtomicInteger(Randomness.get().nextInt());
+    private static final Logger logger = LogManager.getLogger(BulkByScrollParallelizationHelper.class);
 
     private BulkByScrollParallelizationHelper() {}
 
@@ -62,13 +72,17 @@ class BulkByScrollParallelizationHelper {
         ActionListener<BulkByScrollResponse> listener,
         Client client,
         DiscoveryNode node,
-        Runnable workerAction
+        Runnable workerAction,
+        TransportService transportService,
+        ClusterService clusterService
     ) {
         initTaskState(
             task,
             request,
             client,
-            listener.delegateFailure((l, v) -> executeSlicedAction(task, request, action, l, client, node, workerAction))
+            listener.delegateFailure(
+                (l, v) -> executeSlicedAction(task, request, action, l, client, node, workerAction, transportService, clusterService)
+            )
         );
     }
 
@@ -89,10 +103,12 @@ class BulkByScrollParallelizationHelper {
         ActionListener<BulkByScrollResponse> listener,
         Client client,
         DiscoveryNode node,
-        Runnable workerAction
+        Runnable workerAction,
+        TransportService transportService,
+        ClusterService clusterService
     ) {
         if (task.isLeader()) {
-            sendSubRequests(client, action, node.getId(), task, request, listener);
+            sendSubRequests(client, action, node.getId(), task, request, listener, transportService, clusterService);
         } else if (task.isWorker()) {
             workerAction.run();
         } else {
@@ -158,12 +174,16 @@ class BulkByScrollParallelizationHelper {
         String localNodeId,
         BulkByScrollTask task,
         Request request,
-        ActionListener<BulkByScrollResponse> listener
+        ActionListener<BulkByScrollResponse> listener,
+        TransportService transportService,
+        ClusterService clusterService
     ) {
 
         LeaderBulkByScrollTaskState worker = task.getLeaderState();
         int totalSlices = worker.getSlices();
         TaskId parentTaskId = new TaskId(localNodeId, task.getId());
+        final DiscoveryNode[] ingestNodes = clusterService.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
+        boolean localNodeIsIngestNode = clusterService.state().getNodes().getLocalNode().isIngestNode();
         for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices)) {
             // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....
             Request requestForSlice = request.forSlice(parentTaskId, slice, totalSlices);
@@ -171,7 +191,27 @@ class BulkByScrollParallelizationHelper {
                 r -> worker.onSliceResponse(listener, slice.source().slice().getId(), r),
                 e -> worker.onSliceFailure(listener, slice.source().slice().getId(), e)
             );
-            client.execute(action, requestForSlice, sliceListener);
+            if (ingestNodes.length == 0 || (localNodeIsIngestNode && ingestNodes.length == 1)) {
+                /*
+                 * Either there were no ingest nodes so running locally is better than failing, or this node is the only ingest node so
+                 * just use the client to run it.
+                 */
+                client.execute(action, requestForSlice, sliceListener);
+            } else {
+                /*
+                 * Indexing will potentially run a pipeline for each document. If we run all slices on the same node (locally), that
+                 * becomes a bottleneck. This code round-robins slice requests to all ingest nodes to spread out the pipeline workload. When
+                 * an index has many slices, this can improve performance a good bit.
+                 */
+                DiscoveryNode ingestNode = ingestNodes[Math.floorMod(ingestNodeOffsetGenerator.incrementAndGet(), ingestNodes.length)];
+                logger.debug("Sending request for slice to {}", ingestNode.getName());
+                transportService.sendRequest(
+                    ingestNode,
+                    action.name(),
+                    requestForSlice,
+                    new ActionListenerResponseHandler<>(sliceListener, BulkByScrollResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
+                );
+            }
         }
     }
 

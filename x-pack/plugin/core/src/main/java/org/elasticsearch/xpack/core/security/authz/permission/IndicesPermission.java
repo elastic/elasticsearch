@@ -151,20 +151,22 @@ public final class IndicesPermission {
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         for (final Group group : groups) {
             if (group.actionMatcher.test(action)) {
+                final List<String> indexList = Arrays.asList(group.indices());
+                final boolean dataAccess = group.checkSelector(IndexComponentSelector.DATA);
+                final boolean failuresAccess = group.checkSelector(IndexComponentSelector.FAILURES);
+                assert dataAccess || failuresAccess : "group must grant access at least one of [DATA, FAILURES] selectors";
                 if (group.allowRestrictedIndices) {
-                    List<String> indexList = Arrays.asList(group.indices());
-                    if (group.checkSelector(IndexComponentSelector.DATA)) {
+                    if (dataAccess) {
                         dataAccessRestrictedIndices.addAll(indexList);
                     }
-                    if (group.checkSelector(IndexComponentSelector.FAILURES)) {
+                    if (failuresAccess) {
                         failuresAccessRestrictedIndices.addAll(indexList);
                     }
                 } else {
-                    List<String> indexList = Arrays.asList(group.indices());
-                    if (group.checkSelector(IndexComponentSelector.DATA)) {
+                    if (dataAccess) {
                         dataAccessOrdinaryIndices.addAll(indexList);
                     }
-                    if (group.checkSelector(IndexComponentSelector.FAILURES)) {
+                    if (failuresAccess) {
                         failuresAccessOrdinaryIndices.addAll(indexList);
                     }
                 }

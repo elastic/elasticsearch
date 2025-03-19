@@ -1212,7 +1212,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         // FLS applies to regular data stream
         assertSearchResponseContainsExpectedIndicesAndFields(
-            performRequest(user, new Search("test1").toSearchRequest()),
+            performRequest(user, new Search(randomFrom("test1", "test1::data")).toSearchRequest()),
             Map.of(dataIndexName, Set.of("@timestamp", "age"))
         );
 
@@ -1246,7 +1246,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         // FLS applies to regular data stream
         assertSearchResponseContainsExpectedIndicesAndFields(
-            performRequest(user, new Search("test1").toSearchRequest()),
+            performRequest(user, new Search(randomFrom("test1", "test1::data")).toSearchRequest()),
             Map.of(dataIndexName, Set.of("@timestamp", "age"))
         );
 
@@ -1277,7 +1277,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
 
         // since there is a section without FLS, no FLS applies
         assertSearchResponseContainsExpectedIndicesAndFields(
-            performRequest(user, new Search("test1").toSearchRequest()),
+            performRequest(user, new Search(randomFrom("test1", "test1::data")).toSearchRequest()),
             Map.of(dataIndexName, Set.of("@timestamp", "age", "name", "email"))
         );
 
@@ -1300,7 +1300,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                  ]
              }""", role);
         // DLS applies and no docs match the query
-        expectSearch(user, new Search("test1"));
+        expectSearch(user, new Search(randomFrom("test1", "test1::data")));
         expectSearch(user, new Search("test1::failures"));
 
         upsertRole("""
@@ -1315,7 +1315,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                  ]
              }""", role);
         // DLS applies and doc matches the query
-        expectSearch(user, new Search("test1"), dataIndexDocId);
+        expectSearch(user, new Search(randomFrom("test1", "test1::data")), dataIndexDocId);
         expectSearch(user, new Search("test1::failures"));
 
         upsertRole("""
@@ -1334,7 +1334,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                  ]
              }""", role);
         // DLS does not apply because there is a section without DLS
-        expectSearch(user, new Search("test1"), dataIndexDocId);
+        expectSearch(user, new Search(randomFrom("test1", "test1::data")), dataIndexDocId);
     }
 
     private static void expectThrows(ThrowingRunnable runnable, int statusCode) {

@@ -275,12 +275,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 true
             )
             .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-            .put(
-                DataStreamTestHelper.newInstance(
-                    "adatastream1",
-                    List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))
-                )
-            )
+            .put(DataStreamTestHelper.newInstance("adatastream1", List.of(new Index(backingIndex, "_na_"))))
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
@@ -370,8 +365,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .put(
                 DataStreamTestHelper.newInstance(
                     "adatastream1",
-                    List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_")),
-                    List.of(new Index(DataStream.getDefaultFailureStoreName("adatastream1", 1, 1), "_na_"))
+                    List.of(new Index(backingIndex, "_na_")),
+                    List.of(new Index(failureIndex, "_na_"))
                 )
             )
             .build();
@@ -464,8 +459,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .put(
                 DataStreamTestHelper.newInstance(
                     "adatastream1",
-                    List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_")),
-                    List.of(new Index(DataStream.getDefaultFailureStoreName("adatastream1", 1, 1), "_na_"))
+                    List.of(new Index(backingIndex, "_na_")),
+                    List.of(new Index(failureIndex, "_na_"))
                 )
             )
             .build();
@@ -552,12 +547,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 true
             )
             .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
-            .put(
-                DataStreamTestHelper.newInstance(
-                    "adatastream1",
-                    List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))
-                )
-            )
+            .put(DataStreamTestHelper.newInstance("adatastream1", List.of(new Index(backingIndex, "_na_"))))
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);

@@ -88,6 +88,7 @@ public final class IndexPrivilege extends Privilege {
         ResolveIndexAction.NAME,
         TransportResolveClusterAction.NAME
     );
+    private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         TransportClusterSearchShardsAction.TYPE.name(),
@@ -185,16 +186,6 @@ public final class IndexPrivilege extends Privilege {
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
-    public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
-        "read_failure_store",
-        READ_AUTOMATON,
-        IndexComponentSelectorPredicate.FAILURES
-    );
-    public static final IndexPrivilege MANAGE_FAILURE_STORE = new IndexPrivilege(
-        "manage_failure_store",
-        MANAGE_AUTOMATON,
-        IndexComponentSelectorPredicate.FAILURES
-    );
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
     public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
@@ -223,6 +214,17 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege CROSS_CLUSTER_REPLICATION_INTERNAL = new IndexPrivilege(
         "cross_cluster_replication_internal",
         CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
+    );
+
+    public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
+        "read_failure_store",
+        READ_FAILURE_STORE_AUTOMATON,
+        IndexComponentSelectorPredicate.FAILURES
+    );
+    public static final IndexPrivilege MANAGE_FAILURE_STORE = new IndexPrivilege(
+        "manage_failure_store",
+        MANAGE_AUTOMATON,
+        IndexComponentSelectorPredicate.FAILURES
     );
 
     /**

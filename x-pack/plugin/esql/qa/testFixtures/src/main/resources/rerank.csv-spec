@@ -14,10 +14,10 @@ FROM books METADATA _score
 ;
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
-5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03703703731298447
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03846153989434242
 4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
 9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.02083333395421505
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.014925372786819935
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515151560306549
 ;
 
 
@@ -32,9 +32,9 @@ FROM books METADATA _score
 ;
 
 book_no:keyword | title:text                                            | author:text                                 | _score:double
-5327            | War and Peace                                         | Leo Tolstoy                                 | 0.020408162847161293
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.02083333395421505
 9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.014285714365541935
-2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01123595517128706
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.011363636702299118
 4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.009523809887468815
 ;
 
@@ -52,7 +52,7 @@ FROM books METADATA _score
 ;
 
 book_no:keyword | title:text                         | author:text                                 | _score:double
-5327            | War and Peace                      | Leo Tolstoy                                 | 0.03703703731298447
+5327            | War and Peace                      | Leo Tolstoy                                 | 0.03846153989434242
 4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
 9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo                                 | 0.02083333395421505
 ;
@@ -70,7 +70,7 @@ FROM books METADATA _score
 ;
 
 book_no:keyword | title:text                         | author:text                                 | _score:double
-5327            | War and Peace                      | Leo Tolstoy                                 | 0.03703703731298447
+5327            | War and Peace                      | Leo Tolstoy                                 | 0.03846153989434242
 4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
 9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo                                 | 0.02083333395421505
 ;

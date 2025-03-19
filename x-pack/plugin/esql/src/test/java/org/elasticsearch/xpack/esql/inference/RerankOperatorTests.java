@@ -137,17 +137,31 @@ public class RerankOperatorTests extends OperatorTestCase {
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo(
-            "RerankOperator[inference_id=test_reranker query=query text rerank_fields="
+            "RerankOperator[inference_id=["
+                + SIMPLE_INFERENCE_ID
+                + "], query=["
+                + SIMPLE_QUERY
+                + "], rerank_fields="
                 + rerankFieldsEvaluatorFactories.keySet()
-                + " score_channel="
+                + ", score_channel=["
                 + scoreChannel
-                + "]"
+                + "]]"
         );
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return expectedDescriptionOfSimple();
+        return equalTo(
+            "RerankOperator[inference_id=["
+                + SIMPLE_INFERENCE_ID
+                + "], query=["
+                + SIMPLE_QUERY
+                + "], row_encoder=[XContentRowEncoder[content_type=[YAML], field_names="
+                + rerankFieldsEvaluatorFactories.keySet()
+                + "]], score_channel=["
+                + scoreChannel
+                + "]]"
+        );
     }
 
     @Override
@@ -309,7 +323,7 @@ public class RerankOperatorTests extends OperatorTestCase {
     }
 
     private void assertRandomPositions(Block block, Consumer<Integer> consumer) {
-        for (Integer pos : randomList(0, 100, () -> randomIntBetween(0, block.getPositionCount() - 1))) {
+        for (int pos = 0; pos < block.getPositionCount(); pos++) {
             consumer.accept(pos);
         }
     }

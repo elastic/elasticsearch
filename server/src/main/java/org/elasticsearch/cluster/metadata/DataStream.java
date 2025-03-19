@@ -961,24 +961,53 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Iterate over the backing indices and return the ones that are managed by the data stream lifecycle and past the configured
-     * retention in their lifecycle.
+     * Iterate over the backing indices and return the ones that are managed by the data stream lifecycle and past the
+     * configured retention in their lifecycle.
      * NOTE that this specifically does not return the write index of the data stream as usually retention
      * is treated differently for the write index (i.e. they first need to be rolled over)
      */
-    public List<Index> getIndicesPastRetention(
+    public List<Index> getBackingIndicesPastRetention(
         Function<String, IndexMetadata> indexMetadataSupplier,
         LongSupplier nowSupplier,
         DataStreamGlobalRetention globalRetention
     ) {
-        if (lifecycle == null
-            || lifecycle.enabled() == false
-            || lifecycle.getEffectiveDataRetention(globalRetention, isInternal()) == null) {
+        if (getDataLifecycle() == null
+            || getDataLifecycle().enabled() == false
+            || getDataLifecycle().getEffectiveDataRetention(globalRetention, isInternal()) == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getEffectiveDataRetention(globalRetention, isInternal()),
+            getIndices(),
+            getDataLifecycle().getEffectiveDataRetention(globalRetention, isInternal()),
+            indexMetadataSupplier,
+            this::isIndexManagedByDataStreamLifecycle,
+            nowSupplier
+        );
+        return indicesPastRetention;
+    }
+
+    /**
+     * Iterate over the failure indices and return the ones that are managed by the data stream lifecycle and past the
+     * configured retention in their lifecycle.
+     * NOTE that this specifically does not return the write index of the data stream as usually retention
+     * is treated differently for the write index (i.e. they first need to be rolled over)
+     */
+    public List<Index> getFailureIndicesPastRetention(
+        Function<String, IndexMetadata> indexMetadataSupplier,
+        LongSupplier nowSupplier,
+        DataStreamGlobalRetention globalRetention
+    ) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() == false
+            || getFailuresLifecycle() == null
+            || getFailuresLifecycle().enabled() == false
+            || getFailuresLifecycle().getEffectiveDataRetention(globalRetention, isInternal()) == null) {
+            return List.of();
+        }
+
+        List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
+            getFailureIndices(),
+            getFailuresLifecycle().getEffectiveDataRetention(globalRetention, isInternal()),
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
@@ -1024,35 +1053,26 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     }
 
     /**
-     * Returns the non-write backing indices and failure store indices that are older than the provided age,
+     * Filters the given <code>indices</code> that are older than the provided age and populates <code>olderIndices</code>,
      * excluding the write indices. The index age is calculated from the rollover or index creation date (or
      * the origination date if present). If an indices predicate is provided the returned list of indices will
      * be filtered according to the predicate definition. This is useful for things like "return only
-     * the backing indices that are managed by the data stream lifecycle".
+     * the indices that are managed by the data stream lifecycle".
      */
-    public List<Index> getNonWriteIndicesOlderThan(
+    private List<Index> getNonWriteIndicesOlderThan(
+        List<Index> indices,
         TimeValue retentionPeriod,
         Function<String, IndexMetadata> indexMetadataSupplier,
         @Nullable Predicate<IndexMetadata> indicesPredicate,
         LongSupplier nowSupplier
     ) {
+        if (indices.isEmpty()) {
+            return List.of();
+        }
         List<Index> olderIndices = new ArrayList<>();
-        for (Index index : backingIndices.getIndices()) {
+        for (Index index : indices) {
             if (isIndexOlderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                 olderIndices.add(index);
-            }
-        }
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureIndices.getIndices().isEmpty() == false) {
-            for (Index index : failureIndices.getIndices()) {
-                if (isIndexOlderThan(
-                    index,
-                    retentionPeriod.getMillis(),
-                    nowSupplier.getAsLong(),
-                    indicesPredicate,
-                    indexMetadataSupplier
-                )) {
-                    olderIndices.add(index);
-                }
             }
         }
         return olderIndices;
@@ -1121,7 +1141,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public TimeValue getGenerationLifecycleDate(IndexMetadata indexMetadata) {
-        if (indexMetadata.getIndex().equals(getWriteIndex())) {
+        if (indexMetadata.getIndex().equals(getWriteIndex()) || indexMetadata.getIndex().equals(getWriteFailureIndex())) {
             return null;
         }
         Long originationDate = indexMetadata.getSettings().getAsLong(LIFECYCLE_ORIGINATION_DATE, null);

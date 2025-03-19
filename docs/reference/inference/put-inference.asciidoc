@@ -78,6 +78,7 @@ Click the links to review the configuration details of the integrations:
 * <<infer-service-hugging-face,Hugging Face>> (`text_embedding`)
 * <<infer-service-mistral,Mistral>> (`text_embedding`)
 * <<infer-service-openai,OpenAI>> (`chat_completion`, `completion`, `text_embedding`)
+* <<infer-service-voyageai,VoyageAI>> (`text_embedding`, `rerank`)
 * <<infer-service-watsonx-ai>> (`text_embedding`)
 * <<infer-service-jinaai,JinaAI>> (`text_embedding`, `rerank`)
 

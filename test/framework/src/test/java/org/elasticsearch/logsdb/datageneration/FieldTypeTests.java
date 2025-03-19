@@ -7,8 +7,14 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation;
+package org.elasticsearch.logsdb.datageneration;
 
-public interface Instrumenter {
-    byte[] instrumentClass(String className, byte[] classfileBuffer, boolean verify);
+import org.elasticsearch.test.ESTestCase;
+
+public class FieldTypeTests extends ESTestCase {
+    public void testRoundTrip() {
+        for (var v : FieldType.values()) {
+            assertEquals(v.toString(), FieldType.tryParse(v.toString()).toString());
+        }
+    }
 }

@@ -997,6 +997,28 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression exp, List<Expression> variadic);
     }
 
+    protected interface BinaryVariadicWithOptionsBuilder<T> {
+        T build(Source source, Expression exp, List<Expression> variadic, Expression options);
+    };
+
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    protected static <T extends Function> FunctionDefinition def(
+        Class<T> function,
+        BinaryVariadicWithOptionsBuilder<T> ctorRef,
+        String... names
+    ) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            boolean hasMinimumOne = OptionalArgument.class.isAssignableFrom(function);
+            if (hasMinimumOne && children.size() < 1) {
+                throw new QlIllegalArgumentException("expects at least one argument");
+            } else if (hasMinimumOne == false && children.size() < 2) {
+                throw new QlIllegalArgumentException("expects at least two arguments");
+            }
+            return ctorRef.build(source, children.get(0), children.subList(1, children.size() - 1), children.getLast());
+        };
+        return def(function, builder, names);
+    }
+
     /**
      * Build a {@linkplain FunctionDefinition} for a no-argument function that is configuration aware.
      */

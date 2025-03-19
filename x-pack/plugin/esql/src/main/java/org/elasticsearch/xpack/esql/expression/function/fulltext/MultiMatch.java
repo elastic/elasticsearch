@@ -23,7 +23,11 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
@@ -39,7 +43,6 @@ import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZINESS_FIELD;
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_REWRITE_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.LENIENT_FIELD;
@@ -62,14 +65,18 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery} .
  */
 public class MultiMatch extends FullTextFunction implements OptionalArgument, PostAnalysisPlanVerificationAware {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "MultiMatch",
+        MultiMatch::readFrom
+    );
 
-    private static final Map<String, DataType> OPTIONS = Map.ofEntries(
+    public static final Map<String, DataType> OPTIONS = Map.ofEntries(
         entry(SLOP_FIELD.getPreferredName(), INTEGER),
         // TODO: add "zero_terms_query"
         entry(ANALYZER_FIELD.getPreferredName(), KEYWORD),
         entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), BOOLEAN),
         entry(FUZZINESS_FIELD.getPreferredName(), KEYWORD),
-        entry(FUZZY_REWRITE_FIELD.getPreferredName(), KEYWORD),
         entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), BOOLEAN),
         entry(LENIENT_FIELD.getPreferredName(), BOOLEAN),
         entry(MAX_EXPANSIONS_FIELD.getPreferredName(), INTEGER),
@@ -80,16 +87,31 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         entry(TYPE_FIELD.getPreferredName(), OBJECT)
     );
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "MultiMatch",
-        MultiMatch::readFrom
-    );
+    @FunctionInfo(returnType = "boolean", preview = true, description = "something", examples = @Example(file = "eval", tag = "docsConcat"))
 
     // TODO: add annotations.
     // Fields are separate arguments like this: multi_match("harry potter", title, plot, summary, { "type": "cross_fields" })
     // Field1: title, Field2: plot, Field3: summary
-    public MultiMatch(Source source, Expression query, List<Expression> fields, Expression options) {
+    public MultiMatch(
+        Source source,
+        @Param(
+            name = "query",
+            type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            description = "Value to find in the provided field."
+        ) Expression query,
+        List<Expression> fields,
+        @MapParam(
+            name = "options",
+            params = {
+                @MapParam.MapParamEntry(
+                    name = "boost",
+                    type = "float",
+                    valueHint = { "2.5" },
+                    description = "Floating point number used to decrease or increase the relevance scores of the query."
+                ) },
+            description = "description"
+        ) Expression options
+    ) {
         this(source, query, fields, options, null);
     }
 
@@ -97,7 +119,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     // Need: "type" child, fields: array.
     // Other options: come as extra fields?
-    public MultiMatch(Source source, Expression query, List<Expression> fields, Expression options, QueryBuilder queryBuilder) {
+    private MultiMatch(Source source, Expression query, List<Expression> fields, Expression options, QueryBuilder queryBuilder) {
         super(source, query, Stream.concat(Stream.concat(Stream.of(query), fields.stream()), Stream.of(options)).toList(), queryBuilder);
         this.options = options;
     }

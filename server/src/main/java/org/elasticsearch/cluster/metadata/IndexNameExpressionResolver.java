@@ -2356,7 +2356,7 @@ public class IndexNameExpressionResolver {
                 }
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
-                ensureRemoteClusterExpressionNotSupportedWithSelectors(expressionBase, expression);
+                ensureRemoteClusterExpressionNotSupportedWithFailuresSelector(expressionBase, selector, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
@@ -2393,23 +2393,25 @@ public class IndexNameExpressionResolver {
         }
 
         /**
-         * Checks the expression for remote cluster syntax and throws an exception if it is detected.
+         * Checks the expression for remote cluster syntax and throws an exception if it is combined with ::failures selector.
          * @throws IllegalArgumentException if remote cluster syntax is detected after parsing the selector expression
          */
-        private static void ensureRemoteClusterExpressionNotSupportedWithSelectors(
+        private static void ensureRemoteClusterExpressionNotSupportedWithFailuresSelector(
             String expressionWithoutSelector,
+            IndexComponentSelector selector,
             String originalExpression
         ) {
-            if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
-                throw new IllegalArgumentException(
-                    "invalid usage of selector ["
-                        + SELECTOR_SEPARATOR
-                        + "] and remote cluster ["
-                        + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR
-                        + "] separators in ["
-                        + originalExpression
-                        + "]. Selectors are not supported with remote cluster expressions."
-                );
+            if (selector == IndexComponentSelector.FAILURES) {
+                if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
+                    throw new IllegalArgumentException(
+                        "Invalid usage of "
+                            + SELECTOR_SEPARATOR
+                            + selector.getKey()
+                            + " selector in ["
+                            + originalExpression
+                            + "], failures selector is not supported with remote cluster expressions"
+                    );
+                }
             }
         }
     }

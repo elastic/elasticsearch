@@ -21,6 +21,7 @@ import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -72,16 +73,36 @@ public class SelectorResolverTests extends ESTestCase {
         // === Corner Cases
         // Empty index name is not necessarily disallowed, but will be filtered out in the next steps of resolution
         assertThat(resolve(selectorsAllowed, "::data"), equalTo(new ResolvedExpression("", DATA)));
+        assertThat(resolve(selectorsAllowed, "::failures"), equalTo(new ResolvedExpression("", FAILURES)));
         // Remote cluster syntax is respected, even if code higher up the call stack is likely to already have handled it already
         assertThat(resolve(selectorsAllowed, "cluster:index::data"), equalTo(new ResolvedExpression("cluster:index", DATA)));
         // CCS with an empty index name is not necessarily disallowed, though other code in the resolution logic will likely throw
         assertThat(resolve(selectorsAllowed, "cluster:::data"), equalTo(new ResolvedExpression("cluster:", DATA)));
         // Same for empty cluster and index names
         assertThat(resolve(selectorsAllowed, ":::data"), equalTo(new ResolvedExpression(":", DATA)));
+        assertThat(resolve(selectorsAllowed, ":::failures"), equalTo(new ResolvedExpression(":", FAILURES)));
         // Any more prefix colon characters will trigger the multiple separators error logic
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::data"));
+        expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::failures"));
+        expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, ":::::failures"));
         // Suffix case is not supported because there is no component named with the empty string
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "index::"));
+
+        // remote cluster syntax is not allowed with ::failures selector
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster:index::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(noSelectors, "cluster:index::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster-*:index::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster-*:index-*::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster-*:*::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "*:index-*::failures");
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "*:*::failures");
+        // even with an empty index name
+        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster:::failures");
+    }
+
+    public void assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(Context context, String expression) {
+        var e = expectThrows(IllegalArgumentException.class, () -> resolve(context, expression));
+        assertThat(e.getMessage(), containsString("failures selector is not supported with remote cluster expressions"));
     }
 
     public void testResolveMatchAllToSelectors() {

@@ -205,6 +205,9 @@ $$$index-max-regex-length$$$
 `index.max_regex_length`
 :   The maximum length of value that can be used in `regexp` or `prefix` query. Defaults to `1000`.
 
+`index.max_knn_num_candidates`
+:   The maximum number of candidates that can be used in KNN Query. Defaults to `10000`.
+
 $$$index-query-default-field$$$
 
 `index.query.default_field`

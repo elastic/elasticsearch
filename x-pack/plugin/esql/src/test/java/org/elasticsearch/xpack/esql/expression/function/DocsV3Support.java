@@ -627,7 +627,7 @@ public abstract class DocsV3Support {
             StringBuilder rendered = new StringBuilder();
             if (Strings.isNullOrEmpty(detailedDescription) == false) {
                 detailedDescription = replaceLinks(detailedDescription.trim());
-                rendered.append("\n").append(detailedDescription).append("\n");
+                rendered.append(DOCS_WARNING).append(detailedDescription).append("\n");
             }
 
             if (Strings.isNullOrEmpty(note) == false) {

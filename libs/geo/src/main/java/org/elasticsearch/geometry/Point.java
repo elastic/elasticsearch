@@ -16,6 +16,8 @@ import org.elasticsearch.geometry.utils.WellKnownText;
  */
 public class Point implements Geometry {
     public static final Point EMPTY = new Point();
+    public static final String Z = "Z";
+    public static final String M = "M";
 
     private final double y;
     private final double x;

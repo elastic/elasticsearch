@@ -17,6 +17,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.List;
 
 public class PointTests extends BaseGeometryTestCase<Point> {
     @Override
@@ -56,6 +57,52 @@ public class PointTests extends BaseGeometryTestCase<Point> {
             () -> WellKnownText.fromWKT(GeographyValidator.instance(false), randomBoolean(), "point (20.0 10.0 100.0)")
         );
         assertEquals("found Z value [100.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+    }
+
+    public void testParsePointZWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        assertEquals(new Point(20, 10, 100), WellKnownText.fromWKT(validator, true, "POINT Z (20.0 10.0 100.0)"));
+    }
+
+    public void testParsePointMWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        assertEquals(new Point(20, 10, 100), WellKnownText.fromWKT(validator, true, "POINT M (20.0 10.0 100.0)"));
+    }
+
+    public void testParsePointZWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        ParseException ex = expectThrows(ParseException.class, () -> WellKnownText.fromWKT(validator, true, "POINT Z (20.0 10.0)"));
+        assertEquals("'POINT Z' or 'POINT M' must have three coordinates, but only two were found.", ex.getMessage());
+    }
+
+    public void testParsePointMWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = StandardValidator.instance(true);
+        ParseException ex = expectThrows(ParseException.class, () -> WellKnownText.fromWKT(validator, true, "POINT M (20.0 10.0)"));
+        assertEquals("'POINT Z' or 'POINT M' must have three coordinates, but only two were found.", ex.getMessage());
+    }
+
+    public void testParsePointZMFormatNotSupported() {
+        GeometryValidator validator = StandardValidator.instance(true);
+        List<String> points = List.of("POINT ZM (20.0 10.0 100.0 200.0)", "POINT ZM (20.0 10.0 100.0)", "POINT ZM (20.0 10.0)");
+        for (String point : points) {
+            ParseException ex = expectThrows(ParseException.class, () -> WellKnownText.fromWKT(validator, true, point));
+            assertEquals("expected ( or Z or M but found: ZM", ex.getMessage());
+        }
+    }
+
+    public void testParsePointZWithEmpty() {
+        GeometryValidator validator = StandardValidator.instance(true);
+        ParseException ex = expectThrows(ParseException.class, () -> WellKnownText.fromWKT(validator, true, "POINT Z EMPTY"));
+        assertEquals("expected ( but found: EMPTY", ex.getMessage());
+    }
+
+    public void testParsePointZOrMWithTwoCoordinates() {
+        GeometryValidator validator = StandardValidator.instance(true);
+        List<String> points = List.of("POINT Z (20.0 10.0)", "POINT M (20.0 10.0)");
+        for (String point : points) {
+            ParseException ex = expectThrows(ParseException.class, () -> WellKnownText.fromWKT(validator, true, point));
+            assertEquals("'POINT Z' or 'POINT M' must have three coordinates, but only two were found.", ex.getMessage());
+        }
     }
 
     @Override

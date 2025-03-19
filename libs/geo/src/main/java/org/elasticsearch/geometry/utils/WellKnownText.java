@@ -250,7 +250,6 @@ public class WellKnownText {
             case 1018 -> parseBBox(byteBuffer, true, sb);
             default -> throw new IllegalArgumentException("Unknown geometry type: " + type);
         }
-        ;
     }
 
     private static void writeCoordinate(ByteBuffer byteBuffer, boolean hasZ, StringBuilder sb) {
@@ -472,8 +471,13 @@ public class WellKnownText {
     }
 
     private static Point parsePoint(StreamTokenizer stream) throws IOException, ParseException {
-        if (nextEmptyOrOpen(stream).equals(EMPTY)) {
+        if (isEmptyNext(stream)) {
             return Point.EMPTY;
+        }
+        String token = nextZOrMOrOpen(stream);
+        boolean hasZOrM = token.equals(Point.Z) || token.equals(Point.M);
+        if (hasZOrM) {
+            nextOpener(stream);
         }
         double lon = nextNumber(stream);
         double lat = nextNumber(stream);
@@ -481,6 +485,9 @@ public class WellKnownText {
         if (isNumberNext(stream)) {
             pt = new Point(lon, lat, nextNumber(stream));
         } else {
+            if (hasZOrM) {
+                throw new ParseException("'POINT Z' or 'POINT M' must have three coordinates, but only two were found.", stream.lineno());
+            }
             pt = new Point(lon, lat);
         }
         nextCloser(stream);
@@ -710,12 +717,31 @@ public class WellKnownText {
         return type == StreamTokenizer.TT_WORD;
     }
 
+    private static boolean isEmptyNext(StreamTokenizer stream) throws ParseException, IOException {
+        if (nextWord(stream).equals(EMPTY)) {
+            return true;
+        }
+        stream.pushBack();
+        return false;
+    }
+
     private static String nextEmptyOrOpen(StreamTokenizer stream) throws IOException, ParseException {
         final String next = nextWord(stream);
         if (next.equals(EMPTY) || next.equals(LPAREN)) {
             return next;
         }
         throw new ParseException("expected " + EMPTY + " or " + LPAREN + " but found: " + tokenString(stream), stream.lineno());
+    }
+
+    private static String nextZOrMOrOpen(StreamTokenizer stream) throws ParseException, IOException {
+        final String next = nextWord(stream);
+        if (next.equals(Point.Z) || next.equals(Point.M) || next.equals(LPAREN)) {
+            return next;
+        }
+        throw new ParseException(
+            "expected " + LPAREN + " or " + Point.Z + " or " + Point.M + " but found: " + tokenString(stream),
+            stream.lineno()
+        );
     }
 
     private static String nextCloser(StreamTokenizer stream) throws IOException, ParseException {

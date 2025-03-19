@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
@@ -146,7 +147,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
-            this.configDir = spec.getConfigDir() == null ? workingDir.resolve("config") : spec.getConfigDir();
+            this.configDir = Optional.ofNullable(spec.getConfigDir()).orElse(workingDir.resolve("config"));
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
         }

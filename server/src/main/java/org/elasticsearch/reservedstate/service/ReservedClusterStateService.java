@@ -415,9 +415,7 @@ public class ReservedClusterStateService {
         LinkedHashSet<String> orderedHandlers;
 
         try {
-            reservedStateChunk = reservedStateChunks.size() == 1
-                ? reservedStateChunks.getFirst()
-                : mergeReservedStateChunks(reservedStateChunks);
+            reservedStateChunk = mergeReservedStateChunks(reservedStateChunks);
             Map<String, Object> reservedState = reservedStateChunk.state();
             reservedStateVersion = reservedStateChunk.metadata();
             orderedHandlers = orderedProjectStateHandlers(reservedState.keySet());
@@ -507,6 +505,10 @@ public class ReservedClusterStateService {
     private static ReservedStateChunk mergeReservedStateChunks(List<ReservedStateChunk> chunks) {
         if (chunks.isEmpty()) {
             throw new IllegalArgumentException("No chunks provided");
+        }
+
+        if (chunks.size() == 1) {
+            return chunks.getFirst();
         }
 
         ReservedStateVersion reservedStateVersion = chunks.getFirst().metadata();

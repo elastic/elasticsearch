@@ -109,6 +109,13 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     if (bwcVersion.before('5.6.9') || (bwcVersion.onOrAfter('6.0.0') && bwcVersion.before('6.2.4'))) {
       jvmArgs '-da:org.elasticsearch.xpack.monitoring.exporter.http.HttpExportBulk'
     }
+
+    // There's an assertion in 8.0.x that trips when it sees a X-Elastic-Product-Origin header in the default
+    // context. Despite this header being specified in `Task.HEADERS_TO_COPY`.
+    if (bwcVersion.onOrAfter('8.0.0') && bwcVersion.before('8.1.0')) {
+      jvmArgs '-da:org.elasticsearch.transport.Transports'
+    }
+
     setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
 
     if (bwcVersion.onOrAfter('7.12.0')) {

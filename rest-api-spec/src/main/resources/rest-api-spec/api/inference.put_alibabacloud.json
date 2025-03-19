@@ -20,7 +20,7 @@
               "type": "string",
               "description": "The task type"
             },
-            "mistral_inference_id": {
+            "alibabacloud_inference_id": {
               "type": "string",
               "description": "The inference Id"
             }

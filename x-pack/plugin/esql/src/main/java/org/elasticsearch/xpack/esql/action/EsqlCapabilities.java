@@ -899,6 +899,11 @@ public class EsqlCapabilities {
         NON_FULL_TEXT_FUNCTIONS_SCORING,
 
         /**
+         * Support for to_aggregate_metric_double function
+         */
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * Support implicit casting for union typed numeric and date/date_nanos fields
          */
         IMPLICIT_CASTING_UNION_TYPED_NUMERIC_AND_DATE;

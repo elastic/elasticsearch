@@ -897,7 +897,7 @@ teardown:
 ---
 "Multi-index search with missing documents does not error":
   - requires:
-      cluster_features: [ "test_rule_retriever.with_empty_index" ]
+      cluster_features: [ "test_rule_retriever.with_indices_that_dont_return_rank_docs" ]
       reason: "Fixed in 9.1"
 
   - do:

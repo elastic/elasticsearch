@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSCredentialsProviderChain;
@@ -26,6 +25,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
 import java.util.Locale;
 import java.util.Map;
@@ -50,13 +51,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             clientSettings,
             webIdentityTokenCredentialsProvider
         );
-        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAWSCredentialsProvider.class));
-        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAWSCredentialsProvider) credentialsProvider;
+        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
+        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) credentialsProvider;
         assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(EC2ContainerCredentialsProviderWrapper.class));
     }
 
     public void testSupportsWebIdentityTokenCredentials() {
-        Mockito.when(webIdentityTokenCredentialsProvider.getCredentials())
+        Mockito.when(webIdentityTokenCredentialsProvider.resolveCredentials())
             .thenReturn(new BasicAWSCredentials("sts_access_key_id", "sts_secret_key"));
         Mockito.when(webIdentityTokenCredentialsProvider.isActive()).thenReturn(true);
 
@@ -65,8 +66,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
             webIdentityTokenCredentialsProvider
         );
-        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAWSCredentialsProvider.class));
-        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAWSCredentialsProvider) credentialsProvider;
+        assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
+        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) credentialsProvider;
         assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(AWSCredentialsProviderChain.class));
         AWSCredentials credentials = privilegedAWSCredentialsProvider.getCredentials();
         assertEquals("sts_access_key_id", credentials.getAWSAccessKeyId());
@@ -105,8 +106,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             defaultClientSettings,
             webIdentityTokenCredentialsProvider
         );
-        assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedAWSCredentialsProvider.class));
-        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAWSCredentialsProvider) defaultCredentialsProvider;
+        assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
+        var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) defaultCredentialsProvider;
         assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(EC2ContainerCredentialsProviderWrapper.class));
     }
 
@@ -152,7 +153,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     public void testAWSDefaultConfiguration() {
         launchAWSConfigurationTest(
             Settings.EMPTY,
-            Protocol.HTTPS,
+            HttpScheme.HTTPS,
             null,
             -1,
             null,
@@ -176,7 +177,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(
             settings,
-            Protocol.HTTP,
+            HttpScheme.HTTP,
             "aws_proxy_host",
             8080,
             "aws_proxy_username",
@@ -189,19 +190,29 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testRepositoryMaxRetries() {
         final Settings settings = Settings.builder().put("s3.client.default.max_retries", 5).build();
-        launchAWSConfigurationTest(settings, Protocol.HTTPS, null, -1, null, null, 5, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, 50000);
+        launchAWSConfigurationTest(
+            settings,
+            HttpScheme.HTTPS,
+            null,
+            -1,
+            null,
+            null,
+            5,
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
+            50000
+        );
     }
 
     public void testRepositoryThrottleRetries() {
         final boolean throttling = randomBoolean();
 
         final Settings settings = Settings.builder().put("s3.client.default.use_throttle_retries", throttling).build();
-        launchAWSConfigurationTest(settings, Protocol.HTTPS, null, -1, null, null, 3, throttling, 50000);
+        launchAWSConfigurationTest(settings, HttpScheme.HTTPS, null, -1, null, null, 3, throttling, 50000);
     }
 
     private void launchAWSConfigurationTest(
         Settings settings,
-        Protocol expectedProtocol,
+        HttpScheme expectedProtocol,
         String expectedProxyHost,
         int expectedProxyPort,
         String expectedProxyUsername,
@@ -238,13 +249,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testLoggingCredentialsProviderCatchesErrors() {
-        var mockProvider = Mockito.mock(AWSCredentialsProvider.class);
+        var mockProvider = Mockito.mock(AwsCredentialsProvider.class);
         String mockProviderErrorMessage = "mockProvider failed to generate credentials";
-        Mockito.when(mockProvider.getCredentials()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
+        Mockito.when(mockProvider.resolveCredentials()).thenThrow(new IllegalStateException(mockProviderErrorMessage));
         var mockLogger = Mockito.mock(Logger.class);
 
         var credentialsProvider = new S3Service.ErrorLoggingCredentialsProvider(mockProvider, mockLogger);
-        var exception = expectThrows(IllegalStateException.class, credentialsProvider::getCredentials);
+        var exception = expectThrows(IllegalStateException.class, credentialsProvider::resolveCredentials);
         assertEquals(mockProviderErrorMessage, exception.getMessage());
 
         var messageSupplierCaptor = ArgumentCaptor.forClass(Supplier.class);
@@ -256,7 +267,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     }
 
     public void testLoggingCredentialsProviderCatchesErrorsOnRefresh() {
-        var mockProvider = Mockito.mock(AWSCredentialsProvider.class);
+        var mockProvider = Mockito.mock(AwsCredentialsProvider.class);
         String mockProviderErrorMessage = "mockProvider failed to refresh";
         Mockito.doThrow(new IllegalStateException(mockProviderErrorMessage)).when(mockProvider).refresh();
         var mockLogger = Mockito.mock(Logger.class);

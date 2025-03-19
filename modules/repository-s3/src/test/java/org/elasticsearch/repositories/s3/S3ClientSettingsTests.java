@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3Client;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -36,10 +35,10 @@ public class S3ClientSettingsTests extends ESTestCase {
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.credentials, nullValue());
         assertThat(defaultSettings.endpoint, is(emptyString()));
-        assertThat(defaultSettings.protocol, is(Protocol.HTTPS));
+        assertThat(defaultSettings.protocol, is(HttpScheme.HTTPS));
         assertThat(defaultSettings.proxyHost, is(emptyString()));
         assertThat(defaultSettings.proxyPort, is(80));
-        assertThat(defaultSettings.proxyScheme, is(Protocol.HTTP));
+        assertThat(defaultSettings.proxyScheme, is(HttpScheme.HTTP));
         assertThat(defaultSettings.proxyUsername, is(emptyString()));
         assertThat(defaultSettings.proxyPassword, is(emptyString()));
         assertThat(defaultSettings.readTimeoutMillis, is(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT));

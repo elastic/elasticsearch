@@ -20,16 +20,19 @@ esplugin {
 
 dependencies {
   // TODO NOMERGE sort alphabetically
-  implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
-  implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:apache-client:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
-  implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
-  implementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
-  implementation "software.amazon.awssdk:metrics-spi:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:aws-xml-protocol:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
-  implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:metrics-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:services:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:sts:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
 
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
 
@@ -71,7 +74,20 @@ restResources {
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: 's3', to: 'aws-sdk-2'
+  mapping from: 'apache-client',            to: 'aws-sdk-2'
+  mapping from: 'auth',                     to: 'aws-sdk-2'
+  mapping from: 'aws-xml-protocol',         to: 'aws-sdk-2'
+  mapping from: 'aws-core',                 to: 'aws-sdk-2'
+  mapping from: 'http-client-spi',          to: 'aws-sdk-2'
+  mapping from: 'identity-spi',             to: 'aws-sdk-2'
+  mapping from: 'identity-spi',             to: 'aws-sdk-2'
+  mapping from: 'metrics-spi',              to: 'aws-sdk-2'
+  mapping from: 'regions',                  to: 'aws-sdk-2'
+  mapping from: 's3',                       to: 'aws-sdk-2'
+  mapping from: 'sdk-core',                 to: 'aws-sdk-2'
+  mapping from: 'services',                 to: 'aws-sdk-2'
+  mapping from: 'sts',                      to: 'aws-sdk-2'
+  mapping from: 'utils',                    to: 'aws-sdk-2'
 }
 
 esplugin.bundleSpec.from('config/repository-s3') {

@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.metadata.DataStreamAction;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -514,7 +515,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(DataStreamLifecycleService.class);
 
-            ErrorEntry writeIndexRolloverError = lifecycleService.getErrorStore().getError(writeIndexName);
+            ErrorEntry writeIndexRolloverError = lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, writeIndexName);
             assertThat(writeIndexRolloverError, is(notNullValue()));
             assertThat(writeIndexRolloverError.error(), containsString("maximum normal shards open"));
 
@@ -587,7 +588,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             // let's check there's no error recorded against it anymore
             String previousWriteInddex = currentBackingIndices.get(1);
             DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(DataStreamLifecycleService.class);
-            assertThat(lifecycleService.getErrorStore().getError(previousWriteInddex), nullValue());
+            assertThat(lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, previousWriteInddex), nullValue());
         });
 
         // the error has been fixed so the health information shouldn't be reported anymore
@@ -657,7 +658,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     DataStreamLifecycleService.class
                 );
 
-                ErrorEntry recordedRetentionExecutionError = lifecycleService.getErrorStore().getError(firstGenerationIndex);
+                ErrorEntry recordedRetentionExecutionError = lifecycleService.getErrorStore()
+                    .getError(Metadata.DEFAULT_PROJECT_ID, firstGenerationIndex);
                 assertThat(recordedRetentionExecutionError, is(notNullValue()));
                 assertThat(recordedRetentionExecutionError.retryCount(), greaterThanOrEqualTo(3));
                 assertThat(recordedRetentionExecutionError.error(), containsString("blocked by: [FORBIDDEN/5/index read-only (api)"));
@@ -710,7 +712,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 DataStreamLifecycleService lifecycleService = internalCluster().getCurrentMasterNodeInstance(
                     DataStreamLifecycleService.class
                 );
-                assertThat(lifecycleService.getErrorStore().getError(firstGenerationIndex), nullValue());
+                assertThat(lifecycleService.getErrorStore().getError(Metadata.DEFAULT_PROJECT_ID, firstGenerationIndex), nullValue());
             });
 
             // health info for DSL should be EMPTY as everything's healthy

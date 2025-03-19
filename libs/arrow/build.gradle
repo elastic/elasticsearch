@@ -70,18 +70,8 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
-    'org.apache.arrow.memory.util.hash.SimpleHasher',
-    'org.apache.arrow.memory.util.hash.MurmurHasher',
     'org.apache.arrow.memory.util.MemoryUtil',
     'org.apache.arrow.memory.util.MemoryUtil$1',
-    'org.apache.arrow.vector.DecimalVector',
-    'org.apache.arrow.vector.BaseFixedWidthVector',
-    'org.apache.arrow.vector.util.DecimalUtility',
-    'org.apache.arrow.vector.Decimal256Vector',
-    'org.apache.arrow.vector.util.VectorAppender',
-    'org.apache.arrow.memory.ArrowBuf',
-    'org.apache.arrow.vector.BitVectorHelper',
-    'org.apache.arrow.memory.util.ByteFunctionHelpers',
   )
 }
 

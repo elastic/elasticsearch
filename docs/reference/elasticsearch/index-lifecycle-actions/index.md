@@ -5,6 +5,12 @@ mapped_pages:
 
 # Index lifecycle actions [ilm-actions]
 
+:::{note}
+This section provides detailed **reference information** for Index lifecycle actions.
+
+Refer to [Index lifecycle management](docs-content://manage-data/lifecycle/index-lifecycle-management.md) in the **Manage data** section for overview, getting started and conceptual information.
+:::
+
 [Allocate](/reference/elasticsearch/index-lifecycle-actions/ilm-allocate.md)
 :   Move shards to nodes with different performance characteristics and reduce the number of replicas.
 

@@ -89,7 +89,7 @@ public class InferenceUpgradeTestCase extends ParameterizedRollingUpgradeTestCas
     }
 
     @SuppressWarnings("unchecked")
-    protected Map<String, Map<String, Object>> getMinimalConfig() throws IOException {
+    protected Map<String, Map<String, Object>> getMinimalConfigs() throws IOException {
         var endpoint = "_cluster/state?filter_path=metadata.model_registry";
         var request = new Request("GET", endpoint);
         var response = client().performRequest(request);

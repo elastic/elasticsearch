@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -74,7 +72,6 @@ public class PlanConcurrencyCalculator {
 
     private Integer getDataNodeLimit(PhysicalPlan dataNodePlan) {
         LogicalPlan logicalPlan = getFragmentPlan(dataNodePlan);
-
 
         // State machine to find:
         // A relation

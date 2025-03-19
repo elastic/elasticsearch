@@ -1388,7 +1388,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                     && e.isClone()
                                     && e.shardSnapshotStatusByRepoShardId().isEmpty() == false
                             )
-                    ).addListener(l.map(cs -> null));
+                    ).addListener(l);
                     client.admin()
                         .cluster()
                         .prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, originalSnapshotName, cloneName)
@@ -1401,8 +1401,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         testListener = testListener.andThen(l -> scheduleNow(() -> {
             // Once all snapshots & clones have started, drop the data node and wait for all snapshot activity to complete
             testClusterNodes.disconnectNode(testClusterNodes.randomDataNodeSafe());
-            ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty())
-                .addListener(l.map(cs -> null));
+            ClusterServiceUtils.addTemporaryStateListener(masterClusterService, cs -> SnapshotsInProgress.get(cs).isEmpty()).addListener(l);
         }));
 
         deterministicTaskQueue.runAllRunnableTasks();

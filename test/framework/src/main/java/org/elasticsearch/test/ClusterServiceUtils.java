@@ -263,14 +263,10 @@ public class ClusterServiceUtils {
         );
     }
 
-    public static SubscribableListener<ClusterState> addTemporaryStateListener(
-        ClusterService clusterService,
-        Predicate<ClusterState> predicate
-    ) {
-        final var listener = new SubscribableListener<ClusterState>();
-        final var initialState = clusterService.state();
-        if (predicate.test(initialState)) {
-            listener.onResponse(initialState);
+    public static SubscribableListener<Void> addTemporaryStateListener(ClusterService clusterService, Predicate<ClusterState> predicate) {
+        final var listener = new SubscribableListener<Void>();
+        if (predicate.test(clusterService.state())) {
+            listener.onResponse(null);
             // No need to add the cluster state listener if the predicate already passes.
             return listener;
         }
@@ -278,9 +274,8 @@ public class ClusterServiceUtils {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
                 try {
-                    final var state = event.state();
-                    if (predicate.test(state)) {
-                        listener.onResponse(state);
+                    if (predicate.test(event.state())) {
+                        listener.onResponse(null);
                     }
                 } catch (Exception e) {
                     listener.onFailure(e);

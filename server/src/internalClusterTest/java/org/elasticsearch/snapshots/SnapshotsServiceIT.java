@@ -125,7 +125,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
         MockRepository repository = getRepositoryOnMaster("test-repo");
         PlainActionFuture<AcknowledgedResponse> listener = new PlainActionFuture<>();
-        SubscribableListener<ClusterState> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
+        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
         repository.blockOnDataFiles();
         try {
             clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
@@ -147,7 +147,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
         MockRepository repository = getRepositoryOnMaster("test-repo");
         PlainActionFuture<AcknowledgedResponse> requestCompleteListener = new PlainActionFuture<>();
-        SubscribableListener<ClusterState> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
+        SubscribableListener<Void> snapshotDeletionListener = createSnapshotDeletionListener("test-repo");
         repository.blockOnDataFiles();
         try {
             clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "test-repo", "test-snapshot")
@@ -169,7 +169,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
      * @param repositoryName The repository to monitor for deletions
      * @return the listener
      */
-    private SubscribableListener<ClusterState> createSnapshotDeletionListener(String repositoryName) {
+    private SubscribableListener<Void> createSnapshotDeletionListener(String repositoryName) {
         AtomicBoolean deleteHasStarted = new AtomicBoolean(false);
         return ClusterServiceUtils.addTemporaryStateListener(
             internalCluster().getCurrentMasterNodeInstance(ClusterService.class),

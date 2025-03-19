@@ -121,7 +121,7 @@ public class PersistentTaskCreationFailureIT extends ESIntegTestCase {
         );
 
         safeAwait(
-            taskCreatedListener.<ClusterState>andThen(
+            taskCreatedListener.<Void>andThen(
                 (l, v) -> ClusterServiceUtils.addTemporaryStateListener(
                     masterClusterService,
                     clusterState -> hasPersistentTask(clusterState) == false

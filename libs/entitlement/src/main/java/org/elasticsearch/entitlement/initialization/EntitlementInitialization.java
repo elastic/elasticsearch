@@ -184,7 +184,7 @@ public class EntitlementInitialization {
             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
             // exclusive settings file
-            FileData.ofRelativePath(Path.of("/operator/settings.json"), CONFIG, READ).withExclusive(true),
+            FileData.ofRelativePath(Path.of("operator/settings.json"), CONFIG, READ).withExclusive(true),
             // OS release on Linux
             FileData.ofPath(Path.of("/etc/os-release"), READ).withPlatform(LINUX),
             FileData.ofPath(Path.of("/etc/system-release"), READ).withPlatform(LINUX),

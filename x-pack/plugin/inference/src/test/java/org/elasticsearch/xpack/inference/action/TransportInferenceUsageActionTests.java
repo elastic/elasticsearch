@@ -126,7 +126,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
         }).when(client).execute(any(GetInferenceModelAction.class), any(), any());
 
         var future = new PlainActionFuture<XPackUsageFeatureResponse>();
-        action.localClusterStateOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
+        action.masterOperation(mock(Task.class), mock(XPackUsageRequest.class), mock(ClusterState.class), future);
 
         var usage = future.actionGet(TIMEOUT);
         var inferenceUsage = (InferenceFeatureSetUsage) usage.getUsage();

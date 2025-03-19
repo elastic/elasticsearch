@@ -489,3 +489,6 @@ tests:
 - class: org.elasticsearch.discovery.ec2.Ec2DiscoveryTests
   method: testFilterByTags
   issue: https://github.com/elastic/elasticsearch/issues/125090
+- class: org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTests
+  method: testCreateRequest_WithEntraIdDefined
+  issue: https://github.com/elastic/elasticsearch/issues/125061

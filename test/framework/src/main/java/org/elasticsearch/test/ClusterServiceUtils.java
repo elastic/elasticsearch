@@ -265,11 +265,6 @@ public class ClusterServiceUtils {
 
     public static SubscribableListener<Void> addTemporaryStateListener(ClusterService clusterService, Predicate<ClusterState> predicate) {
         final var listener = new SubscribableListener<Void>();
-        if (predicate.test(clusterService.state())) {
-            listener.onResponse(null);
-            // No need to add the cluster state listener if the predicate already passes.
-            return listener;
-        }
         final ClusterStateListener clusterStateListener = new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -289,7 +284,11 @@ public class ClusterServiceUtils {
         };
         clusterService.addListener(clusterStateListener);
         listener.addListener(ActionListener.running(() -> clusterService.removeListener(clusterStateListener)));
-        listener.addTimeout(ESTestCase.SAFE_AWAIT_TIMEOUT, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        if (predicate.test(clusterService.state())) {
+            listener.onResponse(null);
+        } else {
+            listener.addTimeout(ESTestCase.SAFE_AWAIT_TIMEOUT, clusterService.threadPool(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        }
         return listener;
     }
 }

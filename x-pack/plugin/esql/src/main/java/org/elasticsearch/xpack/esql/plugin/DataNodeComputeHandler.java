@@ -107,6 +107,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         new DataNodeRequestSender(
             transportService,
             esqlExecutor,
+            clusterAlias,
             parentTask,
             configuration.allowPartialResults(),
             maxConcurrentNodesPerCluster == null ? -1 : maxConcurrentNodesPerCluster

@@ -167,6 +167,13 @@ tasks.named("test").configure {
 
       List kibana = kibanaTree.files.collect { it.name }
       int countKibana = kibana.size()
+      Closure replaceLinks = line -> {
+        // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
+        line.replaceAll(
+          /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
+          '](https://www.elastic.co/docs/reference/elasticsearch/$1$2)'
+        )
+      }
       if (countKibana == 0) {
         logger.quiet("ESQL Docs: No function/operator kibana docs created. Skipping sync.")
       } else {
@@ -181,6 +188,7 @@ tasks.named("test").configure {
               include '**/*.md', '**/*.json'
             }
           }
+          filter replaceLinks
         }
       }
     }

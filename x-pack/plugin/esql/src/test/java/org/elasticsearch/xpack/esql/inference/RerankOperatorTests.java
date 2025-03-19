@@ -287,7 +287,7 @@ public class RerankOperatorTests extends OperatorTestCase {
     }
 
     private void assertExpectedScore(DoubleBlock scoreBlockResult) {
-        assertRandomPositions(scoreBlockResult, (pos) -> {
+        assertAllPositions(scoreBlockResult, (pos) -> {
             if (pos % 10 == 0) {
                 assertThat(scoreBlockResult.isNull(pos), equalTo(true));
             } else {

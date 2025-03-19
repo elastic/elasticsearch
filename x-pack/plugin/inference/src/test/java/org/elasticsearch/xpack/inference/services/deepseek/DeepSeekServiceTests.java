@@ -44,6 +44,7 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
@@ -90,7 +91,7 @@ public class DeepSeekServiceTests extends ESTestCase {
             }
             """, webServer.getUri(null).toString()), assertNoFailureListener(model -> {
             if (model instanceof DeepSeekChatCompletionModel deepSeekModel) {
-                assertThat(deepSeekModel.apiKey().getChars(), equalTo("12345".toCharArray()));
+                assertThat(deepSeekModel.apiKey().get().getChars(), equalTo("12345".toCharArray()));
                 assertThat(deepSeekModel.model(), equalTo("some-cool-model"));
                 assertThat(deepSeekModel.uri(), equalTo(webServer.getUri(null)));
             } else {
@@ -158,13 +159,10 @@ public class DeepSeekServiceTests extends ESTestCase {
             {
               "service_settings": {
                 "model_id": "some-cool-model"
-              },
-              "secret_settings": {
-                "api_key": "12345"
               }
             }
             """);
-        assertThat(deepSeekModel.apiKey().getChars(), equalTo("12345".toCharArray()));
+        assertThat(deepSeekModel.apiKey(), equalTo(Optional.empty()));
         assertThat(deepSeekModel.model(), equalTo("some-cool-model"));
     }
 
@@ -174,31 +172,12 @@ public class DeepSeekServiceTests extends ESTestCase {
               "service_settings": {
                 "model_id": "some-cool-model",
                 "url": "http://localhost:989"
-              },
-              "secret_settings": {
-                "api_key": "12345"
               }
             }
             """);
-        assertThat(deepSeekModel.apiKey().getChars(), equalTo("12345".toCharArray()));
+        assertThat(deepSeekModel.apiKey(), equalTo(Optional.empty()));
         assertThat(deepSeekModel.model(), equalTo("some-cool-model"));
         assertThat(deepSeekModel.uri(), equalTo(URI.create("http://localhost:989")));
-    }
-
-    public void testParsePersistedConfigWithoutApiKey() {
-        assertThrows(
-            "Validation Failed: 1: [secret_settings] does not contain the required setting [api_key];",
-            ValidationException.class,
-            () -> parsePersistedConfig("""
-                {
-                  "service_settings": {
-                    "model_id": "some-cool-model"
-                  },
-                  "secret_settings": {
-                  }
-                }
-                """)
-        );
     }
 
     public void testParsePersistedConfigWithoutModel() {
@@ -424,17 +403,20 @@ public class DeepSeekServiceTests extends ESTestCase {
     }
 
     private DeepSeekChatCompletionModel createModel(DeepSeekService service, TaskType taskType) throws URISyntaxException, IOException {
-        var model = service.parsePersistedConfig("inference-id", taskType, map(Strings.format("""
+        var model = service.parsePersistedConfigWithSecrets("inference-id", taskType, map(Strings.format("""
             {
               "service_settings": {
                 "model_id": "some-cool-model",
                 "url": "%s"
-              },
+              }
+            }
+            """, webServer.getUri(null).toString())), map("""
+            {
               "secret_settings": {
                 "api_key": "12345"
               }
             }
-            """, webServer.getUri(null).toString())));
+            """));
         assertThat(model, isA(DeepSeekChatCompletionModel.class));
         return (DeepSeekChatCompletionModel) model;
     }

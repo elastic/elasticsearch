@@ -473,6 +473,46 @@ interface FieldSpecificMatcher {
         }
     }
 
+    class ShapeMatcher implements FieldSpecificMatcher {
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
+        ShapeMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            this.actualMappings = actualMappings;
+            this.actualSettings = actualSettings;
+            this.expectedMappings = expectedMappings;
+            this.expectedSettings = expectedSettings;
+        }
+
+        @Override
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            // Since fallback synthetic source is used, should always match exactly.
+            return actual.equals(expected)
+                ? MatchResult.match()
+                : MatchResult.noMatch(
+                    formatErrorMessage(
+                        actualMappings,
+                        actualSettings,
+                        expectedMappings,
+                        expectedSettings,
+                        "Values of type [geo_shape] don't match, values " + prettyPrintCollections(actual, expected)
+                    )
+                );
+        }
+    }
+
     /**
      * Generic matcher that supports common matching logic like null values.
      */

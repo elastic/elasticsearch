@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -17,8 +18,15 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.util.Set;
+
 public class PlanConcurrencyCalculator {
     public static final PlanConcurrencyCalculator INSTANCE = new PlanConcurrencyCalculator();
+
+    /**
+     * Set of allowed {@link LogicalPlan} classes that may safely appear before the {@link Limit}.
+     */
+    private static final Set<Class<? extends LogicalPlan>> ALLOWED_PLAN_CLASSES = Set.of(EsRelation.class, Limit.class);
 
     private PlanConcurrencyCalculator() {}
 
@@ -31,8 +39,6 @@ public class PlanConcurrencyCalculator {
      * @return Null if there should be no limit, otherwise, the maximum number of nodes that should be executed concurrently.
      */
     public Integer calculateNodesConcurrency(PhysicalPlan dataNodePlan, Configuration configuration) {
-        // TODO: Request FoldContext or a context containing it
-
         // If available, pragma overrides any calculation
         if (configuration.pragmas().maxConcurrentNodesPerCluster() > 0) {
             return configuration.pragmas().maxConcurrentNodesPerCluster();
@@ -61,31 +67,34 @@ public class PlanConcurrencyCalculator {
     }
 
     private int limitToConcurrency(int limit) {
-        // TODO: Do some conversion here
+        // TODO: Should there be a calculation running like:
+        // "after each node finishes, recalculate the concurrency based on the amount of results"
         return limit;
     }
 
     private Integer getDataNodeLimit(PhysicalPlan dataNodePlan) {
         LogicalPlan logicalPlan = getFragmentPlan(dataNodePlan);
 
+
         // State machine to find:
         // A relation
         Holder<Boolean> relationFound = new Holder<>(false);
-        // ...followed by NO filters
-        Holder<Boolean> filterFound = new Holder<>(false);
+        // ...followed by NO non-whitelisted nodes that could break the calculation
+        Holder<Boolean> forbiddenNodeFound = new Holder<>(false);
         // ...and finally, a limit
         Holder<Integer> limitValue = new Holder<>(null);
 
         logicalPlan.forEachUp(node -> {
-            if (node instanceof EsRelation) {
-                relationFound.set(true);
-            } else if (node instanceof Filter) {
-                filterFound.set(true);
-            } else if (relationFound.get() && filterFound.get() == false) {
-                // We only care about the limit if there's a relation before it, and no filter in between
-                if (node instanceof Limit limit) {
-                    assert limitValue.get() == null : "Multiple limits found in the same data node plan";
-                    limitValue.set((Integer) limit.limit().fold(FoldContext.small()));
+            // If a limit or a blacklisted command was already found, ignore the rest
+            if (limitValue.get() == null && forbiddenNodeFound.get() == false) {
+                if (node instanceof EsRelation) {
+                    relationFound.set(true);
+                } else if (relationFound.get()) {
+                    if (ALLOWED_PLAN_CLASSES.contains(node.getClass()) == false) {
+                        forbiddenNodeFound.set(true);
+                    } else if (node instanceof Limit limit && limit.limit() instanceof Literal literalLimit) {
+                        limitValue.set((Integer) literalLimit.value());
+                    }
                 }
             }
         });

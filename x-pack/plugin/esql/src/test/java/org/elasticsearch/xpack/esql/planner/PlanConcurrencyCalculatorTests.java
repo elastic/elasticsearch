@@ -61,6 +61,21 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
             """, 123);
     }
 
+    public void testSortBeforeLimit() {
+        assertConcurrency("""
+            FROM x
+            | SORT salary
+            """, null);
+    }
+
+    public void testSortAfterLimit() {
+        assertConcurrency("""
+            FROM x
+            | LIMIT 123
+            | SORT salary
+            """, 123);
+    }
+
     public void testStatsWithSortBeforeLimit() {
         assertConcurrency("""
             FROM x
@@ -79,11 +94,21 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
             """, null);
     }
 
-    public void testSort() {
+    public void testExpand() {
         assertConcurrency("""
             FROM x
-            | SORT salary
-            """, null);
+            | LIMIT 222
+            | MV_EXPAND salary
+            | LIMIT 111
+            """, 111);
+    }
+
+    public void testEval() {
+        assertConcurrency("""
+            FROM x
+            | EVAL x=salary*2
+            | LIMIT 111
+            """, 111);
     }
 
     private void assertConcurrency(String query, Integer expectedConcurrency) {

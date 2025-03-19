@@ -64,14 +64,12 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         ensureGreen();
 
         final String dataStreamName = "metrics-foo";
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
             .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
                     )
                 )
             )

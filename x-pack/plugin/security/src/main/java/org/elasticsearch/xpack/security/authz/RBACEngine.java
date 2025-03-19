@@ -941,18 +941,17 @@ public class RBACEngine implements AuthorizationEngine {
             // more efficient than checking the index name first because we recommend grant privileges over data stream
             // instead of backing indices.
             if (indexAbstraction.getParentDataStream() != null) {
-                boolean authorizeViaParentDataStream = indexAbstraction.isFailureIndexOfDataStream()
-                    || false == IndexComponentSelector.FAILURES.equals(selector);
-                if (authorizeViaParentDataStream
-                    && predicate.test(
-                        indexAbstraction.getParentDataStream(),
-                        // access to failure indices is authorized via failures-based selectors on the parent data stream _not_ via data
-                        // ones
-                        indexAbstraction.isFailureIndexOfDataStream() ? IndexComponentSelector.FAILURES : IndexComponentSelector.DATA
-                    )) {
-                    return true;
-                }
-
+                if (indexAbstraction.isFailureIndexOfDataStream()) {
+                    // access to failure indices is authorized via failures-based selectors on the parent data stream _not_ via data
+                    // ones
+                    if (predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)) {
+                        return true;
+                    }
+                } else if (IndexComponentSelector.DATA.equals(selector) || selector == null) {
+                    if (predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.DATA)) {
+                        return true;
+                    }
+                } // we don't support granting access to a backing index with a failure selector via the parent data stream
             }
             return predicate.test(indexAbstraction, selector);
         });

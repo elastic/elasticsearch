@@ -444,18 +444,17 @@ public final class IndicesPermission {
         public boolean checkIndex(Group group) {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
-                boolean authorizeViaParentDataStream = indexAbstraction.isFailureIndexOfDataStream()
-                    || false == IndexComponentSelector.FAILURES.equals(selector);
-                if (authorizeViaParentDataStream) {
+                if (indexAbstraction.isFailureIndexOfDataStream()) {
                     // failure indices are special: when accessed directly (not through ::failures on parent data stream) they are accessed
                     // implicitly as data. However, authz to the parent data stream happens via the failures selector
-                    final IndexComponentSelector selectorToCheck = indexAbstraction.isFailureIndexOfDataStream()
-                        ? IndexComponentSelector.FAILURES
-                        : IndexComponentSelector.DATA;
-                    if (group.checkSelector(selectorToCheck) && group.checkIndex(ds.getName())) {
+                    if (group.checkSelector(IndexComponentSelector.FAILURES) && group.checkIndex(ds.getName())) {
                         return true;
                     }
-                }
+                } else if (IndexComponentSelector.DATA.equals(selector) || selector == null) {
+                    if (group.checkSelector(IndexComponentSelector.DATA) && group.checkIndex(ds.getName())) {
+                        return true;
+                    }
+                } // we don't support granting access to a backing index with a failure selector via the parent data stream
             }
             return group.checkSelector(selector) && group.checkIndex(name);
         }

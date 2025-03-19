@@ -170,16 +170,6 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     }
 
     @Override
-    public void writeAdHocConfigFile(int index, String fileName, String content) {
-        handle.writeAdHocConfigFile(index, fileName, content);
-    }
-
-    @Override
-    public void deleteAdHocConfigFile(int index, String fileName) {
-        handle.deleteAdHocConfigFile(index, fileName);
-    }
-
-    @Override
     public void updateStoredSecureSettings() {
         checkHandle();
         handle.updateStoredSecureSettings();

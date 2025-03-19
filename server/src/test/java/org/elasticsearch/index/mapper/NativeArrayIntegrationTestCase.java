@@ -20,24 +20,21 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
 public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCase {
@@ -139,16 +136,15 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         for (int i = 0; i < documents.size(); i++) {
             var document = documents.get(i);
+            var documentSource = jsonBuilder().startObject().field("field", document).endObject();
+            String expectedSource = Strings.toString(documentSource);
             var searchRequest = new SearchRequest("test-index");
             searchRequest.source().query(new IdsQueryBuilder().addIds("my-id-" + i));
             var searchResponse = client().search(searchRequest).actionGet();
             try {
                 var hit = searchResponse.getHits().getHits()[0];
                 assertThat(hit.getId(), equalTo("my-id-" + i));
-                var sourceAsMap = hit.getSourceAsMap();
-                assertThat(sourceAsMap, hasKey("field"));
-                var actualArray = (List<?>) sourceAsMap.get("field");
-                assertThat(actualArray, equalTo(document));
+                assertThat(hit.getSourceAsString(), equalTo(expectedSource));
             } finally {
                 searchResponse.decRef();
             }
@@ -190,6 +186,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         }
         source.endArray().endObject();
         indexRequest.source(source);
+        String expectedSource = Strings.toString(source);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client().index(indexRequest).actionGet();
 
@@ -199,19 +196,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         try {
             var hit = searchResponse.getHits().getHits()[0];
             assertThat(hit.getId(), equalTo("my-id-1"));
-            var sourceAsMap = hit.getSourceAsMap();
-            assertThat(sourceAsMap, hasKey("parent"));
-            List<?> objectArray;
-            if (arrayValues.length > 1) {
-                objectArray = (List<?>) sourceAsMap.get("parent");
-            } else {
-                objectArray = List.of(sourceAsMap.get("parent"));
-            }
-            for (int i = 0; i < arrayValues.length; i++) {
-                var expected = arrayValues[i];
-                List<?> actual = (List<?>) ((Map<?, ?>) objectArray.get(i)).get("field");
-                assertThat(actual, Matchers.contains(expected));
-            }
+            assertThat(hit.getSourceAsString(), equalTo(expectedSource));
         } finally {
             searchResponse.decRef();
         }
@@ -265,7 +250,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             } else {
                 source.field("field").nullValue();
             }
-            indexRequest.source(source.endObject());
+            source.endObject();
+            var expectedSource = Strings.toString(source);
+            indexRequest.source(source);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             client().index(indexRequest).actionGet();
 
@@ -275,16 +262,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             try {
                 var hit = searchResponse.getHits().getHits()[0];
                 assertThat(hit.getId(), equalTo("my-id-" + i));
-                var sourceAsMap = hit.getSourceAsMap();
-                assertThat(sourceAsMap, hasKey("field"));
-                var actualArray = (List<?>) sourceAsMap.get("field");
-                if (array == null) {
-                    assertThat(actualArray, nullValue());
-                } else if (array.length == 0) {
-                    assertThat(actualArray, empty());
-                } else {
-                    assertThat(actualArray, Matchers.contains(array));
-                }
+                assertThat(hit.getSourceAsString(), equalTo(expectedSource));
             } finally {
                 searchResponse.decRef();
             }
@@ -331,8 +309,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 source.array("field", arrayValue);
                 source.endObject();
             }
-            source.endArray();
-            indexRequest.source(source.endObject());
+            source.endArray().endObject();
+            var expectedSource = Strings.toString(source);
+            indexRequest.source(source);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             client().index(indexRequest).actionGet();
 
@@ -342,13 +321,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             try {
                 var hit = searchResponse.getHits().getHits()[0];
                 assertThat(hit.getId(), equalTo("my-id-" + i));
-                var sourceAsMap = hit.getSourceAsMap();
-                var objectArray = (List<?>) sourceAsMap.get("object");
-                for (int j = 0; j < document.size(); j++) {
-                    var expected = document.get(j);
-                    List<?> actual = (List<?>) ((Map<?, ?>) objectArray.get(j)).get("field");
-                    assertThat(actual, Matchers.contains(expected));
-                }
+                assertThat(hit.getSourceAsString(), equalTo(expectedSource));
             } finally {
                 searchResponse.decRef();
             }
@@ -400,8 +373,9 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             var source = jsonBuilder().startObject();
             source.startObject("object");
             source.array("field", arrayValue);
-            source.endObject();
-            indexRequest.source(source.endObject());
+            source.endObject().endObject();
+            var expectedSource = Strings.toString(source);
+            indexRequest.source(source);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             client().index(indexRequest).actionGet();
 
@@ -411,17 +385,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             try {
                 var hit = searchResponse.getHits().getHits()[0];
                 assertThat(hit.getId(), equalTo("my-id-" + i));
-                var sourceAsMap = hit.getSourceAsMap();
-                var objectArray = (Map<?, ?>) sourceAsMap.get("object");
-
-                List<?> actual = (List<?>) objectArray.get("field");
-                if (arrayValue == null) {
-                    assertThat(actual, nullValue());
-                } else if (arrayValue.length == 0) {
-                    assertThat(actual, empty());
-                } else {
-                    assertThat(actual, Matchers.contains(arrayValue));
-                }
+                assertThat(hit.getSourceAsString(), equalTo(expectedSource));
             } finally {
                 searchResponse.decRef();
             }

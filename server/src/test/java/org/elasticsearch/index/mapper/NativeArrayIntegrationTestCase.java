@@ -68,8 +68,8 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     public void testSynthesizeArrayRandomIgnoresMalformed() throws Exception {
         assumeTrue("supports ignore_malformed", getMalformedValue() != null);
         int numDocs = randomIntBetween(8, 256);
-        List<List<Object>> documents = new ArrayList<>(numDocs);
-        List<List<Object>> shuffledDocuments = new ArrayList<>(numDocs);
+        List<XContentBuilder> expectedDocuments = new ArrayList<>(numDocs);
+        List<XContentBuilder> inputDocuments = new ArrayList<>(numDocs);
         for (int i = 0; i < numDocs; i++) {
             Object[] values = new Object[randomInt(64)];
             Object[] malformed = new Object[randomInt(64)];
@@ -80,32 +80,47 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 malformed[j] = getMalformedValue();
             }
 
-            var document = new ArrayList<>(values.length + malformed.length);
-            var shuffledDocument = new ArrayList<>(values.length + malformed.length);
+            var expectedDocument = jsonBuilder().startObject();
+            var inputDocument = jsonBuilder().startObject();
+
+            boolean expectedContainsArray = values.length > 0 || malformed.length > 1;
+            if (expectedContainsArray) {
+                expectedDocument.startArray("field");
+            } else if (malformed.length > 0) {
+                expectedDocument.field("field");
+            }
+            inputDocument.startArray("field");
+
             int valuesIdx = 0;
             int malformedIdx = 0;
             for (int j = 0; j < values.length + malformed.length; j++) {
                 if (j < values.length) {
-                    document.add(values[j]);
+                    expectedDocument.value(values[j]);
                 } else {
-                    document.add(malformed[j - values.length]);
+                    expectedDocument.value(malformed[j - values.length]);
                 }
 
                 if (valuesIdx == values.length) {
-                    shuffledDocument.add(malformed[malformedIdx++]);
+                    inputDocument.value(malformed[malformedIdx++]);
                 } else if (malformedIdx == malformed.length) {
-                    shuffledDocument.add(values[valuesIdx++]);
+                    inputDocument.value(values[valuesIdx++]);
                 } else {
                     if (randomBoolean()) {
-                        shuffledDocument.add(values[valuesIdx++]);
+                        inputDocument.value(values[valuesIdx++]);
                     } else {
-                        shuffledDocument.add(malformed[malformedIdx++]);
+                        inputDocument.value(malformed[malformedIdx++]);
                     }
                 }
             }
 
-            documents.add(document);
-            shuffledDocuments.add(shuffledDocument);
+            if (expectedContainsArray) {
+                expectedDocument.endArray();
+            }
+            expectedDocument.endObject();
+            inputDocument.endArray().endObject();
+
+            expectedDocuments.add(expectedDocument);
+            inputDocuments.add(inputDocument);
         }
 
         var mapping = jsonBuilder().startObject()
@@ -121,23 +136,21 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
             mapping
         );
-        for (int i = 0; i < shuffledDocuments.size(); i++) {
-            var document = shuffledDocuments.get(i);
+        for (int i = 0; i < inputDocuments.size(); i++) {
+            var document = inputDocuments.get(i);
             var indexRequest = new IndexRequest("test-index");
             indexRequest.id("my-id-" + i);
 
-            var source = jsonBuilder().startObject().field("field", document).endObject();
-            indexRequest.source(source);
+            indexRequest.source(document);
             client().index(indexRequest).actionGet();
         }
 
         var refreshRequest = new RefreshRequest("test-index");
         client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
 
-        for (int i = 0; i < documents.size(); i++) {
-            var document = documents.get(i);
-            var documentSource = jsonBuilder().startObject().field("field", document).endObject();
-            String expectedSource = Strings.toString(documentSource);
+        for (int i = 0; i < expectedDocuments.size(); i++) {
+            var document = expectedDocuments.get(i);
+            String expectedSource = Strings.toString(document);
             var searchRequest = new SearchRequest("test-index");
             searchRequest.source().query(new IdsQueryBuilder().addIds("my-id-" + i));
             var searchResponse = client().search(searchRequest).actionGet();
@@ -152,7 +165,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     }
 
     public void testSynthesizeRandomArrayInNestedContext() throws Exception {
-        var arrayValues = new Object[randomIntBetween(1, 8)][randomIntBetween(1, 64)];
+        var arrayValues = new Object[randomIntBetween(1, 8)][randomIntBetween(2, 64)];
         for (int i = 0; i < arrayValues.length; i++) {
             for (int j = 0; j < arrayValues[i].length; j++) {
                 arrayValues[i][j] = randomInt(10) == 0 ? null : getRandomValue();
@@ -186,9 +199,25 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         }
         source.endArray().endObject();
         indexRequest.source(source);
-        String expectedSource = Strings.toString(source);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         client().index(indexRequest).actionGet();
+
+        var expectedSource = jsonBuilder().startObject();
+        if (arrayValues.length > 1) {
+            expectedSource.startArray("parent");
+        } else {
+            expectedSource.field("parent");
+        }
+        for (Object[] arrayValue : arrayValues) {
+            expectedSource.startObject();
+            expectedSource.array("field", arrayValue);
+            expectedSource.endObject();
+        }
+        if (arrayValues.length > 1) {
+            expectedSource.endArray();
+        }
+        expectedSource.endObject();
+        var expected = Strings.toString(expectedSource);
 
         var searchRequest = new SearchRequest("test-index");
         searchRequest.source().query(new IdsQueryBuilder().addIds("my-id-1"));
@@ -196,7 +225,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
         try {
             var hit = searchResponse.getHits().getHits()[0];
             assertThat(hit.getId(), equalTo("my-id-1"));
-            assertThat(hit.getSourceAsString(), equalTo(expectedSource));
+            assertThat(hit.getSourceAsString(), equalTo(expected));
         } finally {
             searchResponse.decRef();
         }

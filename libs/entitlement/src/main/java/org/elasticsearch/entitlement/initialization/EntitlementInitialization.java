@@ -275,11 +275,10 @@ public class EntitlementInitialization {
         Collections.addAll(
             serverScopes,
             new Scope(
-                "com.fasterxml.jackson.core",
-                List.of(
-                    new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.modulesDir(), READ))),
-                    new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.pluginsDir(), READ)))
-                )
+                "com.fasterxml.jackson.core", List.of(new FilesEntitlement(List.of(
+                    FileData.ofPath(bootstrapArgs.modulesDir(), READ),
+                    FileData.ofPath(bootstrapArgs.pluginsDir(), READ)
+                )))
             )
         );
 

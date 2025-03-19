@@ -63,6 +63,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     private WatchKey settingsDirWatchKey;
     private WatchKey configDirWatchKey;
 
+    @SuppressWarnings("this-escape")
     public AbstractFileWatchingService(Path settingsDir) {
         if (filesExists(settingsDir) && filesIsDirectory(settingsDir) == false) {
             throw new IllegalArgumentException("settingsDir should be a directory");

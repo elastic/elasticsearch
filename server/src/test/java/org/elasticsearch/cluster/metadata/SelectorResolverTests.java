@@ -102,7 +102,7 @@ public class SelectorResolverTests extends ESTestCase {
 
     public void assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(Context context, String expression) {
         var e = expectThrows(IllegalArgumentException.class, () -> resolve(context, expression));
-        assertThat(e.getMessage(), containsString("failures selector is not supported with remote cluster expressions"));
+        assertThat(e.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
     }
 
     public void testResolveMatchAllToSelectors() {

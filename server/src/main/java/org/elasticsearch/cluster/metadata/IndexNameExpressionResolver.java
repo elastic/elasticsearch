@@ -2356,7 +2356,7 @@ public class IndexNameExpressionResolver {
                 }
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
-                ensureRemoteClusterExpressionNotSupportedWithFailuresSelector(expressionBase, selector, expression);
+                ensureNoCrossClusterExpressionWithFailuresSelector(expressionBase, selector, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
@@ -2393,10 +2393,10 @@ public class IndexNameExpressionResolver {
         }
 
         /**
-         * Checks the expression for remote cluster syntax and throws an exception if it is combined with ::failures selector.
-         * @throws IllegalArgumentException if remote cluster syntax is detected after parsing the selector expression
+         * Checks the expression for cross-cluster syntax and throws an exception if it is combined with ::failures selector.
+         * @throws IllegalArgumentException if cross-cluster syntax is detected after parsing the selector expression
          */
-        private static void ensureRemoteClusterExpressionNotSupportedWithFailuresSelector(
+        private static void ensureNoCrossClusterExpressionWithFailuresSelector(
             String expressionWithoutSelector,
             IndexComponentSelector selector,
             String originalExpression
@@ -2404,12 +2404,12 @@ public class IndexNameExpressionResolver {
             if (selector == IndexComponentSelector.FAILURES) {
                 if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
                     throw new IllegalArgumentException(
-                        "Invalid usage of "
+                        "Invalid usage of ["
                             + SELECTOR_SEPARATOR
                             + selector.getKey()
-                            + " selector in ["
+                            + "] selector in ["
                             + originalExpression
-                            + "], failures selector is not supported with remote cluster expressions"
+                            + "], failures selector is not supported with cross-cluster expressions"
                     );
                 }
             }

@@ -32,9 +32,12 @@ public class CefProcessorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testExecute() {
         Map<String, Object> source = new HashMap<>();
-        source.put("message", "CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST " +
-            "slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com " +
-            "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart");
+        source.put(
+            "message",
+            "CEF:0|Elastic|Vaporware|1.0.0-alpha|18|Web request|low|eventId=3457 requestMethod=POST "
+                + "slat=38.915 slong=-77.511 proto=TCP sourceServiceName=httpd requestContext=https://www.google.com "
+                + "src=89.160.20.156 spt=33876 dst=192.168.10.1 dpt=443 request=https://www.example.com/cart"
+        );
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);
@@ -76,8 +79,8 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testStandardMessage() {
-        String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|" +
-            "src=10.0.0.192 dst=12.121.122.82 spt=1232 eventId=1 in=4294967296 out=4294967296";
+        String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|"
+            + "src=10.0.0.192 dst=12.121.122.82 spt=1232 eventId=1 in=4294967296 out=4294967296";
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1L, null, null, Map.of("message", message));
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);
@@ -136,8 +139,8 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testEscapedPipeInHeader() {
-        String message = "CEF:26|security|threat\\|->manager|1.0|100|" +
-            "trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
+        String message = "CEF:26|security|threat\\|->manager|1.0|100|"
+            + "trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1L, null, null, Map.of("message", message));
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);
@@ -244,9 +247,9 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testMalformedExtensionEscape() {
-        String message = "CEF:0|FooBar|Web Gateway|1.2.3.45.67|200|Success|2|rt=Sep 07 2018 14:50:39 cat=Access Log dst=1.1.1.1 " +
-            "dhost=foo.example.com suser=redacted src=2.2.2.2 requestMethod=POST request='https://foo.example.com/bar/bingo/1' " +
-            "requestClientApplication='Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test=' cs1= cs1Label=Foo Bar";
+        String message = "CEF:0|FooBar|Web Gateway|1.2.3.45.67|200|Success|2|rt=Sep 07 2018 14:50:39 cat=Access Log dst=1.1.1.1 "
+            + "dhost=foo.example.com suser=redacted src=2.2.2.2 requestMethod=POST request='https://foo.example.com/bar/bingo/1' "
+            + "requestClientApplication='Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test=' cs1= cs1Label=Foo Bar";
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1L, null, null, Map.of("message", message));
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);
@@ -269,8 +272,8 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testMultipleMalformedExtensionValues() {
-        String message = "CEF:0|vendor|product|version|event_id|name|Very-High| " +
-            "msg=Hello World error=Failed because id==old_id user=root angle=106.7<=180";
+        String message = "CEF:0|vendor|product|version|event_id|name|Very-High| "
+            + "msg=Hello World error=Failed because id==old_id user=root angle=106.7<=180";
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1L, null, null, Map.of("message", message));
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);
@@ -286,8 +289,8 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testPaddedMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|spt=1232 " +
-            "msg=Trailing space in non-final extensions is  preserved    src=10.0.0.192 ";
+        String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|spt=1232 "
+            + "msg=Trailing space in non-final extensions is  preserved    src=10.0.0.192 ";
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1L, null, null, Map.of("message", message));
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);
@@ -302,8 +305,8 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testCrlfMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|" +
-            "spt=1232 msg=Trailing space in final extensions is not preserved\t \r\n";
+        String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|"
+            + "spt=1232 msg=Trailing space in final extensions is not preserved\t \r\n";
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1L, null, null, Map.of("message", message));
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);
@@ -317,8 +320,8 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testTabMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|" +
-            "spt=1232 msg=Tabs\tand\rcontrol\ncharacters are preserved\t src=127.0.0.1";
+        String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|"
+            + "spt=1232 msg=Tabs\tand\rcontrol\ncharacters are preserved\t src=127.0.0.1";
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1L, null, null, Map.of("message", message));
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);
@@ -348,8 +351,8 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testEscapedMessage() {
-        String message = "CEF:0|security\\compliance|threat\\|->manager|1.0|100|message contains escapes|10|" +
-            "spt=1232 msg=Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\\\=.";
+        String message = "CEF:0|security\\compliance|threat\\|->manager|1.0|100|message contains escapes|10|"
+            + "spt=1232 msg=Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\\\=.";
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1L, null, null, Map.of("message", message));
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);
@@ -363,8 +366,8 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testTruncatedHeader() {
-        String message = "CEF:0|SentinelOne|Mgmt|activityID=1111111111111111111 activityType=3505 " +
-            "siteId=None siteName=None accountId=1222222222222222222 accountName=foo-bar mdr notificationScope=ACCOUNT";
+        String message = "CEF:0|SentinelOne|Mgmt|activityID=1111111111111111111 activityType=3505 "
+            + "siteId=None siteName=None accountId=1222222222222222222 accountName=foo-bar mdr notificationScope=ACCOUNT";
         IngestDocument ingestDocument = new IngestDocument("index", "id", 1L, null, null, Map.of("message", message));
         CefProcessor processor = new CefProcessor("tag", "description", "message", "cef", false, true);
         processor.execute(ingestDocument);

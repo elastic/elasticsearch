@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class LocalClusterSpec implements ClusterSpec {
@@ -104,7 +105,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final List<SystemPropertyProvider> systemPropertyProviders;
         private final Map<String, String> systemProperties;
         private final List<String> jvmArgs;
-        private final Path configDir;
+        private final Supplier<Path> configDirSupplier;
         private Version version;
 
         public LocalNodeSpec(
@@ -127,7 +128,7 @@ public class LocalClusterSpec implements ClusterSpec {
             List<SystemPropertyProvider> systemPropertyProviders,
             Map<String, String> systemProperties,
             List<String> jvmArgs,
-            Path configDir
+            Supplier<Path> configDirSupplier
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -148,7 +149,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.systemPropertyProviders = systemPropertyProviders;
             this.systemProperties = systemProperties;
             this.jvmArgs = jvmArgs;
-            this.configDir = configDir;
+            this.configDirSupplier = configDirSupplier;
         }
 
         void setVersion(Version version) {
@@ -207,8 +208,8 @@ public class LocalClusterSpec implements ClusterSpec {
             return jvmArgs;
         }
 
-        public Path getConfigDir() {
-            return configDir;
+        public Supplier<Path> getConfigDirSupplier() {
+            return configDirSupplier;
         }
 
         public boolean isSecurityEnabled() {
@@ -348,7 +349,7 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.systemPropertyProviders,
                         n.systemProperties,
                         n.jvmArgs,
-                        n.configDir
+                        n.configDirSupplier
                     )
                 )
                 .toList();

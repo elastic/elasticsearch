@@ -158,8 +158,8 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T jvmArg(String arg);
 
     /**
-     * Register a function to compute config directory based on the node name. The default config directory
-     * is used when the function is null or the return value of the function is null.
+     * Register a supplier to provide the config directory. The default config directory
+     * is used when the supplier is null or the return value of the supplier is null.
      */
-    T withConfigDir(Path configDir);
+    T withConfigDir(Supplier<Path> configDirSupplier);
 }

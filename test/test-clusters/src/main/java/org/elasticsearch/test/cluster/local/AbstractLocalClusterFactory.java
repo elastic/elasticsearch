@@ -146,7 +146,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
-            this.configDir = spec.getConfigDir() == null ? workingDir.resolve("config") : spec.getConfigDir();
+            Path configDir = null;
+            if (spec.getConfigDirSupplier() != null) {
+                configDir = spec.getConfigDirSupplier().get();
+            }
+            this.configDir = configDir == null ? workingDir.resolve("config") : configDir;
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
         }

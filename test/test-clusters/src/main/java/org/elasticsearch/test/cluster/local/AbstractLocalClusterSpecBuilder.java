@@ -213,7 +213,7 @@ public abstract class AbstractLocalClusterSpecBuilder<T extends ElasticsearchClu
                 getSystemPropertyProviders(),
                 getSystemProperties(),
                 getJvmArgs(),
-                getConfigDir()
+                getConfigDirSupplier()
             );
         }
     }

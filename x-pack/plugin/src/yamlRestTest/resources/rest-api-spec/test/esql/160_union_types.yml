@@ -263,6 +263,15 @@ load single index ip_long stats invalid grouping:
 
 ---
 load two indices, showing unsupported type and null value for event_duration:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [REPORT_ORIGINAL_TYPES]
+      reason: "Uses original_types"
+
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -304,8 +313,8 @@ load two indices with no conversion function, but needs TO_LONG conversion:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [union_types_fix_rename_resolution]
-      reason: "Union type resolution fix for rename also allows direct usage of unsupported fields in KEEP"
+          capabilities: [REPORT_ORIGINAL_TYPES]
+      reason: "Uses original_types"
 
   - do:
       allowed_warnings_regex:

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
@@ -26,8 +27,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.entitlement.runtime.policy.PolicyUtils.mergeEntitlement;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyUtils.mergeEntitlements;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -207,7 +206,7 @@ public class PolicyUtilsTests extends ESTestCase {
         var e1 = new InboundNetworkEntitlement();
         var e2 = new InboundNetworkEntitlement();
 
-        assertThat(mergeEntitlement(e1, e2), equalTo(new InboundNetworkEntitlement()));
+        assertThat(PolicyUtils.mergeEntitlement(e1, e2), equalTo(new InboundNetworkEntitlement()));
     }
 
     public void testMergeFilesEntitlement() {
@@ -226,7 +225,7 @@ public class PolicyUtilsTests extends ESTestCase {
             )
         );
 
-        var merged = mergeEntitlement(e1, e2);
+        var merged = PolicyUtils.mergeEntitlement(e1, e2);
         assertThat(
             merged,
             transformedMatch(
@@ -246,7 +245,7 @@ public class PolicyUtilsTests extends ESTestCase {
         var e1 = new WriteSystemPropertiesEntitlement(List.of("a", "b", "c"));
         var e2 = new WriteSystemPropertiesEntitlement(List.of("b", "c", "d"));
 
-        var merged = mergeEntitlement(e1, e2);
+        var merged = PolicyUtils.mergeEntitlement(e1, e2);
         assertThat(
             merged,
             transformedMatch(x -> ((WriteSystemPropertiesEntitlement) x).properties(), containsInAnyOrder("a", "b", "c", "d"))
@@ -271,7 +270,7 @@ public class PolicyUtilsTests extends ESTestCase {
             new WriteSystemPropertiesEntitlement(List.of("a"))
         );
 
-        var merged = mergeEntitlements(a, b);
+        var merged = PolicyUtils.mergeEntitlements(a, b);
         assertThat(
             merged,
             containsInAnyOrder(
@@ -285,6 +284,94 @@ public class PolicyUtilsTests extends ESTestCase {
                     )
                 ),
                 new WriteSystemPropertiesEntitlement(List.of("a"))
+            )
+        );
+    }
+
+    /** Test that we can parse the set of entitlements correctly for a simple policy */
+    public void testFormatSimplePolicy() {
+        var pluginPolicy = new Policy(
+            "test-plugin",
+            List.of(new Scope("module1", List.of(new WriteSystemPropertiesEntitlement(List.of("property1", "property2")))))
+        );
+
+        Set<String> actual = PolicyUtils.getEntitlementsDescriptions(pluginPolicy);
+        assertThat(actual, containsInAnyOrder("write_system_properties [property1]", "write_system_properties [property2]"));
+    }
+
+    /** Test that we can format the set of entitlements correctly for a complex policy */
+    public void testFormatPolicyWithMultipleScopes() {
+        var pluginPolicy = new Policy(
+            "test-plugin",
+            List.of(
+                new Scope("module1", List.of(new CreateClassLoaderEntitlement())),
+                new Scope("module2", List.of(new CreateClassLoaderEntitlement(), new OutboundNetworkEntitlement())),
+                new Scope("module3", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement()))
+            )
+        );
+
+        Set<String> actual = PolicyUtils.getEntitlementsDescriptions(pluginPolicy);
+        assertThat(actual, containsInAnyOrder("create_class_loader", "outbound_network", "inbound_network"));
+    }
+
+    /** Test that we can format some simple files entitlement properly */
+    public void testFormatFilesEntitlement() {
+        var pathAB = Path.of("/a/b");
+        var policy = new Policy(
+            "test-plugin",
+            List.of(
+                new Scope(
+                    "module1",
+                    List.of(
+                        new FilesEntitlement(
+                            List.of(
+                                FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
+                                FilesEntitlement.FileData.ofRelativePath(
+                                    Path.of("c/d"),
+                                    FilesEntitlement.BaseDir.DATA,
+                                    FilesEntitlement.Mode.READ
+                                )
+                            )
+                        )
+                    )
+                ),
+                new Scope(
+                    "module2",
+                    List.of(
+                        new FilesEntitlement(
+                            List.of(
+                                FilesEntitlement.FileData.ofPath(pathAB, FilesEntitlement.Mode.READ_WRITE),
+                                FilesEntitlement.FileData.ofPathSetting(
+                                    "setting",
+                                    FilesEntitlement.BaseDir.DATA,
+                                    FilesEntitlement.Mode.READ
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        Set<String> actual = PolicyUtils.getEntitlementsDescriptions(policy);
+        assertThat(actual, containsInAnyOrder("files [READ_WRITE] " + pathAB, "files [READ] <DATA>/c/d", "files [READ] <DATA>/<setting>"));
+    }
+
+    /** Test that we can format some simple files entitlement properly */
+    public void testFormatWriteSystemPropertiesEntitlement() {
+        var policy = new Policy(
+            "test-plugin",
+            List.of(
+                new Scope("module1", List.of(new WriteSystemPropertiesEntitlement(List.of("property1", "property2")))),
+                new Scope("module2", List.of(new WriteSystemPropertiesEntitlement(List.of("property2", "property3"))))
+            )
+        );
+        Set<String> actual = PolicyUtils.getEntitlementsDescriptions(policy);
+        assertThat(
+            actual,
+            containsInAnyOrder(
+                "write_system_properties [property1]",
+                "write_system_properties [property2]",
+                "write_system_properties [property3]"
             )
         );
     }

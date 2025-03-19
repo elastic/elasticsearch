@@ -9,70 +9,56 @@
 
 package org.elasticsearch.plugins.cli;
 
-import org.elasticsearch.bootstrap.PolicyUtil;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.entitlement.runtime.policy.FileAccessTree;
-import org.elasticsearch.entitlement.runtime.policy.Policy;
-import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 
-import java.io.IOException;
-import java.net.URL;
-import java.nio.file.Path;
-import java.security.Permission;
-import java.security.UnresolvedPermission;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Contains methods for displaying extended plugin permissions to the user, and confirming that
+ * Contains methods for displaying extended plugin entitlements to the user, and confirming that
  * plugin installation can proceed.
  */
 public class PluginSecurity {
 
+    public static final String ENTITLEMENTS_DESCRIPTION_URL =
+        "https://www.elastic.co/guide/en/elasticsearch/plugins/current/creating-classic-plugins.html";
+
     /**
      * prints/confirms policy exceptions with the user
      */
-    static void confirmPolicyExceptions(Terminal terminal, Set<String> permissions, boolean batch) throws UserException {
-        List<String> requested = new ArrayList<>(permissions);
+    static void confirmPolicyExceptions(Terminal terminal, Set<String> entitlements, boolean batch) throws UserException {
+        List<String> requested = new ArrayList<>(entitlements);
         if (requested.isEmpty()) {
-            terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional permissions");
+            terminal.println(Verbosity.VERBOSE, "plugin has a policy file with no additional entitlements");
         } else {
-            // sort permissions in a reasonable order
+            // sort entitlements in a reasonable order
             Collections.sort(requested);
 
             if (terminal.isHeadless()) {
                 terminal.errorPrintln(
-                    "WARNING: plugin requires additional permissions: ["
+                    "WARNING: plugin requires additional entitlements: ["
                         + requested.stream().map(each -> '\'' + each + '\'').collect(Collectors.joining(", "))
                         + "]"
                 );
                 terminal.errorPrintln(
-                    "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html"
-                        + " for descriptions of what these permissions allow and the associated risks."
+                    "See " + ENTITLEMENTS_DESCRIPTION_URL + " for descriptions of what these entitlements allow and the associated risks."
                 );
             } else {
                 terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-                terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional permissions     @");
+                terminal.errorPrintln(Verbosity.NORMAL, "@     WARNING: plugin requires additional entitlements    @");
                 terminal.errorPrintln(Verbosity.NORMAL, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
-                // print all permissions:
-                for (String permission : requested) {
-                    terminal.errorPrintln(Verbosity.NORMAL, "* " + permission);
+                // print all entitlements:
+                for (String entitlement : requested) {
+                    terminal.errorPrintln(Verbosity.NORMAL, "* " + entitlement);
                 }
-                terminal.errorPrintln(
-                    Verbosity.NORMAL,
-                    "See https://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html"
-                );
-                terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these permissions allow and the associated risks.");
+                terminal.errorPrintln(Verbosity.NORMAL, "See " + ENTITLEMENTS_DESCRIPTION_URL);
+                terminal.errorPrintln(Verbosity.NORMAL, "for descriptions of what these entitlements allow and the associated risks.");
 
                 if (batch == false) {
                     prompt(terminal);
@@ -87,70 +73,5 @@ public class PluginSecurity {
         if (text.equalsIgnoreCase("y") == false) {
             throw new UserException(ExitCodes.DATA_ERROR, "installation aborted by user");
         }
-    }
-
-    /** Format permission type, name, and actions into a string */
-    static String formatPermission(Permission permission) {
-        StringBuilder sb = new StringBuilder();
-
-        String clazz = null;
-        if (permission instanceof UnresolvedPermission) {
-            clazz = ((UnresolvedPermission) permission).getUnresolvedType();
-        } else {
-            clazz = permission.getClass().getName();
-        }
-        sb.append(clazz);
-
-        String name = null;
-        if (permission instanceof UnresolvedPermission) {
-            name = ((UnresolvedPermission) permission).getUnresolvedName();
-        } else {
-            name = permission.getName();
-        }
-        if (name != null && name.length() > 0) {
-            sb.append(' ');
-            sb.append(name);
-        }
-
-        String actions = null;
-        if (permission instanceof UnresolvedPermission) {
-            actions = ((UnresolvedPermission) permission).getUnresolvedActions();
-        } else {
-            actions = permission.getActions();
-        }
-        if (actions != null && actions.length() > 0) {
-            sb.append(' ');
-            sb.append(actions);
-        }
-        return sb.toString();
-    }
-
-    /**
-     * Extract a unique set of permissions from the plugin's policy file. Each permission is formatted for output to users.
-     */
-    public static Set<String> getPermissionDescriptions(Policy pluginPolicy) {
-
-        Map<Class<? extends Entitlement>, List<Entitlement>> allEntitlements = pluginPolicy.scopes().stream()
-            .flatMap(scope -> scope.entitlements().stream())
-            .collect(Collectors.groupingBy(Entitlement::getClass));
-
-        Set<String> descriptions = new HashSet<>();
-        for (var entitlements: allEntitlements.entrySet()) {
-            var entitlementClass = entitlements.getKey();
-            if (entitlementClass.equals(FilesEntitlement.class)) {
-                var filesData = entitlements.getValue().stream()
-                    .flatMap(entitlement -> {
-                        FilesEntitlement filesEntitlement = (FilesEntitlement)entitlement;
-                        return filesEntitlement.filesData().stream();
-                    })
-                    .filter(x -> x.platform().isCurrent())
-                    .distinct();
-
-                filesData.map(Object::toString).forEach(descriptions::add);
-            }
-            descriptions.add(PolicyParser.getEntitlementName(entitlementClass));
-        }
-
-        return descriptions;
     }
 }

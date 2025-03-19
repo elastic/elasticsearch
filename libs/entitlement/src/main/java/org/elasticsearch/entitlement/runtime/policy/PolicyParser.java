@@ -62,7 +62,8 @@ public class PolicyParser {
     ).collect(Collectors.toUnmodifiableMap(PolicyParser::buildEntitlementNameFromClass, Function.identity()));
 
     private static final Map<Class<? extends Entitlement>, String> EXTERNAL_ENTITLEMENT_NAMES_BY_CLASS =
-        EXTERNAL_ENTITLEMENT_CLASSES_BY_NAME.entrySet().stream()
+        EXTERNAL_ENTITLEMENT_CLASSES_BY_NAME.entrySet()
+            .stream()
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getValue, Map.Entry::getKey));
 
     protected final XContentParser policyParser;

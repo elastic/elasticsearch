@@ -85,7 +85,10 @@ public class PolicyParserTests extends ESTestCase {
     public void testBuildEntitlementNameFromClass() {
         assertEquals("create_class_loader", PolicyParser.buildEntitlementNameFromClass(CreateClassLoaderEntitlement.class));
 
-        var ex = expectThrows(IllegalArgumentException.class, () -> PolicyParser.buildEntitlementNameFromClass(TestWrongEntitlementName.class));
+        var ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> PolicyParser.buildEntitlementNameFromClass(TestWrongEntitlementName.class)
+        );
         assertThat(
             ex.getMessage(),
             equalTo("TestWrongEntitlementName is not a valid Entitlement class name. A valid class name must end with 'Entitlement'")

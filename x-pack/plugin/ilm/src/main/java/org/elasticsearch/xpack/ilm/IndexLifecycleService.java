@@ -26,6 +26,7 @@ import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -60,6 +61,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -93,9 +95,11 @@ public class IndexLifecycleService
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final LongSupplier nowSupplier;
-    private SchedulerEngine.Job scheduledJob;
+    private final ExecutorService managementExecutor;
     /** A reference to the last seen cluster state. If it's not null, we're currently processing a cluster state. */
     private final AtomicReference<ClusterState> lastSeenState = new AtomicReference<>();
+
+    private SchedulerEngine.Job scheduledJob;
 
     @SuppressWarnings("this-escape")
     public IndexLifecycleService(
@@ -119,6 +123,7 @@ public class IndexLifecycleService
         this.policyRegistry = new PolicyStepsRegistry(xContentRegistry, client, licenseState);
         this.lifecycleRunner = new IndexLifecycleRunner(policyRegistry, ilmHistoryStore, clusterService, threadPool, nowSupplier);
         this.pollInterval = LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING.get(settings);
+        this.managementExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         clusterService.addStateApplier(this);
         clusterService.addListener(this);
         clusterService.getClusterSettings()
@@ -337,7 +342,7 @@ public class IndexLifecycleService
             // ClusterChangedEvent.indicesDeleted uses an equality check to skip computation if necessary.
             final List<Index> indicesDeleted = event.indicesDeleted();
             if (indicesDeleted.isEmpty() == false) {
-                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
+                managementExecutor.execute(() -> {
                     for (Index index : indicesDeleted) {
                         policyRegistry.delete(index);
                     }
@@ -365,20 +370,44 @@ public class IndexLifecycleService
      * of processing on the critical cluster state applier thread.
      */
     private void processClusterState() {
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
-            final ClusterState currentState = lastSeenState.get();
-            // This should never be null, but we're checking anyway to be sure.
-            if (currentState == null) {
-                return;
+        managementExecutor.execute(new AbstractRunnable() {
+
+            private final SetOnce<ClusterState> currentState = new SetOnce<>();
+
+            @Override
+            protected void doRun() throws Exception {
+                final ClusterState currentState = lastSeenState.get();
+                // This should never be null, but we're checking anyway to be sure.
+                if (currentState == null) {
+                    return;
+                }
+                this.currentState.set(currentState);
+                triggerPolicies(currentState, true);
             }
-            triggerPolicies(currentState, true);
-            // If the last seen state is unchanged, we set it to null to indicate that processing has finished and we return.
-            if (lastSeenState.compareAndSet(currentState, null)) {
-                return;
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("ILM failed to process cluster state", e);
             }
-            // If the last seen cluster state changed while this thread was running, it means a new cluster state came in and we need to
-            // process it. We do that by kicking off a new thread, which will pick up the new cluster state when the thread gets executed.
-            processClusterState();
+
+            @Override
+            public void onAfter() {
+                // If the last seen state is unchanged, we set it to null to indicate that processing has finished and we return.
+                if (lastSeenState.compareAndSet(currentState.get(), null)) {
+                    return;
+                }
+                // If the last seen cluster state changed while this thread was running, it means a new cluster state came in and we need to
+                // process it. We do that by kicking off a new thread, which will pick up the new cluster state when the thread gets
+                // executed.
+                processClusterState();
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                // Without force execution, we risk ILM state processing being postponed arbitrarily long, which in turn could cause
+                // thundering herd issues if there's significant time between ILM runs.
+                return true;
+            }
         });
     }
 

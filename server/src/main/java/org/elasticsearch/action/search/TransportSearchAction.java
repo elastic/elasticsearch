@@ -1717,8 +1717,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             ShardSearchFailure f = new ShardSearchFailure(e);
             logCCSError(f, clusterAlias, skipUnavailable);
             SearchResponse.Cluster cluster = clusters.getCluster(clusterAlias);
-            if (skipUnavailable) {
-                if (cluster != null && isTaskCancelledException(e) == false) {
+            if (skipUnavailable && isTaskCancelledException(e) == false) {
+                if (cluster != null) {
                     ccsClusterInfoUpdate(f, clusters, clusterAlias, true);
                 }
             } else {

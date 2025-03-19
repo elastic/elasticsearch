@@ -69,7 +69,7 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         var w = (FeatureDisiWrapper) subScorers.topList();
         for (; w != null; w = (FeatureDisiWrapper) w.next) {
             if (w.twoPhaseView == null || w.twoPhaseView.matches()) {
-                featureMap.put(w.featureName, w.scorable.score());
+                featureMap.put(w.featureName, w.scorer.score());
             }
         }
     }
@@ -83,7 +83,7 @@ public class QueryFeatureExtractor implements FeatureExtractor {
         final String featureName;
 
         FeatureDisiWrapper(Scorer scorer, String featureName) {
-            super(scorer, false);
+            super(scorer);
             this.featureName = featureName;
         }
     }

@@ -152,7 +152,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             }
 
             @Override
-            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
                 return new RankFeaturePhaseRankShardContext(field) {
                     @Override
                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {

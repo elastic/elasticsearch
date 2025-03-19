@@ -514,7 +514,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                             }
 
                             @Override
-                            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
                                 return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
                                     @Override
                                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
@@ -751,7 +751,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 }
 
                                 @Override
-                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
                                     return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
                                         @Override
                                         public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
@@ -878,7 +878,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                             }
 
                             @Override
-                            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
                                 return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
                                     @Override
                                     public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
@@ -1011,7 +1011,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 }
 
                                 @Override
-                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
                                     return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
                                         @Override
                                         public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
@@ -1139,7 +1139,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 }
 
                                 @Override
-                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
                                     return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
                                         @Override
                                         public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {

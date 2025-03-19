@@ -21,6 +21,7 @@ import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
@@ -106,7 +107,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      * Generates a context used to execute the rank feature phase on the shard. This is responsible for retrieving any needed
      * feature data, and passing them back to the coordinator through the appropriate {@link  RankShardResult}.
      */
-    public abstract RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext();
+    public abstract RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext);
 
     /**
      * Generates a context used to perform global ranking during the RankFeature phase,

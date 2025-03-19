@@ -68,7 +68,7 @@ public final class RankFeatureShardPhase {
         }
 
         RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext = searchContext.request().source().rankBuilder() != null
-            ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext()
+            ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext(searchContext)
             : null;
         if (rankFeaturePhaseRankShardContext != null) {
             // TODO: here we populate the profile part of the fetchResult as well
@@ -94,7 +94,7 @@ public final class RankFeatureShardPhase {
 
     private static RankFeaturePhaseRankShardContext shardContext(SearchContext searchContext) {
         return searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null
-            ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext()
+            ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext(searchContext)
             : null;
     }
 }

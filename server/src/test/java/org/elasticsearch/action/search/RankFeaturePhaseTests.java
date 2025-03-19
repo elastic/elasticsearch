@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankBuilder;
@@ -900,7 +901,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             }
 
             @Override
-            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext(SearchContext searchContext) {
                 return rankFeaturePhaseRankShardContext;
             }
 
@@ -976,7 +977,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         try {
             hits = SearchHits.unpooled(searchHits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
             // construct the appropriate RankFeatureDoc objects based on the rank builder
-            RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext = shardRankBuilder.buildRankFeaturePhaseShardContext();
+            RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext = shardRankBuilder.buildRankFeaturePhaseShardContext(null);
             RankFeatureShardResult rankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext.buildRankFeatureShardResult(
                 hits,
                 shardTarget.getShardId().id()

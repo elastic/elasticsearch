@@ -38,7 +38,7 @@ dependencies {
 
   api("com.google.flatbuffers:flatbuffers-java:24.3.25")
   api("commons-codec:commons-codec:${versions.commonscodec}") // Arrow 18 -> commons-codec 1.17.1
-  api("org.slf4j:slf4j-api:${versions.slf4j}")
+  api("org.slf4j:slf4j-api:2.0.10")
   api("org.immutables:value-annotations:2.10.1") // provided dependency
 
   // arrow-format
@@ -63,11 +63,7 @@ dependencies {
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /arrow-.*/, to: 'arrow'
-  mapping from: /slf4j-.*/, to: 'slf4j'
   mapping from: /value-annotations.*/, to: 'org-immutables'
-
-  // FIXME: need dependency above, but build complains about duplicated license files.
-  mapping from: /commons-codec/, to: 'commons-codec-arrow'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -84,8 +80,5 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.arrow.memory.ArrowBuf',
     'org.apache.arrow.vector.BitVectorHelper',
     'org.apache.arrow.memory.util.ByteFunctionHelpers',
-  )
-  ignoreMissingClasses(
-    'org.apache.commons.codec.binary.Hex'
   )
 }

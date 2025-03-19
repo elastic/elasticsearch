@@ -81,10 +81,10 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + entraId));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.size(), equalTo(inputType != null ? 3 : 2));
+        assertThat(requestMap.size(), equalTo(InputType.isSpecified(inputType) ? 3 : 2));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("user"), is(user));
-        if (inputType != null) {
+        if (InputType.isSpecified(inputType)) {
             assertThat(requestMap.get("input_type"), is(inputType.toString()));
         }
     }

@@ -331,7 +331,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
-            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<Boolean>(nullValue) {
+            return new FallbackSyntheticSourceBlockLoader.SingleValueReader<Boolean>(nullValue) {
                 @Override
                 public void convertValue(Object value, List<Boolean> accumulator) {
                     try {
@@ -360,10 +360,10 @@ public class BooleanFieldMapper extends FieldMapper {
 
                 @Override
                 public void writeToBlock(List<Boolean> values, BlockLoader.Builder blockBuilder) {
-                    var longBuilder = (BlockLoader.BooleanBuilder) blockBuilder;
+                    var booleanBuilder = (BlockLoader.BooleanBuilder) blockBuilder;
 
                     for (var value : values) {
-                        longBuilder.appendBoolean(value);
+                        booleanBuilder.appendBoolean(value);
                     }
                 }
             };

@@ -11,12 +11,12 @@ A query that matches documents matching boolean combinations of other queries. T
 
 | Occur | Description |
 | --- | --- |
-| `must` | The clause (query) must appear in matching documents and willcontribute to the score. Each query defined under a `must` acts as a logical "AND", returning only documents that match *all* the specified queries. |
+| `must` | The clause (query) must appear in matching documents and will contribute to the score. Each query defined under a `must` acts as a logical "AND", returning only documents that match *all* the specified queries. |
 | `should` | The clause (query) should appear in the matching document. Each query defined under a `should` acts as a logical "OR", returning documents that match *any* of the specified queries. |
 | `filter` | The clause (query) must appear in matching documents. However unlike`must` the score of the query will be ignored. Filter clauses are executedin [filter context](/reference/query-languages/query-dsl/query-filter-context.md), meaning that scoring is ignoredand clauses are considered for caching. Each query defined under a `filter` acts as a logical "AND", returning only documents that match *all* the specified queries. |
 | `must_not` | The clause (query) must not appear in the matchingdocuments. Clauses are executed in [filter context](/reference/query-languages/query-dsl/query-filter-context.md) meaningthat scoring is ignored and clauses are considered for caching. Because scoring isignored, a score of `0` for all documents is returned. Each query defined under a `must_not` acts as a logical "NOT", returning only documents that do not match any of the specified queries. |
 
-The `must` and `should` clauses function as logical AND, OR operators, contributing to the scoring of results. However, these results will not be cached for faster retrieval. In contrast, the `filter` and `must_not` clauses are used to include or exclude results without impacting the score, unless used within a `constant_score` query.
+The `must` and `should` clauses function as logical AND, OR operators, contributing to the scoring of results. However, these results are not cached, which means repeated queries won't benefit from faster retrieval. In contrast, the `filter` and `must_not` clauses are used to include or exclude results without impacting the score, unless used within a `constant_score` query.
 
 The `bool` query takes a *more-matches-is-better* approach, so the score from each matching `must` or `should` clause will be added together to provide the final `_score` for each document.
 
@@ -54,6 +54,52 @@ You can use the `minimum_should_match` parameter to specify the number or percen
 If the `bool` query includes at least one `should` clause and no `must` or `filter` clauses, the default value is `1`. Otherwise, the default value is `0`.
 
 For other valid values, see the [`minimum_should_match` parameter](/reference/query-languages/query-dsl/query-dsl-minimum-should-match.md).
+
+## Nested bool queries [nested-bool-queries]
+
+You can nest `bool` queries within other `bool` queries to create complex logical constructs. This allows you to build sophisticated search conditions by combining multiple levels of boolean logic.
+
+For example:
+
+```console
+GET /_search
+{
+  "query": {
+    "bool": {
+      "must": [ <1>
+        {
+          "bool": {
+            "should": [
+              { "match": { "user.id": "kimchy" }},
+              { "match": { "user.id": "banon" }}
+            ]
+          }
+        },
+        { "match": { "tags": "production" }}
+      ],
+      "should": [ <2>
+        {
+          "bool": {
+            "must": [
+              { "match": { "status": "active" }},
+              { "match": { "title": "quick brown fox" }}
+            ]
+          }
+        }
+      ]
+    }
+  }
+}
+```
+1. Only documents that match all conditions in the must section will be returned in the results. This means documents must match either "kimchy" OR "banon" in the user.id field AND "production" in the tags field. It is semantically equivalent to (user.id="kimchy" OR user.id="banon") AND tags="production"
+
+2. Matches in the `should` clauses are optional. They will only boost the relevance scores of documents that already match the required `must` criteria and don't add new documents to the result set. It is semantically equivalent to (status="active" AND title="quick brown fox")
+
+You can use the `minimum_should_match` parameter to require matches from the `should` clauses.
+
+::::{note}
+While nesting `bool` queries can be powerful, it can also lead to complex and slow queries. Try to keep your queries as flat as possible for the best performance.
+::::
 
 
 ## Scoring with `bool.filter` [score-bool-filter]

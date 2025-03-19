@@ -2,6 +2,9 @@
 navigation_title: "{{ilm-cap}} settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/ilm-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # {{ilm-cap}} settings in {{es}} [ilm-settings]

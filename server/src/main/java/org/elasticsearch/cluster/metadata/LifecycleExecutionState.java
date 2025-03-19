@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Strings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -42,6 +43,7 @@ public record LifecycleExecutionState(
 ) {
 
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
+    public static final int MAXIMUM_STEP_INFO_STRING_LENGTH = 1024;
 
     private static final String PHASE = "phase";
     private static final String ACTION = "action";
@@ -267,6 +269,17 @@ public record LifecycleExecutionState(
         return Collections.unmodifiableMap(result);
     }
 
+    public static String truncateWithExplanation(String input) {
+        if (input != null && input.length() > MAXIMUM_STEP_INFO_STRING_LENGTH) {
+            return Strings.cleanTruncate(input, MAXIMUM_STEP_INFO_STRING_LENGTH)
+                + "... ("
+                + (input.length() - MAXIMUM_STEP_INFO_STRING_LENGTH)
+                + " chars truncated)";
+        } else {
+            return input;
+        }
+    }
+
     public static class Builder {
         private String phase;
         private String action;
@@ -308,7 +321,7 @@ public record LifecycleExecutionState(
         }
 
         public Builder setStepInfo(String stepInfo) {
-            this.stepInfo = stepInfo;
+            this.stepInfo = truncateWithExplanation(stepInfo);
             return this;
         }
 

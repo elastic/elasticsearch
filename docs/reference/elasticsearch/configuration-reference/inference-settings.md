@@ -2,6 +2,9 @@
 navigation_title: "Inference settings"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/inference-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Inference API settings in {{es}} [inference-settings]

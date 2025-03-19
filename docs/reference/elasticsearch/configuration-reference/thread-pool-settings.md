@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-threadpool.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Thread pool settings [modules-threadpool]

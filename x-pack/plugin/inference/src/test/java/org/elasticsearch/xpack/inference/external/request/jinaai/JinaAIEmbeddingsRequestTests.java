@@ -112,7 +112,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
     }
 
     public void testCreateRequest_TaskSettingsInputType() throws IOException {
-        var inputType = InputTypeTests.randomWithNull();
+        var inputType = InputTypeTests.randomWithoutUnspecified();
         var request = createRequest(
             List.of("abc"),
             null,

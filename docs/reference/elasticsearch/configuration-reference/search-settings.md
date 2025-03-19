@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/search-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Search settings [search-settings]
@@ -57,5 +60,9 @@ $$$indices-query-bool-max-nested-depth$$$
 :   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting), integer) Maximum nested depth of queries. Defaults to `30`.
 
     This setting limits the nesting depth of queries. Deep nesting of queries may lead to stack overflow errors.
+
+The following search settings are supported:
+
+* `search.aggs.rewrite_to_filter_by_filter`
 
 

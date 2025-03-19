@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/indexing-buffer.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Indexing buffer settings [indexing-buffer]

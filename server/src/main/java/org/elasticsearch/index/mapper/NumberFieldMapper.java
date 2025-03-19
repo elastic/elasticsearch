@@ -1729,8 +1729,7 @@ public class NumberFieldMapper extends FieldMapper {
             };
         }
 
-        abstract static class NumberFallbackSyntheticSourceReader extends FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<
-            Number> {
+        abstract static class NumberFallbackSyntheticSourceReader extends FallbackSyntheticSourceBlockLoader.SingleValueReader<Number> {
             private final NumberType type;
             private final Number nullValue;
             private final boolean coerce;

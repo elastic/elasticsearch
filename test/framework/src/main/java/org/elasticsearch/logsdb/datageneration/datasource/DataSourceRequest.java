@@ -11,7 +11,6 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 
 import java.util.Set;
@@ -20,6 +19,14 @@ import java.util.function.Supplier;
 
 public interface DataSourceRequest<TResponse extends DataSourceResponse> {
     TResponse accept(DataSourceHandler handler);
+
+    record FieldDataGenerator(String fieldName, String fieldType, DataSource dataSource)
+        implements
+            DataSourceRequest<DataSourceResponse.FieldDataGenerator> {
+        public DataSourceResponse.FieldDataGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
     record LongGenerator() implements DataSourceRequest<DataSourceResponse.LongGenerator> {
         public DataSourceResponse.LongGenerator accept(DataSourceHandler handler) {
@@ -87,6 +94,18 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
+    record GeoShapeGenerator() implements DataSourceRequest<DataSourceResponse.GeoShapeGenerator> {
+        public DataSourceResponse.GeoShapeGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record ShapeGenerator() implements DataSourceRequest<DataSourceResponse.ShapeGenerator> {
+        public DataSourceResponse.ShapeGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
     record NullWrapper() implements DataSourceRequest<DataSourceResponse.NullWrapper> {
         public DataSourceResponse.NullWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);
@@ -141,7 +160,7 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
 
     record LeafMappingParametersGenerator(
         String fieldName,
-        FieldType fieldType,
+        String fieldType,
         Set<String> eligibleCopyToFields,
         DynamicMapping dynamicMapping
     ) implements DataSourceRequest<DataSourceResponse.LeafMappingParametersGenerator> {

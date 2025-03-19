@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings.invalidInputTypeMessage;
+import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
 public record GoogleAiStudioEmbeddingsRequestEntity(List<String> inputs, InputType inputType, String model, @Nullable Integer dimensions)
     implements

@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-gateway.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Local gateway [modules-gateway]

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
@@ -51,6 +52,7 @@ public abstract class AbstractPhysicalPlanSerializationTests<T extends PhysicalP
         entries.addAll(ExpressionWritables.allExpressions());
         entries.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()); // Query builders
         entries.add(Add.ENTRY); // Used by the eval tests
+        entries.add(AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.ENTRY);
         return new NamedWriteableRegistry(entries);
     }
 

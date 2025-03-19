@@ -27,6 +27,12 @@ import java.util.stream.Collectors;
 public class DefaultMappingParametersHandler implements DataSourceHandler {
     @Override
     public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
+        var fieldType = FieldType.tryParse(request.fieldType());
+        if (fieldType == null) {
+            // This is a custom field type
+            return null;
+        }
+
         var map = new HashMap<String, Object>();
         map.put("store", ESTestCase.randomBoolean());
         map.put("index", ESTestCase.randomBoolean());
@@ -35,9 +41,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             map.put(Mapper.SYNTHETIC_SOURCE_KEEP_PARAM, ESTestCase.randomFrom("none", "arrays", "all"));
         }
 
-        return new DataSourceResponse.LeafMappingParametersGenerator(switch (request.fieldType()) {
+        return new DataSourceResponse.LeafMappingParametersGenerator(switch (fieldType) {
             case KEYWORD -> keywordMapping(request, map);
-            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> numberMapping(map, request.fieldType());
+            case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> numberMapping(map, fieldType);
             case SCALED_FLOAT -> scaledFloatMapping(map);
             case COUNTED_KEYWORD -> plain(Map.of("index", ESTestCase.randomBoolean()));
             case BOOLEAN -> booleanMapping(map);

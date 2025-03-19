@@ -22,7 +22,7 @@ import java.util.stream.Stream;
 
 public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
     public KeywordFieldBlockLoaderTests(Params params) {
-        super(FieldType.KEYWORD, params);
+        super(FieldType.KEYWORD.toString(), params);
     }
 
     @SuppressWarnings("unchecked")

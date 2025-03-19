@@ -112,11 +112,11 @@ public class MappingGenerator {
                     )
                     .mappingGenerator();
 
-                mappingParameters.put("type", leaf.type().toString());
+                mappingParameters.put("type", leaf.type());
                 mappingParameters.putAll(mappingParametersGenerator.get());
 
                 // For simplicity we only copy to keyword fields, synthetic source logic to handle copy_to is generic.
-                if (leaf.type() == FieldType.KEYWORD) {
+                if (leaf.type().equals(FieldType.KEYWORD.toString())) {
                     context.addCopyToCandidate(fieldName);
                 }
 

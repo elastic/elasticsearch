@@ -185,7 +185,7 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testElasticsearchSettingCanNotBeDuplicated() throws Exception {
-        assertUsage(containsString("setting [foo] already set, saw [bar] and [baz]"), "-E", "foo=bar", "-E", "foo=baz");
+        assertUsage(containsString("setting [foo] set twice via command line -E"), "-E", "foo=bar", "-E", "foo=baz");
     }
 
     public void testUnknownOption() throws Exception {

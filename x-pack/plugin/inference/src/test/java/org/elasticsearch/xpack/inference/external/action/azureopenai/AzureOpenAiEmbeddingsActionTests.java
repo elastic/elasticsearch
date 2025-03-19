@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -126,10 +127,10 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(AzureOpenAiUtils.API_KEY_HEADER), equalTo("apikey"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(inputType != null ? 3 : 2));
+            assertThat(requestMap.size(), is(InputType.isSpecified(inputType) ? 3 : 2));
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("user"), is("user"));
-            if (inputType != null) {
+            if (InputType.isSpecified(inputType)) {
                 assertThat(requestMap.get("input_type"), is(inputType.toString()));
             }
         }

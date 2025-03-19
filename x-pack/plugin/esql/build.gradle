@@ -99,11 +99,18 @@ tasks.named("test").configure {
     def imagesDocFolder = file("${rootDir}/docs/reference/query-languages/esql/images")
     def snippetsDocFolder = file("${rootDir}/docs/reference/query-languages/esql/_snippets")
     def kibanaDocFolder = file("${rootDir}/docs/reference/query-languages/esql/kibana")
+    def snippetsTree = fileTree(snippetsFolder).matching {
+      include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
+    }
+    def imagesTree = fileTree(imagesFolder).matching {
+      include "**/*.svg"  // Recursively include all SVG files
+    }
+    def kibanaTree = fileTree(kibanaFolder).matching {
+      include "**/*.json"  // Recursively include all JSON files
+    }
 
     doLast {
-      List snippets = fileTree(snippetsFolder).matching {
-        include "**/types/*.md"  // Recursively include all types/*.md files (effectively counting functions and operators)
-      }.files.collect { it.name }
+      def snippets = snippetsTree.files.collect { it.name }
       int countSnippets = snippets.size()
       if (countSnippets == 0) {
         logger.quiet("ESQL Docs: No function/operator snippets created. Skipping sync.")
@@ -113,19 +120,27 @@ tasks.named("test").configure {
           from snippetsFolder
           into snippetsDocFolder
           include '**/*.md'
-          preserve {
-            // The snippets directory contains generated and static content, so we must preserve all MD files.
-            include '**/*.md'
+          if (countSnippets <= 100) {
+            // If we do not run the full test of tests, do not attempt to remove potentially unused files
+            preserve {
+              // The snippets directory contains generated and static content, so we must preserve all MD files.
+              include '**/*.md'
+            }
+          } else {
+            // If we do run the full test of tests, be careful about what we need to preserve
+            preserve {
+              // The lists are static, and the operators are a mix of generated and static content
+              include '*.md', '**/operators/*.md', '**/operators/**/*.md', '**/lists/*.md'
+            }
           }
         }
       }
 
-      List images = fileTree(imagesFolder).matching {
-        include "**/*.svg"  // Recursively include all SVG files
-      }.files.collect { it.name }
+      List images = imagesTree.files.collect { it.name }
       int countImages = images.size()
       Closure replaceFont = line -> {
         // The es-docs team has a recommended set of fonts for use with code, and they size similarly to the previous Roboto Mono, which is no longer available in the docs webpage
+        // We do not change the original SVG generator to use these because it requires the fonts to exist in the JVM running the code
         line.replaceAll(
           /font-family:\s*Roboto Mono[^;]*;/,
           'font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;'
@@ -139,18 +154,26 @@ tasks.named("test").configure {
           from imagesFolder
           into imagesDocFolder
           include '**/*.svg'
-          preserve {
-            // Some operator files are currently static, so we must preserve them all
-            include '**/*.svg'
+          if (countImages <= 100) {
+            // If we do not run the full test of tests, do not attempt to remove potentially unused files
+            preserve {
+              // Some operator files are currently static, so we must preserve them all
+              include '**/*.svg'
+            }
           }
           filter replaceFont
         }
       }
 
-      List kibana = fileTree(kibanaFolder).matching {
-        include "**/*.json"  // Recursively include all JSON files
-      }.files.collect { it.name }
+      List kibana = kibanaTree.files.collect { it.name }
       int countKibana = kibana.size()
+      Closure replaceLinks = line -> {
+        // The kibana docs are not deployed to the normal docs location, so need absolute paths for internal references
+        line.replaceAll(
+          /\]\(\/reference\/([^)\s]+)\.md(#\S+)?\)/,
+          '](https://www.elastic.co/docs/reference/elasticsearch/$1$2)'
+        )
+      }
       if (countKibana == 0) {
         logger.quiet("ESQL Docs: No function/operator kibana docs created. Skipping sync.")
       } else {
@@ -165,6 +188,7 @@ tasks.named("test").configure {
               include '**/*.md', '**/*.json'
             }
           }
+          filter replaceLinks
         }
       }
     }

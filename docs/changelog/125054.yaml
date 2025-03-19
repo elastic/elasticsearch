@@ -1,0 +1,6 @@
+pr: 125054
+summary: Truncate `step_info` and error reason in ILM execution state and history
+area: ILM+SLM
+type: enhancement
+issues:
+ - 124181

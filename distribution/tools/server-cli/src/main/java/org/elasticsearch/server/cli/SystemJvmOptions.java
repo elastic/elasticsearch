@@ -11,7 +11,6 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
@@ -28,9 +27,8 @@ final class SystemJvmOptions {
         String distroType = sysprops.get("es.distribution.type");
         String javaType = sysprops.get("es.java.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "true"));
-        // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
-        boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
+
+        boolean useEntitlements = true;
         return Stream.of(
             Stream.of(
                 /*

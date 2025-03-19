@@ -61,12 +61,14 @@ public class DocumentGenerator {
                 // Unsigned long does not play well when dynamically mapped because
                 // it gets mapped as just long and large values fail to index.
                 // Just skip it.
-                if (leaf.type() == FieldType.UNSIGNED_LONG && fieldMapping == null) {
+                // TODO we can actually handle this in UnsignedLongFieldDataGenerator
+                if (leaf.type().equals(FieldType.UNSIGNED_LONG.toString()) && fieldMapping == null) {
                     continue;
                 }
 
-                var generator = leaf.type().generator(fieldName, specification.dataSource());
-
+                var generator = specification.dataSource()
+                    .get(new DataSourceRequest.FieldDataGenerator(fieldName, leaf.type(), specification.dataSource()))
+                    .generator();
                 document.put(fieldName, generator.generateValue(fieldMapping));
             } else if (templateEntry instanceof Template.Object object) {
                 Optional<Integer> arrayLength = objectArrayGenerator.lengthGenerator().get();

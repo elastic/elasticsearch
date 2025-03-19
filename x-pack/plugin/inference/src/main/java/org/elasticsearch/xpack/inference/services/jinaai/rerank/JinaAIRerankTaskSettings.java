@@ -9,12 +9,10 @@ package org.elasticsearch.xpack.inference.services.jinaai.rerank;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -140,10 +138,6 @@ public class JinaAIRerankTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(returnDocuments, topNDocumentsOnly);
-    }
-
-    public static String invalidInputTypeMessage(InputType inputType) {
-        return Strings.format("received invalid input type value [%s]", inputType.toString());
     }
 
     public Boolean getDoesReturnDocuments() {

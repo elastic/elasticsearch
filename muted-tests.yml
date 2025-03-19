@@ -483,3 +483,12 @@ tests:
   method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.3.0, bwcProject: staged, expectedAssembleTaskName:
     extractedAssemble, #1]"
   issue: https://github.com/elastic/elasticsearch/issues/119870
+- class: org.elasticsearch.discovery.ec2.Ec2DiscoveryTests
+  method: testFilterByMultipleTags
+  issue: https://github.com/elastic/elasticsearch/issues/125166
+- class: org.elasticsearch.discovery.ec2.Ec2DiscoveryTests
+  method: testFilterByTags
+  issue: https://github.com/elastic/elasticsearch/issues/125090
+- class: org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTests
+  method: testCreateRequest_WithEntraIdDefined
+  issue: https://github.com/elastic/elasticsearch/issues/125061

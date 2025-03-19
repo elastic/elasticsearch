@@ -13,26 +13,30 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
-import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
-import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
-import software.amazon.awssdk.services.sts.StsClient;
-import software.amazon.awssdk.services.sts.auth.StsAssumeRoleWithWebIdentityCredentialsProvider;
-
-import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
-import software.amazon.awssdk.core.signer.Signer;
-import software.amazon.awssdk.core.signer.NoOpSigner;
-
 import software.amazon.awssdk.auth.signer.Aws4Signer;
+import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.retry.RetryPolicy;
-import org.apache.http.client.utils.URIBuilder;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.core.signer.NoOpSigner;
+import software.amazon.awssdk.core.signer.Signer;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.apache.ProxyConfiguration;
+import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
+import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleWithWebIdentityCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleWithWebIdentityRequest;
 
 import org.apache.http.HttpStatus;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -49,16 +53,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.core.retry.conditions.RetryCondition;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
-import software.amazon.awssdk.http.apache.ProxyConfiguration;
-import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
-import software.amazon.awssdk.services.sts.endpoints.internal.Value;
-import software.amazon.awssdk.services.sts.model.AssumeRoleWithWebIdentityRequest;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -222,8 +216,7 @@ class S3Service implements Closeable {
             s3clientBuilder.region(Region.of(clientSettings.region));
         }
         if (Strings.hasLength(clientSettings.endpoint)) {
-            s3clientBuilder
-                .endpointOverride(URI.create(clientSettings.endpoint));
+            s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint));
         }
 
         return s3clientBuilder;
@@ -235,13 +228,13 @@ class S3Service implements Closeable {
             return Aws4Signer.create();
         } else if (signerOverrideType == S3ClientSettings.AwsSignerOverrideType.AWS3SignerType
             || signerOverrideType == S3ClientSettings.AwsSignerOverrideType.AwsS3V4Signer) {
-            return AwsS3V4Signer.create();
-        } else if (signerOverrideType == S3ClientSettings.AwsSignerOverrideType.NoOpSigner
-            || signerOverrideType == S3ClientSettings.AwsSignerOverrideType.NoOpSignerType) {
-            return new NoOpSigner();
-        } else {
-            return null;
-        }
+                return AwsS3V4Signer.create();
+            } else if (signerOverrideType == S3ClientSettings.AwsSignerOverrideType.NoOpSigner
+                || signerOverrideType == S3ClientSettings.AwsSignerOverrideType.NoOpSignerType) {
+                    return new NoOpSigner();
+                } else {
+                    return null;
+                }
     }
 
     private ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
@@ -297,7 +290,8 @@ class S3Service implements Closeable {
                     .scheme(clientSettings.proxyScheme.getSchemeString())
                     .username(clientSettings.proxyUsername)
                     .password(clientSettings.proxyPassword)
-                    .build());
+                    .build()
+            );
         }
     }
 
@@ -472,18 +466,20 @@ class S3Service implements Closeable {
 
                 securityTokenServiceClientBuilder.endpointOverride(URI.create(customStsEndpoint));
             }
-            securityTokenServiceClientBuilder
-                .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("", "")));
+            securityTokenServiceClientBuilder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("", "")));
             securityTokenServiceClient = SocketAccess.doPrivileged(securityTokenServiceClientBuilder::build);
 
             try {
-                credentialsProvider = StsAssumeRoleWithWebIdentityCredentialsProvider.builder().refreshRequest(
-                     AssumeRoleWithWebIdentityRequest
-                         .builder()
-                         .roleArn(roleArn)
-                         .roleSessionName(roleSessionName)
-                         .webIdentityToken(webIdentityTokenFileSymlink.toString()).build()
-                ).stsClient(securityTokenServiceClient).build();
+                credentialsProvider = StsAssumeRoleWithWebIdentityCredentialsProvider.builder()
+                    .refreshRequest(
+                        AssumeRoleWithWebIdentityRequest.builder()
+                            .roleArn(roleArn)
+                            .roleSessionName(roleSessionName)
+                            .webIdentityToken(webIdentityTokenFileSymlink.toString())
+                            .build()
+                    )
+                    .stsClient(securityTokenServiceClient)
+                    .build();
 
                 var watcher = new FileWatcher(webIdentityTokenFileSymlink);
                 watcher.addListener(new FileChangesListener() {
@@ -536,7 +532,6 @@ class S3Service implements Closeable {
             return credentialsProvider.resolveCredentials();
         }
 
-
         @Override
         public Class<AwsCredentialsIdentity> identityType() {
             Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
@@ -585,7 +580,6 @@ class S3Service implements Closeable {
                 throw e;
             }
         }
-
 
         @Override
         public Class<AwsCredentialsIdentity> identityType() {

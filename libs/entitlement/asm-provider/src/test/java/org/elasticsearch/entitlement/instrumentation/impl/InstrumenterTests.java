@@ -227,9 +227,9 @@ public class InstrumenterTests extends ESTestCase {
         var instrumenter = createInstrumenter(Map.of("checkSomeStaticMethod", targetMethod));
 
         var loader1 = instrumentTestClass(instrumenter);
-        byte[] instrumentedTwiceBytecode = instrumenter.instrumentClass(TestClassToInstrument.class.getName(), loader1.testClassBytes);
-        logger.trace(() -> Strings.format("Bytecode after 2nd instrumentation:\n%s", bytecode2text(instrumentedTwiceBytecode)));
-        var loader2 = new TestLoader(TestClassToInstrument.class.getName(), instrumentedTwiceBytecode);
+        byte[] instrumentedTwiceBytes = instrumenter.instrumentClass(TestClassToInstrument.class.getName(), loader1.testClassBytes, true);
+        logger.trace(() -> Strings.format("Bytecode after 2nd instrumentation:\n%s", bytecode2text(instrumentedTwiceBytes)));
+        var loader2 = new TestLoader(TestClassToInstrument.class.getName(), instrumentedTwiceBytes);
 
         assertStaticMethodThrows(loader2, targetMethod, 123);
         assertEquals(1, TestEntitlementCheckerHolder.checkerInstance.checkSomeStaticMethodIntCallCount);
@@ -307,7 +307,7 @@ public class InstrumenterTests extends ESTestCase {
     private static TestLoader instrumentTestClass(InstrumenterImpl instrumenter) throws IOException {
         var clazz = TestClassToInstrument.class;
         ClassFileInfo initial = getClassFileInfo(clazz);
-        byte[] newBytecode = instrumenter.instrumentClass(Type.getInternalName(clazz), initial.bytecodes());
+        byte[] newBytecode = instrumenter.instrumentClass(Type.getInternalName(clazz), initial.bytecodes(), true);
         if (logger.isTraceEnabled()) {
             logger.trace("Bytecode after instrumentation:\n{}", bytecode2text(newBytecode));
         }

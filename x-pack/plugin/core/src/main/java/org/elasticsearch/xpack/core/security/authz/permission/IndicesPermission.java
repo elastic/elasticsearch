@@ -415,15 +415,6 @@ public final class IndicesPermission {
             assert name != null : "Resource name cannot be null";
             assert abstraction == null || abstraction.getName().equals(name)
                 : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
-            assert abstraction == null
-                || selector == null
-                || IndexComponentSelector.FAILURES.equals(selector) == false
-                || abstraction.isDataStreamRelated()
-                : "Invalid index component selector ["
-                    + selector.getKey()
-                    + "] applied to abstraction of type ["
-                    + abstraction.getType()
-                    + "]";
             this.name = name;
             this.indexAbstraction = abstraction;
             this.selector = selector;
@@ -453,13 +444,17 @@ public final class IndicesPermission {
         public boolean checkIndex(Group group) {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
-                // failure indices are special: when accessed directly (not through ::failures on parent data stream) they are accessed
-                // implicitly as data. However, authz to the parent data stream happens via the failures selector
-                final IndexComponentSelector selectorToCheck = indexAbstraction.isFailureIndexOfDataStream()
-                    ? IndexComponentSelector.FAILURES
-                    : selector;
-                if (group.checkSelector(selectorToCheck) && group.checkIndex(ds.getName())) {
-                    return true;
+                boolean authorizeViaParentDataStream = indexAbstraction.isFailureIndexOfDataStream()
+                    || false == IndexComponentSelector.FAILURES.equals(selector);
+                if (authorizeViaParentDataStream) {
+                    // failure indices are special: when accessed directly (not through ::failures on parent data stream) they are accessed
+                    // implicitly as data. However, authz to the parent data stream happens via the failures selector
+                    final IndexComponentSelector selectorToCheck = indexAbstraction.isFailureIndexOfDataStream()
+                        ? IndexComponentSelector.FAILURES
+                        : IndexComponentSelector.DATA;
+                    if (group.checkSelector(selectorToCheck) && group.checkIndex(ds.getName())) {
+                        return true;
+                    }
                 }
             }
             return group.checkSelector(selector) && group.checkIndex(name);

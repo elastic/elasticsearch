@@ -17,6 +17,7 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -47,6 +49,7 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
     private DistributionType distributionType;
     private Version version;
     private String keystorePassword;
+    private Function<String, Path> configDirFunction;
 
     protected AbstractLocalSpecBuilder(AbstractLocalSpecBuilder<?> parent) {
         this.parent = parent;
@@ -268,6 +271,16 @@ public abstract class AbstractLocalSpecBuilder<T extends LocalSpecBuilder<?>> im
 
     public String getKeystorePassword() {
         return inherit(() -> parent.getKeystorePassword(), keystorePassword);
+    }
+
+    @Override
+    public T withConfigDir(Function<String, Path> configDirFunction) {
+        this.configDirFunction = configDirFunction;
+        return cast(this);
+    }
+
+    public Function<String, Path> getConfigDirFunction() {
+        return inherit(() -> parent.getConfigDirFunction(), configDirFunction);
     }
 
     @Override

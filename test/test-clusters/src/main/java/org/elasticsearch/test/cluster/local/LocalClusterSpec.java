@@ -19,11 +19,13 @@ import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class LocalClusterSpec implements ClusterSpec {
@@ -103,6 +105,7 @@ public class LocalClusterSpec implements ClusterSpec {
         private final List<SystemPropertyProvider> systemPropertyProviders;
         private final Map<String, String> systemProperties;
         private final List<String> jvmArgs;
+        private final Function<String, Path> configDirFunction;
         private Version version;
 
         public LocalNodeSpec(
@@ -124,7 +127,8 @@ public class LocalClusterSpec implements ClusterSpec {
             Map<String, Resource> extraConfigFiles,
             List<SystemPropertyProvider> systemPropertyProviders,
             Map<String, String> systemProperties,
-            List<String> jvmArgs
+            List<String> jvmArgs,
+            Function<String, Path> configDirFunction
         ) {
             this.cluster = cluster;
             this.name = name;
@@ -145,6 +149,7 @@ public class LocalClusterSpec implements ClusterSpec {
             this.systemPropertyProviders = systemPropertyProviders;
             this.systemProperties = systemProperties;
             this.jvmArgs = jvmArgs;
+            this.configDirFunction = configDirFunction;
         }
 
         void setVersion(Version version) {
@@ -201,6 +206,10 @@ public class LocalClusterSpec implements ClusterSpec {
 
         public List<String> getJvmArgs() {
             return jvmArgs;
+        }
+
+        public Function<String, Path> getConfigDirFunction() {
+            return configDirFunction;
         }
 
         public boolean isSecurityEnabled() {
@@ -339,7 +348,8 @@ public class LocalClusterSpec implements ClusterSpec {
                         n.extraConfigFiles,
                         n.systemPropertyProviders,
                         n.systemProperties,
-                        n.jvmArgs
+                        n.jvmArgs,
+                        n.configDirFunction
                     )
                 )
                 .toList();

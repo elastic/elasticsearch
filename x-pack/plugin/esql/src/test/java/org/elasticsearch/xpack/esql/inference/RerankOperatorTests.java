@@ -306,7 +306,7 @@ public class RerankOperatorTests extends OperatorTestCase {
         V inputBlock = asInstanceOf(blockClass, input);
         V resultBlock = asInstanceOf(blockClass, result);
 
-        assertRandomPositions(inputBlock, (pos) -> {
+        assertAllPositions(inputBlock, (pos) -> {
             if (inputBlock.isNull(pos)) {
                 assertThat(resultBlock.isNull(pos), equalTo(inputBlock.isNull(pos)));
             } else {
@@ -322,7 +322,7 @@ public class RerankOperatorTests extends OperatorTestCase {
         });
     }
 
-    private void assertRandomPositions(Block block, Consumer<Integer> consumer) {
+    private void assertAllPositions(Block block, Consumer<Integer> consumer) {
         for (int pos = 0; pos < block.getPositionCount(); pos++) {
             consumer.accept(pos);
         }

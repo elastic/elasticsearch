@@ -1337,23 +1337,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         );
                     }
                     case Aggregate agg -> {
-                        // both groupings and aggregates need to be replaced
-                        // create new aggregates according to new groupings
+                        // Both groupings and aggregates need to be updated, create new aggregates according to new groupings
                         List<? extends NamedExpression> origAggs = agg.aggregates();
                         List<NamedExpression> newAggs = new ArrayList<>(origAggs.size());
-                        for (int i = 0; i < origAggs.size() - newProjections.size(); i++) { // add aggregate functions
+                        for (int i = 0; i < origAggs.size() - newProjections.size(); i++) { // Add aggregate functions
                             newAggs.add(origAggs.get(i));
                         }
-                        for (Expression e : newProjections) { // add new groupings
+                        for (Expression e : newProjections) { // Add groupings
                             newAggs.add(Expressions.attribute(e));
                         }
-                        return new Aggregate(
-                            agg.source(),
-                            evalForInvalidMappedField(agg.source(), agg.child(), aliases),
-                            agg.aggregateType(),
-                            newProjections,
-                            newAggs
-                        );
+                        return agg.with(evalForInvalidMappedField(agg.source(), agg.child(), aliases), newProjections, newAggs);
                     }
                     case Dissect d -> {
                         return new Dissect(
@@ -1403,6 +1396,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     default -> throw new EsqlIllegalArgumentException("unexpected logical plan: " + plan);
                 }
             } else {
+                // Double check Aggs, when Bucket is used together with Aggs, the Aggs may need two rounds of resolutions
+                if (plan instanceof Aggregate agg) {
+                    // If there is unresolved reference in the aggregates try to get it resolved again by removing the custom message
+                    List<? extends NamedExpression> origAggs = agg.aggregates();
+                    List<Expression> groupings = agg.groupings();
+                    int aggsCount = origAggs.size() - groupings.size();
+                    List<NamedExpression> newAggs = new ArrayList<>(origAggs.size());
+                    for (int i = 0; i < origAggs.size(); i++) {
+                        var e = origAggs.get(i);
+                        if (i < aggsCount) { // Add aggregate functions
+                            newAggs.add(e);
+                        } else { // Add groupings
+                            if (e instanceof UnresolvedAttribute ua && ua.customMessage()) {
+                                // Try to make ResolveRefs resolve the aggregates again by removing the custom message
+                                newAggs.add(Expressions.attribute(groupings.get(i - aggsCount)));
+                            } else {
+                                newAggs.add(e);
+                            }
+                        }
+                    }
+                    return agg.with(groupings, newAggs);
+                }
                 return plan;
             }
         }

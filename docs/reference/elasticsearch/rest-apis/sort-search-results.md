@@ -36,9 +36,9 @@ GET /my-index-000001/_search
 {
   "sort" : [
     { "post_date" : {"order" : "asc", "format": "strict_date_optional_time_nanos"}},
-    "user",
     { "name" : "desc" },
     { "age" : "desc" },
+    "user",
     "_score"
   ],
   "query" : {
@@ -46,6 +46,12 @@ GET /my-index-000001/_search
   }
 }
 ```
+For multiple sort fields, each field defined in the sort array acts as a tie-breaker for the ones listed before it. The order of the fields matters:
+* It first sorts by "post_date".
+* If two documents have the same "post_date", it moves to the next sort field "name".
+* If those are still the same, it checks "age", then "user", and so on.
+
+By default, Elasticsearch sorts `numeric` fields in descending order and `string` fields in ascending order unless you explicitly specify otherwise. All three formats shown in the example above are valid. Some make the sort order explicit, while others rely on Elasticsearch’s default behavior.
 
 ::::{note}
 `_doc` has no real use-case besides being the most efficient sort order. So if you don’t care about the order in which documents are returned, then you should sort by `_doc`. This especially helps when [scrolling](/reference/elasticsearch/rest-apis/paginate-search-results.md#scroll-search-results).

@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettings.invalidInputTypeMessage;
+import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
 public record AlibabaCloudSearchEmbeddingsRequestEntity(
     List<String> input,

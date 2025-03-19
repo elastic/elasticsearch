@@ -86,6 +86,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsConstant;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsIdentifier;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.paramAsPattern;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
@@ -2537,6 +2538,195 @@ public class AnalyzerTests extends ESTestCase {
                 "from test | " + command,
                 "mapping-multi-field-with-nested.json",
                 new QueryParams(List.of(paramAsIdentifier("f1", "`keyword`"))),
+                "Unknown column [`keyword`]"
+            );
+        }
+    }
+
+    public void testNamedDoubleParamsForIdentifiers() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        assertProjectionWithMapping(
+            """
+                from test
+                | eval ??f1 = ??fn1(??f2)
+                | where ??f1 == ??f2
+                | stats ??f8 = ??fn2(??f3.??f4.??f5) by ??f3.??f6.??f7
+                | sort ??f36.??f7, ??f8
+                | keep ??f367, ??f8
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "a"),
+                    paramAsConstant("f2", "keyword"),
+                    paramAsConstant("f3", "some"),
+                    paramAsConstant("f4", "dotted"),
+                    paramAsConstant("f5", "field"),
+                    paramAsConstant("f6", "string"),
+                    paramAsConstant("f7", "typical"),
+                    paramAsConstant("f8", "y"),
+                    paramAsConstant("f36", "some.string"),
+                    paramAsConstant("f367", "some.string.typical"),
+                    paramAsConstant("fn1", "trim"),
+                    paramAsConstant("fn2", "count")
+                )
+            ),
+            "some.string.typical",
+            "y"
+        );
+
+        assertProjectionWithMapping(
+            """
+                from test
+                | eval ??f1 = ??fn1(??f2)
+                | where ??f1 == ??f2
+                | mv_expand ??f3.??f4.??f5
+                | dissect ??f8 "%{bar}"
+                | grok ??f2 "%{WORD:foo}"
+                | rename ??f9 as ??f10
+                | sort ??f3.??f6.??f7
+                | drop ??f11
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "a"),
+                    paramAsConstant("f2", "keyword"),
+                    paramAsConstant("f3", "some"),
+                    paramAsConstant("f4", "dotted"),
+                    paramAsConstant("f5", "field"),
+                    paramAsConstant("f6", "string"),
+                    paramAsConstant("f7", "typical"),
+                    paramAsConstant("f8", "text"),
+                    paramAsConstant("f9", "date"),
+                    paramAsConstant("f10", "datetime"),
+                    paramAsConstant("f11", "bool"),
+                    paramAsConstant("fn1", "trim")
+                )
+            ),
+            "binary",
+            "binary_stored",
+            "datetime",
+            "date_nanos",
+            "geo_shape",
+            "int",
+            "keyword",
+            "shape",
+            "some.ambiguous",
+            "some.ambiguous.normalized",
+            "some.ambiguous.one",
+            "some.ambiguous.two",
+            "some.dotted.field",
+            "some.string",
+            "some.string.normalized",
+            "some.string.typical",
+            "text",
+            "unsigned_long",
+            "unsupported",
+            "x",
+            "x.y",
+            "x.y.z",
+            "x.y.z.v",
+            "x.y.z.w",
+            "a",
+            "bar",
+            "foo"
+        );
+
+        assertProjectionWithMapping(
+            """
+                FROM test
+                | EVAL ??f1 = ??f2
+                | LOOKUP JOIN languages_lookup ON ??f1
+                | KEEP ??f3.??f6.??f7
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "language_code"),
+                    paramAsConstant("f2", "int"),
+                    paramAsConstant("f3", "some"),
+                    paramAsConstant("f6", "string"),
+                    paramAsConstant("f7", "typical")
+                )
+            ),
+            "some.string.typical"
+        );
+    }
+
+    public void testInvalidNamedDoubleParamsForIdentifiers() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        // missing field
+        assertError(
+            """
+                from test
+                | eval ??f1 = ??fn1(??f2)
+                | keep ??f3
+                """,
+            "mapping-multi-field-with-nested.json",
+            new QueryParams(
+                List.of(
+                    paramAsConstant("f1", "a"),
+                    paramAsConstant("f2", "keyword"),
+                    paramAsConstant("f3", "some.string.nonexisting"),
+                    paramAsConstant("fn1", "trim")
+                )
+            ),
+            "Unknown column [some.string.nonexisting]"
+        );
+
+        // field name pattern is not supported in where/stats/sort/dissect/grok, they only take identifier
+        // eval/rename/enrich/mvexpand are covered in StatementParserTests
+        for (String invalidParam : List.of(
+            "where ??f1 == \"a\"",
+            "stats x = count(??f1)",
+            "sort ??f1",
+            "dissect ??f1 \"%{bar}\"",
+            "grok ??f1 \"%{WORD:foo}\"",
+            "lookup join languages_lookup on ??f1"
+        )) {
+            for (String pattern : List.of("keyword*", "*")) {
+                assertError(
+                    "from test | " + invalidParam,
+                    "mapping-multi-field-with-nested.json",
+                    new QueryParams(List.of(paramAsConstant("f1", pattern))),
+                    "Unknown column [" + pattern + "]"
+                );
+            }
+        }
+
+        // pattern and constant for function are covered in StatementParserTests
+        for (String pattern : List.of("count*", "*")) {
+            assertError(
+                "from test | stats x = ??fn1(*)",
+                "mapping-multi-field-with-nested.json",
+                new QueryParams(List.of(paramAsConstant("fn1", pattern))),
+                "Unknown function [" + pattern + "]"
+            );
+        }
+
+        // identifier provided in param is not expected to be in backquote
+        List<String> commands = List.of(
+            "eval x = ??f1",
+            "where ??f1 == \"a\"",
+            "stats x = count(??f1)",
+            "sort ??f1",
+            "dissect ??f1 \"%{bar}\"",
+            "grok ??f1 \"%{WORD:foo}\"",
+            "mv_expand ??f1",
+            "lookup join languages_lookup on ??f1"
+        );
+        for (Object command : commands) {
+            assertError(
+                "from test | " + command,
+                "mapping-multi-field-with-nested.json",
+                new QueryParams(List.of(paramAsConstant("f1", "`keyword`"))),
                 "Unknown column [`keyword`]"
             );
         }

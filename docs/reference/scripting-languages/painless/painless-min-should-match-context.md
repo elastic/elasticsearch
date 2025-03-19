@@ -5,7 +5,7 @@ mapped_pages:
 
 # Minimum should match context [painless-min-should-match-context]
 
-Use a Painless script to specify the [minimum](/reference/query-languages/query-dsl-terms-set-query.md) number of terms that a specified field needs to match with for a document to be part of the query results.
+Use a Painless script to specify the [minimum](/reference/query-languages/query-dsl/query-dsl-terms-set-query.md) number of terms that a specified field needs to match with for a document to be part of the query results.
 
 **Variables**
 

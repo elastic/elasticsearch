@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -744,6 +745,51 @@ public class VoyageAIServiceTests extends ESTestCase {
         verifyNoMoreInteractions(sender);
     }
 
+    public void testInfer_ThrowsValidationErrorForInvalidInputType() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var model = VoyageAIEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "secret",
+            VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            10,
+            1,
+            "voyage-3-large"
+        );
+
+        try (var service = new VoyageAIService(factory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.CLUSTERING,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            MatcherAssert.assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Input type [clustering] is not supported for [Voyage AI];")
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
     public void testCheckModelConfig_UpdatesDimensions() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -1174,58 +1220,6 @@ public class VoyageAIServiceTests extends ESTestCase {
                         1024
                     )
                 )
-            );
-        }
-    }
-
-    public void testInfer_Embedding_Get_Response_clustering() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
-
-            String responseJson = """
-                {"model":"voyage-3-large","object":"list","usage":{"total_tokens":5},
-                "data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = VoyageAIEmbeddingsModelTests.createModel(
-                getUrl(webServer),
-                "secret",
-                VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
-                1024,
-                1024,
-                "voyage-3-large",
-                (SimilarityMeasure) null
-            );
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            service.infer(
-                model,
-                null,
-                List.of("abc"),
-                false,
-                new HashMap<>(),
-                InputType.CLUSTERING,
-                InferenceAction.Request.DEFAULT_TIMEOUT,
-                listener
-            );
-
-            var result = listener.actionGet(TIMEOUT);
-
-            assertEquals(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F })), result.asMap());
-
-            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().getFirst().getUri().getQuery());
-            MatcherAssert.assertThat(
-                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
-                equalTo(XContentType.JSON.mediaType())
-            );
-            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
-
-            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            MatcherAssert.assertThat(
-                requestMap,
-                is(Map.of("input", List.of("abc"), "model", "voyage-3-large", "output_dtype", "float", "output_dimension", 1024))
             );
         }
     }

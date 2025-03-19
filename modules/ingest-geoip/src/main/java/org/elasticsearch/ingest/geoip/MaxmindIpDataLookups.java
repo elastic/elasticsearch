@@ -209,9 +209,9 @@ final class MaxmindIpDataLookups {
                 switch (property) {
                     case IP -> data.put("ip", response.getTraits().getIpAddress());
                     case COUNTRY_IN_EUROPEAN_UNION -> {
-                        if (country.getIsoCode() != null) {
-                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
-                            data.put("country_in_european_union", country.isInEuropeanUnion());
+                        Boolean isInEuropeanUnion = isInEuropeanUnion(country);
+                        if (isInEuropeanUnion != null) {
+                            data.put("country_in_european_union", isInEuropeanUnion);
                         }
                     }
                     case COUNTRY_ISO_CODE -> {
@@ -239,12 +239,8 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case REGION_ISO_CODE -> {
-                        // ISO 3166-2 code for country subdivisions.
-                        // See iso.org/iso-3166-country-codes.html
-                        String countryIso = country.getIsoCode();
-                        String subdivisionIso = subdivision.getIsoCode();
-                        if (countryIso != null && subdivisionIso != null) {
-                            String regionIsoCode = countryIso + "-" + subdivisionIso;
+                        String regionIsoCode = regionIsoCode(country, subdivision);
+                        if (regionIsoCode != null) {
                             data.put("region_iso_code", regionIsoCode);
                         }
                     }
@@ -270,7 +266,7 @@ final class MaxmindIpDataLookups {
                         Double latitude = location.getLatitude();
                         Double longitude = location.getLongitude();
                         if (latitude != null && longitude != null) {
-                            Map<String, Object> locationObject = new HashMap<>();
+                            Map<String, Object> locationObject = HashMap.newHashMap(2);
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
                             data.put("location", locationObject);
@@ -288,9 +284,9 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
-                        if (registeredCountry.getIsoCode() != null) {
-                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
-                            data.put("registered_country_in_european_union", registeredCountry.isInEuropeanUnion());
+                        Boolean isInEuropeanUnion = isInEuropeanUnion(registeredCountry);
+                        if (isInEuropeanUnion != null) {
+                            data.put("registered_country_in_european_union", isInEuropeanUnion);
                         }
                     }
                     case REGISTERED_COUNTRY_ISO_CODE -> {
@@ -353,9 +349,9 @@ final class MaxmindIpDataLookups {
                 switch (property) {
                     case IP -> data.put("ip", response.getTraits().getIpAddress());
                     case COUNTRY_IN_EUROPEAN_UNION -> {
-                        if (country.getIsoCode() != null) {
-                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
-                            data.put("country_in_european_union", country.isInEuropeanUnion());
+                        Boolean isInEuropeanUnion = isInEuropeanUnion(country);
+                        if (isInEuropeanUnion != null) {
+                            data.put("country_in_european_union", isInEuropeanUnion);
                         }
                     }
                     case COUNTRY_ISO_CODE -> {
@@ -383,9 +379,9 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
-                        if (registeredCountry.getIsoCode() != null) {
-                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
-                            data.put("registered_country_in_european_union", registeredCountry.isInEuropeanUnion());
+                        Boolean isInEuropeanUnion = isInEuropeanUnion(registeredCountry);
+                        if (isInEuropeanUnion != null) {
+                            data.put("registered_country_in_european_union", isInEuropeanUnion);
                         }
                     }
                     case REGISTERED_COUNTRY_ISO_CODE -> {
@@ -480,9 +476,9 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case COUNTRY_IN_EUROPEAN_UNION -> {
-                        if (country.getIsoCode() != null) {
-                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
-                            data.put("country_in_european_union", country.isInEuropeanUnion());
+                        Boolean isInEuropeanUnion = isInEuropeanUnion(country);
+                        if (isInEuropeanUnion != null) {
+                            data.put("country_in_european_union", isInEuropeanUnion);
                         }
                     }
                     case COUNTRY_ISO_CODE -> {
@@ -510,12 +506,8 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case REGION_ISO_CODE -> {
-                        // ISO 3166-2 code for country subdivisions.
-                        // See iso.org/iso-3166-country-codes.html
-                        String countryIso = country.getIsoCode();
-                        String subdivisionIso = subdivision.getIsoCode();
-                        if (countryIso != null && subdivisionIso != null) {
-                            String regionIsoCode = countryIso + "-" + subdivisionIso;
+                        String regionIsoCode = regionIsoCode(country, subdivision);
+                        if (regionIsoCode != null) {
                             data.put("region_iso_code", regionIsoCode);
                         }
                     }
@@ -547,7 +539,7 @@ final class MaxmindIpDataLookups {
                         Double latitude = location.getLatitude();
                         Double longitude = location.getLongitude();
                         if (latitude != null && longitude != null) {
-                            Map<String, Object> locationObject = new HashMap<>();
+                            Map<String, Object> locationObject = HashMap.newHashMap(2);
                             locationObject.put("lat", latitude);
                             locationObject.put("lon", longitude);
                             data.put("location", locationObject);
@@ -639,9 +631,9 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
-                        if (registeredCountry.getIsoCode() != null) {
-                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
-                            data.put("registered_country_in_european_union", registeredCountry.isInEuropeanUnion());
+                        Boolean isInEuropeanUnion = isInEuropeanUnion(registeredCountry);
+                        if (isInEuropeanUnion != null) {
+                            data.put("registered_country_in_european_union", isInEuropeanUnion);
                         }
                     }
                     case REGISTERED_COUNTRY_ISO_CODE -> {
@@ -775,5 +767,24 @@ final class MaxmindIpDataLookups {
          * @return a mapping of properties for the ip from the response
          */
         protected abstract Map<String, Object> transform(RESPONSE response);
+    }
+
+    @Nullable
+    private static Boolean isInEuropeanUnion(com.maxmind.geoip2.record.Country country) {
+        // isInEuropeanUnion is a lowercase-b boolean so it cannot be null, but it really only makes sense for us to return a value
+        // for this if there's actually a real country here, as opposed to an empty null-object country, so we check for an iso code first
+        return (country.getIsoCode() == null) ? null : country.isInEuropeanUnion();
+    }
+
+    @Nullable
+    private static String regionIsoCode(final com.maxmind.geoip2.record.Country country, final Subdivision subdivision) {
+        // ISO 3166-2 code for country subdivisions, see https://www.iso.org/iso-3166-country-codes.html
+        final String countryIso = country.getIsoCode();
+        final String subdivisionIso = subdivision.getIsoCode();
+        if (countryIso != null && subdivisionIso != null) {
+            return countryIso + "-" + subdivisionIso;
+        } else {
+            return null;
+        }
     }
 }

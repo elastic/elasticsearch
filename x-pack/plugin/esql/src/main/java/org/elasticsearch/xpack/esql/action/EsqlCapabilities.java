@@ -889,6 +889,21 @@ public class EsqlCapabilities {
         TO_LOWER_MV,
 
         /**
+         * Use double parameter markers to represent field or function names.
+         */
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot()),
+
+        /**
+         * Non full text functions do not contribute to score
+         */
+        NON_FULL_TEXT_FUNCTIONS_SCORING,
+
+        /**
+         * Support for to_aggregate_metric_double function
+         */
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * The {@code _query} API now reports the original types.
          */
         REPORT_ORIGINAL_TYPES;

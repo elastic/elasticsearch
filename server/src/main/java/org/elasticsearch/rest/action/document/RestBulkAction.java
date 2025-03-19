@@ -17,7 +17,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
-import org.elasticsearch.action.bulk.arrow.ArrowBulkRequestParser;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -85,11 +84,6 @@ public class RestBulkAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean mediaTypesValid(RestRequest request) {
-        return super.mediaTypesValid(request) || ArrowBulkRequestParser.isArrowRequest(request);
-    }
-
-    @Override
     public String getName() {
         return "bulk_action";
     }
@@ -152,7 +146,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
     }
 
-    static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
+    public static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
 
         private final RestRequest request;
 
@@ -165,15 +159,16 @@ public class RestBulkAction extends BaseRestHandler {
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
-        ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
+        public ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
+            this(allowExplicitIndex, request, handlerSupplier,
+                new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
+            );
+        }
+
+        public ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier,
+                            AbstractBulkRequestParser requestParser) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            AbstractBulkRequestParser requestParser;
-            if (ArrowBulkRequestParser.isArrowRequest(request)) {
-                requestParser = new ArrowBulkRequestParser(request);
-            } else {
-                requestParser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion());
-            }
             this.parser = requestParser.incrementalParser(
                 request.param("index"),
                 request.param("routing"),

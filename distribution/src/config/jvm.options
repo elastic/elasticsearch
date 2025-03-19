@@ -88,6 +88,8 @@
 ## Arrow
 # Allow accessing a private field of java.nio.Buffer for direct memory access.
 # See org.apache.arrow.memory.MemoryUtil and https://arrow.apache.org/docs/java/install.html
---add-opens=java.base/java.nio=org.apache.arrow.memory.core
+# See also libs/arrow/src/main/java/module-info.java-disabled for why we open to ALL-UNNAMED
+# instead of limiting to org.apache.arrow.memory.core
+--add-opens=java.base/java.nio=ALL-UNNAMED
 # Define the allocation manager type to avoid classpath scanning to locate one.
 -Darrow.allocation.manager.type=Unsafe

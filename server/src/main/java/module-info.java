@@ -16,13 +16,17 @@ module org.elasticsearch.server {
     requires java.security.jgss;
     requires java.sql;
     requires java.management;
+    requires jdk.unsupported;
     requires java.net.http; // required by ingest-geoip's dependency maxmind.geoip2 https://github.com/elastic/elasticsearch/issues/93553
 
     requires org.elasticsearch.cli;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.nativeaccess;
     requires org.elasticsearch.geo;
     requires org.elasticsearch.lz4;
     requires org.elasticsearch.securesm;
+    requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.logging;
     requires org.elasticsearch.plugin;
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
@@ -51,10 +55,6 @@ module org.elasticsearch.server {
     requires org.apache.lucene.queryparser;
     requires org.apache.lucene.sandbox;
     requires org.apache.lucene.suggest;
-    requires org.elasticsearch.arrow;
-    requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.base;
-    requires org.elasticsearch.logging;
 
     exports org.elasticsearch;
     exports org.elasticsearch.action;

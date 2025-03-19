@@ -8,7 +8,7 @@
  */
 
 module org.elasticsearch.xcontent.impl {
-    requires transitive com.fasterxml.jackson.core;
+    requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.cbor;
     requires com.fasterxml.jackson.dataformat.smile;
     requires com.fasterxml.jackson.dataformat.yaml;

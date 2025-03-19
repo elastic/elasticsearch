@@ -86,6 +86,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * https://fetch.spec.whatwg.org/#cors-safelisted-request-header
      */
     static final Set<String> SAFELISTED_MEDIA_TYPES = Set.of("application/x-www-form-urlencoded", "multipart/form-data", "text/plain");
+    static final String ARROW_STREAM = "application/vnd.apache.arrow.stream";
 
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
@@ -403,9 +404,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
             final XContentType xContentType = request.getXContentType();
             // TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
             if (handler.supportsBulkContent()
-                && xContentType != null // null for Arrow format
                 && XContentType.JSON != xContentType.canonical()
-                && XContentType.SMILE != xContentType.canonical()) {
+                && XContentType.SMILE != xContentType.canonical()
+                && (request.getParsedContentType().mediaTypeWithoutParameters().equals(ARROW_STREAM) == false)) {
                 channel.sendResponse(
                     RestResponse.createSimpleErrorResponse(
                         channel,

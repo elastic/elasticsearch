@@ -38,7 +38,6 @@ dependencies {
   api project(":libs:plugin-analysis-api")
   api project(':libs:grok')
   api project(":libs:tdigest")
-  implementation project(":libs:arrow")
   implementation project(":libs:simdvec")
   implementation project(":libs:entitlement")
 
@@ -84,8 +83,6 @@ dependencies {
   internalClusterTestImplementation(project(':modules:reindex'))
   internalClusterTestImplementation(project(':modules:mapper-extras'))
   internalClusterTestImplementation(project(':modules:data-streams'))
-
-  javaRestTestImplementation(project(":libs:arrow"))
 }
 
 spotless {

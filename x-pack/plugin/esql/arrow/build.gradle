@@ -12,11 +12,7 @@ dependencies {
   compileOnly project(':x-pack:plugin:esql:compute')
   compileOnly project(':x-pack:plugin:esql-core')
   compileOnly project(':x-pack:plugin:mapper-version')
+  implementation(project(":libs:arrow"))
 
-  implementation project(":libs:arrow")
   testImplementation project(':test:framework')
-}
-
-tasks.named("test").configure {
-  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }

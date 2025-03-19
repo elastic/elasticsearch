@@ -49,25 +49,25 @@ public final class BulkRequestParser extends AbstractBulkRequestParser {
     // Remove deprecation logger when its usages in checkBulkActionIsProperlyClosed are removed
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
 
-    public static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
+    private static final Set<String> SUPPORTED_ACTIONS = Set.of("create", "index", "update", "delete");
     private static final String STRICT_ACTION_PARSING_WARNING_KEY = "bulk_request_strict_action_parsing";
 
-    public static final ParseField INDEX = new ParseField("_index");
-    public static final ParseField TYPE = new ParseField("_type");
-    public static final ParseField ID = new ParseField("_id");
-    public static final ParseField ROUTING = new ParseField("routing");
-    public static final ParseField OP_TYPE = new ParseField("op_type");
-    public static final ParseField VERSION = new ParseField("version");
-    public static final ParseField VERSION_TYPE = new ParseField("version_type");
-    public static final ParseField RETRY_ON_CONFLICT = new ParseField("retry_on_conflict");
-    public static final ParseField PIPELINE = new ParseField("pipeline");
-    public static final ParseField SOURCE = new ParseField("_source");
-    public static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
-    public static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
-    public static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
-    public static final ParseField REQUIRE_DATA_STREAM = new ParseField(DocWriteRequest.REQUIRE_DATA_STREAM);
-    public static final ParseField LIST_EXECUTED_PIPELINES = new ParseField(DocWriteRequest.LIST_EXECUTED_PIPELINES);
-    public static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
+    private static final ParseField INDEX = new ParseField("_index");
+    private static final ParseField TYPE = new ParseField("_type");
+    private static final ParseField ID = new ParseField("_id");
+    private static final ParseField ROUTING = new ParseField("routing");
+    private static final ParseField OP_TYPE = new ParseField("op_type");
+    private static final ParseField VERSION = new ParseField("version");
+    private static final ParseField VERSION_TYPE = new ParseField("version_type");
+    private static final ParseField RETRY_ON_CONFLICT = new ParseField("retry_on_conflict");
+    private static final ParseField PIPELINE = new ParseField("pipeline");
+    private static final ParseField SOURCE = new ParseField("_source");
+    private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
+    private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
+    private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
+    private static final ParseField REQUIRE_DATA_STREAM = new ParseField(DocWriteRequest.REQUIRE_DATA_STREAM);
+    private static final ParseField LIST_EXECUTED_PIPELINES = new ParseField(DocWriteRequest.LIST_EXECUTED_PIPELINES);
+    private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     // for CompatibleApi V7 this means to deprecate on type, for V8+ it means to throw an error

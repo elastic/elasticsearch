@@ -19,7 +19,7 @@ apply plugin: 'elasticsearch.publish'
 var arrowVersion = "18.2.0"
 
 dependencies {
-  implementation(project(":libs:x-content"))
+  //implementation(project(":libs:x-content"))
 
   // jackson-core is provided by :libs:x-content:impl. If declared here, there's a module issue that prevents ES from starting:
   //
@@ -29,18 +29,18 @@ dependencies {
   //	at org.elasticsearch.xcontent@9.0.0-SNAPSHOT/org.elasticsearch.xcontent.json.JsonXContent.<clinit>(JsonXContent.java:37)
   //	at org.elasticsearch.xcontent@9.0.0-SNAPSHOT/org.elasticsearch.xcontent.XContentType.<clinit>(XContentType.java:28)
   //	at org.elasticsearch.server@9.0.0-SNAPSHOT/org.elasticsearch.common.settings.Setting.arrayToParsableString(Setting.java:1883)
-  implementation(project(":libs:x-content:impl"))
+  //implementation(project(":libs:x-content:impl"))
 
   // arrow-vector
   api("org.apache.arrow:arrow-vector:${arrowVersion}")
-  //api("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
+  api("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
   api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
   api("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}")
 
   api("com.google.flatbuffers:flatbuffers-java:24.3.25")
   api("commons-codec:commons-codec:${versions.commonscodec}") // Arrow 18 -> commons-codec 1.17.1
-  api("org.slf4j:slf4j-api:2.0.10")
+  api("org.slf4j:slf4j-api:${versions.slf4j}")
   api("org.immutables:value-annotations:2.10.1") // provided dependency
 
   // arrow-format
@@ -54,7 +54,7 @@ dependencies {
   // also depends on value-annotations (provided dependency)
 
   // arrow-memory-unsafe
-  implementation("org.apache.arrow:arrow-memory-unsafe:${arrowVersion}")
+  api("org.apache.arrow:arrow-memory-unsafe:${arrowVersion}")
   // also depends on value-annotations (provided dependency)
 
   testImplementation(project(":test:framework")) {

@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-discovery-settings.html
+applies_to:
+  deployment:
+    self:
 ---
 
 # Discovery and cluster formation settings [modules-discovery-settings]

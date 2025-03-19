@@ -279,7 +279,7 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case POSTAL_CODE -> {
-                        if (postal != null && postal.getCode() != null) {
+                        if (postal.getCode() != null) {
                             data.put("postal_code", postal.getCode());
                         }
                     }
@@ -552,14 +552,13 @@ final class MaxmindIpDataLookups {
                         }
                     }
                     case POSTAL_CODE -> {
-                        if (postal != null && postal.getCode() != null) {
+                        if (postal.getCode() != null) {
                             data.put("postal_code", postal.getCode());
                         }
                     }
                     case POSTAL_CONFIDENCE -> {
-                        Integer postalConfidence = postal.getConfidence();
-                        if (postalConfidence != null) {
-                            data.put("postal_confidence", postalConfidence);
+                        if (postal.getConfidence() != null) {
+                            data.put("postal_confidence", postal.getConfidence());
                         }
                     }
                     case ASN -> {

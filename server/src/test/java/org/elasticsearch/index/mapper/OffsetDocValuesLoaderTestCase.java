@@ -163,7 +163,7 @@ public abstract class OffsetDocValuesLoaderTestCase extends MapperServiceTestCas
         String values;
         int numValues = randomIntBetween(0, 256);
 
-        var previousValues = new HashSet<Object>();
+        var previousValues = new HashSet<>();
         try (XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());) {
             b.startArray();
             for (int i = 0; i < numValues; i++) {

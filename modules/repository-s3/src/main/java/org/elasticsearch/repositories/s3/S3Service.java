@@ -15,12 +15,12 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
 import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SDKGlobalConfiguration;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
@@ -28,8 +28,6 @@ import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.retry.PredefinedRetryPolicies;
 import com.amazonaws.retry.RetryPolicy;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient;
@@ -195,13 +193,13 @@ class S3Service implements Closeable {
     }
 
     // proxy for testing
-    AmazonS3 buildClient(final S3ClientSettings clientSettings) {
-        final AmazonS3ClientBuilder builder = buildClientBuilder(clientSettings);
+    S3Client buildClient(final S3ClientSettings clientSettings) {
+        final S3ClientBuilder builder = buildClientBuilder(clientSettings);
         return SocketAccess.doPrivileged(builder::build);
     }
 
-    protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
-        final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
+    protected S3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
+        final var builder = S3Client.builder();
         builder.withCredentials(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
         final ClientConfiguration clientConfiguration = buildConfiguration(clientSettings, isStateless);
         assert (isStateless == false && clientConfiguration.getRetryPolicy() == PredefinedRetryPolicies.DEFAULT)
@@ -480,9 +478,9 @@ class S3Service implements Closeable {
         }
 
         @Override
-        public AWSCredentials getCredentials() {
+        public AwsCredentials getCredentials() {
             Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
-            return credentialsProvider.getCredentials();
+            return credentialsProvider.();
         }
 
         @Override
@@ -499,33 +497,58 @@ class S3Service implements Closeable {
         }
     }
 
-    static class ErrorLoggingCredentialsProvider implements AWSCredentialsProvider {
+    static class ErrorLoggingCredentialsProvider implements AwsCredentialsProvider {
 
-        private final AWSCredentialsProvider delegate;
+        private final AwsCredentialsProvider delegate;
         private final Logger logger;
 
-        ErrorLoggingCredentialsProvider(AWSCredentialsProvider delegate, Logger logger) {
+        ErrorLoggingCredentialsProvider(AwsCredentialsProvider delegate, Logger logger) {
             this.delegate = Objects.requireNonNull(delegate);
             this.logger = Objects.requireNonNull(logger);
         }
 
         @Override
-        public AWSCredentials getCredentials() {
+        public Class<AwsCredentialsIdentity> identityType() {
+            return delegate.identityType();
+        }
+
+        @Override
+        public CompletableFuture<AwsCredentialsIdentity> resolveIdentity(ResolveIdentityRequest request) {
+            return delegate.resolveIdentity(request).handle(this::loggingHandler);
+        }
+
+        @Override
+        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity(Consumer<ResolveIdentityRequest.Builder> consumer) {
+            return delegate.resolveIdentity(consumer).handle(this::loggingHandler);
+        }
+
+        @Override
+        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
+            return delegate.resolveIdentity().handle(this::loggingHandler);
+        }
+
+        @Override
+        public AwsCredentials resolveCredentials() {
             try {
-                return delegate.getCredentials();
+                return delegate.resolveCredentials();
             } catch (Exception e) {
                 logger.error(() -> "Unable to load credentials from " + delegate, e);
                 throw e;
             }
         }
 
-        @Override
-        public void refresh() {
-            try {
-                delegate.refresh();
-            } catch (Exception e) {
-                logger.error(() -> "Unable to refresh " + delegate, e);
-                throw e;
+        private <T extends U, U> U loggingHandler(T result, Throwable e) {
+            if (e != null) {
+                logger.error(() -> "Unable to load credentials from " + delegate, e);
+                if (e instanceof Error error) {
+                    throw error;
+                } else if (e instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                } else {
+                    throw new RuntimeException(e);
+                }
+            } else {
+                return result;
             }
         }
     }

@@ -804,6 +804,11 @@ public class EsqlCapabilities {
         MATCH_FUNCTION_OPTIONS,
 
         /**
+         * Support options in the query string function.
+         */
+        QUERY_STRING_FUNCTION_OPTIONS,
+
+        /**
          * Support for aggregate_metric_double type
          */
         AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled()),
@@ -835,7 +840,12 @@ public class EsqlCapabilities {
         /**
          * Full text functions can be scored when being part of a disjunction
          */
-        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE;
+        FULL_TEXT_FUNCTIONS_DISJUNCTIONS_SCORE,
+
+        /**
+         * Non full text functions do not contribute to score
+         */
+        NON_FULL_TEXT_FUNCTIONS_SCORING;
 
         private final boolean enabled;
 

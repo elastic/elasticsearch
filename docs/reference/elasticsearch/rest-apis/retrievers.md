@@ -60,7 +60,7 @@ A standard retriever returns top documents from a traditional [query](/reference
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies a [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to this retriever, where all documents must match this query but do not contribute to the score.
+    Applies a [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to this retriever, where all documents must match this query but do not contribute to the score.
 
 
 `search_after`
@@ -84,7 +84,7 @@ A standard retriever returns top documents from a traditional [query](/reference
 `min_score`
 :   (Optional, `float`)
 
-    Minimum [`_score`](/reference/query-languages/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
+    Minimum [`_score`](/reference/query-languages/query-dsl/query-filter-context.md#relevance-scores) for matching documents. Documents with a lower `_score` are not included in the top documents.
 
 
 `collapse`
@@ -294,7 +294,7 @@ See also [this hybrid search example](docs-content://solutions/search/retrievers
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
 
 
@@ -326,7 +326,7 @@ An [RRF](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) retriever
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to all of the specified sub-retrievers, according to each retriever’s specifications.
 
 
 
@@ -463,7 +463,7 @@ When using the `rescorer`, an error is returned if the following conditions are 
 `filter`
 :   (Optional. [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies a [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
+    Applies a [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the retriever, ensuring that all documents match the filter criteria without affecting their scores.
 
 
 
@@ -632,7 +632,7 @@ score = ln(score), if score < 0
 `filter`
 :   (Optional, [query object or list of query objects](/reference/query-languages/querydsl.md))
 
-    Applies the specified [boolean query filter](/reference/query-languages/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
+    Applies the specified [boolean query filter](/reference/query-languages/query-dsl/query-dsl-bool-query.md) to the child  `retriever`. If the child retriever already specifies any filters, then this top-level filter is applied in conjuction with the filter defined in the child retriever.
 
 
 
@@ -800,7 +800,7 @@ Follow these steps to load the model and create a semantic re-ranker.
 
 ## Query Rules Retriever [rule-retriever]
 
-The `rule` retriever enables fine-grained control over search results by applying contextual [query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries. This retriever has similar functionality to the [rule query](/reference/query-languages/query-dsl-rule-query.md), but works out of the box with other retrievers.
+The `rule` retriever enables fine-grained control over search results by applying contextual [query rules](/reference/elasticsearch/rest-apis/searching-with-query-rules.md#query-rules) to pin or exclude documents for specific queries. This retriever has similar functionality to the [rule query](/reference/query-languages/query-dsl/query-dsl-rule-query.md), but works out of the box with other retrievers.
 
 ### Prerequisites [_prerequisites_16]
 
@@ -929,7 +929,7 @@ The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operati
 
 ### Using aggregations with a retriever tree [retriever-aggregations]
 
-[Aggregations](/reference/data-analysis/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl-bool-query.md).
+[Aggregations](/reference/data-analysis/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
 
 
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]

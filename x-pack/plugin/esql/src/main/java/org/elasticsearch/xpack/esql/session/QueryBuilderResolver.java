@@ -139,7 +139,7 @@ public class QueryBuilderResolver {
             this.queryBuilderMap = new HashMap<>();
 
             for (FullTextFunction func : functions) {
-                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func).asBuilder());
+                queryBuilderMap.put(func, TRANSLATOR_HANDLER.asQuery(func).toQueryBuilder());
             }
         }
 

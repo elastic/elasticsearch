@@ -134,7 +134,8 @@ public class Term extends FullTextFunction implements PostOptimizationVerificati
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject());
+        // Uses a term query that contributes to scoring
+        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject(), false, true);
     }
 
     @Override

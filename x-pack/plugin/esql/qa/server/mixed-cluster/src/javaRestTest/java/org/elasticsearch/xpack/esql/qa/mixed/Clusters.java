@@ -23,7 +23,7 @@ public class Clusters {
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("cluster.routing.rebalance.enable", "none"); // disable relocation until we have retry in ESQL;
-        if (oldVersion.before(Version.fromString("9.0.0"))) {
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
             cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
         }

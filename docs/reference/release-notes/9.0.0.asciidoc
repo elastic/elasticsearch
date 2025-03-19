@@ -1,0 +1,142 @@
+[[release-notes-9.0.0]]
+== {es} version 9.0.0
+
+coming[9.0.0]
+
+Also see <<breaking-changes-9.0,Breaking changes in 9.0>>.
+
+[[breaking-9.0.0]]
+[float]
+=== Breaking changes
+
+TLS::
+* Drop `TLS_RSA` cipher support for JDK 24 {es-pull}123600[#123600]
+
+[[bug-9.0.0]]
+[float]
+=== Bug fixes
+
+Analysis::
+* Adjust exception thrown when unable to load hunspell dict {es-pull}123743[#123743]
+
+Data streams::
+* Updating `TransportRolloverAction.checkBlock` so that non-write-index blocks do not prevent data stream rollover {es-pull}122905[#122905]
+
+Downsampling::
+* Improve downsample performance by avoiding to read unnecessary dimension values when downsampling. {es-pull}124451[#124451]
+
+ES|QL::
+* Add support to VALUES aggregation for spatial types {es-pull}122886[#122886] (issue: {es-issue}122413[#122413])
+* Avoid over collecting in Limit or Lucene Operator {es-pull}123296[#123296]
+* Change the order of the optimization rules {es-pull}124335[#124335]
+* ESQL: Remove estimated row size assertion {es-pull}122762[#122762] (issue: {es-issue}121535[#121535])
+* Fix early termination in `LuceneSourceOperator` {es-pull}123197[#123197]
+* Fix function registry concurrency issues on constructor {es-pull}123492[#123492] (issue: {es-issue}123430[#123430])
+* Implicit numeric casting for CASE/GREATEST/LEAST {es-pull}122601[#122601] (issue: {es-issue}121890[#121890])
+* Lazy collection copying during node transform {es-pull}124424[#124424]
+* Reduce iteration complexity for plan traversal {es-pull}123427[#123427]
+* Revive inlinestats {es-pull}122257[#122257]
+* Revive some more of inlinestats functionality {es-pull}123589[#123589]
+* Use a must boolean statement when pushing down to Lucene when scoring is also needed {es-pull}124001[#124001] (issue: {es-issue}123967[#123967])
+
+Engine::
+* Hold store reference in `InternalEngine#performActionWithDirectoryReader(...)` {es-pull}123010[#123010] (issue: {es-issue}122974[#122974])
+
+Highlighting::
+* Restore V8 REST compatibility around highlight `force_source` parameter {es-pull}124873[#124873]
+
+Indices APIs::
+* Avoid hoarding cluster state references during rollover {es-pull}124107[#124107] (issue: {es-issue}123893[#123893])
+* Updates the deprecation info API to not warn about system indices and data streams {es-pull}122951[#122951]
+
+Infra/Core::
+* Have create index return a bad request on poor formatting {es-pull}123761[#123761]
+* Include data streams when converting an existing resource to a system resource {es-pull}121392[#121392]
+* System Index Migration Failure Results in a Non-Recoverable State {es-pull}122326[#122326]
+
+Ingest Node::
+* Fix geoip databases index access after system feature migration (again) {es-pull}122938[#122938]
+* Fix geoip databases index access after system feature migration (take 3) {es-pull}124604[#124604]
+
+Machine Learning::
+* Add `ElasticInferenceServiceCompletionServiceSettings` {es-pull}123155[#123155]
+* Add enterprise license check to inference action for semantic text fields {es-pull}122293[#122293]
+* Avoid potentially throwing calls to Task#getDescription in model download {es-pull}124527[#124527]
+* Fix serialising the inference update request {es-pull}122278[#122278]
+* Migrate `model_version` to `model_id` when parsing persistent elser inference endpoints {es-pull}124769[#124769] (issue: {es-issue}124675[#124675])
+* Retry on streaming errors {es-pull}123076[#123076]
+* Set Connect Timeout to 5s {es-pull}123272[#123272]
+* [Inference API] Fix output stream ordering in `InferenceActionProxy` {es-pull}124225[#124225]
+
+Mapping::
+* Avoid serializing empty `_source` fields in mappings {es-pull}122606[#122606]
+
+Search::
+* Do not let `ShardBulkInferenceActionFilter` unwrap / rewrap ESExceptions {es-pull}123890[#123890]
+* Fix concurrency issue in `ScriptSortBuilder` {es-pull}123757[#123757]
+* Handle search timeout in `SuggestPhase` {es-pull}122357[#122357] (issue: {es-issue}122186[#122186])
+
+Snapshot/Restore::
+* Fork post-snapshot-delete cleanup off master thread {es-pull}122731[#122731]
+
+Suggesters::
+* Return an empty suggestion when suggest phase times out {es-pull}122575[#122575] (issue: {es-issue}122548[#122548])
+
+Transform::
+* If the Transform is configured to write to an alias as its destination index, when the delete_dest_index parameter is set to true, then the Delete API will now delete the write index backing the alias {es-pull}122074[#122074] (issue: {es-issue}121913[#121913])
+
+Vector Search::
+* Knn vector rescoring to sort score docs {es-pull}122653[#122653] (issue: {es-issue}119711[#119711])
+
+[[deprecation-9.0.0]]
+[float]
+=== Deprecations
+
+Search::
+* Deprecate Behavioral Analytics CRUD apis {es-pull}122960[#122960]
+
+[[enhancement-9.0.0]]
+[float]
+=== Enhancements
+
+Authorization::
+* Do not fetch reserved roles from native store when Get Role API is called {es-pull}121971[#121971]
+
+Data streams::
+* Retry ILM async action after reindexing data stream {es-pull}124149[#124149]
+* Set cause on create index request in create from action {es-pull}124363[#124363]
+
+Downsampling::
+* Improve downsample performance by buffering docids and do bulk processing {es-pull}124477[#124477]
+* Improve rolling up metrics {es-pull}124739[#124739]
+
+ES|QL::
+* Allow skip shards with `_tier` and `_index` in ES|QL {es-pull}123728[#123728]
+* ES|QL - Add scoring for full text functions disjunctions {es-pull}121793[#121793]
+* Fix Driver status iterations and `cpuTime` {es-pull}123290[#123290] (issue: {es-issue}122967[#122967])
+* Push down `StartsWith` and `EndsWith` functions to Lucene {es-pull}123381[#123381] (issue: {es-issue}123067[#123067])
+
+Infra/Core::
+* Improve size limiting string message {es-pull}122427[#122427]
+
+Ingest Node::
+* Allow setting the `type` in the reroute processor {es-pull}122409[#122409] (issue: {es-issue}121553[#121553])
+
+[[feature-9.0.0]]
+[float]
+=== New features
+
+ES|QL::
+* Initial support for unmapped fields {es-pull}119886[#119886]
+
+[[upgrade-9.0.0]]
+[float]
+=== Upgrades
+
+Security::
+* Bump nimbus-jose-jwt to 10.0.2 {es-pull}124544[#124544]
+
+Snapshot/Restore::
+* Upgrade AWS SDK to v1.12.746 {es-pull}122431[#122431]
+
+

@@ -163,8 +163,8 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         } finally {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
-        Exception error = expectThrows(Exception.class, requestFuture::actionGet);
-        assertThat(error.getMessage(), containsString("proxy timeout"));
+        RemoteComputeException rce = expectThrows(RemoteComputeException.class, requestFuture::actionGet);
+        assertThat(rce.getCause().getMessage(), containsString("proxy timeout"));
     }
 
     public void testSameRemoteClusters() throws Exception {

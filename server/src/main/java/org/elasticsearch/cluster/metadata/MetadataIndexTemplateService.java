@@ -379,7 +379,10 @@ public class MetadataIndexTemplateService {
 
         if (finalComponentTemplate.template().lifecycle() != null) {
             // We do not know if this lifecycle will belong to an internal data stream, so we fall back to a non internal.
-            finalComponentTemplate.template().lifecycle().addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
+            finalComponentTemplate.template()
+                .lifecycle()
+                .toDataStreamLifecycle()
+                .addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
@@ -816,7 +819,7 @@ public class MetadataIndexTemplateService {
         ComposableIndexTemplate template,
         @Nullable DataStreamGlobalRetention globalRetention
     ) {
-        DataStreamLifecycle lifecycle = resolveLifecycle(template, project.componentTemplates());
+        DataStreamLifecycle.Template lifecycle = resolveLifecycle(template, project.componentTemplates());
         if (lifecycle != null) {
             if (template.getDataStreamTemplate() == null) {
                 throw new IllegalArgumentException(
@@ -829,7 +832,7 @@ public class MetadataIndexTemplateService {
                 // We cannot know for sure if the template will apply to internal data streams, so we use a simpler heuristic:
                 // If all the index patterns start with a dot, we consider that all the connected data streams are internal.
                 boolean isInternalDataStream = template.indexPatterns().stream().allMatch(indexPattern -> indexPattern.charAt(0) == '.');
-                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
+                lifecycle.toDataStreamLifecycle().addWarningHeaderIfDataRetentionNotEffective(globalRetention, isInternalDataStream);
             }
         }
     }
@@ -1620,7 +1623,7 @@ public class MetadataIndexTemplateService {
      * Resolve the given v2 template into a {@link DataStreamLifecycle} object
      */
     @Nullable
-    public static DataStreamLifecycle resolveLifecycle(ProjectMetadata metadata, final String templateName) {
+    public static DataStreamLifecycle.Template resolveLifecycle(ProjectMetadata metadata, final String templateName) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve lifecycle for a template [" + templateName + "] that did not exist in the cluster state";
@@ -1634,19 +1637,19 @@ public class MetadataIndexTemplateService {
      * Resolve the provided v2 template and component templates into a {@link DataStreamLifecycle} object
      */
     @Nullable
-    public static DataStreamLifecycle resolveLifecycle(
+    public static DataStreamLifecycle.Template resolveLifecycle(
         ComposableIndexTemplate template,
         Map<String, ComponentTemplate> componentTemplates
     ) {
         Objects.requireNonNull(template, "attempted to resolve lifecycle for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve lifecycle with null component templates");
 
-        List<DataStreamLifecycle> lifecycles = new ArrayList<>();
+        List<DataStreamLifecycle.Template> lifecycles = new ArrayList<>();
         for (String componentTemplateName : template.composedOf()) {
             if (componentTemplates.containsKey(componentTemplateName) == false) {
                 continue;
             }
-            DataStreamLifecycle lifecycle = componentTemplates.get(componentTemplateName).template().lifecycle();
+            DataStreamLifecycle.Template lifecycle = componentTemplates.get(componentTemplateName).template().lifecycle();
             if (lifecycle != null) {
                 lifecycles.add(lifecycle);
             }
@@ -1697,18 +1700,18 @@ public class MetadataIndexTemplateService {
      * @return the final lifecycle
      */
     @Nullable
-    public static DataStreamLifecycle composeDataLifecycles(List<DataStreamLifecycle> lifecycles) {
-        DataStreamLifecycle.Builder builder = null;
-        for (DataStreamLifecycle current : lifecycles) {
+    public static DataStreamLifecycle.Template composeDataLifecycles(List<DataStreamLifecycle.Template> lifecycles) {
+        DataStreamLifecycle.Template.Builder builder = null;
+        for (DataStreamLifecycle.Template current : lifecycles) {
             if (builder == null) {
-                builder = DataStreamLifecycle.newBuilder(current);
+                builder = DataStreamLifecycle.Template.builder(current);
             } else {
-                builder.enabled(current.isEnabled());
-                if (current.getDataRetention() != null) {
-                    builder.dataRetention(current.getDataRetention());
+                builder.enabled(current.enabled());
+                if (current.dataRetention().isDefined()) {
+                    builder.dataRetention(current.dataRetention());
                 }
-                if (current.getDownsampling() != null) {
-                    builder.downsampling(current.getDownsampling());
+                if (current.downsampling().isDefined()) {
+                    builder.downsampling(current.downsampling());
                 }
             }
         }
@@ -1905,7 +1908,7 @@ public class MetadataIndexTemplateService {
             createdIndex = dummyIndexService.index();
 
             if (mappings != null) {
-                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.MAPPING_UPDATE);
+                dummyIndexService.mapperService().merge(MapperService.SINGLE_MAPPING_NAME, mappings, MergeReason.INDEX_TEMPLATE);
             }
 
         } finally {

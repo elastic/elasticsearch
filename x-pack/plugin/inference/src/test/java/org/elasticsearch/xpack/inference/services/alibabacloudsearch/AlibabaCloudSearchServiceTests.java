@@ -490,7 +490,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             assertThat(
                 thrownException.getMessage(),
                 is(
-                    "Validation Failed: 1: Invalid return_documents [true]. The return_documents option is not supported by this service;2: Invalid top_n [10]. The top_n option is not supported by this service;"
+                    "Validation Failed: 1: Invalid return_documents [true]. The return_documents option is not supported by this "
+                    + "service;2: Invalid top_n [10]. The top_n option is not supported by this service;"
                 )
             );
         }

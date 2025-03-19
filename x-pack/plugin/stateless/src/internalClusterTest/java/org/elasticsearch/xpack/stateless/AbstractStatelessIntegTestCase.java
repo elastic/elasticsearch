@@ -42,6 +42,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.blobcache.BlobCachePlugin;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.client.internal.Client;
@@ -826,6 +827,27 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     protected void flushNoForceNoWait(String... indexNames) {
         client().admin().indices().prepareFlush(indexNames).setForce(false).setWaitIfOngoing(false).get(TimeValue.timeValueSeconds(10));
+    }
+
+    /**
+     * Waits for all relocations and force merge all indices in the cluster to 1 segment.
+     * Optionally, asserts that there is indeed a single segment on indexing shards only.
+     */
+    @Override
+    protected BroadcastResponse forceMerge(boolean assertOneSegmentOnPrimaries) {
+        var forceMergeResponse = super.forceMerge(false);
+        if (assertOneSegmentOnPrimaries) {
+            // after a force merge there should only be 1 segment per shard
+            var shardsWithMultipleSegments = getShardSegments().stream()
+                .filter(shardSegments -> shardSegments.getShardRouting().isPromotableToPrimary())
+                .filter(shardSegments -> shardSegments.getSegments().size() > 1)
+                .toList();
+            assertTrue(
+                "there are primary shards with multiple segments " + shardsWithMultipleSegments,
+                shardsWithMultipleSegments.isEmpty()
+            );
+        }
+        return forceMergeResponse;
     }
 
     protected static void assertNodeHasNoCurrentRecoveries(String nodeName) {

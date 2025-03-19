@@ -53,6 +53,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -478,7 +479,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         for (Index index : targetIndices) {
             IndexMetadata backingIndexMeta = metadata.getProject().index(index);
             assert backingIndexMeta != null : "the data stream backing indices must exist";
-            List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
                 index,
                 metadata.getProject()::index,
                 nowSupplier
@@ -516,18 +517,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> waitForInProgressOrTriggerDownsampling(
         DataStream dataStream,
         IndexMetadata backingIndex,
-        List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds,
+        List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
         Metadata metadata
     ) {
         assert dataStream.getIndices().contains(backingIndex.getIndex())
             : "the provided backing index must be part of data stream:" + dataStream.getName();
         assert downsamplingRounds.isEmpty() == false : "the index should be managed and have matching downsampling rounds";
         Set<Index> affectedIndices = new HashSet<>();
-        DataStreamLifecycle.Downsampling.Round lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
+        DataStreamLifecycle.DownsamplingRound lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
         Index index = backingIndex.getIndex();
         String indexName = index.getName();
-        for (DataStreamLifecycle.Downsampling.Round round : downsamplingRounds) {
+        for (DataStreamLifecycle.DownsamplingRound round : downsamplingRounds) {
             // the downsample index name for each round is deterministic
             String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
                 DOWNSAMPLED_INDEX_PREFIX,
@@ -565,7 +566,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /**
      * Issues a request downsample the source index to the downsample index for the specified round.
      */
-    private void downsampleIndexOnce(DataStreamLifecycle.Downsampling.Round round, String sourceIndex, String downsampleIndexName) {
+    private void downsampleIndexOnce(DataStreamLifecycle.DownsamplingRound round, String sourceIndex, String downsampleIndexName) {
         DownsampleAction.Request request = new DownsampleAction.Request(
             TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */,
             sourceIndex,
@@ -598,8 +599,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> evaluateDownsampleStatus(
         DataStream dataStream,
         IndexMetadata.DownsampleTaskStatus downsampleStatus,
-        DataStreamLifecycle.Downsampling.Round currentRound,
-        DataStreamLifecycle.Downsampling.Round lastRound,
+        DataStreamLifecycle.DownsamplingRound currentRound,
+        DataStreamLifecycle.DownsamplingRound lastRound,
         Index backingIndex,
         Index downsampleIndex
     ) {
@@ -695,10 +696,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     downsampleIndexName,
                     dataStream
                 );
+                @FixForMultiProject(description = "The correct project ID should be passed here")
+                final var projectId = ProjectId.DEFAULT;
                 swapSourceWithDownsampleIndexQueue.submitTask(
                     "data-stream-lifecycle-delete-source[" + backingIndexName + "]-add-to-datastream-[" + downsampleIndexName + "]",
                     new DeleteSourceAndAddDownsampleToDS(
                         settings,
+                        projectId,
                         dataStream.getName(),
                         backingIndexName,
                         downsampleIndexName,

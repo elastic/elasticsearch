@@ -147,7 +147,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testRolloverLifecycle() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
@@ -179,7 +179,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testRolloverAndRetention() throws Exception {
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(0).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder().dataRetention(TimeValue.ZERO).build();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -322,7 +322,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          * days ago, and one with an origination date 1 day ago. After data stream lifecycle runs, we expect the one with the old
          * origination date to have been deleted, and the one with the newer origination date to remain.
          */
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(7)).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder().dataRetention(TimeValue.timeValueDays(7)).build();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -394,7 +394,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testUpdatingLifecycleAppliesToAllBackingIndices() throws Exception {
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -438,7 +438,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          * because all necessary merging has already happened automatically. So in order to detect whether forcemerge has been called, we
          * use a SendRequestBehavior in the MockTransportService to detect it.
          */
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
         disableDataStreamLifecycle();
         String dataStreamName = "metrics-foo";
         putComposableIndexTemplate(
@@ -540,7 +540,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testErrorRecordingOnRollover() throws Exception {
         // empty lifecycle contains the default rollover
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
          * could result in data stream lifecycle's automatic forcemerge failing, which would result in an unexpected error in the error
@@ -698,7 +698,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     public void testErrorRecordingOnRetention() throws Exception {
         // starting with a lifecycle without retention so we can rollover the data stream and manipulate the second generation index such
         // that its retention execution fails
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
 
         /*
          * We set index.auto_expand_replicas to 0-1 so that if we get a single-node cluster it is not yellow. The cluster being yellow
@@ -873,7 +873,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testDataLifecycleServiceConfiguresTheMergePolicy() throws Exception {
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
 
         putComposableIndexTemplate(
             "id1",
@@ -974,7 +974,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testReenableDataStreamLifecycle() throws Exception {
         // start with a lifecycle that's not enabled
-        DataStreamLifecycle lifecycle = new DataStreamLifecycle(null, null, false);
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder().enabled(false).build();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
@@ -1033,15 +1033,13 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testLifecycleAppliedToFailureStore() throws Exception {
         // We configure a lifecycle with downsampling to ensure it doesn't fail
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
-            .dataRetention(20_000)
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
+            .dataRetention(TimeValue.timeValueSeconds(20))
             .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(10),
+                        new DownsampleConfig(new DateHistogramInterval("10m"))
                     )
                 )
             )
@@ -1207,7 +1205,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamLifecycle.Template lifecycle,
         boolean withFailureStore
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
@@ -1270,7 +1268,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                             Template.builder()
                                 .settings(Settings.EMPTY)
                                 .lifecycle(
-                                    DataStreamLifecycle.newBuilder()
+                                    DataStreamLifecycle.Template.builder()
                                         .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
                                 )
                         )

@@ -120,18 +120,16 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     public void testDownsamplingAuthorized() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
             .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        ),
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
+                    ),
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueSeconds(10),
+                        new DownsampleConfig(new DateHistogramInterval("10m"))
                     )
                 )
             )
@@ -285,7 +283,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         String dataStreamName,
         @Nullable String startTime,
         @Nullable String endTime,
-        DataStreamLifecycle lifecycle,
+        DataStreamLifecycle.Template lifecycle,
         int docCount,
         String firstDocTimestamp
     ) throws IOException {
@@ -299,7 +297,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         String pattern,
         @Nullable String startTime,
         @Nullable String endTime,
-        DataStreamLifecycle lifecycle
+        DataStreamLifecycle.Template lifecycle
     ) throws IOException {
         Settings.Builder settings = indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
             .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1));
@@ -337,7 +335,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle
+        @Nullable DataStreamLifecycle.Template lifecycle
     ) {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -412,18 +410,16 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
-        public static final DataStreamLifecycle LIFECYCLE = DataStreamLifecycle.newBuilder()
+        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.Template.builder()
             .downsampling(
-                new DataStreamLifecycle.Downsampling(
-                    List.of(
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueMillis(0),
-                            new DownsampleConfig(new DateHistogramInterval("5m"))
-                        ),
-                        new DataStreamLifecycle.Downsampling.Round(
-                            TimeValue.timeValueSeconds(10),
-                            new DownsampleConfig(new DateHistogramInterval("10m"))
-                        )
+                List.of(
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueMillis(0),
+                        new DownsampleConfig(new DateHistogramInterval("5m"))
+                    ),
+                    new DataStreamLifecycle.DownsamplingRound(
+                        TimeValue.timeValueSeconds(10),
+                        new DownsampleConfig(new DateHistogramInterval("10m"))
                     )
                 )
             )

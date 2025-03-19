@@ -104,8 +104,6 @@ public class EntitlementInitialization {
         var verifyBytecode = Booleans.parseBoolean(System.getProperty("es.entitlements.verify_bytecode", "false"));
 
         if (verifyBytecode) {
-            // If bytecode verification is enabled, ensure these classes get loaded - for these classes, the order of initialization
-            // matters and gets changed by the verification process
             ensureClassesSensitiveToVerificationAreInitialized();
         }
 
@@ -447,6 +445,13 @@ public class EntitlementInitialization {
         });
     }
 
+    /**
+     * If bytecode verification is enabled, ensure these classes get loaded before transforming/retransforming them.
+     * For these classes, the order in which we transform and verify them matters. Verification during class transformation is at least an
+     * unforeseen (if not unsupported) scenario: we are loading a class, and while we are still loading it (during transformation) we try
+     * to verify it. This in turn leads to more classes loading (for verification purposes), which could turn into those classes to be
+     * transformed and undergo verification. In order to avoid circularity errors as much as possible, we force a partial order.
+     */
     private static void ensureClassesSensitiveToVerificationAreInitialized() {
         var classesToInitialize = Set.of("sun.net.www.protocol.http.HttpURLConnection");
         for (String className : classesToInitialize) {

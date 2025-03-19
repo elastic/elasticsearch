@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -21,43 +20,62 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.ANALYZER_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZINESS_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.LENIENT_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.MAX_EXPANSIONS_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.OPERATOR_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.PREFIX_LENGTH_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.SLOP_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.TIE_BREAKER_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.TYPE_FIELD;
 
 public class MultiMatchQuery extends Query {
 
-    private static final Map<String, BiConsumer<MultiMatchQueryBuilder, String>> BUILDER_APPLIERS;
+    private static final Map<String, BiConsumer<MultiMatchQueryBuilder, Object>> BUILDER_APPLIERS;
 
     static {
         // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
+        // TODO: update to "native" types like int, str.
         BUILDER_APPLIERS = Map.ofEntries(
-            entry("slop", (qb, s) -> qb.slop(Integer.valueOf(s))),
+            entry(SLOP_FIELD.getPreferredName(), (qb, obj) -> qb.slop((Integer) obj)),
             // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
             // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));
-            entry("analyzer", MultiMatchQueryBuilder::analyzer),
-            entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
-            entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
-            entry("fuzzy_rewrite", MultiMatchQueryBuilder::fuzzyRewrite),
-            entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
-            entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
-            entry("max_expansions", (qb, s) -> qb.maxExpansions(Integer.valueOf(s))),
-            entry("minimum_should_match", MultiMatchQueryBuilder::minimumShouldMatch),
-            entry("operator", (qb, s) -> qb.operator(Operator.fromString(s))),
-            entry("prefix_length", (qb, s) -> qb.prefixLength(Integer.valueOf(s))),
-            entry("tie_breaker", (qb, s) -> qb.tieBreaker(Float.valueOf(s))),
-            entry("type", MultiMatchQueryBuilder::type)
+            entry(ANALYZER_FIELD.getPreferredName(), (qb, obj) -> qb.analyzer((String) obj)),
+            entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), (qb, obj) -> qb.autoGenerateSynonymsPhraseQuery((Boolean) obj)),
+            entry(FUZZINESS_FIELD.getPreferredName(), (qb, obj) -> qb.fuzziness(Fuzziness.fromString((String) obj))),
+            entry("fuzzy_rewrite", (qb, obj) -> qb.fuzzyRewrite((String) obj)),
+            entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), (qb, obj) -> qb.fuzzyTranspositions((Boolean) obj)),
+            entry(LENIENT_FIELD.getPreferredName(), (qb, obj) -> qb.lenient((Boolean) obj)),
+            entry(MAX_EXPANSIONS_FIELD.getPreferredName(), (qb, obj) -> qb.maxExpansions((Integer) obj)),
+            entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), (qb, obj) -> qb.minimumShouldMatch((String) obj)),
+            entry(OPERATOR_FIELD.getPreferredName(), (qb, obj) -> qb.operator(Operator.fromString((String) obj))),
+            entry(PREFIX_LENGTH_FIELD.getPreferredName(), (qb, obj) -> qb.prefixLength((Integer) obj)),
+            entry(TIE_BREAKER_FIELD.getPreferredName(), (qb, obj) -> qb.tieBreaker((Float) obj)),
+            entry(TYPE_FIELD.getPreferredName(), (qb, obj) -> qb.type((String) obj))
         );
     }
 
     private final String query;
     private final Map<String, Float> fields;
-    private final Map<String, String> options;
+    private final Map<String, Object> options;
     private final MultiMatchQueryPredicate predicate;
 
-    public MultiMatchQuery(Source source, String query, Map<String, Float> fields, MultiMatchQueryPredicate predicate) {
+    public MultiMatchQuery(
+        Source source,
+        String query,
+        Map<String, Float> fields,
+        Map<String, Object> options,
+        MultiMatchQueryPredicate predicate
+    ) {
         super(source);
         this.query = query;
         this.fields = fields;
         this.predicate = predicate;
-        this.options = predicate.optionMap();
+        this.options = options;
     }
 
     @Override

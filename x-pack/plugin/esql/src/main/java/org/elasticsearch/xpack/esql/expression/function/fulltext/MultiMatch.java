@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
@@ -53,13 +54,28 @@ import static org.elasticsearch.index.query.MultiMatchQueryBuilder.PREFIX_LENGTH
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.SLOP_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.TIE_BREAKER_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.TYPE_FIELD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery} .
@@ -69,6 +85,23 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         Expression.class,
         "MultiMatch",
         MultiMatch::readFrom
+    );
+
+    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT, SEMANTIC_TEXT);
+
+    public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
+        KEYWORD,
+        TEXT,
+        SEMANTIC_TEXT,
+        BOOLEAN,
+        DATETIME,
+        DATE_NANOS,
+        DOUBLE,
+        INTEGER,
+        IP,
+        LONG,
+        UNSIGNED_LONG,
+        VERSION
     );
 
     public static final Map<String, DataType> OPTIONS = Map.ofEntries(
@@ -116,12 +149,12 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     }
 
     private final transient Expression options;
+    private final transient List<Expression> fields;
 
-    // Need: "type" child, fields: array.
-    // Other options: come as extra fields?
     private MultiMatch(Source source, Expression query, List<Expression> fields, Expression options, QueryBuilder queryBuilder) {
         super(source, query, Stream.concat(Stream.concat(Stream.of(query), fields.stream()), Stream.of(options)).toList(), queryBuilder);
         this.options = options;
+        this.fields = fields;
     }
 
     private static MultiMatch readFrom(StreamInput in) throws IOException {
@@ -135,20 +168,14 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(children().getFirst());
-        out.writeNamedWriteableCollection(children().subList(1, children().size() - 1));
-        out.writeNamedWriteable(children().getLast());
+        out.writeNamedWriteable(query());
+        out.writeNamedWriteableCollection(fields);
+        out.writeNamedWriteable(options);
     }
 
     @Override
     public String getWriteableName() {
         return ENTRY.name;
-    }
-
-    @Override
-    protected TypeResolution resolveParams() {
-        // TODO
-        return null;
     }
 
     @Override
@@ -164,30 +191,21 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(
-            this,
-            MultiMatch::new,
-            children().getFirst(),
-            children().subList(1, children().size() - 1),
-            children().getLast()
-        );
+        return NodeInfo.create(this, MultiMatch::new, query(), fields, options);
     }
 
     @Override
     protected Query translate(TranslatorHandler handler) {
-        // TODO
-        return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), Map.of(), /*getOptions()*/ null);
+        Map<String, Float> fieldsWithBoost = new HashMap<>();
+        for (Expression field : fields) {
+            fieldsWithBoost.put((String) ((Literal) field).value(), 1.0f);
+        }
+        return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, getOptions(), null);
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new MultiMatch(
-            source(),
-            children().getFirst(),
-            children().subList(1, children().size() - 1),
-            children().getLast(),
-            queryBuilder
-        );
+        return new MultiMatch(source(), query(), fields, options, queryBuilder);
     }
 
     public Expression options() {
@@ -235,4 +253,52 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         return ENTRY.name;
     }
 
+    private TypeResolution resolveFields() {
+        return fields.stream()
+            .map(
+                (Expression field) -> isNotNull(field, sourceText(), FIRST).and(
+                    isType(
+                        field,
+                        FIELD_DATA_TYPES::contains,
+                        sourceText(),
+                        SECOND,
+                        "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+                    )
+                )
+            )
+            .reduce(TypeResolution::and)
+            .get();
+    }
+
+    private TypeResolution resolveOptions() {
+        if (options() != null) {
+            TypeResolution resolution = isNotNull(options(), sourceText(), THIRD);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+            // MapExpression does not have a DataType associated with it
+            resolution = isMapExpression(options(), sourceText(), THIRD);
+            if (resolution.unresolved()) {
+                return resolution;
+            }
+
+            try {
+                getOptions();
+            } catch (InvalidArgumentException e) {
+                return new TypeResolution(e.getMessage());
+            }
+        }
+        return TypeResolution.TYPE_RESOLVED;
+    }
+
+    private TypeResolution resolveQuery() {
+        return isType(query(), QUERY_DATA_TYPES::contains, sourceText(), FIRST, "keyword, text, semantic_text").and(
+            isNotNullAndFoldable(query(), sourceText(), FIRST)
+        );
+    }
+
+    @Override
+    protected TypeResolution resolveParams() {
+        return resolveQuery().and(resolveFields()).and(resolveOptions());
+    }
 }

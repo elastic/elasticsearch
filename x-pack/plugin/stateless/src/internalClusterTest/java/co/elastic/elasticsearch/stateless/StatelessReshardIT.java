@@ -125,36 +125,6 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
     }
 
-    /**
-     * A future that waits if necessary for cluster state to match a given predicate, and returns that state
-     * @param predicate continue waiting for state updates until true
-     * @return A future whose get() will resolve to the cluster state that matches the supplied predicate
-     */
-    private PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {
-        var future = new PlainActionFuture<ClusterState>();
-        var listener = new ClusterStateObserver.Listener() {
-            @Override
-            public void onNewClusterState(ClusterState state) {
-                logger.info("cluster state updated: version {}", state.version());
-                future.onResponse(state);
-            }
-
-            @Override
-            public void onClusterServiceClose() {
-                future.onFailure(null);
-            }
-
-            @Override
-            public void onTimeout(TimeValue timeout) {
-                future.onFailure(new TimeoutException(timeout.toString()));
-            }
-        };
-
-        ClusterStateObserver.waitForState(clusterService(), new ThreadContext(Settings.EMPTY), listener, predicate, null, logger);
-
-        return future;
-    }
-
     public void testReshardSearchShardWillNotBeAllocatedUntilIndexingShard() {
         String indexNode = startMasterAndIndexNode();
         startSearchNode();
@@ -287,6 +257,44 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         );
     }
 
+    // only one resharding operation on a given index should be allowed to be in flight at a time
+    public void testConcurrentReshardFails() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+        ensureStableCluster(1);
+
+        // create index
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        checkNumberOfShardsSetting(indexNode, indexName, 1);
+
+        // block allocation so that resharding will stall
+        updateClusterSettings(Settings.builder().put("cluster.routing.allocation.enable", "none"));
+
+        // start first resharding operation
+        var splitState = waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() != null);
+        var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
+
+        // wait until we know it's in progress
+        var ignored = splitState.get(30, TimeUnit.SECONDS).projectState().metadata().index(indexName).getReshardingMetadata();
+
+        // now start a second reshard, which should fail
+        var failedReshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
+
+        // unblock allocation to allow operations to proceed
+        updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
+
+        assertThrows(IllegalStateException.class, () -> failedReshardAction.actionGet(TimeValue.THIRTY_SECONDS));
+
+        reshardAction.actionGet(TimeValue.THIRTY_SECONDS);
+
+        checkNumberOfShardsSetting(indexNode, indexName, 2);
+
+        // now we should be able to resplit
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(TimeValue.THIRTY_SECONDS);
+        checkNumberOfShardsSetting(indexNode, indexName, 4);
+    }
+
     private static long getIndexCount(IndicesStatsResponse statsResponse, int shardId) {
         ShardStats primaryStats = Arrays.stream(statsResponse.getShards())
             .filter(shardStat -> shardStat.getShardRouting().primary() && shardStat.getShardRouting().id() == shardId)
@@ -341,5 +349,35 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
             ),
             equalTo(expected_shards)
         );
+    }
+
+    /**
+     * A future that waits if necessary for cluster state to match a given predicate, and returns that state
+     * @param predicate continue waiting for state updates until true
+     * @return A future whose get() will resolve to the cluster state that matches the supplied predicate
+     */
+    private PlainActionFuture<ClusterState> waitForClusterState(Predicate<ClusterState> predicate) {
+        var future = new PlainActionFuture<ClusterState>();
+        var listener = new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                logger.info("cluster state updated: version {}", state.version());
+                future.onResponse(state);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                future.onFailure(null);
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                future.onFailure(new TimeoutException(timeout.toString()));
+            }
+        };
+
+        ClusterStateObserver.waitForState(clusterService(), new ThreadContext(Settings.EMPTY), listener, predicate, null, logger);
+
+        return future;
     }
 }

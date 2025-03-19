@@ -40,6 +40,10 @@ public class SystemIndicesUpgradeIT extends AbstractUpgradeTestCase {
         new SecureString(SecuritySettingsSourceField.TEST_PASSWORD)
     );
 
+    public static void avoidBugIn8_0_1() {
+        assumeTrue("https://github.com/elastic/elasticsearch/issues/125167", isOriginalClusterVersionAtLeast(Version.V_8_1_0));
+    }
+
     @Override
     protected Settings restAdminSettings() {
         // Note that we are both superuser here and provide a product origin

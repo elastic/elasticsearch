@@ -2,8 +2,7 @@
 
 **Supported types**
 
-| str | pattern | result |
-| --- | --- | --- |
-| keyword | keyword | boolean |
-| text | keyword | boolean |
+| number | result |
+| --- | --- |
+aggregate_metric_double
 

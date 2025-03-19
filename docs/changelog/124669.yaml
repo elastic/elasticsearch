@@ -1,7 +1,7 @@
 pr: 124669
 summary: Release semantic_text as a GA feature
 area: Mapping
-type: docs
+type: feature
 issues: []
 highlight:
   title: Release semantic_text as a GA feature

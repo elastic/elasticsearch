@@ -59,6 +59,7 @@
   - match: { hits.total.value: 2 }
 
   - do:
+      catch: /Fielddata access on the _id field is disallowed/
       search:
         index: test
         body:
@@ -71,12 +72,10 @@
                 }
               },
               "random_score": {
-                "seed": 10
+                "seed": 10,
+                "field": "_id"
               }
             }
-
-  - length: { hits.hits: 2 }
-  - match: { hits.total.value: 2 }
 
   - do:
       search:

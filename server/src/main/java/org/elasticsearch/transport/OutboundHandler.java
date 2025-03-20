@@ -45,7 +45,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
-final class OutboundHandler {
+public final class OutboundHandler {
 
     private static final Logger logger = LogManager.getLogger(OutboundHandler.class);
 
@@ -260,7 +260,8 @@ final class OutboundHandler {
         );
     }
 
-    static BytesReference serialize(
+    // public for tests
+    public static BytesReference serialize(
         String requestAction,
         long requestId,
         boolean isHandshake,

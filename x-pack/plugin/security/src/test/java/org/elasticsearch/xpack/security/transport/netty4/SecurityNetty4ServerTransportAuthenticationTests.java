@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.transport.netty4;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -15,9 +16,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -31,6 +35,10 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
+import org.elasticsearch.transport.Compression;
+import org.elasticsearch.transport.EmptyRequest;
+import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -50,6 +58,7 @@ import org.junit.Before;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -61,6 +70,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -313,6 +323,34 @@ public class SecurityNetty4ServerTransportAuthenticationTests extends ESTestCase
             } catch (SocketTimeoutException e) {
                 // timeout exception means the server is still connected. Just no data is coming which is normal
             }
+        }
+    }
+
+    public void testConnectionDisconnectedWhenAuthnFails() throws Exception {
+        authenticationException.set(new ElasticsearchSecurityException("authn failure"));
+        TransportAddress[] boundRemoteIngressAddresses = remoteSecurityNetty4ServerTransport.boundRemoteIngressAddress().boundAddresses();
+        InetSocketAddress remoteIngressTransportAddress = randomFrom(boundRemoteIngressAddresses).address();
+        try (Socket socket = new MockSocket(remoteIngressTransportAddress.getAddress(), remoteIngressTransportAddress.getPort())) {
+            Recycler<BytesRef> recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
+            BytesReference bytesReference = OutboundHandler.serialize(
+                "internal:whatever",
+                randomNonNegativeLong(),
+                false,
+                TransportVersion.current(),
+                false,
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
+                new EmptyRequest(),
+                threadPool.getThreadContext(),
+                out
+            );
+            socket.getOutputStream().write(Arrays.copyOfRange(bytesReference.array(), 0, bytesReference.length()));
+            socket.getOutputStream().flush();
+
+            final String response = new String(socket.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(response, containsString("authn failure"));
+            // -1 means the other side has disconnected
+            assertThat(socket.getInputStream().read(), equalTo(-1));
         }
     }
 

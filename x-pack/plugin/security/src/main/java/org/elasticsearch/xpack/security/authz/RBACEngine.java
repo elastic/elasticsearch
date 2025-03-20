@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -105,6 +106,7 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -874,15 +876,19 @@ public class RBACEngine implements AuthorizationEngine {
             // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
             if (includeDataStreams) {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (predicate.test(indexAbstraction)) {
+                    // failure indices are special: when accessed directly (not through ::failures on parent data stream) they are accessed
+                    // implicitly as data. However, authz to the parent data stream happens via the failures selector
+                    if (indexAbstraction.isFailureIndexOfDataStream()
+                        && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)) {
+                        indicesAndAliases.add(indexAbstraction.getName());
+                        // we know this is a failure index, and it's authorized so no need to check further
+                        continue;
+                    }
+                    if (predicate.test(indexAbstraction, IndexComponentSelector.DATA)) {
                         indicesAndAliases.add(indexAbstraction.getName());
                         if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
                             // add data stream and its backing indices for any authorized data streams
                             for (Index index : indexAbstraction.getIndices()) {
-                                indicesAndAliases.add(index.getName());
-                            }
-                            // TODO: We need to limit if a data stream's failure indices should return here.
-                            for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
                                 indicesAndAliases.add(index.getName());
                             }
                         }
@@ -890,26 +896,56 @@ public class RBACEngine implements AuthorizationEngine {
                 }
             } else {
                 for (IndexAbstraction indexAbstraction : lookup.values()) {
-                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction)) {
+                    if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                        // data check is correct, even for failure indices -- in this context, we treat them as regular indices, and
+                        // only include them if direct data access to them is granted (e.g., if a role has `read` over "*")
+                        && predicate.test(indexAbstraction, IndexComponentSelector.DATA)) {
                         indicesAndAliases.add(indexAbstraction.getName());
                     }
                 }
             }
             timeChecker.accept(indicesAndAliases);
             return indicesAndAliases;
-        }, name -> {
+        }, () -> {
+            // TODO handle time checking in a follow-up
+            Set<String> indicesAndAliases = new HashSet<>();
+            if (includeDataStreams) {
+                for (IndexAbstraction indexAbstraction : lookup.values()) {
+                    if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM
+                        && predicate.test(indexAbstraction, IndexComponentSelector.FAILURES)) {
+                        indicesAndAliases.add(indexAbstraction.getName());
+                        // add data stream and its backing failure indices for any authorized data streams
+                        for (Index index : ((DataStream) indexAbstraction).getFailureIndices()) {
+                            indicesAndAliases.add(index.getName());
+                        }
+                    }
+                }
+            }
+            return indicesAndAliases;
+        }, (name, selector) -> {
             final IndexAbstraction indexAbstraction = lookup.get(name);
             if (indexAbstraction == null) {
                 // test access (by name) to a resource that does not currently exist
                 // the action handler must handle the case of accessing resources that do not exist
-                return predicate.test(name, null);
-            } else {
-                // We check the parent data stream first if there is one. For testing requested indices, this is most likely
-                // more efficient than checking the index name first because we recommend grant privileges over data stream
-                // instead of backing indices.
-                return (indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream()))
-                    || predicate.test(indexAbstraction);
+                return predicate.test(name, null, selector);
             }
+            // We check the parent data stream first if there is one. For testing requested indices, this is most likely
+            // more efficient than checking the index name first because we recommend grant privileges over data stream
+            // instead of backing indices.
+            if (indexAbstraction.getParentDataStream() != null) {
+                if (indexAbstraction.isFailureIndexOfDataStream()) {
+                    // access to failure indices is authorized via failures-based selectors on the parent data stream _not_ via data
+                    // ones
+                    if (predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES)) {
+                        return true;
+                    }
+                } else if (IndexComponentSelector.DATA.equals(selector) || selector == null) {
+                    if (predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.DATA)) {
+                        return true;
+                    }
+                } // we don't support granting access to a backing index with a failure selector via the parent data stream
+            }
+            return predicate.test(indexAbstraction, selector);
         });
     }
 
@@ -1034,23 +1070,32 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     static final class AuthorizedIndices implements AuthorizationEngine.AuthorizedIndices {
+        private final CachedSupplier<Set<String>> authorizedAndAvailableDataResources;
+        private final CachedSupplier<Set<String>> authorizedAndAvailableFailuresResources;
+        private final BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate;
 
-        private final CachedSupplier<Set<String>> allAuthorizedAndAvailableSupplier;
-        private final Predicate<String> isAuthorizedPredicate;
-
-        AuthorizedIndices(Supplier<Set<String>> allAuthorizedAndAvailableSupplier, Predicate<String> isAuthorizedPredicate) {
-            this.allAuthorizedAndAvailableSupplier = CachedSupplier.wrap(allAuthorizedAndAvailableSupplier);
+        AuthorizedIndices(
+            Supplier<Set<String>> authorizedAndAvailableDataResources,
+            Supplier<Set<String>> authorizedAndAvailableFailuresResources,
+            BiPredicate<String, IndexComponentSelector> isAuthorizedPredicate
+        ) {
+            this.authorizedAndAvailableDataResources = CachedSupplier.wrap(authorizedAndAvailableDataResources);
+            this.authorizedAndAvailableFailuresResources = CachedSupplier.wrap(authorizedAndAvailableFailuresResources);
             this.isAuthorizedPredicate = Objects.requireNonNull(isAuthorizedPredicate);
         }
 
         @Override
-        public Supplier<Set<String>> all() {
-            return allAuthorizedAndAvailableSupplier;
+        public Set<String> all(IndexComponentSelector selector) {
+            Objects.requireNonNull(selector, "must specify a selector to get authorized indices");
+            return IndexComponentSelector.FAILURES.equals(selector)
+                ? authorizedAndAvailableFailuresResources.get()
+                : authorizedAndAvailableDataResources.get();
         }
 
         @Override
-        public boolean check(String name) {
-            return this.isAuthorizedPredicate.test(name);
+        public boolean check(String name, IndexComponentSelector selector) {
+            Objects.requireNonNull(selector, "must specify a selector for authorization check");
+            return isAuthorizedPredicate.test(name, selector);
         }
     }
 }

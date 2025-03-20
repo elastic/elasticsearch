@@ -229,6 +229,23 @@ works in parallel with the storage engine.)
 
 # Allocation
 
+### Indexes and Shards
+
+Each index consists of a fixed number of primary shards. The number of primary shards cannot be changed for the lifetime of the index. Each
+primary shard can have zero-to-many replicas used for data redundancy. The number of replicas per shard can be changed in runtime. Each
+shard copy (primary or replica) can be in one of four states:
+- UNASSIGNED: Not present on / assigned to any data node.
+- STARTED: Assigned to a specific data node and ready for indexing and search requests.
+- INITIALIZING: Running recovery on an assigned node. Fast for an empty new index shard. Possibly lengthy when restoring from a snapshot or
+moving from another node
+- RELOCATING - The state of a shard on a source node while the shard is being moved away to a target node: the target node is running
+recovery.
+
+The `RoutingTable` and `RoutingNodes` classes are responsible for tracking to which data nodes each shard in the cluster is allocated: see
+the [routing package javadoc][] for more details about these structures.
+
+[routing package javadoc]: https://github.com/elastic/elasticsearch/blob/v9.0.0-beta1/server/src/main/java/org/elasticsearch/cluster/routing/package-info.java
+
 ### Core Components
 
 The `DesiredBalanceShardsAllocator` is what runs shard allocation decisions. It leverages the `DesiredBalanceComputer` to produce
@@ -268,6 +285,22 @@ placed on the same data node. Node shard weight is based on a sum of factors: di
 of shards, and an incentive to distribute shards within the same index across different nodes. See the `WeightFunction` and
 `NodeAllocationStatsAndWeightsCalculator` classes for more details on the weight calculations that support the `DesiredBalanceComputer`
 decisions.
+
+### Inter-Node Communicaton
+
+The elected master node creates a shard allocation plan with the `DesiredBalanceShardsAllocator` and then selects incremental shard
+movements towards the target allocation plan with the `DesiredBalanceReconciler`. The results of the `DesiredBalanceReconciler` is an
+updated `RoutingTable`. The `RoutingTable` is part of the cluster state, so the master node updates the cluster state with the new
+(incremental) desired shard allocation information. The updated cluster state is then published to the data nodes. Each data node will
+observe any change in shard allocation related to that node and take action to achieve the new shard allocation by initiating creation of a
+new empty shard, starting recovery (copying) of an existing shard from another data node, or remove a shard. When the data node finishes
+a shard change, a request is sent to the master node to update the shard as having finished recovery/removal in the cluster state. The
+cluster state is used by allocation as a fancy work queue: the master node conveys new work to the data nodes, which pick up the work and
+report back when done.
+
+See `DesiredBalanceShardsAllocator#submitReconcileTask` for the master node's cluster state update post-reconciliation.
+See `IndicesClusterStateService#doApplyClusterState` for the data node hook to observe shard changes in the cluster state.
+See `ShardStateAction#sendShardAction` for the data node request to the master node on completion of a shard state change.
 
 # Autoscaling
 

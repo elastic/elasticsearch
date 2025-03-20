@@ -14,17 +14,14 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -592,7 +589,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // comma separated indices, with exclusions
         // Invalid index names after removing exclusion fail, when there is no index name with wildcard before it
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP_🐔")) {
+            if (command.contains("LOOKUP_🐔") || command.contains("METRICS")) {
                 continue;
             }
 
@@ -609,7 +606,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
         String dateMathError = "unit [D] not supported for date math [/D]";
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP_🐔")) {
+            if (command.contains("LOOKUP_🐔") || command.contains("METRICS")) {
                 continue;
             }
             lineNumber = command.contains("FROM") ? "line 1:9: " : "line 1:12: ";
@@ -649,23 +646,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', 'metadata'}");
         expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', 'metadata'}");
-    }
-
-    public void testInvalidQuotingAsMetricsIndexPattern() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        expectError("METRICS \"foo", ": token recognition error at: '\"foo'");
-        expectError("METRICS \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
-        expectError("METRICS \"\"\"foo", ": token recognition error at: '\"'");
-
-        expectError("METRICS foo\"", ": token recognition error at: '\"'");
-        expectError("METRICS foo\" | LIMIT 2", ": token recognition error at: '\"'");
-        expectError("METRICS foo\"\"\"", ": token recognition error at: '\"'");
-
-        expectError("METRICS \"foo\"bar\"", ": token recognition error at: '\"'");
-        expectError("METRICS \"foo\"\"bar\"", ": token recognition error at: '\"'");
-
-        expectError("METRICS \"\"\"foo\"\"\"bar\"\"\"", ": token recognition error at: '\"'");
-        expectError("METRICS \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": token recognition error at: '\"'");
     }
 
     public void testInvalidQuotingAsLookupIndexPattern() {
@@ -2189,11 +2169,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testMetricsWithoutStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
-        assertStatement("METRICS foo", unresolvedRelation("foo"));
-        assertStatement("METRICS foo,bar", unresolvedRelation("foo,bar"));
-        assertStatement("METRICS foo*,bar", unresolvedRelation("foo*,bar"));
-        assertStatement("METRICS foo-*,bar", unresolvedRelation("foo-*,bar"));
-        assertStatement("METRICS foo-*,bar+*", unresolvedRelation("foo-*,bar+*"));
+        assertStatement("METRICS foo", unresolvedTSRelation("foo"));
+        assertStatement("METRICS foo,bar", unresolvedTSRelation("foo,bar"));
+        assertStatement("METRICS foo*,bar", unresolvedTSRelation("foo*,bar"));
+        assertStatement("METRICS foo-*,bar", unresolvedTSRelation("foo-*,bar"));
+        assertStatement("METRICS foo-*,bar+*", unresolvedTSRelation("foo-*,bar+*"));
     }
 
     public void testMetricsIdentifiers() {
@@ -2205,38 +2185,38 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Map.entry("metrics <logstash-{now/M{yyyy.MM}}>", "<logstash-{now/M{yyyy.MM}}>")
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
-            assertStatement(e.getKey(), unresolvedRelation(e.getValue()));
+            assertStatement(e.getKey(), unresolvedTSRelation(e.getValue()));
         }
     }
 
     public void testSimpleMetricsWithStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStatement(
-            "METRICS foo load=avg(cpu) BY ts",
+            "METRICS foo | STATS load=avg(cpu) BY ts",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo"),
-                Aggregate.AggregateType.METRICS,
+                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
         );
         assertStatement(
-            "METRICS foo,bar load=avg(cpu) BY ts",
+            "METRICS foo,bar | STATS load=avg(cpu) BY ts",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
-                Aggregate.AggregateType.METRICS,
+                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
         );
         assertStatement(
-            "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
+            "METRICS foo,bar | STATS load=avg(cpu),max(rate(requests)) BY ts",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo,bar"),
-                Aggregate.AggregateType.METRICS,
+                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("ts")),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
@@ -2255,51 +2235,51 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
         assertStatement(
-            "METRICS foo* count(errors)",
+            "METRICS foo* | STATS count(errors)",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.METRICS,
+                Aggregate.AggregateType.STANDARD,
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
             )
         );
         assertStatement(
-            "METRICS foo* a(b)",
+            "METRICS foo* | STATS a(b)",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.METRICS,
+                Aggregate.AggregateType.STANDARD,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
         );
         assertStatement(
-            "METRICS foo* a(b)",
+            "METRICS foo* | STATS a(b)",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.METRICS,
+                Aggregate.AggregateType.STANDARD,
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
         );
         assertStatement(
-            "METRICS foo* a1(b2)",
+            "METRICS foo* | STATS a1(b2)",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*"),
-                Aggregate.AggregateType.METRICS,
+                Aggregate.AggregateType.STANDARD,
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
             )
         );
         assertStatement(
-            "METRICS foo*,bar* b = min(a) by c, d.e",
+            "METRICS foo*,bar* | STATS b = min(a) by c, d.e",
             new Aggregate(
                 EMPTY,
                 unresolvedTSRelation("foo*,bar*"),
-                Aggregate.AggregateType.METRICS,
+                Aggregate.AggregateType.STANDARD,
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
@@ -2335,13 +2315,12 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private LogicalPlan unresolvedTSRelation(String index) {
-        List<Attribute> metadata = List.of(new MetadataAttribute(EMPTY, MetadataAttribute.TSID_FIELD, DataType.KEYWORD, false));
-        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, metadata, IndexMode.TIME_SERIES, null, "FROM TS");
+        return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.TIME_SERIES, null, "METRICS");
     }
 
     public void testMetricWithGroupKeyAsAgg() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        var queries = List.of("METRICS foo a BY a");
+        var queries = List.of("METRICS foo | STATS a BY a");
         for (String query : queries) {
             expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
         }

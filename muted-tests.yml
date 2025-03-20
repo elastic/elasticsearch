@@ -158,9 +158,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
-- class: org.elasticsearch.search.ccs.CrossClusterIT
-  method: testCancel
-  issue: https://github.com/elastic/elasticsearch/issues/108061
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testInvalidJSON
   issue: https://github.com/elastic/elasticsearch/issues/120482
@@ -288,9 +285,6 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable is missing}
   issue: https://github.com/elastic/elasticsearch/issues/124168
-- class: org.elasticsearch.search.fieldcaps.FieldCapabilitiesIT
-  method: testRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/124227
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
   issue: https://github.com/elastic/elasticsearch/issues/124315
@@ -402,15 +396,15 @@ tests:
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testGetDataStreamResponse
   issue: https://github.com/elastic/elasticsearch/issues/125083
-- class: org.elasticsearch.discovery.ec2.Ec2DiscoveryTests
-  method: testFilterByTags
-  issue: https://github.com/elastic/elasticsearch/issues/125090
 - class: org.elasticsearch.threadpool.ScalingThreadPoolTests
   method: testScalingThreadPoolConfiguration
   issue: https://github.com/elastic/elasticsearch/issues/125142
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test012SecurityCanBeDisabled
   issue: https://github.com/elastic/elasticsearch/issues/116636
+- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
+  method: testSchedulerCloseWaitsForRunningMerge
+  issue: https://github.com/elastic/elasticsearch/issues/125236
 
 # Examples:
 #

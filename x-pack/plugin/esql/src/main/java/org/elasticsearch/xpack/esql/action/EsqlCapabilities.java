@@ -906,7 +906,12 @@ public class EsqlCapabilities {
         /**
          * Support for to_aggregate_metric_double function
          */
-        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
+        AGGREGATE_METRIC_DOUBLE_CONVERT_TO(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * The metrics command
+         */
+        METRICS_COMMAND(Build.current().isSnapshot());
 
         private final boolean enabled;
 

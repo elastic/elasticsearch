@@ -9,52 +9,39 @@ package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.client.internal.Client;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Collections;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQueryBuilder> {
     public static final String NAME = "sparse_vector";
@@ -249,7 +236,15 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         SearchExecutionContext searchContext = (SearchExecutionContext) context;
         MappedFieldType fieldType = searchContext.getFieldType(fieldName);
         if (fieldType == null || fieldType.typeName().equals(ALLOWED_FIELD_TYPE) == false) {
-            throw new IllegalArgumentException("field [" + fieldName + "] is of unsupported type [" + (fieldType == null ? "null" : fieldType.typeName()) + "] for sparse vector query. Supported types are [" + ALLOWED_FIELD_TYPE + "]");
+            throw new IllegalArgumentException(
+                "field ["
+                    + fieldName
+                    + "] is of unsupported type ["
+                    + (fieldType == null ? "null" : fieldType.typeName())
+                    + "] for sparse vector query. Supported types are ["
+                    + ALLOWED_FIELD_TYPE
+                    + "]"
+            );
         }
 
         if (weightedTokensSupplier != null && weightedTokensSupplier.get() != null) {
@@ -278,10 +273,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             });
 
             if (responseSupplier.get() == null) {
-                throw new ElasticsearchStatusException(
-                    "Failed to get inference results",
-                    RestStatus.INTERNAL_SERVER_ERROR
-                );
+                throw new ElasticsearchStatusException("Failed to get inference results", RestStatus.INTERNAL_SERVER_ERROR);
             }
 
             var response = responseSupplier.get();

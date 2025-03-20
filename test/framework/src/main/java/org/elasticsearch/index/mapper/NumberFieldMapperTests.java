@@ -396,7 +396,36 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     protected abstract Number randomNumber();
 
-    protected final class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+    protected final class NumberSyntheticSourceSupportForKeepTests extends NumberSyntheticSourceSupport {
+        private final boolean preserveSource;
+
+        protected NumberSyntheticSourceSupportForKeepTests(
+            Function<Number, Number> round,
+            boolean ignoreMalformed,
+            Mapper.SourceKeepMode sourceKeepMode
+        ) {
+            super(round, ignoreMalformed);
+            this.preserveSource = sourceKeepMode == Mapper.SourceKeepMode.ALL;
+        }
+
+        @Override
+        public boolean preservesExactSource() {
+            return preserveSource;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            var example = super.example(maxVals);
+            return new SyntheticSourceExample(
+                example.expectedForSyntheticSource(),
+                example.expectedForSyntheticSource(),
+                example.expectedForBlockLoader(),
+                example.mapping()
+            );
+        }
+    }
+
+    protected class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
         private final Long nullValue = usually() ? null : randomNumber().longValue();
         private final boolean coerce = rarely();
         private final boolean docValues = randomBoolean();

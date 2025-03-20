@@ -257,7 +257,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
                     name = "zero_terms_query",
                     type = "keyword",
                     valueHint = { "none", "all" },
-                    description = "Number of beginning characters left unchanged for fuzzy matching. Defaults to none."
+                    description = "Indicates whether all documents or none are returned if the analyzer removes all tokens, such as " +
+                        "when using a stop filter. Defaults to none."
                 ) },
             description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-match-query,match query>> for more information.",

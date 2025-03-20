@@ -1,0 +1,5 @@
+pr: 125171
+summary: Reindex data stream indices on different nodes
+area: Data streams
+type: enhancement
+issues: []

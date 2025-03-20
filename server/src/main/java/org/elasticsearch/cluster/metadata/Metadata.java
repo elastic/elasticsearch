@@ -54,6 +54,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -1178,7 +1179,18 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
         } else {
-            readClusterCustoms(in, builder);
+            final boolean beforeRepositoriesMetadataMigration = in.getTransportVersion()
+                .before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM);
+            List<ProjectCustom> projectCustoms = List.of();
+            if (beforeRepositoriesMetadataMigration) {
+                projectCustoms = new ArrayList<>();
+                readBwcCustoms(in, builder, projectCustoms::add);
+                assert projectCustoms.size() <= 1
+                    : "expect only a single custom for repository metadata, but got "
+                        + projectCustoms.stream().map(ProjectCustom::getWriteableName).toList();
+            } else {
+                readClusterCustoms(in, builder);
+            }
 
             int reservedStateSize = in.readVInt();
             for (int i = 0; i < reservedStateSize; i++) {
@@ -1186,11 +1198,21 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
 
             builder.projectMetadata(in.readMap(ProjectId::readFrom, ProjectMetadata::readFrom));
+
+            if (projectCustoms.isEmpty() == false) {
+                projectCustoms.forEach(
+                    projectCustom -> builder.getProject(ProjectId.DEFAULT).putCustom(projectCustom.getWriteableName(), projectCustom)
+                );
+            }
         }
         return builder.build();
     }
 
     private static void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
+        readBwcCustoms(in, builder, projectCustom -> builder.putProjectCustom(projectCustom.getWriteableName(), projectCustom));
+    }
+
+    private static void readBwcCustoms(StreamInput in, Builder builder, Consumer<ProjectCustom> projectCustomConsumer) throws IOException {
         final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
         final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
         final int count = in.readVInt();
@@ -1206,9 +1228,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
                     final var tuple = persistentTasksCustomMetadata.split();
                     builder.putCustom(tuple.v1().getWriteableName(), tuple.v1());
-                    builder.putProjectCustom(tuple.v2().getWriteableName(), tuple.v2());
+                    projectCustomConsumer.accept(custom);
                 } else {
-                    builder.putProjectCustom(custom.getWriteableName(), custom);
+                    projectCustomConsumer.accept(custom);
                 }
             } else {
                 throw new IllegalArgumentException("Unknown custom name [" + name + "]");
@@ -1275,10 +1297,34 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             combinedMetadata.addAll(singleProject.reservedStateMetadata().values());
             out.writeCollection(combinedMetadata);
         } else {
-            VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
+            final boolean beforeRepositoriesMetadataMigration = out.getTransportVersion()
+                .before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM);
+            if (beforeRepositoriesMetadataMigration) {
+                if (isSingleProject() || noRepositoryExceptForDefaultProject(projects().values())) {
+                    final List<VersionedNamedWriteable> combinedCustoms = new ArrayList<>(customs.size() + 1);
+                    combinedCustoms.addAll(customs.values());
+                    final ProjectCustom custom = getProject(ProjectId.DEFAULT).custom(RepositoriesMetadata.TYPE);
+                    if (custom != null) {
+                        combinedCustoms.add(custom);
+                    }
+                    VersionedNamedWriteable.writeVersionedWriteables(out, combinedCustoms);
+                } else {
+                    throw new UnsupportedOperationException(
+                        "Cannot serialize metadata with multiple projects to an output of version before repositories metadata migration"
+                    );
+                }
+            } else {
+                VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
+            }
+
             out.writeCollection(reservedStateMetadata.values());
             out.writeMap(projectMetadata, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
         }
+    }
+
+    private static boolean noRepositoryExceptForDefaultProject(Collection<ProjectMetadata> projects) {
+        return projects.stream()
+            .allMatch(project -> ProjectId.DEFAULT.equals(project.id()) || project.custom(RepositoriesMetadata.TYPE) == null);
     }
 
     public static Builder builder() {

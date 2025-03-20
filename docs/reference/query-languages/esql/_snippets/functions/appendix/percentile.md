@@ -2,7 +2,7 @@
 
 ### `PERCENTILE` is (usually) approximate [esql-percentile-approximate]
 
-:::{include} /reference/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
+:::{include} /reference/data-analysis/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
 :::
 
 ::::{warning}

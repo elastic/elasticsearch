@@ -208,7 +208,7 @@ FROM employees
 | 801.0 | 800.0 | 1052.0 | 1050.0 |
 
 Sometimes you need to change the start value of each bucket by a given duration (similar to date histogram
-aggregation’s [`offset`](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md) parameter). To do so, you will need to
+aggregation’s [`offset`](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md) parameter). To do so, you will need to
 take into account how the language handles expressions within the `STATS` command: if these contain functions or
 arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double
 compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance,

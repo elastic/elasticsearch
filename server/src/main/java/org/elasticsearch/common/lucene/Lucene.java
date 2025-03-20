@@ -417,6 +417,10 @@ public class Lucene {
         out.writeEnum(totalHits.relation());
     }
 
+    /**
+     * Same as {@link #writeTopDocs} but also reads the shard index with every score doc written so that the results can be partitioned
+     * by shard for sorting purposes.
+     */
     public static void writeTopDocsIncludingShardIndex(StreamOutput out, TopDocs topDocs) throws IOException {
         if (topDocs instanceof TopFieldGroups topFieldGroups) {
             out.writeByte((byte) 2);
@@ -448,7 +452,11 @@ public class Lucene {
         }
     }
 
-    public static TopDocs readTopDocsOnly(StreamInput in) throws IOException {
+    /**
+     * Read side counterpart to {@link #writeTopDocsIncludingShardIndex} and the same as {@link #readTopDocs(StreamInput)} but for the
+     * added shard index values that are read.
+     */
+    public static TopDocs readTopDocsIncludingShardIndex(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
             TotalHits totalHits = readTotalHits(in);

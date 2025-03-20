@@ -143,7 +143,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
     }
 
     /**
-     * @return true if this result was already partially reduced on the data node that it originated on
+     * @return true if this result was already partially reduced on the data node that it originated on so that the coordinating node
+     * will skip trying to merge aggregations and top-hits from this instance on the final reduce pass
      */
     public boolean isPartiallyReduced() {
         return reduced;

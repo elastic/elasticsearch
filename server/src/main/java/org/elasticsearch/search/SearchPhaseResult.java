@@ -55,6 +55,10 @@ public abstract class SearchPhaseResult extends TransportResponse {
         return contextId;
     }
 
+    /**
+     * Null out the context id and request tracked in this instance. This is used to mark shards for which merging results on the data node
+     * made it clear that their search context won't be used in the fetch phase.
+     */
     public void clearContextId() {
         this.shardSearchRequest = null;
         this.contextId = null;

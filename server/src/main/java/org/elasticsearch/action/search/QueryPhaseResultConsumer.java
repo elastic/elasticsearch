@@ -654,7 +654,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         static MergeResult readFrom(StreamInput in) throws IOException {
             return new MergeResult(
                 List.of(),
-                Lucene.readTopDocsOnly(in),
+                Lucene.readTopDocsIncludingShardIndex(in),
                 in.readOptionalWriteable(InternalAggregations::readFrom),
                 in.readVLong()
             );

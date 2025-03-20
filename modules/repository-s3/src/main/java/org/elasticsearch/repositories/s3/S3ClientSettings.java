@@ -143,7 +143,13 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
-        key -> Setting.boolSetting(key, Defaults.THROTTLE_RETRIES, Property.NodeScope)
+        key -> Setting.boolSetting(
+            key,
+            Defaults.THROTTLE_RETRIES,
+            Property.NodeScope,
+            // TODO NOMERGE why deprecated?
+            Property.Deprecated
+        )
     );
 
     /** Whether the s3 client should use path style access. */
@@ -157,7 +163,13 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> DISABLE_CHUNKED_ENCODING = Setting.affixKeySetting(
         PREFIX,
         "disable_chunked_encoding",
-        key -> Setting.boolSetting(key, false, Property.NodeScope)
+        key -> Setting.boolSetting(
+            key,
+            false,
+            Property.NodeScope,
+            // TODO NOMERGE why deprecated?
+            Property.Deprecated
+        )
     );
 
     /** An override for the s3 region to use for signing requests. */
@@ -167,11 +179,27 @@ final class S3ClientSettings {
         key -> Setting.simpleString(key, Property.NodeScope)
     );
 
+    public enum AwsSignerOverrideType {
+        // AWS SDK V1 Signer types.
+        // Supported for upgrade compatibility, ultimately converted to a V2 equivalent.
+        // Note: AWS4UnsignedPayloadSignerType is no longer supported, there is no equivalent in V2 short of a custom signer.
+        // Note: QueryStringSigner is deprecated in V2, thus not given support.
+        // TODO NOMERGE let's find better names for these things
+        AWS4SignerType, // -> Aws4Signer
+        AWS3SignerType, // -> AwsS3V4Signer
+        NoOpSignerType, // -> NoOpSigner
+
+        // AWS SDK V2 Signer types
+        Aws4Signer,
+        AwsS3V4Signer,
+        NoOpSigner;
+    };
+
     /** An override for the signer to use. */
-    static final Setting.AffixSetting<String> SIGNER_OVERRIDE = Setting.affixKeySetting(
+    static final Setting.AffixSetting<AwsSignerOverrideType> SIGNER_OVERRIDE = Setting.affixKeySetting(
         PREFIX,
         "signer_override",
-        key -> Setting.simpleString(key, Property.NodeScope)
+        key -> Setting.enumSetting(AwsSignerOverrideType.class, key, AwsSignerOverrideType.Aws4Signer, Property.NodeScope)
     );
 
     /** Credentials to authenticate with s3. */
@@ -207,19 +235,19 @@ final class S3ClientSettings {
     final int maxRetries;
 
     /** Whether the s3 client should use an exponential backoff retry policy. */
-    final boolean throttleRetries;
+    final boolean throttleRetries; // TODO: remove, no longer supported in v2
 
     /** Whether the s3 client should use path style access. */
     final boolean pathStyleAccess;
 
     /** Whether chunked encoding should be disabled or not. */
-    final boolean disableChunkedEncoding;
+    final boolean disableChunkedEncoding; // TODO: deprecated in V2, remove. Encoding can be disabled by setting an HTTP endpoint, I think?
 
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
     /** Signer override to use or empty string to use default. */
-    final String signerOverride;
+    final AwsSignerOverrideType signerOverride; // TODO: document somewhat breaking change
 
     private S3ClientSettings(
         AwsCredentials credentials,
@@ -236,7 +264,7 @@ final class S3ClientSettings {
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         String region,
-        String signerOverride
+        AwsSignerOverrideType signerOverride
     ) {
         this.credentials = credentials;
         this.endpoint = endpoint;
@@ -291,7 +319,7 @@ final class S3ClientSettings {
             newCredentials = credentials;
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
-        final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
+        final AwsSignerOverrideType newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
         if (Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
             && proxyPort == newProxyPort

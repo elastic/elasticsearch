@@ -9,31 +9,33 @@
 
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.auth.signer.Aws4Signer;
+import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
+import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.core.signer.NoOpSigner;
+import software.amazon.awssdk.core.signer.Signer;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
 import software.amazon.awssdk.identity.spi.ResolveIdentityRequest;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleWithWebIdentityCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleWithWebIdentityRequest;
 
-import com.amazonaws.AmazonServiceException;
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.SDKGlobalConfiguration;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
-import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.retry.PredefinedRetryPolicies;
-import com.amazonaws.retry.RetryPolicy;
-import com.amazonaws.services.s3.internal.Constants;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
-
-import org.apache.http.HttpStatus;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -53,17 +55,17 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
-import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
-import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
-import static com.amazonaws.SDKGlobalConfiguration.AWS_WEB_IDENTITY_ENV_VAR;
 import static java.util.Collections.emptyMap;
 
 class S3Service implements Closeable {
@@ -119,8 +121,8 @@ class S3Service implements Closeable {
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
-     * existing clients. New clients will be build using these new settings. Old
-     * clients are usable until released. On release they will be destroyed instead
+     * existing clients. New clients will be built using these new settings. Old
+     * clients are usable until released. On release, they will be destroyed instead
      * of being returned to the cache.
      */
     public synchronized void refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
@@ -130,7 +132,7 @@ class S3Service implements Closeable {
         this.staticClientSettings = Maps.ofEntries(clientsSettings.entrySet());
         derivedClientSettings = emptyMap();
         assert this.staticClientSettings.containsKey("default") : "always at least have 'default'";
-        // clients are built lazily by {@link client}
+        /* clients are built lazily by {@link #client} */
     }
 
     /**
@@ -194,76 +196,104 @@ class S3Service implements Closeable {
 
     // proxy for testing
     S3Client buildClient(final S3ClientSettings clientSettings) {
-        final S3ClientBuilder builder = buildClientBuilder(clientSettings);
-        return SocketAccess.doPrivileged(builder::build);
+        final S3ClientBuilder s3clientBuilder = buildClientBuilder(clientSettings);
+        return SocketAccess.doPrivileged(s3clientBuilder::build);
     }
 
     protected S3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
-        final var builder = S3Client.builder();
-        builder.withCredentials(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
-        final ClientConfiguration clientConfiguration = buildConfiguration(clientSettings, isStateless);
-        assert (isStateless == false && clientConfiguration.getRetryPolicy() == PredefinedRetryPolicies.DEFAULT)
-            || (isStateless && clientConfiguration.getRetryPolicy() == RETRYABLE_403_RETRY_POLICY) : "invalid retry policy configuration";
-        builder.withClientConfiguration(clientConfiguration);
+        // TODO NOMERGE ensure this has all the same config features as the v1 SDK
+        var s3clientBuilder = S3Client.builder();
+        s3clientBuilder.httpClient(buildHttpClient(clientSettings).build());
+        s3clientBuilder.overrideConfiguration(buildClientConfiguration(clientSettings));
 
-        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
-        if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
-            // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
-            // TODO: Remove this once fixed in the AWS SDK
-            endpoint = clientSettings.protocol.toString() + "://" + endpoint;
-        }
-        final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
-        LOGGER.debug("using endpoint [{}] and region [{}]", endpoint, region);
+        // TODO: credentials
+        s3clientBuilder.credentialsProvider(buildCredentials());
 
-        // If the endpoint configuration isn't set on the builder then the default behaviour is to try
-        // and work out what region we are in and use an appropriate endpoint - see AwsClientBuilder#setRegion.
-        // In contrast, directly-constructed clients use s3.amazonaws.com unless otherwise instructed. We currently
-        // use a directly-constructed client, and need to keep the existing behaviour to avoid a breaking change,
-        // so to move to using the builder we must set it explicitly to keep the existing behaviour.
-        //
-        // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
-        // so this change removes that usage of a deprecated API.
-        builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, region));
         if (clientSettings.pathStyleAccess) {
-            builder.enablePathStyleAccess();
+            s3clientBuilder.forcePathStyle(true);
         }
-        if (clientSettings.disableChunkedEncoding) {
-            builder.disableChunkedEncoding();
+        if (Strings.hasLength(clientSettings.region)) {
+            s3clientBuilder.region(Region.of(clientSettings.region));
         }
-        return builder;
+        if (Strings.hasLength(clientSettings.endpoint)) {
+            s3clientBuilder.endpointOverride(URI.create(clientSettings.endpoint));
+        }
+
+        return s3clientBuilder;
     }
 
-    // pkg private for tests
-    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
-        final ClientConfiguration clientConfiguration = new ClientConfiguration();
-        // the response metadata cache is only there for diagnostics purposes,
-        // but can force objects from every response to the old generation.
-        clientConfiguration.setResponseMetadataCacheSize(0);
-        clientConfiguration.setProtocol(clientSettings.protocol);
+    private Signer getSigner(S3ClientSettings.AwsSignerOverrideType signerOverrideType) {
+        // TODO NOMERGE replace with switch?
+        if (signerOverrideType == S3ClientSettings.AwsSignerOverrideType.Aws4Signer
+            || signerOverrideType == S3ClientSettings.AwsSignerOverrideType.AWS4SignerType) {
+            return Aws4Signer.create();
+        } else if (signerOverrideType == S3ClientSettings.AwsSignerOverrideType.AWS3SignerType
+            || signerOverrideType == S3ClientSettings.AwsSignerOverrideType.AwsS3V4Signer) {
+                return AwsS3V4Signer.create();
+            } else if (signerOverrideType == S3ClientSettings.AwsSignerOverrideType.NoOpSigner
+                || signerOverrideType == S3ClientSettings.AwsSignerOverrideType.NoOpSignerType) {
+                    return new NoOpSigner();
+                } else {
+                    return null;
+                }
+    }
 
-        if (Strings.hasText(clientSettings.proxyHost)) {
-            // TODO: remove this leniency, these settings should exist together and be validated
-            clientConfiguration.setProxyHost(clientSettings.proxyHost);
-            clientConfiguration.setProxyPort(clientSettings.proxyPort);
-            clientConfiguration.setProxyProtocol(clientSettings.proxyScheme);
-            clientConfiguration.setProxyUsername(clientSettings.proxyUsername);
-            clientConfiguration.setProxyPassword(clientSettings.proxyPassword);
-        }
+    private ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
+        ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
-        if (Strings.hasLength(clientSettings.signerOverride)) {
-            clientConfiguration.setSignerOverride(clientSettings.signerOverride);
-        }
+        httpClientBuilder.maxConnections(clientSettings.maxConnections);
+        httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
 
-        clientConfiguration.setMaxConnections(clientSettings.maxConnections);
-        clientConfiguration.setMaxErrorRetry(clientSettings.maxRetries);
-        clientConfiguration.setUseThrottleRetries(clientSettings.throttleRetries);
-        clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
+        applyProxyConfiguration(clientSettings, httpClientBuilder);
+        return httpClientBuilder;
+    }
 
+    private ClientOverrideConfiguration buildClientConfiguration(S3ClientSettings clientSettings) {
+        ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
+
+        // TODO: revisit this, does it still make sense to specially retry?
+        RetryPolicy.Builder retryPolicy = RetryPolicy.builder();
         if (isStateless) {
-            clientConfiguration.setRetryPolicy(RETRYABLE_403_RETRY_POLICY);
+            // Create a 403 error retyable policy.
+            retryPolicy.retryCondition((retryPolicyContext) -> {
+                if (RetryCondition.defaultRetryCondition().shouldRetry(retryPolicyContext)) {
+                    return true;
+                }
+                if (retryPolicyContext.exception() instanceof AwsServiceException ase) {
+                    return ase.statusCode() == HttpStatus.SC_FORBIDDEN && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
+                }
+                return false;
+            });
         }
+        retryPolicy.numRetries(clientSettings.maxRetries);
 
-        return clientConfiguration;
+        clientOverrideConfiguration.retryPolicy(retryPolicy.build());
+        clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, getSigner(clientSettings.signerOverride));
+        return clientOverrideConfiguration.build();
+    }
+
+    private static void applyProxyConfiguration(S3ClientSettings clientSettings, ApacheHttpClient.Builder httpClientBuilder) {
+        // If proxy settings are provided
+        if (Strings.hasText(clientSettings.proxyHost)) {
+            final var uriBuilder = new URIBuilder();
+            uriBuilder.setScheme(clientSettings.proxyScheme.getSchemeString())
+                .setHost(clientSettings.proxyHost)
+                .setPort(clientSettings.proxyPort);
+            final URI proxyUri;
+            try {
+                proxyUri = uriBuilder.build();
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException(e);
+            }
+            httpClientBuilder.proxyConfiguration(
+                ProxyConfiguration.builder()
+                    .endpoint(proxyUri)
+                    .scheme(clientSettings.proxyScheme.getSchemeString())
+                    .username(clientSettings.proxyUsername)
+                    .password(clientSettings.proxyPassword)
+                    .build()
+            );
+        }
     }
 
     // pkg private for tests
@@ -275,17 +305,22 @@ class S3Service implements Closeable {
         final AwsCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
             if (webIdentityTokenCredentialsProvider.isActive()) {
-                logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials");
-                return new PrivilegedAWSCredentialsProvider(
-                    AwsCredentialsProviderChain.builder()
-                        .credentialsProviders(
-                            new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER),
-                            new ErrorLoggingCredentialsProvider(new EC2ContainerCredentialsProviderWrapper(), LOGGER)
-                        )
+                logger.debug("Using a custom provider chain of Web Identity Token and instance profile credentials"); // TODO: fix comment?
+                return new PrivilegedAwsCredentialsProvider(
+                    AwsCredentialsProviderChain.of(
+                        new ErrorLoggingCredentialsProvider(webIdentityTokenCredentialsProvider, LOGGER),
+                        // TODO: look into exceptions for these: sounds like they throw if unused? Instead of benignly doing nothing
+                        // TODO: Also maybe only one of these?
+                        // Thoughts: can I used DefaultCredentialsProvider.create() instead and avoid this problem entirely?
+                        // Thoughts: ContainerCredentialsProvider can go last? Then if it throws, that's OK.
+                        // new ErrorLoggingCredentialsProvider(ContainerCredentialsProvider.create(), LOGGER),
+                        // new ErrorLoggingCredentialsProvider(InstanceProfileCredentialsProvider.create(), LOGGER)
+                        new ErrorLoggingCredentialsProvider(DefaultCredentialsProvider.create(), LOGGER)
+                    )
                 );
             } else {
-                logger.debug("Using instance profile credentials");
-                return new PrivilegedAWSCredentialsProvider(new EC2ContainerCredentialsProviderWrapper());
+                logger.debug("Using instance profile credentials"); // TODO: fix comment?
+                return new PrivilegedAwsCredentialsProvider(DefaultCredentialsProvider.create());
             }
         } else {
             logger.debug("Using basic key/secret credentials");
@@ -313,10 +348,10 @@ class S3Service implements Closeable {
         webIdentityTokenCredentialsProvider.shutdown();
     }
 
-    static class PrivilegedAWSCredentialsProvider implements AwsCredentialsProvider {
+    static class PrivilegedAwsCredentialsProvider implements AwsCredentialsProvider {
         private final AwsCredentialsProvider delegate;
 
-        private PrivilegedAWSCredentialsProvider(AwsCredentialsProvider delegate) {
+        private PrivilegedAwsCredentialsProvider(AwsCredentialsProvider delegate) {
             this.delegate = delegate;
         }
 
@@ -357,7 +392,8 @@ class S3Service implements Closeable {
      * <ul>
      * <li>Reads the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
      * in the plugin directory, so we don't need to create a hardcoded read file permission for the plugin.</li>
-     * <li>Supports customization of the STS endpoint via a system property, so we can test it against a test fixture.</li>
+     * <li>Supports customization of the STS (Security Token Service) endpoint via a system property, so we can
+     * test it against a test fixture.</li>
      * <li>Supports gracefully shutting down the provider and the STS client.</li>
      * </ul>
      */
@@ -367,9 +403,9 @@ class S3Service implements Closeable {
 
         static final String WEB_IDENTITY_TOKEN_FILE_LOCATION = "repository-s3/aws-web-identity-token-file";
 
-        private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
-        private AWSSecurityTokenService stsClient;
-        private String stsRegion;
+        private StsAssumeRoleWithWebIdentityCredentialsProvider credentialsProvider;
+        private StsClient securityTokenServiceClient; // AWSSecurityTokenService
+        private String securityTokenServiceRegion;
 
         CustomWebIdentityTokenCredentialsProvider(
             Environment environment,
@@ -400,7 +436,7 @@ class S3Service implements Closeable {
             if (roleArn == null) {
                 LOGGER.warn(
                     "Unable to use a web identity token for authentication. The AWS_WEB_IDENTITY_TOKEN_FILE environment "
-                        + "variable is set, but either AWS_ROLE_ARN is missing"
+                        + "variable is set, but AWS_ROLE_ARN is missing"
                 );
                 return;
             }
@@ -410,34 +446,42 @@ class S3Service implements Closeable {
                 // See `com.amazonaws.auth.WebIdentityTokenCredentialsProvider#45`
                 () -> "aws-sdk-java-" + clock.millis()
             );
-            AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
+            var securityTokenServiceClientBuilder = StsClient.builder();
 
             // Check if we need to use regional STS endpoints
             // https://docs.aws.amazon.com/sdkref/latest/guide/feature-sts-regionalized-endpoints.html
             if ("regional".equalsIgnoreCase(systemEnvironment.getEnv("AWS_STS_REGIONAL_ENDPOINTS"))) {
                 // AWS_REGION should be injected by the EKS pod identity webhook:
                 // https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
-                stsRegion = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
-                if (stsRegion != null) {
-                    SocketAccess.doPrivilegedVoid(() -> stsClientBuilder.withRegion(stsRegion));
+                securityTokenServiceRegion = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
+                if (securityTokenServiceRegion != null) {
+                    SocketAccess.doPrivilegedVoid(() -> securityTokenServiceClientBuilder.region(securityTokenServiceRegion));
                 } else {
                     LOGGER.warn("Unable to use regional STS endpoints because the AWS_REGION environment variable is not set");
                 }
             }
-            if (stsRegion == null) {
+            if (securityTokenServiceRegion == null) {
                 // Custom system property used for specifying a mocked version of the STS for testing
                 String customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
                 // Set the region explicitly via the endpoint URL, so the AWS SDK doesn't make any guesses internally.
-                stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
+
+                securityTokenServiceClientBuilder.endpointOverride(URI.create(customStsEndpoint));
             }
-            stsClientBuilder.withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
-            stsClient = SocketAccess.doPrivileged(stsClientBuilder::build);
+            securityTokenServiceClientBuilder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("", "")));
+            securityTokenServiceClient = SocketAccess.doPrivileged(securityTokenServiceClientBuilder::build);
+
             try {
-                credentialsProvider = new STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder(
-                    roleArn,
-                    roleSessionName,
-                    webIdentityTokenFileSymlink.toString()
-                ).withStsClient(stsClient).build();
+                credentialsProvider = StsAssumeRoleWithWebIdentityCredentialsProvider.builder()
+                    .refreshRequest(
+                        AssumeRoleWithWebIdentityRequest.builder()
+                            .roleArn(roleArn)
+                            .roleSessionName(roleSessionName)
+                            .webIdentityToken(webIdentityTokenFileSymlink.toString())
+                            .build()
+                    )
+                    .stsClient(securityTokenServiceClient)
+                    .build();
+
                 var watcher = new FileWatcher(webIdentityTokenFileSymlink);
                 watcher.addListener(new FileChangesListener() {
 
@@ -450,7 +494,7 @@ class S3Service implements Closeable {
                     public void onFileChanged(Path file) {
                         if (file.equals(webIdentityTokenFileSymlink)) {
                             LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
-                            SocketAccess.doPrivilegedVoid(credentialsProvider::refresh);
+                            SocketAccess.doPrivilegedVoid(credentialsProvider::resolveCredentials);
                         }
                     }
                 });
@@ -464,7 +508,7 @@ class S3Service implements Closeable {
                     );
                 }
             } catch (Exception e) {
-                stsClient.shutdown();
+                securityTokenServiceClient.close();
                 throw e;
             }
         }
@@ -473,30 +517,51 @@ class S3Service implements Closeable {
             return credentialsProvider != null;
         }
 
-        String getStsRegion() {
-            return stsRegion;
-        }
-
-        @Override
-        public AwsCredentials getCredentials() {
-            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
-            return credentialsProvider.();
-        }
-
-        @Override
-        public void refresh() {
-            if (credentialsProvider != null) {
-                credentialsProvider.refresh();
-            }
+        String getSecurityTokenServiceRegion() {
+            return securityTokenServiceRegion;
         }
 
         public void shutdown() throws IOException {
             if (credentialsProvider != null) {
-                IOUtils.close(credentialsProvider, () -> stsClient.shutdown());
+                IOUtils.close(credentialsProvider, () -> securityTokenServiceClient.shutdown());
             }
+        }
+
+        @Override
+        public AwsCredentials resolveCredentials() {
+            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            return credentialsProvider.resolveCredentials();
+        }
+
+        @Override
+        public Class<AwsCredentialsIdentity> identityType() {
+            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            return credentialsProvider.identityType();
+        }
+
+        @Override
+        public CompletableFuture<AwsCredentialsIdentity> resolveIdentity(ResolveIdentityRequest request) {
+            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            return SocketAccess.doPrivileged(() -> credentialsProvider.resolveIdentity(request));
+        }
+
+        @Override
+        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity(Consumer<ResolveIdentityRequest.Builder> consumer) {
+            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            return SocketAccess.doPrivileged(() -> credentialsProvider.resolveIdentity(consumer));
+        }
+
+        @Override
+        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
+            Objects.requireNonNull(credentialsProvider, "credentialsProvider is not set");
+            return SocketAccess.doPrivileged(credentialsProvider::resolveIdentity);
         }
     }
 
+    /**
+     * Wraps a {@link AwsCredentialsProvider} implementation and only adds error logging for any {@link #resolveCredentials()} calls that
+     * throw.
+     */
     static class ErrorLoggingCredentialsProvider implements AwsCredentialsProvider {
 
         private final AwsCredentialsProvider delegate;
@@ -505,26 +570,6 @@ class S3Service implements Closeable {
         ErrorLoggingCredentialsProvider(AwsCredentialsProvider delegate, Logger logger) {
             this.delegate = Objects.requireNonNull(delegate);
             this.logger = Objects.requireNonNull(logger);
-        }
-
-        @Override
-        public Class<AwsCredentialsIdentity> identityType() {
-            return delegate.identityType();
-        }
-
-        @Override
-        public CompletableFuture<AwsCredentialsIdentity> resolveIdentity(ResolveIdentityRequest request) {
-            return delegate.resolveIdentity(request).handle(this::loggingHandler);
-        }
-
-        @Override
-        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity(Consumer<ResolveIdentityRequest.Builder> consumer) {
-            return delegate.resolveIdentity(consumer).handle(this::loggingHandler);
-        }
-
-        @Override
-        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
-            return delegate.resolveIdentity().handle(this::loggingHandler);
         }
 
         @Override
@@ -537,19 +582,24 @@ class S3Service implements Closeable {
             }
         }
 
-        private <T extends U, U> U loggingHandler(T result, Throwable e) {
-            if (e != null) {
-                logger.error(() -> "Unable to load credentials from " + delegate, e);
-                if (e instanceof Error error) {
-                    throw error;
-                } else if (e instanceof RuntimeException runtimeException) {
-                    throw runtimeException;
-                } else {
-                    throw new RuntimeException(e);
-                }
-            } else {
-                return result;
-            }
+        @Override
+        public Class<AwsCredentialsIdentity> identityType() {
+            return delegate.identityType();
+        }
+
+        @Override
+        public CompletableFuture<AwsCredentialsIdentity> resolveIdentity(ResolveIdentityRequest request) {
+            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(request));
+        }
+
+        @Override
+        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity(Consumer<ResolveIdentityRequest.Builder> consumer) {
+            return SocketAccess.doPrivileged(() -> delegate.resolveIdentity(consumer));
+        }
+
+        @Override
+        public CompletableFuture<? extends AwsCredentialsIdentity> resolveIdentity() {
+            return SocketAccess.doPrivileged(delegate::resolveIdentity);
         }
     }
 
@@ -563,20 +613,4 @@ class S3Service implements Closeable {
         String getProperty(String key, String defaultValue);
     }
 
-    static final RetryPolicy RETRYABLE_403_RETRY_POLICY = RetryPolicy.builder()
-        .withRetryCondition((originalRequest, exception, retriesAttempted) -> {
-            if (PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION.shouldRetry(originalRequest, exception, retriesAttempted)) {
-                return true;
-            }
-            if (exception instanceof AmazonServiceException ase) {
-                return ase.getStatusCode() == HttpStatus.SC_FORBIDDEN && "InvalidAccessKeyId".equals(ase.getErrorCode());
-            }
-            return false;
-        })
-        .withBackoffStrategy(PredefinedRetryPolicies.DEFAULT_BACKOFF_STRATEGY)
-        .withMaxErrorRetry(PredefinedRetryPolicies.DEFAULT_MAX_ERROR_RETRY)
-        .withHonorMaxErrorRetryInClientConfig(true)
-        .withHonorDefaultMaxErrorRetryInRetryMode(true)
-        .withHonorDefaultBackoffStrategyInRetryMode(true)
-        .build();
 }

@@ -411,8 +411,8 @@ public class ReservedClusterStateService {
         Consumer<Exception> errorListener
     ) {
         ReservedStateChunk reservedStateChunk;
-        ReservedStateVersion reservedStateVersion;
         LinkedHashSet<String> orderedHandlers;
+        ReservedStateVersion reservedStateVersion = null;
 
         try {
             reservedStateChunk = mergeReservedStateChunks(reservedStateChunks);
@@ -423,7 +423,7 @@ public class ReservedClusterStateService {
             ErrorState errorState = new ErrorState(
                 projectId,
                 namespace,
-                reservedStateChunks.getFirst().metadata().version(),
+                reservedStateVersion != null ? reservedStateVersion.version() : null,
                 versionCheck,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING

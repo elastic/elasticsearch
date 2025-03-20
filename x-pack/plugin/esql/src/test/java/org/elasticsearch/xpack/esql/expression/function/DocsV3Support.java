@@ -313,7 +313,7 @@ public abstract class DocsV3Support {
             case "search-aggregations-bucket-histogram-aggregation" -> makeLink(
                 key,
                 "",
-                "/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md"
+                "/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md"
             );
             default -> throw new IllegalArgumentException("Invalid link key <<" + key + ">>");
         };

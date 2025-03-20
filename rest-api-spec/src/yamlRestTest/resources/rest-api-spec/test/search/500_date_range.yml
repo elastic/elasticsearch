@@ -127,11 +127,7 @@ setup:
 ---
 "test bad dates in range - past":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_search
-          capabilities: [invalid_date_fix]
+      cluster_features: [ "mapper.range.invalid_date_fix" ]
       reason: "Fix for invalid date required"
   - do:
       catch: /illegal_argument_exception/
@@ -149,11 +145,7 @@ setup:
 ---
 "test bad dates in range - future":
   - requires:
-      test_runner_features: [ capabilities ]
-      capabilities:
-        - method: GET
-          path: /_search
-          capabilities: [invalid_date_fix]
+      cluster_features: [ "mapper.range.invalid_date_fix" ]
       reason: "Fix for invalid date required"
   - do:
       catch: /illegal_argument_exception/

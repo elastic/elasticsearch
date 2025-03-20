@@ -45,7 +45,6 @@ public final class SearchCapabilities {
     private static final String KNN_QUANTIZED_VECTOR_RESCORE_OVERSAMPLE = "knn_quantized_vector_rescore_oversample";
 
     private static final String HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT = "highlight_max_analyzed_offset_default";
-    private static final String INVALID_DATE_FIX = "invalid_date_fix";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -64,7 +63,6 @@ public final class SearchCapabilities {
         capabilities.add(K_DEFAULT_TO_SIZE);
         capabilities.add(KQL_QUERY_SUPPORTED);
         capabilities.add(HIGHLIGHT_MAX_ANALYZED_OFFSET_DEFAULT);
-        capabilities.add(INVALID_DATE_FIX);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

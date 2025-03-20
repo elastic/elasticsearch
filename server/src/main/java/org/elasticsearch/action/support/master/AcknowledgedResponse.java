@@ -41,7 +41,6 @@ public class AcknowledgedResponse extends ActionResponse implements IsAcknowledg
     }
 
     protected AcknowledgedResponse(StreamInput in) throws IOException {
-        super(in);
         acknowledged = in.readBoolean();
     }
 

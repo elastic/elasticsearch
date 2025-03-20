@@ -184,7 +184,6 @@ public class ListConnectorAction {
         final QueryPage<ConnectorSearchResult> queryPage;
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.queryPage = new QueryPage<>(in, ConnectorSearchResult::new);
         }
 

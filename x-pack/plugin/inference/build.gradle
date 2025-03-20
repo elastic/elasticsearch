@@ -398,6 +398,6 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 

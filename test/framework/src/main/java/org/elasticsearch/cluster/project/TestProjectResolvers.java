@@ -117,7 +117,7 @@ public final class TestProjectResolvers {
     };
 
     /**
-     * This method returns a ProjectResolver always throw for all methods. This is mostly useful in places where
+     * This method returns a ProjectResolver that always throw for all methods. This is mostly useful in places where
      * we just need a placeholder to satisfy the constructor signature.
      */
     public static ProjectResolver alwaysThrow() {

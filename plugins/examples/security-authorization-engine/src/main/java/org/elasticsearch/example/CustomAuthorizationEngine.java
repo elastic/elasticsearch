@@ -10,6 +10,7 @@
 package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Supplier;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -119,19 +119,19 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(new AuthorizedIndices() {
-                public Supplier<Set<String>> all() {
+                public Set<String> all(IndexComponentSelector selector) {
                     return () -> indicesLookup.keySet();
                 }
-                public boolean check(String name) {
+                public boolean check(String name, IndexComponentSelector selector) {
                     return indicesLookup.containsKey(name);
                 }
             });
         } else {
             listener.onResponse(new AuthorizedIndices() {
-                public Supplier<Set<String>> all() {
+                public Set<String> all(IndexComponentSelector selector) {
                     return () -> Set.of();
                 }
-                public boolean check(String name) {
+                public boolean check(String name, IndexComponentSelector selector) {
                     return false;
                 }
             });

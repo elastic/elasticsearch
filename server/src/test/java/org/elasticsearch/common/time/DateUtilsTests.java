@@ -231,11 +231,14 @@ public class DateUtilsTests extends ESTestCase {
 
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundIntervalMonthOfYear(0, -1));
         assertThat(exc.getMessage(), is("month interval must be strictly positive, got [-1]"));
-        assertThat(DateUtils.roundIntervalMonthOfYear(1, 5), is(0L));
-        long epochMilli = LocalDate.of(1969, 7, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        long epochMilli = LocalDate.of(1969, 10, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(1, 5), is(epochMilli));
+        epochMilli = LocalDate.of(1969, 6, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundIntervalMonthOfYear(-1, 13), is(epochMilli));
-        epochMilli = LocalDate.of(2024, 10, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        epochMilli = LocalDate.of(2024, 8, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundIntervalMonthOfYear(1737378896000L, 7), is(epochMilli));
+        epochMilli = LocalDate.of(-2026, 4, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(-126068400000000L, 11), is(epochMilli));
     }
 
     public void testRoundYear() {
@@ -261,6 +264,8 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundYearInterval(-1, 10), is(startOf1961));
         long startOf1992 = Year.of(1992).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundYearInterval(endOf1996, 11), is(startOf1992));
+        long epochMilli = Year.of(-2034).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(-126068400000000L, 11), is(epochMilli));
     }
 
     public void testRoundWeek() {

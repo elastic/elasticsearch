@@ -380,8 +380,13 @@ public class DateUtils {
         }
         int year = getYear(utcMillis);
         int month = getMonthOfYear(utcMillis, year);
-        int firstMonthOfInterval = (((year * 12 + month - 1) / monthInterval) * monthInterval) + 1;
-        return DateUtils.of(firstMonthOfInterval / 12, firstMonthOfInterval % 12);
+        int totalMonths = (year - 1) * 12 + (month - 1);
+        int quotient = Math.floorDiv(totalMonths, monthInterval);
+        int firstMonthOfInterval = quotient * monthInterval;
+
+        int monthInYear = (firstMonthOfInterval % 12 + 12) % 12 + 1;
+        int yearResult = (firstMonthOfInterval - (monthInYear - 1)) / 12 + 1;
+        return DateUtils.of(yearResult, monthInYear);
     }
 
     /**
@@ -406,7 +411,11 @@ public class DateUtils {
             throw new IllegalArgumentException("year interval must be strictly positive, got [" + yearInterval + "]");
         }
         int year = getYear(utcMillis);
-        return utcMillisAtStartOfYear(((year - 1) / yearInterval) * yearInterval + 1);
+        int totalYears = year - 1;
+        int quotient = Math.floorDiv(totalYears, yearInterval);
+        int startTotalYears = quotient * yearInterval;
+        int startYear = startTotalYears + 1;
+        return utcMillisAtStartOfYear(startYear);
     }
 
     /**

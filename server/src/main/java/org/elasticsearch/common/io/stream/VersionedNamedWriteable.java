@@ -45,7 +45,8 @@ public interface VersionedNamedWriteable extends NamedWriteable {
     }
 
     /**
-     * Writes all those values in the given map to {@code out} that pass the version check in {@link VersionedNamedWriteable#supportsVersion} as a list.
+     * Writes all those values in the given map to {@code out} that pass the version check in
+     * {@link VersionedNamedWriteable#supportsVersion} as a list.
      *
      * @param out     stream to write to
      * @param customs map of customs

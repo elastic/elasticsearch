@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -29,6 +30,7 @@ public class PlanConcurrencyCalculator {
      *
      * @return Null if there should be no limit, otherwise, the maximum number of nodes that should be executed concurrently.
      */
+    @Nullable
     public Integer calculateNodesConcurrency(PhysicalPlan dataNodePlan, Configuration configuration) {
         // If available, pragma overrides any calculation
         if (configuration.pragmas().maxConcurrentNodesPerCluster() > 0) {
@@ -54,6 +56,7 @@ public class PlanConcurrencyCalculator {
         return Math.max(2, (int) (Math.log(limit) / Math.log(2)));
     }
 
+    @Nullable
     private Integer getDataNodeLimit(PhysicalPlan dataNodePlan) {
         LogicalPlan logicalPlan = getFragmentPlan(dataNodePlan);
 

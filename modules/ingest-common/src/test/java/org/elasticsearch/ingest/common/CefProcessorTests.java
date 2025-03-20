@@ -265,7 +265,8 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testEqualsInMessage() {
-        String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this =has = equals\\= dst=12.121.122.82 spt=1232";
+        String message =
+            "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this =has = equals\\= dst=12.121.122.82 spt=1232";
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
 import java.util.Objects;
@@ -58,8 +57,7 @@ public final class TestProjectResolvers {
 
     /**
      * This method returns a ProjectResolver that is unable to provide the project-id unless explicitly specified
-     * with the executeOnProject method. This is mostly useful in places where we just need a placeholder to satisfy
-     * the constructor signature.
+     * with the executeOnProject method.
      */
     public static ProjectResolver mustExecuteFirst() {
         return new ProjectResolver() {
@@ -101,6 +99,31 @@ public final class TestProjectResolvers {
         };
     }
 
+    private static final ProjectResolver ALWAYS_THROW = new ProjectResolver() {
+        @Override
+        public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
+            throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
+        }
+
+        @Override
+        public ProjectId getProjectId() {
+            throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
+        }
+
+        @Override
+        public boolean supportsMultipleProjects() {
+            throw new UnsupportedOperationException("Method on the dummy ProjectResolver is not meant to be invoked");
+        }
+    };
+
+    /**
+     * This method returns a ProjectResolver always throw for all methods. This is mostly useful in places where
+     * we just need a placeholder to satisfy the constructor signature.
+     */
+    public static ProjectResolver alwaysThrow() {
+        return ALWAYS_THROW;
+    }
+
     /**
      * This method returns a ProjectResolver that gives back the specified project-id when its getProjectId method is called.
      * The ProjectResolver can work with cluster state containing multiple projects and its supportsMultipleProjects returns true.
@@ -110,14 +133,10 @@ public final class TestProjectResolvers {
     }
 
     /**
-     * This method returns a ProjectResolver that returns a random unique project-id.
+     * This method returns a ProjectResolver that returns the given ProjectId.
      * It also assumes it is the only project in the cluster state and throws if that is not the case.
      * In addition, the ProjectResolvers returns false for supportsMultipleProjects.
      */
-    public static ProjectResolver singleProjectOnly() {
-        return singleProjectOnly(ESTestCase.randomUniqueProjectId());
-    }
-
     public static ProjectResolver singleProjectOnly(ProjectId projectId) {
         return singleProject(projectId, true);
     }

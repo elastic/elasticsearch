@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -46,19 +45,15 @@ public class TestProjectResolversTests extends ESTestCase {
         assertThat(projectResolver.getProjectMetadata(state), notNullValue());
     }
 
-    public void testSingleProjectOnly() {
-        final ProjectResolver projectResolver = TestProjectResolvers.singleProjectOnly();
-        assertThat(projectResolver.supportsMultipleProjects(), is(false));
-        final var projectId = projectResolver.getProjectId();
-
-        ClusterState state = buildClusterState(projectId, 0);
-        assertThat(projectResolver.getProjectMetadata(state), notNullValue());
-
-        final IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> projectResolver.getProjectMetadata(buildClusterState(projectId, randomIntBetween(1, 10)))
+    public void testAlwaysThrowProjectResolver() {
+        final ProjectResolver projectResolver = TestProjectResolvers.alwaysThrow();
+        expectThrows(UnsupportedOperationException.class, projectResolver::getProjectId);
+        expectThrows(UnsupportedOperationException.class, projectResolver::supportsMultipleProjects);
+        expectThrows(UnsupportedOperationException.class, () -> projectResolver.executeOnProject(randomProjectIdOrDefault(), () -> {}));
+        expectThrows(
+            UnsupportedOperationException.class,
+            () -> projectResolver.getProjectMetadata(buildClusterState(randomProjectIdOrDefault(), randomIntBetween(0, 10)))
         );
-        assertThat(e.getMessage(), containsString("Cluster has multiple projects"));
     }
 
     public void testDefaultProjectOnly() {

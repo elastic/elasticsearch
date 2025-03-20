@@ -142,7 +142,8 @@ public abstract class DocsV3Support {
             entry("esql-time-spans", "esql/esql-time-spans.md"),
             entry("esql-limitations", "esql/limitations.md"),
             entry("esql-function-named-params", "esql/esql-syntax.md"),
-            entry("query-dsl-query-string-query", "query-dsl/query-dsl-query-string-query.md")
+            entry("query-dsl-query-string-query", "query-dsl/query-dsl-query-string-query.md"),
+            entry("regexp-syntax", "query-dsl/regexp-syntax.md")
         );
         // Static links to the commands file
         knownCommands = Map.ofEntries(entry("where", "where"), entry("stats-by", "stats"));
@@ -626,7 +627,7 @@ public abstract class DocsV3Support {
             StringBuilder rendered = new StringBuilder();
             if (Strings.isNullOrEmpty(detailedDescription) == false) {
                 detailedDescription = replaceLinks(detailedDescription.trim());
-                rendered.append("\n").append(detailedDescription).append("\n");
+                rendered.append(DOCS_WARNING).append(detailedDescription).append("\n");
             }
 
             if (Strings.isNullOrEmpty(note) == false) {
@@ -770,7 +771,7 @@ public abstract class DocsV3Support {
 
             """);
         builder.append("### ").append(name.toUpperCase(Locale.ROOT)).append("\n");
-        builder.append(removeAsciidocLinks(info.description())).append("\n\n");
+        builder.append(replaceLinks(info.description())).append("\n\n");
 
         if (info.examples().length > 0) {
             Example example = info.examples()[0];
@@ -779,7 +780,7 @@ public abstract class DocsV3Support {
             builder.append("\n```\n");
         }
         if (Strings.isNullOrEmpty(info.note()) == false) {
-            builder.append("Note: ").append(removeAsciidocLinks(info.note())).append("\n");
+            builder.append("Note: ").append(replaceLinks(info.note())).append("\n");
         }
         String rendered = builder.toString();
         logger.info("Writing kibana inline docs for [{}]:\n{}", name, rendered);

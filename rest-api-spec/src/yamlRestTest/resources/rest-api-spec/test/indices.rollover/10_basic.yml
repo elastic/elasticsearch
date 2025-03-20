@@ -183,3 +183,11 @@
             min_age: "0s"
             min_docs: 1
   - match: { error.reason: "Validation Failed: 1: at least one max_* rollover condition must be set when using min_* conditions;" }
+
+---
+"Rolling over an unknown target should return 404":
+  - do:
+      catch: bad_request
+      indices.rollover:
+        alias: "non_existent"
+  - match: {error.reason: "rollover target [non_existent] does not exist"}

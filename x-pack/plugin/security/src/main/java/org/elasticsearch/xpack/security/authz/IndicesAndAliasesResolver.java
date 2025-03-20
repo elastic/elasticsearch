@@ -478,7 +478,6 @@ class IndicesAndAliasesResolver {
                     }
                 }).findFirst();
                 resolvedAliasOrIndex = foundAlias.orElse(concreteIndexName);
-
             } else {
                 resolvedAliasOrIndex = concreteIndexName;
             }

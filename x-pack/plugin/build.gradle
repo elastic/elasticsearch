@@ -122,7 +122,6 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("ml/post_data/Test flush and close job WITHOUT sending any data", "Flush API is deprecated")
   task.skipTest("ml/post_data/Test flush with skip_time", "Flush API is deprecated")
   task.skipTest("ml/post_data/Test POST data job api, flush, close and verify DataCounts doc", "Flush API is deprecated")
-
 })
 
 tasks.named('yamlRestCompatTest').configure {

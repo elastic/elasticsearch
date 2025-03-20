@@ -33,13 +33,10 @@ $$$bucket-script-params$$$
 | Parameter Name | Description | Required | Default Value |
 | --- | --- | --- | --- |
 | `script` | The script to run for this aggregation. The script can be inline, file or indexed. (see [Scripting](docs-content://explore-analyze/scripting.md)for more details) | Required |  |
-<<<<<<< HEAD:docs/reference/aggregations/search-aggregations-pipeline-bucket-script-aggregation.md
 | `buckets_path` | A map of script variables and their associated path to the buckets we wish to use for the variable(see [`buckets_path` Syntax](/reference/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
 | `gap_policy` | The policy to apply when gaps are found in the data (see [Dealing with gaps in the data](/reference/aggregations/pipeline.md#gap-policy) for more details) | Optional | `skip` |
-=======
 | `buckets_path` | A map of script variables and their associated path to the buckets we wish to use for the variable(see [`buckets_path` Syntax](/reference/data-analysis/aggregations/pipeline.md#buckets-path-syntax) for more details) | Required |  |
 | `gap_policy` | The policy to apply when gaps are found in the data (see [Dealing with gaps in the data](/reference/data-analysis/aggregations/pipeline.md#gap-policy) for more details) | Optional | `skip` |
->>>>>>> upstream/9.0:docs/reference/data-analysis/aggregations/search-aggregations-pipeline-bucket-script-aggregation.md
 | `format` | [DecimalFormat pattern](https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/text/DecimalFormat.html) for theoutput value. If specified, the formatted value is returned in the aggregation’s`value_as_string` property | Optional | `null` |
 
 The following snippet calculates the ratio percentage of t-shirt sales compared to total sales each month:

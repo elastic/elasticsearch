@@ -30,7 +30,7 @@ For example, you can use `LOOKUP JOIN` to:
 
 The `LOOKUP JOIN` command adds new columns to a table, with data from {{es}} indices.
 
-:::{image} ../../../images/esql-lookup-join.png
+:::{image} ../images/esql-lookup-join.png
 :alt: esql lookup join
 :::
 

@@ -51,7 +51,7 @@ Filter context applies when a query clause is passed to a `filter` parameter, su
 
 * `filter` or `must_not` parameters in [`bool`](/reference/query-languages/query-dsl/query-dsl-bool-query.md)  queries
 * `filter` parameter in [`constant_score`](/reference/query-languages/query-dsl/query-dsl-constant-score-query.md) queries
-* [`filter`](/reference/data-analysis/aggregations/search-aggregations-bucket-filter-aggregation.md) aggregations
+* [`filter`](/reference/aggregations/search-aggregations-bucket-filter-aggregation.md) aggregations
 
 Filters optimize query performance and efficiency, especially for structured data queries and when combined with full-text searches.
 

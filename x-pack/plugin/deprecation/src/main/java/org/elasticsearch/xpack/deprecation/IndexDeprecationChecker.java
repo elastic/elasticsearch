@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -100,13 +101,14 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             if (transforms.isEmpty() == false) {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "One or more Transforms write to this index with a compatibility version < 9.0",
+                    "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     Strings.format(
-                        "This index was created in version [%s] and requires action before upgrading to 9.0. The following transforms are "
+                        "This index was created in version [%s] and requires action before upgrading to %d.0. The following transforms are "
                             + "configured to write to this index: [%s]. Refer to the migration guide to learn more about how to prepare "
                             + "transforms destination indices for your upgrade.",
                         currentCompatibilityVersion.toReleaseVersion(),
+                        Version.CURRENT.major,
                         String.join(", ", transforms)
                     ),
                     false,
@@ -115,7 +117,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             } else {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "Old index with a compatibility version < 9.0",
+                    "Old index with a compatibility version < " + Version.CURRENT.major + ".0",
                     "https://ela.st/es-deprecation-9-index-version",
                     "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
                     false,
@@ -142,13 +144,14 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             if (transforms.isEmpty() == false) {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "One or more Transforms write to this old index with a compatibility version < 9.0",
+                    "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     Strings.format(
-                        "This index was created in version [%s] and will be supported as a read-only index in 9.0. The following "
+                        "This index was created in version [%s] and will be supported as a read-only index in %d.0. The following "
                             + "transforms are no longer able to write to this index: [%s]. Refer to the migration guide to learn more "
                             + "about how to handle your transforms destination indices.",
                         currentCompatibilityVersion.toReleaseVersion(),
+                        Version.CURRENT.major,
                         String.join(", ", transforms)
                     ),
                     false,
@@ -157,11 +160,11 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             } else {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "Old index with a compatibility version < 9.0 has been ignored",
+                    "Old index with a compatibility version < " + Version.CURRENT.major + ".0 has been ignored",
                     "https://ela.st/es-deprecation-9-index-version",
                     "This read-only index has version: "
                         + currentCompatibilityVersion.toReleaseVersion()
-                        + " and will be supported as read-only in 9.0",
+                        + " and will be supported as read-only in " + Version.CURRENT.major + ".0",
                     false,
                     Map.of("reindex_required", true)
                 );

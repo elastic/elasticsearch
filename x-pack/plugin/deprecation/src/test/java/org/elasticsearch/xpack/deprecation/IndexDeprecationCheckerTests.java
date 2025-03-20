@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.deprecation;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -78,7 +79,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old index with a compatibility version < 9.0",
+            "Old index with a compatibility version < " + Version.CURRENT.major + ".0",
             "https://ela.st/es-deprecation-9-index-version",
             "This index has version: " + OLD_VERSION.toReleaseVersion(),
             false,
@@ -102,11 +103,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "One or more Transforms write to this index with a compatibility version < 9.0",
+            "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
             "https://ela.st/es-deprecation-9-transform-destination-index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and requires action before upgrading to 9.0. "
+                + "] and requires action before upgrading to " + Version.CURRENT.major + ".0. "
                 + "The following transforms are configured to write to this index: [test-transform]. Refer to the "
                 + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
             false,
@@ -128,11 +129,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "One or more Transforms write to this index with a compatibility version < 9.0",
+            "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
             "https://ela.st/es-deprecation-9-transform-destination-index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and requires action before upgrading to 9.0. "
+                + "] and requires action before upgrading to " + Version.CURRENT.major + ".0. "
                 + "The following transforms are configured to write to this index: [test-transform1, test-transform2]. Refer to the "
                 + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
             false,
@@ -158,11 +159,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "One or more Transforms write to this index with a compatibility version < 9.0",
+                    "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and requires action before upgrading to 9.0. "
+                        + "] and requires action before upgrading to " + Version.CURRENT.major + ".0. "
                         + "The following transforms are configured to write to this index: [test-transform1]. Refer to the "
                         + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
                     false,
@@ -173,11 +174,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "One or more Transforms write to this index with a compatibility version < 9.0",
+                    "One or more Transforms write to this index with a compatibility version < " + Version.CURRENT.major + ".0",
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and requires action before upgrading to 9.0. "
+                        + "] and requires action before upgrading to " + Version.CURRENT.major + ".0. "
                         + "The following transforms are configured to write to this index: [test-transform2]. Refer to the "
                         + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
                     false,
@@ -330,11 +331,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "One or more Transforms write to this old index with a compatibility version < 9.0",
+            "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
             "https://ela.st/es-deprecation-9-transform-destination-index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and will be supported as a read-only index in 9.0. "
+                + "] and will be supported as a read-only index in " + Version.CURRENT.major + ".0. "
                 + "The following transforms are no longer able to write to this index: [test-transform]. Refer to the "
                 + "migration guide to learn more about how to handle your transforms destination indices.",
             false,
@@ -356,11 +357,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "One or more Transforms write to this old index with a compatibility version < 9.0",
+            "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
             "https://ela.st/es-deprecation-9-transform-destination-index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and will be supported as a read-only index in 9.0. "
+                + "] and will be supported as a read-only index in " + Version.CURRENT.major + ".0. "
                 + "The following transforms are no longer able to write to this index: [test-transform1, test-transform2]. Refer to the "
                 + "migration guide to learn more about how to handle your transforms destination indices.",
             false,
@@ -386,11 +387,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "One or more Transforms write to this old index with a compatibility version < 9.0",
+                    "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and will be supported as a read-only index in 9.0. "
+                        + "] and will be supported as a read-only index in " + Version.CURRENT.major + ".0. "
                         + "The following transforms are no longer able to write to this index: [test-transform1]. Refer to the "
                         + "migration guide to learn more about how to handle your transforms destination indices.",
                     false,
@@ -401,11 +402,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "One or more Transforms write to this old index with a compatibility version < 9.0",
+                    "One or more Transforms write to this old index with a compatibility version < " + Version.CURRENT.major + ".0",
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and will be supported as a read-only index in 9.0. "
+                        + "] and will be supported as a read-only index in " + Version.CURRENT.major + ".0. "
                         + "The following transforms are no longer able to write to this index: [test-transform2]. Refer to the "
                         + "migration guide to learn more about how to handle your transforms destination indices.",
                     false,

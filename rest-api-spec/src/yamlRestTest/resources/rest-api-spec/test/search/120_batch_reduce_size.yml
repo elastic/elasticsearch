@@ -1,6 +1,6 @@
 setup:
   - skip:
-      awaits_fix: "TODO batched exec response format num_reduce_phases outstanding"
+      awaits_fix: "TODO fix this test, the response with batched execution is not deterministic enough for the available matchers"
 
   - do:
       indices.create:

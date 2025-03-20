@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -41,6 +43,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -580,6 +583,31 @@ public class ShardStateAction {
         );
     }
 
+    public void shardSplit(
+        final ShardRouting shardRouting,
+        final long primaryTerm,
+        final String message,
+        final ShardLongFieldRange timestampRange,
+        final ShardLongFieldRange eventIngestedRange,
+        final long sourcePrimaryTerm,
+        final ActionListener<Void> listener
+    ) {
+        ClusterState currentState = clusterService.state();
+        remoteShardStateUpdateDeduplicator.executeOnce(
+            new StartedShardEntry(
+                shardRouting.shardId(),
+                shardRouting.allocationId().getId(),
+                primaryTerm,
+                message,
+                timestampRange,
+                eventIngestedRange,
+                new ShardSplit(sourcePrimaryTerm)
+            ),
+            listener,
+            (req, l) -> sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, req, l)
+        );
+    }
+
     // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
         private final MasterServiceTaskQueue<StartedShardUpdateTask> taskQueue;
@@ -691,6 +719,12 @@ public class ShardStateAction {
                                 matched
                             );
                             tasksToBeApplied.add(taskContext);
+                        } else if (invalidShardSplit(startedShardEntry, projectId, initialState)) {
+                            logger.debug("{} failing shard started task because split validation failed", startedShardEntry.shardId);
+                            // TODO: Currently invalid shard split triggers if the primary term changes, the source primary term changes or
+                            // is >= the target primary term or if the source is relocating. In the second and third scenario this will be
+                            // swallow currently. In the split process we will need to handle this.
+                            taskContext.success(() -> task.onFailure(new IllegalStateException("Cannot start")));
                         } else {
                             logger.debug(
                                 "{} starting shard {} (shard started task: [{}])",
@@ -789,6 +823,31 @@ public class ShardStateAction {
             return maybeUpdatedState;
         }
 
+        private static boolean invalidShardSplit(StartedShardEntry startedShardEntry, ProjectId projectId, ClusterState clusterState) {
+            ShardSplit shardSplit = startedShardEntry.shardSplit;
+            if (shardSplit == null) {
+                return false;
+            }
+            IndexRoutingTable routingTable = clusterState.routingTable(projectId).index(startedShardEntry.shardId.getIndex());
+            final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index(startedShardEntry.shardId.getIndex());
+            assert indexMetadata != null;
+            IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+            assert reshardingMetadata != null;
+            IndexReshardingState.Split split = reshardingMetadata.getSplit();
+            int sourceShardId = startedShardEntry.shardId.getId() % split.shardCountBefore();
+            long currentSourcePrimaryTerm = indexMetadata.primaryTerm(sourceShardId);
+            long primaryTermDiff = startedShardEntry.primaryTerm - currentSourcePrimaryTerm;
+            // The source primary term must not have changed, the target primary term must at least be equal to or greater and the source
+            // cannot be relocating.
+            if (startedShardEntry.shardSplit.sourcePrimaryTerm() != currentSourcePrimaryTerm
+                || primaryTermDiff < 0
+                || routingTable.shard(sourceShardId).primaryShard().relocating()) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
             for (ProjectId projectId : clusterState.metadata().projects().keySet()) {
                 for (Map.Entry<String, IndexRoutingTable> cursor : clusterState.routingTable(projectId).getIndicesRouting().entrySet()) {
@@ -827,6 +886,18 @@ public class ShardStateAction {
         }
     }
 
+    record ShardSplit(long sourcePrimaryTerm) implements Writeable {
+
+        ShardSplit(StreamInput in) throws IOException {
+            this(in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(sourcePrimaryTerm);
+        }
+    }
+
     public static class StartedShardEntry extends TransportRequest {
         final ShardId shardId;
         final String allocationId;
@@ -834,6 +905,7 @@ public class ShardStateAction {
         final String message;
         final ShardLongFieldRange timestampRange;
         final ShardLongFieldRange eventIngestedRange;
+        final ShardSplit shardSplit;
 
         StartedShardEntry(StreamInput in) throws IOException {
             super(in);
@@ -847,6 +919,11 @@ public class ShardStateAction {
             } else {
                 this.eventIngestedRange = ShardLongFieldRange.UNKNOWN;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.SOURCE_PRIMARY_TERM_IN_START_SHARD)) {
+                this.shardSplit = in.readOptionalWriteable(ShardSplit::new);
+            } else {
+                this.shardSplit = null;
+            }
         }
 
         public StartedShardEntry(
@@ -857,12 +934,25 @@ public class ShardStateAction {
             final ShardLongFieldRange timestampRange,
             final ShardLongFieldRange eventIngestedRange
         ) {
+            this(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange, null);
+        }
+
+        public StartedShardEntry(
+            final ShardId shardId,
+            final String allocationId,
+            final long primaryTerm,
+            final String message,
+            final ShardLongFieldRange timestampRange,
+            final ShardLongFieldRange eventIngestedRange,
+            @Nullable final ShardSplit shardSplit
+        ) {
             this.shardId = shardId;
             this.allocationId = allocationId;
             this.primaryTerm = primaryTerm;
             this.message = message;
             this.timestampRange = timestampRange;
             this.eventIngestedRange = eventIngestedRange;
+            this.shardSplit = shardSplit;
         }
 
         @Override
@@ -875,6 +965,9 @@ public class ShardStateAction {
             timestampRange.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 eventIngestedRange.writeTo(out);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SOURCE_PRIMARY_TERM_IN_START_SHARD)) {
+                out.writeOptionalWriteable(shardSplit);
             }
         }
 
@@ -891,20 +984,20 @@ public class ShardStateAction {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             StartedShardEntry that = (StartedShardEntry) o;
             return primaryTerm == that.primaryTerm
-                && shardId.equals(that.shardId)
-                && allocationId.equals(that.allocationId)
-                && message.equals(that.message)
-                && timestampRange.equals(that.timestampRange)
-                && eventIngestedRange.equals(that.eventIngestedRange);
+                && Objects.equals(shardId, that.shardId)
+                && Objects.equals(allocationId, that.allocationId)
+                && Objects.equals(message, that.message)
+                && Objects.equals(timestampRange, that.timestampRange)
+                && Objects.equals(eventIngestedRange, that.eventIngestedRange)
+                && Objects.equals(shardSplit, that.shardSplit);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);
+            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange, shardSplit);
         }
     }
 
@@ -946,7 +1039,5 @@ public class ShardStateAction {
         public NoLongerPrimaryShardException(StreamInput in) throws IOException {
             super(in);
         }
-
     }
-
 }

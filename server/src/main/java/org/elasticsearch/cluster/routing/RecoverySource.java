@@ -31,6 +31,7 @@ import java.util.Objects;
  * - {@link PeerRecoverySource} recovery from a primary on another node
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
+ * - {@link SplitRecoverySource} recovery that is split from a source shard
  */
 public abstract class RecoverySource implements Writeable, ToXContentObject {
 
@@ -57,6 +58,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             case PEER -> PeerRecoverySource.INSTANCE;
             case SNAPSHOT -> new SnapshotRecoverySource(in);
             case LOCAL_SHARDS -> LocalShardsRecoverySource.INSTANCE;
+            case SPLIT -> SplitRecoverySource.INSTANCE;
         };
     }
 
@@ -78,7 +80,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         EXISTING_STORE,
         PEER,
         SNAPSHOT,
-        LOCAL_SHARDS
+        LOCAL_SHARDS,
+        SPLIT
     }
 
     public abstract Type getType();
@@ -318,5 +321,37 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         public boolean expectEmptyRetentionLeases() {
             return false;
         }
+    }
+
+    /**
+     * split recovery from a source primary shard
+     */
+    public static class SplitRecoverySource extends RecoverySource {
+
+        public static final SplitRecoverySource INSTANCE = new SplitRecoverySource();
+
+        private SplitRecoverySource() {}
+
+        @Override
+        public Type getType() {
+            return Type.SPLIT;
+        }
+
+        @Override
+        public String toString() {
+            return "split recovery";
+        }
+
+        @Override
+        protected void writeAdditionalFields(StreamOutput out) throws IOException {
+            super.writeAdditionalFields(out);
+        }
+
+        @Override
+        public void addAdditionalFields(XContentBuilder builder, Params params) throws IOException {
+            super.addAdditionalFields(builder, params);
+        }
+
+        // TODO: Expect empty retention leases?
     }
 }

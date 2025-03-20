@@ -28,22 +28,43 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzer;
-import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PlanConcurrencyCalculatorTests extends ESTestCase {
-
     public void testSimpleLimit() {
         assertConcurrency("""
             FROM x
-            | LIMIT 123
-            """, 123);
+            | LIMIT 1024
+            """, 10);
+    }
+
+    public void testBiggestPragmaOverride() {
+        assertConcurrency("""
+            FROM x
+            | LIMIT 1024
+            """, Integer.MAX_VALUE, Integer.MAX_VALUE);
+    }
+
+    public void testSmallestPragmaOverride() {
+        assertConcurrency("""
+            FROM x
+            | LIMIT 1024
+            """, 1, 1);
+    }
+
+    public void testPragmaOverrideWithUnsupportedCommands() {
+        assertConcurrency("""
+            FROM x
+            | WHERE salary * 2 > 5
+            | LIMIT 1024
+            """, 1, 1);
     }
 
     public void testImplicitLimit() {
         assertConcurrency("""
             FROM x
-            """, 1000);
+            """, 9);
     }
 
     public void testStats() {
@@ -56,9 +77,9 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
     public void testStatsWithLimit() {
         assertConcurrency("""
             FROM x
-            | LIMIT 123
+            | LIMIT 1024
             | STATS COUNT(salary)
-            """, 123);
+            """, 10);
     }
 
     public void testSortBeforeLimit() {
@@ -71,16 +92,16 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
     public void testSortAfterLimit() {
         assertConcurrency("""
             FROM x
-            | LIMIT 123
+            | LIMIT 1024
             | SORT salary
-            """, 123);
+            """, 10);
     }
 
     public void testStatsWithSortBeforeLimit() {
         assertConcurrency("""
             FROM x
             | SORT salary
-            | LIMIT 123
+            | LIMIT 1024
             | STATS COUNT(salary)
             """, null);
     }
@@ -89,26 +110,115 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
         assertConcurrency("""
             FROM x
             | SORT salary
-            | LIMIT 123
+            | LIMIT 1024
             | STATS COUNT(salary)
             """, null);
+    }
+
+    public void testWhereBeforeLimit() {
+        assertConcurrency("""
+            FROM x
+            | WHERE salary * 2 > 5
+            | LIMIT 1024
+            """, null);
+    }
+
+    public void testWhereAfterLimit() {
+        assertConcurrency("""
+            FROM x
+            | LIMIT 1024
+            | WHERE salary * 2 > 5
+            """, 10);
+    }
+
+    public void testWherePushedToLuceneQueryBeforeLimit() {
+        assertConcurrency("""
+            FROM x
+            | WHERE first_name LIKE "A%"
+            | LIMIT 1024
+            """, null);
+    }
+
+    public void testWherePushedToLuceneQueryAfterLimit() {
+        assertConcurrency("""
+            FROM x
+            | LIMIT 1024
+            | WHERE first_name LIKE "A%"
+            """, 10);
     }
 
     public void testExpand() {
         assertConcurrency("""
             FROM x
-            | LIMIT 222
+            | LIMIT 2048
             | MV_EXPAND salary
-            | LIMIT 111
-            """, 111);
+            | LIMIT 1024
+            """, 10);
     }
 
     public void testEval() {
         assertConcurrency("""
             FROM x
             | EVAL x=salary*2
-            | LIMIT 111
-            """, 111);
+            | LIMIT 1024
+            """, 10);
+    }
+
+    public void testRename() {
+        assertConcurrency("""
+            FROM x
+            | RENAME salary as x
+            | LIMIT 1024
+            """, 10);
+    }
+
+    public void testKeep() {
+        assertConcurrency("""
+            FROM x
+            | KEEP salary
+            | LIMIT 1024
+            """, 10);
+    }
+
+    public void testDrop() {
+        assertConcurrency("""
+            FROM x
+            | DROP salary
+            | LIMIT 1024
+            """, 10);
+    }
+
+    public void testDissect() {
+        assertConcurrency("""
+            FROM x
+            | DISSECT first_name "%{a} %{b}"
+            | LIMIT 1024
+            """, 10);
+    }
+
+    public void testGrok() {
+        assertConcurrency("""
+            FROM x
+            | GROK first_name "%{EMAILADDRESS:email}"
+            | LIMIT 1024
+            """, 10);
+    }
+
+    public void testEnrich() {
+        assertConcurrency("""
+            FROM x
+            | ENRICH languages ON first_name
+            | LIMIT 1024
+            """, 10);
+    }
+
+    public void testLookup() {
+        assertConcurrency("""
+            FROM x
+            | RENAME salary as language_code
+            | LOOKUP JOIN languages_lookup on language_code
+            | LIMIT 1024
+            """, 10);
     }
 
     private void assertConcurrency(String query, Integer expectedConcurrency) {
@@ -123,7 +233,7 @@ public class PlanConcurrencyCalculatorTests extends ESTestCase {
                 query
             );
 
-        Analyzer analyzer = analyzer(loadMapping("mapping-basic.json", "test"), TEST_VERIFIER, configuration);
+        Analyzer analyzer = analyzer(analyzerDefaultMapping(), TEST_VERIFIER, configuration);
         LogicalPlan logicalPlan = AnalyzerTestUtils.analyze(query, analyzer);
         logicalPlan = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, FoldContext.small())).optimize(logicalPlan);
 

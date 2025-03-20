@@ -16,15 +16,8 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-import java.util.Set;
-
 public class PlanConcurrencyCalculator {
     public static final PlanConcurrencyCalculator INSTANCE = new PlanConcurrencyCalculator();
-
-    /**
-     * Set of allowed {@link LogicalPlan} classes that may safely appear before the {@link Limit}.
-     */
-    private static final Set<Class<? extends LogicalPlan>> ALLOWED_PLAN_CLASSES = Set.of(EsRelation.class, Limit.class);
 
     private PlanConcurrencyCalculator() {}
 
@@ -42,19 +35,6 @@ public class PlanConcurrencyCalculator {
             return configuration.pragmas().maxConcurrentNodesPerCluster();
         }
 
-        // TODO: Should this class take into account the node roles/tiers? What about the index modes like LOOKUP?
-        // TODO: Interactions with functions like SAMPLE()?
-
-        // TODO: ---
-        // # Positive cases
-        // - FROM | LIMIT | _anything_: Fragment[EsRelation, Limit]
-        // -
-
-        // # Negative cases
-        // - FROM | STATS: Fragment[EsRelation, Aggregate]
-        // - SORT: Fragment[EsRelation, TopN]
-        // - WHERE: Fragment[EsRelation, Filter]
-
         Integer dataNodeLimit = getDataNodeLimit(dataNodePlan);
 
         if (dataNodeLimit != null) {
@@ -65,9 +45,13 @@ public class PlanConcurrencyCalculator {
     }
 
     private int limitToConcurrency(int limit) {
-        // TODO: Should there be a calculation running like:
-        // "after each node finishes, recalculate the concurrency based on the amount of results"
-        return limit;
+        // At least 2 nodes, otherwise log2(limit). E.g.
+        // Limit | Concurrency
+        // 1 | 2
+        // 10 | 3
+        // 1000 | 9
+        // 100000 | 16
+        return Math.max(2, (int) (Math.log(limit) / Math.log(2)));
     }
 
     private Integer getDataNodeLimit(PhysicalPlan dataNodePlan) {
@@ -76,7 +60,7 @@ public class PlanConcurrencyCalculator {
         // State machine to find:
         // A relation
         Holder<Boolean> relationFound = new Holder<>(false);
-        // ...followed by NO non-whitelisted nodes that could break the calculation
+        // ...followed by no other node that could break the calculation
         Holder<Boolean> forbiddenNodeFound = new Holder<>(false);
         // ...and finally, a limit
         Holder<Integer> limitValue = new Holder<>(null);
@@ -87,10 +71,10 @@ public class PlanConcurrencyCalculator {
                 if (node instanceof EsRelation) {
                     relationFound.set(true);
                 } else if (relationFound.get()) {
-                    if (ALLOWED_PLAN_CLASSES.contains(node.getClass()) == false) {
-                        forbiddenNodeFound.set(true);
-                    } else if (node instanceof Limit limit && limit.limit() instanceof Literal literalLimit) {
+                    if (node instanceof Limit limit && limit.limit() instanceof Literal literalLimit) {
                         limitValue.set((Integer) literalLimit.value());
+                    } else {
+                        forbiddenNodeFound.set(true);
                     }
                 }
             }

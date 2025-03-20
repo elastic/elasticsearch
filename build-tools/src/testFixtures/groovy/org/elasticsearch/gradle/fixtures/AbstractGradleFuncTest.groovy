@@ -50,7 +50,35 @@ abstract class AbstractGradleFuncTest extends Specification {
     def setup() {
         projectDir = testProjectDir.root
         settingsFile = testProjectDir.newFile('settings.gradle')
-        settingsFile << "rootProject.name = 'hello-world'\n"
+        settingsFile << """
+
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+
+plugins {
+  id 'elasticsearch.java-toolchain'
+}
+
+rootProject.name = 'hello-world'
+
+toolchainManagement {
+  jvm {
+    javaRepositories {
+      repository('bundledOracleOpendJdk') {
+        resolverClass = OracleOpenJdkToolchainResolver
+      }
+      repository('adoptiumJdks') {
+        resolverClass = AdoptiumJdkToolchainResolver
+      }
+      repository('archivedOracleJdks') {
+        resolverClass = ArchivedOracleJdkToolchainResolver
+      }
+    }
+  }
+}
+
+"""
         buildFile = testProjectDir.newFile('build.gradle')
         propertiesFile = testProjectDir.newFile('gradle.properties')
         propertiesFile <<

@@ -929,7 +929,7 @@ The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operati
 
 ### Using aggregations with a retriever tree [retriever-aggregations]
 
-[Aggregations](/reference/data-analysis/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
+[Aggregations](/reference/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
 
 
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]

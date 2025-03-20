@@ -178,7 +178,7 @@ $$$index-max-ngram-diff$$$
 $$$index-max-shingle-diff$$$
 
 `index.max_shingle_diff`
-:   The maximum allowed difference between max_shingle_size and min_shingle_size for the [`shingle` token filter](/reference/data-analysis/text-analysis/analysis-shingle-tokenfilter.md). Defaults to `3`.
+:   The maximum allowed difference between max_shingle_size and min_shingle_size for the [`shingle` token filter](/reference/text-analysis/analysis-shingle-tokenfilter.md). Defaults to `3`.
 
 `index.max_refresh_listeners`
 :   Maximum number of refresh listeners available on each shard of the index. These listeners are used to implement `refresh=wait_for`.

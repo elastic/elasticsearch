@@ -10,9 +10,9 @@ mapped_pages:
 Fields of type `geo_point` accept latitude-longitude pairs, which can be used:
 
 * to find geopoints within a [bounding box](/reference/query-languages/query-dsl/query-dsl-geo-bounding-box-query.md), within a certain [distance](/reference/query-languages/query-dsl/query-dsl-geo-distance-query.md) of a central point, or within a [`geo_shape` query](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md) (for example, points in a polygon).
-* to aggregate documents by [distance](/reference/data-analysis/aggregations/search-aggregations-bucket-geodistance-aggregation.md) from a central point.
-* to aggregate documents by geographic grids: either [`geo_hash`](/reference/data-analysis/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md), [`geo_tile`](/reference/data-analysis/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md) or [`geo_hex`](/reference/data-analysis/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).
-* to aggregate geopoints into a track using the metrics aggregation [`geo_line`](/reference/data-analysis/aggregations/search-aggregations-metrics-geo-line.md).
+* to aggregate documents by [distance](/reference/aggregations/search-aggregations-bucket-geodistance-aggregation.md) from a central point.
+* to aggregate documents by geographic grids: either [`geo_hash`](/reference/aggregations/search-aggregations-bucket-geohashgrid-aggregation.md), [`geo_tile`](/reference/aggregations/search-aggregations-bucket-geotilegrid-aggregation.md) or [`geo_hex`](/reference/aggregations/search-aggregations-bucket-geohexgrid-aggregation.md).
+* to aggregate geopoints into a track using the metrics aggregation [`geo_line`](/reference/aggregations/search-aggregations-metrics-geo-line.md).
 * to integrate distance into a document’s [relevance score](/reference/query-languages/query-dsl/query-dsl-function-score-query.md).
 * to [sort](/reference/elasticsearch/rest-apis/sort-search-results.md#geo-sorting) documents by distance.
 

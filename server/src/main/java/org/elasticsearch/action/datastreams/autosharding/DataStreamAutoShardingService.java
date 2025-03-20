@@ -322,6 +322,17 @@ public class DataStreamAutoShardingService {
 
     // Visible for testing
     static long computeOptimalNumberOfShards(int minNumberWriteThreads, int maxNumberWriteThreads, double indexingLoad) {
+        /*
+         * Define:
+         *  - shardsByMaxThreads = number of shards required to ensure no more than 50% utilization with max number of threads per shard
+         *  - shardsByMaxThreads = number of shards required to ensure no more than 50% utilization with min number of threads per shard
+         * Note that shardsByMaxThreads <= shardsByMinThreads.
+         * This returns:
+         *  - shardsByMaxThreads if shardsByMaxThreads > 3
+         *  - 3 if shardsByMaxThreads <= 3 and shardsByMinThreads > 3
+         *  - shardsByMinThreads if 0 < shardsByMinThreads <= 3
+         *  - 1 if shardsByMinThreads == 0
+         */
         return Math.max(
             Math.max(
                 Math.min(roundUp(indexingLoad / (minNumberWriteThreads / 2.0)), 3),

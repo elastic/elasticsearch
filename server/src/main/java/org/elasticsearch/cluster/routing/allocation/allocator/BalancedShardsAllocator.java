@@ -1239,7 +1239,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             index.assertMatch(shard);
             indices.computeIfAbsent(index, t -> new ModelIndex()).addShard(shard);
             IndexMetadata indexMetadata = metadata.getProject(index.project).index(shard.index());
-            writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            if (shard.role() != ShardRouting.Role.SEARCH_ONLY) {
+                writeLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            }
             diskUsageInBytes += Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards++;
         }
@@ -1253,7 +1255,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
             IndexMetadata indexMetadata = metadata.getProject(projectIndex.project).index(shard.index());
-            writeLoad -= writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            if (shard.role() != ShardRouting.Role.SEARCH_ONLY) {
+                writeLoad -= writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
+            }
             diskUsageInBytes -= Balancer.getShardDiskUsageInBytes(shard, indexMetadata, clusterInfo);
             numShards--;
         }

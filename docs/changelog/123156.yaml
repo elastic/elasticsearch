@@ -1,0 +1,5 @@
+pr: 123156
+summary: Wrap remote errors with cluster name to provide more context
+area: Search
+type: enhancement
+issues: []

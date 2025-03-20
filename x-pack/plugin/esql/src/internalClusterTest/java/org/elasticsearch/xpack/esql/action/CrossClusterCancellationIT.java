@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.cluster.RemoteComputeException;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
@@ -162,8 +163,8 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         } finally {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
-        Exception error = expectThrows(Exception.class, requestFuture::actionGet);
-        assertThat(error.getMessage(), containsString("proxy timeout"));
+        RemoteComputeException rce = expectThrows(RemoteComputeException.class, requestFuture::actionGet);
+        assertThat(rce.getCause().getMessage(), containsString("proxy timeout"));
     }
 
     public void testSameRemoteClusters() throws Exception {
@@ -283,7 +284,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
 
-        Exception error = expectThrows(Exception.class, requestFuture::actionGet);
-        assertThat(error, instanceOf(TaskCancelledException.class));
+        RemoteComputeException error = expectThrows(RemoteComputeException.class, requestFuture::actionGet);
+        assertThat(error.getCause(), instanceOf(TaskCancelledException.class));
     }
 }

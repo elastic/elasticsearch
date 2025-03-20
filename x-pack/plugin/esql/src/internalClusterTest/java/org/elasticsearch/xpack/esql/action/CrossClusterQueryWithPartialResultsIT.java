@@ -11,6 +11,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.RemoteComputeException;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -104,8 +106,11 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         request.includeCCSMetadata(randomBoolean());
         {
             request.allowPartialResults(false);
-            IllegalStateException error = expectThrows(IllegalStateException.class, () -> runQuery(request).close());
-            assertThat(error.getMessage(), containsString("Accessing failing field"));
+            RemoteComputeException rce = expectThrows(RemoteComputeException.class, () -> runQuery(request).close());
+            Throwable t = rce.getCause();
+
+            assertThat(t, instanceOf(IllegalStateException.class));
+            assertThat(t.getMessage(), containsString("Accessing failing field"));
         }
         request.allowPartialResults(true);
         try (var resp = runQuery(request)) {
@@ -189,7 +194,8 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             request.includeCCSMetadata(randomBoolean());
             {
                 request.allowPartialResults(false);
-                Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+                RemoteComputeException rce = expectThrows(RemoteComputeException.class, () -> runQuery(request).close());
+                var error = (Exception) rce.getCause();
                 var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
                 assertNotNull(unwrapped);
                 assertThat(unwrapped.getMessage(), equalTo(simulatedFailure.getMessage()));
@@ -236,7 +242,8 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             request.includeCCSMetadata(randomBoolean());
             {
                 request.allowPartialResults(false);
-                var error = expectThrows(Exception.class, () -> runQuery(request).close());
+                var rce = expectThrows(RemoteComputeException.class, () -> runQuery(request).close());
+                var error = (Exception) rce.getCause();
                 EsqlTestUtils.assertEsqlFailure(error);
                 var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
                 assertNotNull(unwrapped);

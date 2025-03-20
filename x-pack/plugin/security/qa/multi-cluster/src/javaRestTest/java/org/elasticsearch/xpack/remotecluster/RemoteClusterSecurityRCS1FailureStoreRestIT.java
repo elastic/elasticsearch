@@ -103,20 +103,16 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
         }
         {
             // direct access to backing failure index is subject to the user's permissions and is allowed
-            assertSearchResponseContainsIndices(
-                performRequestWithRemoteSearchUser(
-                    new Request(
-                        "GET",
-                        String.format(
-                            Locale.ROOT,
-                            "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
-                            backingFailureIndexName,
-                            randomBoolean()
-                        )
-                    )
-                ),
-                backingFailureIndexName
+            Request failureIndexSearchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
+                    backingFailureIndexName,
+                    randomBoolean()
+                )
             );
+            assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(failureIndexSearchRequest), backingFailureIndexName);
         }
     }
 

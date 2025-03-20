@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic;
+package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
@@ -20,6 +20,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceExecutableActionModel;
 
 import java.net.URI;
 import java.net.URISyntaxException;

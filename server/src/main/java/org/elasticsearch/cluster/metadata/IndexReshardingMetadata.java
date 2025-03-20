@@ -205,10 +205,27 @@ public class IndexReshardingMetadata implements ToXContentFragment, Writeable {
         return new IndexReshardingMetadata(IndexReshardingState.Split.newSplitByMultiple(shardCount, multiple));
     }
 
+    /**
+     * @return the split state of this metadata block, or throw IllegalArgumentException if this metadata doesn't represent a split
+     */
     public IndexReshardingState.Split getSplit() {
         return switch (state) {
             case IndexReshardingState.Noop ignored -> throw new IllegalArgumentException("resharding metadata is not a split");
             case IndexReshardingState.Split s -> s;
         };
+    }
+
+    /**
+     * @return the number of shards the index has at the start of this operation
+     */
+    public int shardCountBefore() {
+        return state.shardCountBefore();
+    }
+
+    /**
+     * @return the number of shards that the index will have when resharding completes
+     */
+    public int shardCountAfter() {
+        return state.shardCountAfter();
     }
 }

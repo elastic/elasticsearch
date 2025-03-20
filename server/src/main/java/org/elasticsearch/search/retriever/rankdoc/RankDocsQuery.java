@@ -18,12 +18,14 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
+import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;
@@ -32,6 +34,7 @@ import java.util.Comparator;
 import java.util.Objects;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 
 /**
  * A {@code RankDocsQuery} returns the top k documents in the order specified by the global doc IDs.
@@ -167,7 +170,11 @@ public class RankDocsQuery extends Query {
 
                         @Override
                         public float score() throws IOException {
-                            return Math.max(docs[upTo].score, minScore);
+                            // We need to handle scores of exactly 0 specially:
+                            // Even when a document legitimately has a score of 0, we replace it with DEFAULT_MIN_SCORE
+                            // to differentiate it from filtered tailQuematches that would also produce a 0 score.
+                            float docScore = docs[upTo].score;
+                            return docScore == 0 ? DEFAULT_MIN_SCORE : docScore;
                         }
 
                         @Override
@@ -241,7 +248,11 @@ public class RankDocsQuery extends Query {
      * @param sources      The original queries that were used to compute the top documents
      * @param queryNames   The names (if present) of the original retrievers
      * @param onlyRankDocs Whether the query should only match the provided rank docs
-     * @param minScore     The minimum score threshold for documents to be included in total hits
+     * @param minScore     The minimum score threshold for documents to be included in total hits.
+     *                     This can be set to any value including 0.0f to filter out documents with scores below the threshold.
+     *                     Note: This is separate from the special handling of 0 scores. Documents with a score of exactly 0
+     *                     will always be assigned DEFAULT_MIN_SCORE internally to differentiate them from filtered matches,
+     *                     regardless of the minScore value.
      */
     public RankDocsQuery(
         IndexReader reader,
@@ -361,28 +372,10 @@ public class RankDocsQuery extends Query {
                     @Override
                     public Scorer get(long leadCost) throws IOException {
                         Scorer scorer = supplier.get(leadCost);
-                        return new Scorer() {
-                            @Override
-                            public DocIdSetIterator iterator() {
-                                return scorer.iterator();
-                            }
-
-                            @Override
-                            public float getMaxScore(int docId) throws IOException {
-                                return scorer.getMaxScore(docId);
-                            }
-
-                            @Override
-                            public float score() throws IOException {
-                                float score = scorer.score();
-                                return score >= minScore ? score : 0f;
-                            }
-
-                            @Override
-                            public int docID() {
-                                return scorer.docID();
-                            }
-                        };
+                        if (minScore > DEFAULT_MIN_SCORE) {
+                            return new MinScoreScorer(scorer, minScore);
+                        }
+                        return scorer;
                     }
 
                     @Override

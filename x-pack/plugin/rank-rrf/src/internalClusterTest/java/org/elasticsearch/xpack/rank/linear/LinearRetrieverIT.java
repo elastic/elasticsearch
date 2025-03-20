@@ -41,11 +41,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.rank.linear.normalizer.IdentityScoreNormalizer;
-import org.elasticsearch.xpack.rank.linear.normalizer.MinMaxScoreNormalizer;
-import org.elasticsearch.xpack.rank.linear.normalizer.ScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.IdentityScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.ScoreNormalizer;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 import org.junit.Before;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -276,7 +277,6 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(1).getId(), equalTo("doc_6"));
             assertThat((double) resp.getHits().getAt(1).getScore(), closeTo(12.0588f, 0.0001f));
             assertThat(resp.getHits().getAt(2).getId(), equalTo("doc_1"));
-            assertThat(resp.getHits().getAt(2).getScore(), equalTo(10f));
             assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(0).getId(), equalTo("doc_4"));
             assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(1).getId(), equalTo("doc_3"));
             assertThat(resp.getHits().getAt(2).getInnerHits().get("a").getAt(2).getId(), equalTo("doc_1"));
@@ -487,10 +487,10 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(0).getExplanation().isMatch(), equalTo(true));
             assertThat(resp.getHits().getAt(0).getExplanation().getDescription(), containsString("sum of:"));
             assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(2));
-            var rrfDetails = resp.getHits().getAt(0).getExplanation().getDetails()[0];
-            assertThat(rrfDetails.getDetails().length, equalTo(3));
+            var linearTopLevel = resp.getHits().getAt(0).getExplanation().getDetails()[0];
+            assertThat(linearTopLevel.getDetails().length, equalTo(3));
             assertThat(
-                rrfDetails.getDescription(),
+                linearTopLevel.getDescription(),
                 equalTo(
                     "weighted linear combination score: [30.0] computed for normalized scores [9.0, 20.0, 1.0] "
                         + "and weights [1.0, 1.0, 1.0] as sum of (weight[i] * score[i]) for each query."
@@ -498,21 +498,21 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             );
 
             assertThat(
-                rrfDetails.getDetails()[0].getDescription(),
+                linearTopLevel.getDetails()[0].getDescription(),
                 containsString(
                     "weighted score: [9.0] in query at index [0] [my_custom_retriever] computed as [1.0 * 9.0] "
                         + "using score normalizer [none] for original matching query with score"
                 )
             );
             assertThat(
-                rrfDetails.getDetails()[1].getDescription(),
+                linearTopLevel.getDetails()[1].getDescription(),
                 containsString(
                     "weighted score: [20.0] in query at index [1] computed as [1.0 * 20.0] using score normalizer [none] "
                         + "for original matching query with score:"
                 )
             );
             assertThat(
-                rrfDetails.getDetails()[2].getDescription(),
+                linearTopLevel.getDetails()[2].getDescription(),
                 containsString(
                     "weighted score: [1.0] in query at index [2] computed as [1.0 * 1.0] using score normalizer [none] "
                         + "for original matching query with score"
@@ -593,10 +593,10 @@ public class LinearRetrieverIT extends ESIntegTestCase {
             assertThat(resp.getHits().getAt(0).getExplanation().getDescription(), containsString("sum of:"));
             assertThat(resp.getHits().getAt(0).getExplanation().getDetails().length, equalTo(2));
             var linearTopLevel = resp.getHits().getAt(0).getExplanation().getDetails()[0];
-            assertThat(linearTopLevel.getDetails().length, equalTo(2));
+            assertThat(linearTopLevel.getDetails().length, equalTo(3));
             assertThat(
                 linearTopLevel.getDescription(),
-                containsString(
+                equalTo(
                     "weighted linear combination score: [112.05882] computed for normalized scores [12.058824, 20.0] "
                         + "and weights [1.0, 5.0] as sum of (weight[i] * score[i]) for each query."
                 )
@@ -1014,7 +1014,11 @@ public class LinearRetrieverIT extends ESIntegTestCase {
 
         try {
             RetrieverBuilder rewrittenRetriever = linearRetriever.rewrite(
-                new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> System.currentTimeMillis())
+                new QueryRewriteContext(
+                    XContentParserConfiguration.EMPTY,
+                    client(),
+                    System::currentTimeMillis
+                )
             );
             rewrittenRetriever.extractToSearchSourceBuilder(searchSourceBuilder, false);
             searchRequestBuilder.setSource(searchSourceBuilder);

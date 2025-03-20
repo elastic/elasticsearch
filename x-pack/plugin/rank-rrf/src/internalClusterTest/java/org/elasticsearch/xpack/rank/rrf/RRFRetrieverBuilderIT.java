@@ -20,6 +20,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -39,8 +40,10 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
+import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -65,7 +68,9 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(RRFRankPlugin.class);
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.add(RRFRankPlugin.class);
+        return plugins;
     }
 
     @Before
@@ -777,7 +782,9 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
                 rankConstant
             )
         );
-        source.retriever().getPreFilterQueryBuilders().add(QueryBuilders.boolQuery().must(QueryBuilders.termQuery(DOC_FIELD, "doc_7")));
+        QueryBuilder preFilterQuery = QueryBuilders.boolQuery().must(QueryBuilders.termQuery(DOC_FIELD, "doc_7"));
+        standardRetriever.getPreFilterQueryBuilders().add(preFilterQuery);
+        knnRetriever.getPreFilterQueryBuilders().add(preFilterQuery);
         source.size(10);
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
         ElasticsearchAssertions.assertResponse(req, resp -> {
@@ -821,7 +828,7 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null);
         var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, null));
         var rrf = new RRFRetrieverBuilder(
-            List.of(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
+            Arrays.asList(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
             10,
             10
         );

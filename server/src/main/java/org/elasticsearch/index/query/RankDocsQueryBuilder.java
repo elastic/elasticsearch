@@ -28,6 +28,20 @@ import java.util.Objects;
 public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuilder> {
 
     public static final String NAME = "rank_docs_query";
+    
+    /**
+     * Default minimum score threshold for documents to be included in results.
+     * Using Float.MIN_VALUE as the default ensures that by default no documents 
+     * are filtered out based on score, as virtually all scores will be above this threshold.
+     * 
+     * This threshold is separate from the special handling of scores that are exactly 0:
+     * - The minScore parameter determines which documents are included in results based on their score
+     * - Documents with a score of exactly 0 will always be assigned Float.MIN_VALUE internally
+     *   to differentiate them from filtered matches, regardless of the minScore value
+     *
+     * Setting minScore to a higher value (e.g., 0.0f) would filter out documents with scores below that threshold,
+     * which can be useful to remove documents that only match filters but have no relevance score contribution.
+     */
     public static final float DEFAULT_MIN_SCORE = Float.MIN_VALUE;
 
     private final RankDoc[] rankDocs;
@@ -48,21 +62,16 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
 
     public RankDocsQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        RankDoc[] rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
+        this.rankDocs = in.readArray(c -> c.readNamedWriteable(RankDoc.class), RankDoc[]::new);
         QueryBuilder[] queryBuilders = null;
         boolean onlyRankDocs = false;
-
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             queryBuilders = in.readOptionalArray(c -> c.readNamedWriteable(QueryBuilder.class), QueryBuilder[]::new);
             onlyRankDocs = in.readBoolean();
         }
-
-        float minScore = in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOCS_MIN_SCORE) ? in.readFloat() : DEFAULT_MIN_SCORE;
-
-        this.rankDocs = rankDocs;
         this.queryBuilders = queryBuilders;
         this.onlyRankDocs = onlyRankDocs;
-        this.minScore = minScore;
+        this.minScore = in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOCS_MIN_SCORE) ? in.readFloat() : DEFAULT_MIN_SCORE;
     }
 
     @Override
@@ -163,6 +172,6 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.RANK_DOCS_MIN_SCORE;
+        return TransportVersions.V_8_16_0;
     }
 }

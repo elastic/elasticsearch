@@ -101,7 +101,12 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
         RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
-        clone.retrieverName = retrieverName;
+        clone.retrieverName = this.retrieverName;
+        for (int i = 0; i < newRetrievers.size() && i < this.innerRetrievers.size(); i++) {
+            if (this.innerRetrievers.get(i).retriever().retrieverName() != null) {
+                newRetrievers.get(i).retriever().retrieverName(this.innerRetrievers.get(i).retriever().retrieverName());
+            }
+        }
         return clone;
     }
 
@@ -116,8 +121,17 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         Map<RankDoc.RankKey, RRFRankDoc> docsToRankResults = Maps.newMapWithExpectedSize(rankWindowSize);
         int index = 0;
         for (var rrfRankResult : rankResults) {
+            if (rrfRankResult == null) {
+                // Skip null results from failed retrievers
+                ++index;
+                continue;
+            }
             int rank = 1;
             for (ScoreDoc scoreDoc : rrfRankResult) {
+                // Skip documents that don't match nested query conditions
+                if (scoreDoc.score <= 0) {
+                    continue;
+                }
                 final int findex = index;
                 final int frank = rank;
                 docsToRankResults.compute(new RankDoc.RankKey(scoreDoc.doc, scoreDoc.shardIndex), (key, value) -> {
@@ -131,7 +145,8 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
 
                     // calculate the current rrf score for this document
                     // later used to sort and covert to a rank
-                    value.score += 1.0f / (rankConstant + frank);
+                    float rrfScore = 1.0f / (rankConstant + frank);
+                    value.score += rrfScore;
 
                     if (explain && value.positions != null && value.scores != null) {
                         // record the position for each query
@@ -158,6 +173,14 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedResults[rank];
             topResults[rank].rank = rank + 1;
+            // Ensure scores are properly propagated for inner hits
+            if (topResults[rank].scores != null) {
+                float maxScore = 0f;
+                for (float score : topResults[rank].scores) {
+                    maxScore = Math.max(maxScore, score);
+                }
+                topResults[rank].score = maxScore * topResults[rank].score;
+            }
         }
         return topResults;
     }

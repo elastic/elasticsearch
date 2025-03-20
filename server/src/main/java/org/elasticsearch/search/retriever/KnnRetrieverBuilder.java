@@ -36,6 +36,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.index.query.RankDocsQueryBuilder.DEFAULT_MIN_SCORE;
 
 /**
  * A knn retriever is used to represent a knn search
@@ -201,7 +202,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
     public QueryBuilder topDocsQuery() {
         assert queryVector != null : "query vector must be materialized at this point";
         assert rankDocs != null : "rankDocs should have been materialized by now";
-        var rankDocsQuery = new RankDocsQueryBuilder(rankDocs, null, true, Float.MIN_VALUE);
+        var rankDocsQuery = new RankDocsQueryBuilder(rankDocs, null, true, DEFAULT_MIN_SCORE);
         if (preFilterQueryBuilders.isEmpty()) {
             return rankDocsQuery.queryName(retrieverName);
         }
@@ -218,7 +219,7 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
             rankDocs,
             new QueryBuilder[] { new ExactKnnQueryBuilder(VectorData.fromFloats(queryVector.get()), field, similarity) },
             false,
-            Float.MIN_VALUE
+            DEFAULT_MIN_SCORE
         );
         if (preFilterQueryBuilders.isEmpty()) {
             return rankDocsQuery.queryName(retrieverName);

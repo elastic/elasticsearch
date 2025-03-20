@@ -6,6 +6,9 @@
  */
 
 import org.elasticsearch.xpack.rank.RankRRFFeatures;
+import org.elasticsearch.xpack.rank.linear.IdentityScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer;
+import org.elasticsearch.xpack.rank.linear.ScoreNormalizer;
 
 module org.elasticsearch.rank.rrf {
     requires org.apache.lucene.core;

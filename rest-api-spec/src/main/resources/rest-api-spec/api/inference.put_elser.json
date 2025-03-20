@@ -1,5 +1,9 @@
 {
   "inference.put_elser": {
+    "deprecated" : {
+      "version" : "8.16.0",
+      "description" : "The elser service is deprecated. Use the Elasticsearch inference integration instead, with model_id included in the service_settings."
+    },
     "documentation": {
       "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-elser.html",
       "description": "Configure an ELSER inference endpoint"

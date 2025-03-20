@@ -609,19 +609,18 @@ public class CefProcessorTests extends ESTestCase {
     @Test
     @SuppressWarnings("unchecked")
     public void testAllFieldsInExtension() {
-        String message =
-            "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|app=HTTP in=1234 out=5678 dst=192.168.0.1 " +
-                "dlat=37.7749 dlong=-122.4194 dhost=example.com dmac=00:0a:95:9d:68:16 dntdom=example.org dpt=80 dpid=1234 " +
-                "dproc=procname duid=1001 duser=username dpriv=admin act=blocked dvc=192.168.0.2 deviceDirection=inbound " +
-                "deviceDnsDomain=example.com deviceExternalId=ext123 deviceFacility=16 dvchost=host1 deviceInboundInterface=eth0 " +
-                "dvcmac=00:0a:95:9d:68:16 deviceOutboundInterface=eth1 dvcpid=5678 deviceProcessName=procname rt=1622547800000 " +
-                "dtz=UTC deviceTranslatedAddress=10.0.0.1 device.version=1.0 end=1622547900000 eventId=evt123 outcome=success " +
-                "fileCreateTime=1622547800000 fileHash=abcd1234 fileId=5678 fileModificationTime=1622547900000 fname=file.txt " +
-                "filePath=/path/to/file filePermission=rw-r--r-- fsize=1024 fileType=txt mrt=1622547800000 msg=message " +
-                "reason=reason requestClientApplication=Mozilla requestContext=referrer requestMethod=GET request=url " +
-                "src=192.168.0.3 sourceDnsDomain=example.net slat=37.7749 slong=-122.4194 shost=source.com " +
-                "smac=00:0a:95:9d:68:16 sntdom=example.net spt=443 spid=1234 sproc=procname sourceServiceName=service " +
-                "start=1622547800000 proto=TCP";
+        String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|app=HTTP in=1234 out=5678 dst=192.168.0.1 "
+            + "dlat=37.7749 dlong=-122.4194 dhost=example.com dmac=00:0a:95:9d:68:16 dntdom=example.org dpt=80 dpid=1234 "
+            + "dproc=procname duid=1001 duser=username dpriv=admin act=blocked dvc=192.168.0.2 deviceDirection=inbound "
+            + "deviceDnsDomain=example.com deviceExternalId=ext123 deviceFacility=16 dvchost=host1 deviceInboundInterface=eth0 "
+            + "dvcmac=00:0a:95:9d:68:16 deviceOutboundInterface=eth1 dvcpid=5678 deviceProcessName=procname rt=1622547800000 "
+            + "dtz=UTC deviceTranslatedAddress=10.0.0.1 device.version=1.0 end=1622547900000 eventId=evt123 outcome=success "
+            + "fileCreateTime=1622547800000 fileHash=abcd1234 fileId=5678 fileModificationTime=1622547900000 fname=file.txt "
+            + "filePath=/path/to/file filePermission=rw-r--r-- fsize=1024 fileType=txt mrt=1622547800000 msg=message "
+            + "reason=reason requestClientApplication=Mozilla requestContext=referrer requestMethod=GET request=url "
+            + "src=192.168.0.3 sourceDnsDomain=example.net slat=37.7749 slong=-122.4194 shost=source.com "
+            + "smac=00:0a:95:9d:68:16 sntdom=example.net spt=443 spid=1234 sproc=procname sourceServiceName=service "
+            + "start=1622547800000 proto=TCP";
         Map<String, Object> source = new HashMap<>();
         source.put("message", message);
         ingestDocument = new IngestDocument("index", "id", 1L, null, null, source);

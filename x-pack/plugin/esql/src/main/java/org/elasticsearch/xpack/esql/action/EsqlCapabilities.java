@@ -892,8 +892,8 @@ public class EsqlCapabilities {
         /**
          * Support for multi-match function.
          */
-        MULTI_MATCH_FUNCTION;
-      
+        MULTI_MATCH_FUNCTION,
+
         /**
          * Do {@code TO_LOWER} and {@code TO_UPPER} process all field values?
          */

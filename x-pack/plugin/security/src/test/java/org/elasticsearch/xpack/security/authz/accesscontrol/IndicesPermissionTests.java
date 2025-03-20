@@ -199,7 +199,7 @@ public class IndicesPermissionTests extends ESTestCase {
         for (IndexMetadata index : backingIndices) {
             builder.put(index, false);
         }
-        var metadata = builder.build().getProject();
+        var metadata = builder.build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         for (var privilege : List.of(IndexPrivilege.ALL, IndexPrivilege.READ)) {
@@ -386,7 +386,7 @@ public class IndicesPermissionTests extends ESTestCase {
         for (IndexMetadata index : failureIndices) {
             builder.put(index, false);
         }
-        var metadata = builder.build().getProject();
+        var metadata = builder.build();
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         for (var privilege : List.of(IndexPrivilege.READ)) {

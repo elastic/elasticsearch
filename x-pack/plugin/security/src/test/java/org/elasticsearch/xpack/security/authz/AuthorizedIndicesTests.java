@@ -290,7 +290,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getProject().getIndicesLookup(),
+            metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
         assertThat(authorizedIndices.all(IndexComponentSelector.DATA), containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
@@ -467,7 +467,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             requestInfo,
-            metadata.getProject().getIndicesLookup(),
+            metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
         assertAuthorizedFor(
@@ -552,7 +552,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             requestInfo,
-            metadata.getProject().getIndicesLookup(),
+            metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
         assertAuthorizedFor(
@@ -633,7 +633,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             getRequestInfo(TransportSearchAction.TYPE.name()),
-            metadata.getProject().getIndicesLookup(),
+            metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
         assertAuthorizedFor(authorizedIndices, IndexComponentSelector.DATA, "a1", "a2", "aaaaaa");

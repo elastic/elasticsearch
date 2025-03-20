@@ -497,7 +497,6 @@ class IndicesAndAliasesResolver {
             }
         }
         return authorizedAliases;
-
     }
 
     private static List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {

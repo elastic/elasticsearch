@@ -200,7 +200,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         for (Expression field : fields) {
             fieldsWithBoost.put((String) ((Literal) field).value(), 1.0f);
         }
-        return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, getOptions(), null);
+        return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, getOptions());
     }
 
     @Override

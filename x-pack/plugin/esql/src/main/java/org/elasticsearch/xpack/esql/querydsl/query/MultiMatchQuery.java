@@ -13,7 +13,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 
 import java.util.Map;
 import java.util.Objects;
@@ -62,19 +61,11 @@ public class MultiMatchQuery extends Query {
     private final String query;
     private final Map<String, Float> fields;
     private final Map<String, Object> options;
-    private final MultiMatchQueryPredicate predicate;
 
-    public MultiMatchQuery(
-        Source source,
-        String query,
-        Map<String, Float> fields,
-        Map<String, Object> options,
-        MultiMatchQueryPredicate predicate
-    ) {
+    public MultiMatchQuery(Source source, String query, Map<String, Float> fields, Map<String, Object> options) {
         super(source);
         this.query = query;
         this.fields = fields;
-        this.predicate = predicate;
         this.options = options;
     }
 
@@ -82,7 +73,6 @@ public class MultiMatchQuery extends Query {
     public QueryBuilder asBuilder() {
         final MultiMatchQueryBuilder queryBuilder = QueryBuilders.multiMatchQuery(query);
         queryBuilder.fields(fields);
-        queryBuilder.analyzer(predicate.analyzer());
         options.forEach((k, v) -> {
             if (BUILDER_APPLIERS.containsKey(k)) {
                 BUILDER_APPLIERS.get(k).accept(queryBuilder, v);
@@ -95,7 +85,7 @@ public class MultiMatchQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, fields, predicate);
+        return Objects.hash(query, fields, options);
     }
 
     @Override
@@ -109,7 +99,7 @@ public class MultiMatchQuery extends Query {
         }
 
         MultiMatchQuery other = (MultiMatchQuery) obj;
-        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(predicate, other.predicate);
+        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(options, other.options);
     }
 
     @Override

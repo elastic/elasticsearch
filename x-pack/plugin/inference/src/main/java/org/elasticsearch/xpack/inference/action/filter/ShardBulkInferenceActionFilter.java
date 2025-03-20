@@ -249,7 +249,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
-            this.onCompletion = onCompletion;
+            this.onCompletion = () -> {  // TODO: Can we assume that onCompletion _always_ runs, regardless of what errors occur?
+                CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
+                if (circuitBreaker != null && memoryUsageInBytes > 0) {
+                    circuitBreaker.addWithoutBreaking(-memoryUsageInBytes);
+                }
+
+                onCompletion.run();
+            };
         }
 
         @Override

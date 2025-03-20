@@ -36,7 +36,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -460,7 +459,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         // we don't aggregate shard on failures due to the internal cancellation,
         // but do keep the header counts right
-        if ((requestCancelled.get() && isTaskCancelledException(e)) == false) {
+        if ((requestCancelled.get() && ExceptionsHelper.isTaskCancelledException(e)) == false) {
             AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
             // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
             if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
@@ -488,10 +487,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 successfulOps.decrementAndGet(); // if this shard was successful before (initial phase) we have to adjust the counter
             }
         }
-    }
-
-    private static boolean isTaskCancelledException(Exception e) {
-        return ExceptionsHelper.unwrapCausesAndSuppressed(e, ex -> ex instanceof TaskCancelledException).isPresent();
     }
 
     /**

@@ -60,7 +60,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1332,13 +1331,11 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamChatCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"hello, world"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException, URISyntaxException {
+    private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = AzureAiStudioChatCompletionModelTests.createModel(
@@ -1360,7 +1357,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -1376,13 +1373,14 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
-            .hasErrorWithStatusCode(401)
-            .hasErrorContaining("You didn't provide an API key...");
+        var e = assertThrows(ElasticsearchStatusException.class, this::streamChatCompletion);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Received an authentication error status code for request from inference entity id [id] status [401]. "
+                    + "Error message: [You didn't provide an API key...]"
+            )
+        );
     }
 
     @SuppressWarnings("checkstyle:LineLength")

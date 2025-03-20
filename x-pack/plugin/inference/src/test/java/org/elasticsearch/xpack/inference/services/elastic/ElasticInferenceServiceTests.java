@@ -49,9 +49,9 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorization;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationTests;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModel;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
@@ -364,6 +364,10 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     private ModelRegistry mockModelRegistry() {
+        return mockModelRegistry(threadPool);
+    }
+
+    public static ModelRegistry mockModelRegistry(ThreadPool threadPool) {
         var client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
 
@@ -566,7 +570,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testHideFromConfigurationApi_ReturnsTrue_WithNoAvailableModels() throws Exception {
-        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
             ensureAuthorizationCallFinished(service);
 
             assertTrue(service.hideFromConfigurationApi());
@@ -576,7 +580,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testHideFromConfigurationApi_ReturnsTrue_WithModelTaskTypesThatAreNotImplemented() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -597,7 +601,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testHideFromConfigurationApi_ReturnsFalse_WithAvailableModels() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -618,7 +622,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     public void testGetConfiguration() throws Exception {
         try (
             var service = createServiceWithMockSender(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -684,7 +688,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testGetConfiguration_WithoutSupportedTaskTypes() throws Exception {
-        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
+        try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
             ensureAuthorizationCallFinished(service);
 
             String content = XContentHelper.stripWhitespace("""
@@ -742,7 +746,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         try (
             var service = createServiceWithMockSender(
                 // this service doesn't yet support text embedding so we should still have no task types
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -982,18 +986,18 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testUnifiedCompletionError() throws Exception {
-        testUnifiedStreamError(404, """
+    public void testUnifiedCompletionError() {
+        var e = assertThrows(UnifiedChatCompletionException.class, () -> testUnifiedStream(404, """
             {
                 "error": "The model `rainbow-sprinkles` does not exist or you do not have access to it."
-            }""", """
-            {\
-            "error":{\
-            "code":"not_found",\
-            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
-            [404]. Error message: [The model `rainbow-sprinkles` does not exist or you do not have access to it.]",\
-            "type":"error"\
-            }}""");
+            }"""));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Received an unsuccessful status code for request from inference entity id [id] status "
+                    + "[404]. Error message: [The model `rainbow-sprinkles` does not exist or you do not have access to it.]"
+            )
+        );
     }
 
     public void testUnifiedCompletionErrorMidStream() throws Exception {
@@ -1024,6 +1028,25 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     private void testUnifiedStreamError(int responseCode, String responseJson, String expectedJson) throws Exception {
+        testUnifiedStream(responseCode, responseJson).hasNoEvents().hasErrorMatching(e -> {
+            e = unwrapCause(e);
+            assertThat(e, isA(UnifiedChatCompletionException.class));
+            try (var builder = XContentFactory.jsonBuilder()) {
+                ((UnifiedChatCompletionException) e).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
+                    try {
+                        xContent.toXContent(builder, EMPTY_PARAMS);
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                });
+                var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
+
+                assertThat(json, is(expectedJson));
+            }
+        });
+    }
+
+    private InferenceEventsAssertion testUnifiedStream(int responseCode, String responseJson) throws Exception {
         var eisGatewayUrl = getUrl(webServer);
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory, eisGatewayUrl)) {
@@ -1035,7 +1058,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
-                ElasticInferenceServiceComponents.withNoRevokeDelay(eisGatewayUrl)
+                ElasticInferenceServiceComponents.of(eisGatewayUrl)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -1047,69 +1070,56 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT);
-
-            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoEvents().hasErrorMatching(e -> {
-                e = unwrapCause(e);
-                assertThat(e, isA(UnifiedChatCompletionException.class));
-                try (var builder = XContentFactory.jsonBuilder()) {
-                    ((UnifiedChatCompletionException) e).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
-                        try {
-                            xContent.toXContent(builder, EMPTY_PARAMS);
-                        } catch (IOException ex) {
-                            throw new RuntimeException(ex);
-                        }
-                    });
-                    var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
-
-                    assertThat(json, is(expectedJson));
-                }
-            });
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
     private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
         service.onNodeStarted();
-        service.waitForAuthorizationToComplete(TIMEOUT);
+        service.waitForFirstAuthorizationToComplete(TIMEOUT);
     }
 
     private ElasticInferenceService createServiceWithMockSender() {
-        return createServiceWithMockSender(ElasticInferenceServiceAuthorizationTests.createEnabledAuth());
+        return createServiceWithMockSender(ElasticInferenceServiceAuthorizationModelTests.createEnabledAuth());
     }
 
-    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceAuthorization auth) {
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationHandler.class);
+    private ElasticInferenceService createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel auth) {
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
             listener.onResponse(auth);
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
 
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
         return new ElasticInferenceService(
-            mock(HttpRequestSender.Factory.class),
+            factory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.EMPTY_INSTANCE,
+            new ElasticInferenceServiceSettings(Settings.EMPTY),
             mockModelRegistry(),
             mockAuthHandler
         );
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory) {
-        return createService(senderFactory, ElasticInferenceServiceAuthorizationTests.createEnabledAuth(), null);
+        return createService(senderFactory, ElasticInferenceServiceAuthorizationModelTests.createEnabledAuth(), null);
     }
 
     private ElasticInferenceService createService(HttpRequestSender.Factory senderFactory, String gatewayUrl) {
-        return createService(senderFactory, ElasticInferenceServiceAuthorizationTests.createEnabledAuth(), gatewayUrl);
+        return createService(senderFactory, ElasticInferenceServiceAuthorizationModelTests.createEnabledAuth(), gatewayUrl);
     }
 
     private ElasticInferenceService createService(
         HttpRequestSender.Factory senderFactory,
-        ElasticInferenceServiceAuthorization auth,
+        ElasticInferenceServiceAuthorizationModel auth,
         String gatewayUrl
     ) {
-        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationHandler.class);
+        var mockAuthHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
         doAnswer(invocation -> {
-            ActionListener<ElasticInferenceServiceAuthorization> listener = invocation.getArgument(0);
+            ActionListener<ElasticInferenceServiceAuthorizationModel> listener = invocation.getArgument(0);
             listener.onResponse(auth);
             return Void.TYPE;
         }).when(mockAuthHandler).getAuthorization(any(), any());
@@ -1117,7 +1127,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withNoRevokeDelay(gatewayUrl),
+            ElasticInferenceServiceSettingsTests.create(gatewayUrl),
             mockModelRegistry(),
             mockAuthHandler
         );
@@ -1127,9 +1137,23 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            ElasticInferenceServiceComponents.withNoRevokeDelay(eisGatewayUrl),
+            ElasticInferenceServiceSettingsTests.create(eisGatewayUrl),
             mockModelRegistry(),
-            new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool)
+            new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool)
+        );
+    }
+
+    public static ElasticInferenceService createServiceWithAuthHandler(
+        HttpRequestSender.Factory senderFactory,
+        String eisGatewayUrl,
+        ThreadPool threadPool
+    ) {
+        return new ElasticInferenceService(
+            senderFactory,
+            createWithEmptySettings(threadPool),
+            ElasticInferenceServiceSettingsTests.create(eisGatewayUrl),
+            mockModelRegistry(threadPool),
+            new ElasticInferenceServiceAuthorizationRequestHandler(eisGatewayUrl, threadPool)
         );
     }
 }

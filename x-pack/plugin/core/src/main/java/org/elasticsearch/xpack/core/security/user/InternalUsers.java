@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -224,9 +225,10 @@ public class InternalUsers {
                         TransportBulkAction.NAME,
                         TransportIndexAction.NAME,
                         TransportSearchScrollAction.TYPE.name(),
-                        ModifyDataStreamsAction.NAME
+                        ModifyDataStreamsAction.NAME,
+                        ILMActions.RETRY.name()
                     )
-                    .allowRestrictedIndices(false)
+                    .allowRestrictedIndices(true)
                     .build() },
             null,
             null,

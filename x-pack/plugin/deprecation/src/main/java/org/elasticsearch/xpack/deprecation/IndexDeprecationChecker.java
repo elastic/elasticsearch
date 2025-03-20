@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexModule;
@@ -97,13 +98,28 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
         // TODO: this check needs to be revised. It's trivially true right now.
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, false, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+            List<String> cldrIncompatibleFieldMappings = new ArrayList<>();
+            fieldLevelMappingIssue(
+                indexMetadata,
+                (mappingMetadata, sourceAsMap) -> cldrIncompatibleFieldMappings.addAll(
+                    findInPropertiesRecursively(
+                        mappingMetadata.type(),
+                        sourceAsMap,
+                        this::isDateFieldWithCompatFormatPattern,
+                        this::cldrIncompatibleFormatPattern,
+                        "",
+                        ""
+                    )
+                )
+            );
+
             var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
             if (transforms.isEmpty() == false) {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "One or more Transforms write to this index with a compatibility version < 8.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
+                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html"
                         + "#breaking_90_transform_destination_index",
                     Strings.format(
                         "This index was created in version [%s] and requires action before upgrading to 9.0. The following transforms are "
@@ -115,11 +131,22 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     false,
                     Map.of("reindex_required", true, "transform_ids", transforms)
                 );
+            } else if (cldrIncompatibleFieldMappings.isEmpty() == false) {
+                return new DeprecationIssue(
+                    DeprecationIssue.Level.CRITICAL,
+                    "Field mappings with incompatible date format patterns in old index",
+                    "https://www.elastic.co/blog/locale-changes-elasticsearch-8-16-jdk-23",
+                    "The index was created before 8.0 and contains mappings that must be reindexed due to locale changes in 8.16+. "
+                        + "Manual reindexing is required. "
+                        + String.join(", ", cldrIncompatibleFieldMappings),
+                    false,
+                    null
+                );
             } else {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
                     "Old index with a compatibility version < 8.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html",
+                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html",
                     "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
                     false,
                     Map.of("reindex_required", true)
@@ -140,13 +167,13 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
     ) {
         IndexVersion currentCompatibilityVersion = indexMetadata.getCompatibilityVersion();
         // We intentionally exclude indices that are in data streams because they will be picked up by DataStreamDeprecationChecks
-        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true) && isNotDataStreamIndex(indexMetadata, clusterState)) {
+        if (DeprecatedIndexPredicate.reindexRequired(indexMetadata, true, false) && isNotDataStreamIndex(indexMetadata, clusterState)) {
             var transforms = transformIdsForIndex(indexMetadata, indexToTransformIds);
             if (transforms.isEmpty() == false) {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "One or more Transforms write to this old index with a compatibility version < 8.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
+                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html"
                         + "#breaking_90_transform_destination_index",
                     Strings.format(
                         "This index was created in version [%s] and will be supported as a read-only index in 9.0. The following "
@@ -162,7 +189,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "Old index with a compatibility version < 8.0 has been ignored",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-9.0.html",
+                    "https://www.elastic.co/guide/en/elastic-stack/9.0/upgrading-elastic-stack.html",
                     "This read-only index has version: "
                         + currentCompatibilityVersion.toReleaseVersion()
                         + " and will be supported as read-only in 9.0",
@@ -391,6 +418,24 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             );
         }
         return null;
+    }
+
+    private boolean isDateFieldWithCompatFormatPattern(Map<?, ?> property) {
+        if ("date".equals(property.get("type")) && property.containsKey("format")) {
+            String[] patterns = DateFormatter.splitCombinedPatterns((String) property.get("format"));
+            for (String pattern : patterns) {
+                if (DateUtils.containsCompatOnlyDateFormat(pattern)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private String cldrIncompatibleFormatPattern(String type, Map.Entry<?, ?> entry) {
+        Map<?, ?> value = (Map<?, ?>) entry.getValue();
+        final String formatFieldValue = (String) value.get("format");
+        return "Field [" + entry.getKey() + "] with format pattern [" + formatFieldValue + "].";
     }
 
     private boolean isDateFieldWithCamelCasePattern(Map<?, ?> property) {

@@ -47,7 +47,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -213,44 +212,17 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
         MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, metadata, clusterState.routingTable());
 
-        boolean isDataStream = metadata.dataStreams().containsKey(resolvedRolloverTarget.resource());
         if (rolloverRequest.isLazy()) {
-            if (isDataStream == false || rolloverRequest.getConditions().hasConditions()) {
-                String message;
-                if (isDataStream) {
-                    message = "Lazy rollover can be used only without any conditions."
-                        + " Please remove the conditions from the request body or the query parameter 'lazy'.";
-                } else if (rolloverRequest.getConditions().hasConditions() == false) {
-                    message = "Lazy rollover can be applied only on a data stream." + " Please remove the query parameter 'lazy'.";
-                } else {
-                    message = "Lazy rollover can be applied only on a data stream with no conditions."
-                        + " Please remove the query parameter 'lazy'.";
-                }
-                listener.onFailure(new IllegalArgumentException(message));
-                return;
-            }
-            if (rolloverRequest.isDryRun() == false) {
-                metadataDataStreamsService.setRolloverOnWrite(
-                    resolvedRolloverTarget.resource(),
-                    true,
-                    targetFailureStore,
-                    rolloverRequest.ackTimeout(),
-                    rolloverRequest.masterNodeTimeout(),
-                    listener.map(
-                        response -> new RolloverResponse(
-                            trialSourceIndexName,
-                            trialRolloverIndexName,
-                            Map.of(),
-                            false,
-                            false,
-                            response.isAcknowledged(),
-                            false,
-                            response.isAcknowledged()
-                        )
-                    )
-                );
-                return;
-            }
+            markForLazyRollover(
+                rolloverRequest,
+                listener,
+                metadata,
+                resolvedRolloverTarget,
+                targetFailureStore,
+                trialSourceIndexName,
+                trialRolloverIndexName
+            );
+            return;
         }
 
         final IndexAbstraction rolloverTargetAbstraction = clusterState.metadata()
@@ -346,7 +318,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     false,
                     false,
                     false,
-                    rolloverRequest.isLazy()
+                    false
                 );
 
                 // If this is a dry run, return with the results without invoking a cluster state update
@@ -371,6 +343,57 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     delegate.onResponse(trialRolloverResponse);
                 }
             })
+        );
+    }
+
+    private void markForLazyRollover(
+        RolloverRequest rolloverRequest,
+        ActionListener<RolloverResponse> listener,
+        Metadata metadata,
+        ResolvedExpression resolvedRolloverTarget,
+        boolean targetFailureStore,
+        String trialSourceIndexName,
+        String trialRolloverIndexName
+    ) {
+        boolean isDataStream = metadata.dataStreams().containsKey(resolvedRolloverTarget.resource());
+        if (isDataStream == false || rolloverRequest.getConditions().hasConditions()) {
+            String message;
+            if (isDataStream) {
+                message = "Lazy rollover can be used only without any conditions."
+                    + " Please remove the conditions from the request body or the query parameter 'lazy'.";
+            } else if (rolloverRequest.getConditions().hasConditions() == false) {
+                message = "Lazy rollover can be applied only on a data stream. Please remove the query parameter 'lazy'.";
+            } else {
+                message = "Lazy rollover can be applied only on a data stream with no conditions."
+                    + " Please remove the query parameter 'lazy'.";
+            }
+            listener.onFailure(new IllegalArgumentException(message));
+            return;
+        }
+        if (rolloverRequest.isDryRun()) {
+            listener.onResponse(
+                new RolloverResponse(trialSourceIndexName, trialRolloverIndexName, Map.of(), true, false, false, false, true)
+            );
+            return;
+        }
+        metadataDataStreamsService.setRolloverOnWrite(
+            resolvedRolloverTarget.resource(),
+            true,
+            targetFailureStore,
+            rolloverRequest.ackTimeout(),
+            rolloverRequest.masterNodeTimeout(),
+            listener.map(
+                response -> new RolloverResponse(
+                    trialSourceIndexName,
+                    trialRolloverIndexName,
+                    Map.of(),
+                    false,
+                    false,
+                    response.isAcknowledged(),
+                    false,
+                    true
+                )
+            )
         );
     }
 
@@ -483,7 +506,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         @Override
         public ClusterState execute(BatchExecutionContext<RolloverTask> batchExecutionContext) {
             final var listener = new AllocationActionMultiListener<RolloverResponse>(threadPool.getThreadContext());
-            final var results = new ArrayList<MetadataRolloverService.RolloverResult>(batchExecutionContext.taskContexts().size());
+            final var results = new ArrayList<String>(batchExecutionContext.taskContexts().size());
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try (var ignored = taskContext.captureResponseHeaders()) {
@@ -494,15 +517,9 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             }
 
             if (state != batchExecutionContext.initialState()) {
-                var reason = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(
-                    (Iterable<String>) () -> Iterators.map(results.iterator(), t -> t.sourceIndexName() + "->" + t.rolloverIndexName()),
-                    ",",
-                    "bulk rollover [",
-                    "]",
-                    1024,
-                    reason
-                );
+                var reason = new StringBuilder("bulk rollover [");
+                Strings.collectionToDelimitedStringWithLimit(results, ",", 1024, reason);
+                reason.append(']');
                 try (var ignored = batchExecutionContext.dropHeadersContext()) {
                     state = allocationService.reroute(state, reason.toString(), listener.reroute());
                 }
@@ -514,7 +531,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         public ClusterState executeTask(
             ClusterState currentState,
-            List<MetadataRolloverService.RolloverResult> results,
+            ArrayList<String> results,
             TaskContext<RolloverTask> rolloverTaskContext,
             AllocationActionMultiListener<RolloverResponse> allocationActionMultiListener
         ) throws Exception {
@@ -586,7 +603,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     rolloverTask.autoShardingResult(),
                     targetFailureStore
                 );
-                results.add(rolloverResult);
+                results.add(rolloverResult.sourceIndexName() + "->" + rolloverResult.rolloverIndexName());
                 logger.trace("rollover result [{}]", rolloverResult);
 
                 final var rolloverIndexName = rolloverResult.rolloverIndexName();

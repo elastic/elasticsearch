@@ -58,8 +58,10 @@ For more information about adaptive allocations and resources, refer to the {ml-
 Your {es} deployment contains preconfigured {infer} endpoints which makes them easier to use when defining `semantic_text` fields or using {infer} processors.
 The following list contains the default {infer} endpoints listed by `inference_id`:
 
-* `.elser-2-elasticsearch`: uses the {ml-docs}/ml-nlp-elser.html[ELSER] built-in trained model for `sparse_embedding` tasks (recommended for English language texts)
-* `.multilingual-e5-small-elasticsearch`: uses the {ml-docs}/ml-nlp-e5.html[E5] built-in trained model for `text_embedding` tasks (recommended for non-English language texts)
+* `.elser-2-elasticsearch`: uses the {ml-docs}/ml-nlp-elser.html[ELSER] built-in trained model for `sparse_embedding` tasks (recommended for English language tex).
+The `model_id` is `.elser_model_2_linux-x86_64`.
+* `.multilingual-e5-small-elasticsearch`: uses the {ml-docs}/ml-nlp-e5.html[E5] built-in trained model for `text_embedding` tasks (recommended for non-English language texts).
+The `model_id` is `.e5_model_2_linux-x86_64`.
 
 Use the `inference_id` of the endpoint in a <<semantic-text,`semantic_text`>> field definition or when creating an <<inference-processor,{infer} processor>>.
 The API call will automatically download and deploy the model which might take a couple of minutes.
@@ -151,4 +153,5 @@ include::service-hugging-face.asciidoc[]
 include::service-jinaai.asciidoc[]
 include::service-mistral.asciidoc[]
 include::service-openai.asciidoc[]
+include::service-voyageai.asciidoc[]
 include::service-watsonx-ai.asciidoc[]

@@ -73,6 +73,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -167,6 +168,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final MapperMetrics mapperMetrics;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
+    private final IndexingStatsSettings indexingStatsSettings;
 
     @SuppressWarnings("this-escape")
     public IndexService(
@@ -203,7 +205,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         Engine.IndexCommitListener indexCommitListener,
         MapperMetrics mapperMetrics,
-        QueryRewriteInterceptor queryRewriteInterceptor
+        QueryRewriteInterceptor queryRewriteInterceptor,
+        IndexingStatsSettings indexingStatsSettings
     ) {
         super(indexSettings);
         assert indexCreationContext != IndexCreationContext.RELOAD_ANALYZERS
@@ -288,6 +291,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
             this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
         }
+        this.indexingStatsSettings = indexingStatsSettings;
         updateFsyncTaskIfNecessary();
     }
 
@@ -572,7 +576,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 snapshotCommitSupplier,
                 System::nanoTime,
                 indexCommitListener,
-                mapperMetrics
+                mapperMetrics,
+                indexingStatsSettings
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

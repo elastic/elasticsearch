@@ -852,12 +852,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testModelSettingsRequiredWithChunks() throws IOException {
         // Create inference results where model settings are set to null and chunks are provided
         Model model = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-        ChunkingSettings chunkingSettings = generateRandomChunkingSettings();
         SemanticTextField randomSemanticText = randomSemanticText(
             useLegacyFormat,
             "field",
             model,
-            chunkingSettings,
+            generateRandomChunkingSettings(),
             List.of("a"),
             XContentType.JSON
         );
@@ -868,7 +867,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             new SemanticTextField.InferenceResult(
                 randomSemanticText.inference().inferenceId(),
                 null,
-                chunkingSettings,
+                randomSemanticText.inference().chunkingSettings(),
                 randomSemanticText.inference().chunks()
             ),
             randomSemanticText.contentType()

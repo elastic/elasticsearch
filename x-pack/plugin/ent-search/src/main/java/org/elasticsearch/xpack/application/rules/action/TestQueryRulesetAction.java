@@ -150,7 +150,6 @@ public class TestQueryRulesetAction {
         private static final ParseField MATCHED_RULES_FIELD = new ParseField("matched_rules");
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.totalMatchedRules = in.readVInt();
             this.matchedRules = in.readCollectionAsList(MatchedRule::new);
         }

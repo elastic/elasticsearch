@@ -25,14 +25,14 @@ artifacts {
 }
 
 tasks.named('javaRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
   maxParallelForks = 1
 }
 tasks.named('yamlRestTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 tasks.named('yamlRestCompatTest') {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 if (buildParams.inFipsJvm){

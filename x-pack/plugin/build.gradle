@@ -55,7 +55,7 @@ if (buildParams.snapshotBuild == false) {
 }
 
 tasks.withType(StandaloneRestIntegTestTask).configureEach {
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }
 
 tasks.named("yamlRestTest").configure {

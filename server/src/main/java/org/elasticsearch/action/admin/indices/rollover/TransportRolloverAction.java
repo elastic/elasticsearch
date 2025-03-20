@@ -53,6 +53,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -68,6 +69,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -280,17 +282,13 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     DataStream dataStream = (DataStream) indexAbstraction;
                     final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
                         .map(stats -> stats.getIndex(dataStream.getWriteIndex().getName()));
-
-                    Double indexWriteLoad = indexStats.map(
-                        stats -> Arrays.stream(stats.getShards())
-                            .filter(shardStats -> shardStats.getStats().indexing != null)
-                            // only take primaries into account as in stateful the replicas also index data
-                            .filter(shardStats -> shardStats.getShardRouting().primary())
-                            .map(shardStats -> shardStats.getStats().indexing.getTotal().getWriteLoad())
-                            .reduce(0.0, Double::sum)
-                    ).orElse(null);
-
-                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(projectState, dataStream, indexWriteLoad);
+                    rolloverAutoSharding = dataStreamAutoShardingService.calculate(
+                        projectState,
+                        dataStream,
+                        indexStats.map(stats -> sumLoadMetrics(stats, IndexingStats.Stats::getWriteLoad)).orElse(null),
+                        indexStats.map(stats -> sumLoadMetrics(stats, IndexingStats.Stats::getRecentWriteLoad)).orElse(null),
+                        indexStats.map(stats -> sumLoadMetrics(stats, IndexingStats.Stats::getPeakWriteLoad)).orElse(null)
+                    );
                     logger.debug("auto sharding result for data stream [{}] is [{}]", dataStream.getName(), rolloverAutoSharding);
 
                     // if auto sharding recommends increasing the number of shards we want to trigger a rollover even if there are no
@@ -352,6 +350,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 }
             })
         );
+    }
+
+    private static Double sumLoadMetrics(IndexStats stats, Function<IndexingStats.Stats, Double> loadMetric) {
+        return Arrays.stream(stats.getShards())
+            .filter(shardStats -> shardStats.getStats().indexing != null)
+            // only take primaries into account as in stateful the replicas also index data
+            .filter(shardStats -> shardStats.getShardRouting().primary())
+            .map(shardStats -> shardStats.getStats().indexing.getTotal())
+            .map(loadMetric)
+            .reduce(0.0, Double::sum);
     }
 
     private void markForLazyRollover(

@@ -32,7 +32,7 @@ public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestC
         return new TextEmbeddingFloatResults(embeddingResults);
     }
 
-    private static TextEmbeddingFloatResults.Embedding createRandomEmbedding() {
+    public static TextEmbeddingFloatResults.Embedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
         float[] floats = new float[columns];
         for (int i = 0; i < columns; i++) {

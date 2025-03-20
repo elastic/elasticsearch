@@ -18,8 +18,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceServiceResults;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -140,6 +142,34 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         var inference = infer(modelId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
         deleteModel(modelId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPerformInferenceWithChunkingForSparseEmbeddingEndpoint() throws IOException {
+        String modelId = "chunking_sparse_embedding";
+        putModel(modelId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var input = List.of("hello world", "this is the second document");
+        var bodyParameters = new HashMap<String, Object>();
+        bodyParameters.put("chunk", true);
+
+        var inference = infer(modelId, TaskType.SPARSE_EMBEDDING, input, bodyParameters, null, Map.of());
+        assertTrue(inference.containsKey(ChunkedInferenceServiceResults.NAME));
+        var results = (List<List<Map<String, Object>>>) inference.get(ChunkedInferenceServiceResults.NAME);
+        assertEquals(input.size(), results.size());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPerformInferenceWithChunkingForTextEmbeddingEndpoint() throws IOException {
+        String modelId = "chunking_text_embedding";
+        putModel(modelId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+        var input = List.of("hello world", "this is the second document");
+        var bodyParameters = new HashMap<String, Object>();
+        bodyParameters.put("chunk", true);
+
+        var inference = infer(modelId, TaskType.TEXT_EMBEDDING, input, bodyParameters, null, Map.of());
+        assertTrue(inference.containsKey(ChunkedInferenceServiceResults.NAME));
+        var results = (List<List<Map<String, Object>>>) inference.get(ChunkedInferenceServiceResults.NAME);
+        assertEquals(input.size(), results.size());
     }
 
     public void testSkipValidationAndStart() throws IOException {

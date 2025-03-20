@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.xcontent.XContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,17 +43,5 @@ public record ChunkedInferenceEmbedding(List<EmbeddingResults.Chunk> chunks) imp
             chunkedInferenceChunks.add(new Chunk(embeddingResultsChunk.offset(), embeddingResultsChunk.embedding().toBytesRef(xcontent)));
         }
         return chunkedInferenceChunks.iterator();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.startArray("chunks");
-        for (var chunk : chunks) {
-            chunk.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
     }
 }

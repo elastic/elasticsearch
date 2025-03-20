@@ -32,7 +32,7 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
         return new TextEmbeddingByteResults(embeddingResults);
     }
 
-    private static TextEmbeddingByteResults.Embedding createRandomEmbedding() {
+    public static TextEmbeddingByteResults.Embedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
         byte[] bytes = new byte[columns];
 

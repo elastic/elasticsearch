@@ -75,8 +75,7 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-        // TODO: Find the best place for this
-        if (request.isChunkingEnabled()) {
+        if (request.isChunk()) {
             service.chunkedInfer(
                 model,
                 request.getQuery(),
@@ -85,7 +84,7 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
                 request.getInputType(),
                 request.getInferenceTimeout(),
                 ActionListener.wrap(results -> {
-                    listener.onResponse(new ChunkedInferenceServiceResults(results));
+                    listener.onResponse(ChunkedInferenceServiceResults.of(request.getInput(), results));
                 }, listener::onFailure)
             );
         } else {

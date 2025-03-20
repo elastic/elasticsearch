@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.TaskType;
@@ -153,7 +152,7 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings) implements T
 
     // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging
     // embeddings should happen inbetween serializations.
-    public record Embedding(float[] values, int numberOfMergedEmbeddings) implements Writeable, EmbeddingResults.Embedding<Embedding> {
+    public record Embedding(float[] values, int numberOfMergedEmbeddings) implements EmbeddingResults.Embedding<Embedding> {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(float[] values) {

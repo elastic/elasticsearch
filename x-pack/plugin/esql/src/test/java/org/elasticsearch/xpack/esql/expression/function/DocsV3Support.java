@@ -438,22 +438,20 @@ public abstract class DocsV3Support {
         }
 
         private void renderFunctionNamedParams(EsqlFunctionRegistry.MapArgSignature mapArgSignature) throws IOException {
-            String header = "| name | types | description |\n| --- | --- | --- |";
-
-            List<String> table = new ArrayList<>();
-            for (Map.Entry<String, EsqlFunctionRegistry.MapEntryArgSignature> argSignatureEntry : mapArgSignature.mapParams().entrySet()) {
-                StringBuilder builder = new StringBuilder("| ");
-                EsqlFunctionRegistry.MapEntryArgSignature arg = argSignatureEntry.getValue();
-                builder.append(arg.name()).append(" | ").append(arg.type()).append(" | ").append(arg.description());
-                table.add(builder.append(" |").toString());
-            }
-
-            String rendered = DOCS_WARNING + """
+            StringBuilder rendered = new StringBuilder(DOCS_WARNING + """
                 **Supported function named parameters**
 
-                """ + header + "\n" + table.stream().collect(Collectors.joining("\n")) + "\n";
+                """);
+
+            for (Map.Entry<String, EsqlFunctionRegistry.MapEntryArgSignature> argSignatureEntry : mapArgSignature.mapParams().entrySet()) {
+                EsqlFunctionRegistry.MapEntryArgSignature arg = argSignatureEntry.getValue();
+                rendered.append("`").append(arg.name()).append("`\n:   ");
+                var type = arg.type().replaceAll("[\\[\\]]+", "");
+                rendered.append("(").append(type).append(") ").append(arg.description()).append("\n\n");
+            }
+
             logger.info("Writing function named parameters for [{}]:\n{}", name, rendered);
-            writeToTempSnippetsDir("functionNamedParams", rendered);
+            writeToTempSnippetsDir("functionNamedParams", rendered.toString());
         }
 
         private String makeCallout(String type, String text) {

@@ -55,7 +55,7 @@ public class CastOperatorTests extends ESTestCase {
             operator = "::",
             returnType = {},
             description = "The `::` operator provides a convenient alternative syntax to the TO_<type> "
-                + "[conversion functions](../../../esql-functions-operators.md#esql-type-conversion-functions).",
+                + "[conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions).",
             examples = { @Example(file = "convert", tag = "docsCastOperator") }
         )
         public TestCastOperator(

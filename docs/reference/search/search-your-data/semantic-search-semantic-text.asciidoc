@@ -4,8 +4,6 @@
 <titleabbrev>Semantic search with `semantic_text`</titleabbrev>
 ++++
 
-beta[]
-
 This tutorial shows you how to use the semantic text feature to perform semantic search on your data.
 
 Semantic text simplifies the {infer} workflow by providing {infer} at ingestion time and sensible default values automatically.
@@ -21,7 +19,7 @@ This tutorial uses the <<infer-service-elasticsearch,`elasticsearch` service>> f
 [[semantic-text-requirements]]
 ==== Requirements
 
-This tutorial uses the <<infer-service-elasticsearch,`elasticsearch` service>> for demonstration, which is created automatically as needed. 
+This tutorial uses the <<infer-service-elasticsearch,`elasticsearch` service>> for demonstration, which is created automatically as needed.
 To use the `semantic_text` field type with an {infer} service other than `elasticsearch` service, you must create an inference endpoint using the <<put-inference-api>>.
 
 
@@ -92,7 +90,7 @@ The reindexed data will be processed by the {infer} endpoint associated with the
 ------------------------------------------------------------
 POST _reindex?wait_for_completion=false
 {
-  "source": { 
+  "source": {
     "index": "test-data",
     "size": 10 <1>
   },
@@ -139,7 +137,7 @@ The {infer} endpoint used to generate the embeddings for the `semantic_text` fie
 GET semantic-embeddings/_search
 {
   "query": {
-    "semantic": { 
+    "semantic": {
       "field": "content", <1>
       "query": "How to avoid muscle soreness while running?" <2>
     }

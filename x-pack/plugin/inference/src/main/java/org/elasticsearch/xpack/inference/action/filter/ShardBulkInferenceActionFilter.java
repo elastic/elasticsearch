@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -236,6 +237,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
 
+        private long memoryUsageInBytes = 0;
+
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
             Map<String, InferenceFieldMetadata> fieldInferenceMap,
@@ -251,7 +254,86 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
         @Override
         public void run() {
+            estimateMemoryUsage();
             executeNext(0);
+        }
+
+        private void estimateMemoryUsage() {
+            CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
+            if (circuitBreaker == null) {
+                return;
+            }
+
+            for (BulkItemRequest item : bulkShardRequest.items()) {
+                final IndexRequest indexRequest;
+                if (item.request() instanceof IndexRequest ir) {
+                    indexRequest = ir;
+                } else if (item.request() instanceof UpdateRequest updateRequest) {
+                    indexRequest = updateRequest.doc();
+                } else {
+                    // Ignore delete requests
+                    continue;
+                }
+
+                // TODO: Don't know how to avoid getting the doc map here, we need it to determine if the doc has any inference fields in it
+                // and if so, what they are
+                long estimatedEmbeddingBytes = 0;
+                final Map<String, Object> docMap = indexRequest.sourceAsMap();
+                for (InferenceFieldMetadata inferenceFieldMetadata : fieldInferenceMap.values()) {
+                    String inferenceId = inferenceFieldMetadata.getInferenceId();
+                    MinimalServiceSettings minimalServiceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
+                    if (minimalServiceSettings == null) {
+                        throw new IllegalStateException("Model settings for inference ID [" + inferenceId + "] not found");
+                    }
+
+                    if (isInferenceRequired(inferenceFieldMetadata, docMap) == false) {
+                        continue;
+                    }
+
+                    for (String sourceField : inferenceFieldMetadata.getSourceFields()) {
+                        var valueObj = XContentMapValues.extractValue(sourceField, docMap);
+                        if (valueObj == null) {
+                            continue;
+                        }
+
+                        final List<String> values;
+                        try {
+                            values = SemanticTextUtils.nodeStringValues(sourceField, valueObj);
+                        } catch (Exception exc) {
+                            // Skip this source field for now, the invalid value will be surfaced during field inference request generation
+                            continue;
+                        }
+
+                        for (String v : values) {
+                            // TODO: Estimate chunk count based on string length
+                            estimatedEmbeddingBytes += switch (minimalServiceSettings.taskType()) {
+                                case SPARSE_EMBEDDING -> 128; // TODO: Estimate sparse embedding size
+                                case TEXT_EMBEDDING -> minimalServiceSettings.elementType()
+                                    .getNumBytes(minimalServiceSettings.dimensions());
+                                default -> throw new IllegalStateException(
+                                    "Inference ID ["
+                                        + inferenceId
+                                        + "] uses unsupported task type ["
+                                        + minimalServiceSettings.taskType()
+                                        + "]"
+                                );
+                            };
+                        }
+                    }
+                }
+
+                if (estimatedEmbeddingBytes > 0) {
+                    // TODO: Verify that ramBytesUsed is what to use here
+                    memoryUsageInBytes += estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
+
+                    try {
+                        circuitBreaker.addEstimateBytesAndMaybeBreak(memoryUsageInBytes, indexRequest.id());
+                    } catch (CircuitBreakingException e) {
+                        circuitBreaker.addWithoutBreaking(-memoryUsageInBytes);
+                        throw e;
+                    }
+                }
+            }
         }
 
         private void executeNext(int itemOffset) {
@@ -459,22 +541,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 String field = entry.getName();
                 String inferenceId = entry.getInferenceId();
 
-                if (useLegacyFormat) {
-                    var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
-                        // Inference has already been computed, or there is no inference required.
-                        continue;
-                    }
-                } else {
-                    var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
-                        InferenceMetadataFieldsMapper.NAME + "." + field,
-                        docMap,
-                        EXPLICIT_NULL
-                    );
-                    if (inferenceMetadataFieldsValue != null) {
-                        // Inference has already been computed
-                        continue;
-                    }
+                if (isInferenceRequired(entry, docMap) == false) {
+                    continue;
                 }
 
                 int order = 0;
@@ -509,10 +577,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
                         continue;
                     }
+
                     var slot = ensureResponseAccumulatorSlot(itemIndex);
                     final List<String> values;
                     try {
-                        values = SemanticTextUtils.nodeStringValues(field, valueObj);
+                        // TODO: Test this bug and factor out fix into separate PR
+                        values = SemanticTextUtils.nodeStringValues(sourceField, valueObj);
                     } catch (Exception exc) {
                         addInferenceResponseFailure(itemIndex, exc);
                         break;
@@ -543,6 +613,32 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             }
             return inputLength;
+        }
+
+        private boolean isInferenceRequired(InferenceFieldMetadata inferenceFieldMetadata, Map<String, Object> docMap) {
+            String field = inferenceFieldMetadata.getName();
+
+            boolean inferenceRequired = true;
+            if (useLegacyFormat) {
+                var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                if (originalFieldValue instanceof Map
+                    || (originalFieldValue == null && inferenceFieldMetadata.getSourceFields().length == 1)) {
+                    // Inference has already been computed, or there is no inference required.
+                    inferenceRequired = false;
+                }
+            } else {
+                var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
+                    InferenceMetadataFieldsMapper.NAME + "." + field,
+                    docMap,
+                    EXPLICIT_NULL
+                );
+                if (inferenceMetadataFieldsValue != null) {
+                    // Inference has already been computed
+                    inferenceRequired = false;
+                }
+            }
+
+            return inferenceRequired;
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {

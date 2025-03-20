@@ -67,8 +67,8 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     @SuppressWarnings("unchecked")
     public void forEachDown(Consumer<? super T> action) {
         action.accept((T) this);
-        // please do not refactor it to a for-each loop
-        // to avoid allocating iterator that performs concurrent modification checks
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack traces
         for (int c = 0, size = children.size(); c < size; c++) {
             children.get(c).forEachDown(action);
         }
@@ -85,8 +85,8 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     @SuppressWarnings("unchecked")
     public void forEachUp(Consumer<? super T> action) {
-        // please do not refactor it to a for-each loop
-        // to avoid allocating iterator that performs concurrent modification checks
+        // please do not refactor it to a for-each loop to avoid
+        // allocating iterator that performs concurrent modification checks and extra stack traces
         for (int c = 0, size = children.size(); c < size; c++) {
             children.get(c).forEachUp(action);
         }

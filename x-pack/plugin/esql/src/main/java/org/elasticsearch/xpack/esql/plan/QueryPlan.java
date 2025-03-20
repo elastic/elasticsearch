@@ -144,8 +144,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         if (arg instanceof List<?> c) {
             List<Object> transformed = null;
             boolean hasChanged = false;
-            // please do not refactor it to a for-each loop
-            // to avoid allocating iterator that performs concurrent modification checks
+            // please do not refactor it to a for-each loop to avoid
+            // allocating iterator that performs concurrent modification checks and extra stack traces
             for (int i = 0, size = c.size(); i < size; i++) {
                 var e = c.get(i);
                 Object next = doTransformExpression(e, traversal);
@@ -160,7 +160,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
             return hasChanged ? transformed : arg;
         }
-        assert arg instanceof Set<?> == false : "Set arguments are not supported";
+        assert arg instanceof Collection<?> == false : "Non-List Collection implementations are not supported";
 
         return arg;
     }

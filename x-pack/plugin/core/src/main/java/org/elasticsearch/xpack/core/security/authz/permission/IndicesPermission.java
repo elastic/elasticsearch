@@ -317,44 +317,71 @@ public final class IndicesPermission {
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         boolean allMatch = true;
-        Map<Automaton, Automaton> indexGroupAutomatons = indexGroupAutomatons(
-            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex)
+        Map<Automaton, Automaton> indexGroupAutomatonsForDataAccess = indexGroupAutomatons(
+            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
+            IndexComponentSelector.DATA
+        );
+        Map<Automaton, Automaton> indexGroupAutomatonsForFailuresAccess = indexGroupAutomatons(
+            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
+            IndexComponentSelector.FAILURES
         );
         for (String forIndexPattern : checkForIndexPatterns) {
-            IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(forIndexPattern);
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
                 checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
-                Automaton allowedIndexPrivilegesAutomaton = null;
-                for (var indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
-                    if (Automatons.subsetOf(checkIndexAutomaton, indexAndPrivilegeAutomaton.getValue())) {
-                        if (allowedIndexPrivilegesAutomaton != null) {
-                            allowedIndexPrivilegesAutomaton = Automatons.unionAndMinimize(
-                                Arrays.asList(allowedIndexPrivilegesAutomaton, indexAndPrivilegeAutomaton.getKey())
+                Automaton allowedIndexPrivilegesAutomatonForDataAccess = null;
+                for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatonsForDataAccess.entrySet()) {
+                    Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
+                    if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
+                        Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
+                        if (allowedIndexPrivilegesAutomatonForDataAccess != null) {
+                            allowedIndexPrivilegesAutomatonForDataAccess = Automatons.unionAndMinimize(
+                                Arrays.asList(allowedIndexPrivilegesAutomatonForDataAccess, privilegesAutomaton)
                             );
                         } else {
-                            allowedIndexPrivilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
+                            allowedIndexPrivilegesAutomatonForDataAccess = privilegesAutomaton;
+                        }
+                    }
+                }
+                Automaton allowedIndexPrivilegesAutomatonForFailuresAccess = null;
+                for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatonsForFailuresAccess.entrySet()) {
+                    Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
+                    if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
+                        Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
+                        if (allowedIndexPrivilegesAutomatonForFailuresAccess != null) {
+                            allowedIndexPrivilegesAutomatonForFailuresAccess = Automatons.unionAndMinimize(
+                                Arrays.asList(allowedIndexPrivilegesAutomatonForFailuresAccess, privilegesAutomaton)
+                            );
+                        } else {
+                            allowedIndexPrivilegesAutomatonForFailuresAccess = privilegesAutomaton;
                         }
                     }
                 }
                 for (String privilege : checkForPrivileges) {
                     IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
-                    if (allowedIndexPrivilegesAutomaton != null
-                        && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
+                    if (allowedIndexPrivilegesAutomatonForDataAccess != null
+                        && indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.DATA)
+                        && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomatonForDataAccess)) {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
-                    } else {
-                        if (resourcePrivilegesMapBuilder != null) {
-                            resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
-                            allMatch = false;
+                    } else if (allowedIndexPrivilegesAutomatonForFailuresAccess != null
+                        && indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES)
+                        && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomatonForFailuresAccess)) {
+                            if (resourcePrivilegesMapBuilder != null) {
+                                resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
+                            }
                         } else {
-                            // return early on first privilege not granted
-                            return false;
+                            if (resourcePrivilegesMapBuilder != null) {
+                                resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                                allMatch = false;
+                            } else {
+                                // return early on first privilege not granted
+                                return false;
+                            }
                         }
-                    }
                 }
             } else {
                 // the index pattern produced the empty automaton, presumably because the requested pattern expands exclusively inside the
@@ -806,13 +833,11 @@ public final class IndicesPermission {
      *
      * @return a map of all index and privilege pattern automatons
      */
-    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine) {
+    private Map<Automaton, Automaton> indexGroupAutomatons(boolean combine, IndexComponentSelector selector) {
         // Map of privilege automaton object references (cached by IndexPrivilege::CACHE)
         Map<Automaton, Automaton> allAutomatons = new HashMap<>();
         for (Group group : groups) {
-            // TODO support failure store privileges
-            // we also check that the group does not support data access to avoid erroneously filtering out `all` privilege groups
-            if (group.checkSelector(IndexComponentSelector.FAILURES) && false == group.checkSelector(IndexComponentSelector.DATA)) {
+            if (false == group.checkSelector(selector)) {
                 continue;
             }
             Automaton indexAutomaton = group.getIndexMatcherAutomaton();

@@ -387,9 +387,6 @@ tests:
 - class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
   method: testLifecycleAppliedToFailureStore
   issue: https://github.com/elastic/elasticsearch/issues/124999
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test010Install
-  issue: https://github.com/elastic/elasticsearch/issues/119441
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testGetDataStreamResponse
   issue: https://github.com/elastic/elasticsearch/issues/125083

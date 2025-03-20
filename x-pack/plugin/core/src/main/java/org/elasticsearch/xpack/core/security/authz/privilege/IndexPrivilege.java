@@ -452,8 +452,8 @@ public final class IndexPrivilege extends Privilege {
         Collection<String> actions,
         IndexComponentSelectorPredicate selectorPredicate
     ) {
-        final Set<Automaton> automata = HashSet.newHashSet(privileges.size() + actions.size());
-        final Set<String> names = HashSet.newHashSet(privileges.size() + actions.size());
+        final Set<Automaton> automata = new HashSet<>(privileges.size() + actions.size());
+        final Set<String> names = new HashSet<>(privileges.size() + actions.size());
         for (IndexPrivilege privilege : privileges) {
             names.addAll(privilege.name());
             automata.add(privilege.automaton);

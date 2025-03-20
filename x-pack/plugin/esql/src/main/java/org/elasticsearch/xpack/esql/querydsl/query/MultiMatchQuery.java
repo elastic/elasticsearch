@@ -21,6 +21,7 @@ import java.util.function.BiConsumer;
 import static java.util.Map.entry;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.ANALYZER_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZINESS_FIELD;
+import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_REWRITE_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
 import static org.elasticsearch.index.query.MultiMatchQueryBuilder.LENIENT_FIELD;
@@ -46,7 +47,7 @@ public class MultiMatchQuery extends Query {
             entry(ANALYZER_FIELD.getPreferredName(), (qb, obj) -> qb.analyzer((String) obj)),
             entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), (qb, obj) -> qb.autoGenerateSynonymsPhraseQuery((Boolean) obj)),
             entry(FUZZINESS_FIELD.getPreferredName(), (qb, obj) -> qb.fuzziness(Fuzziness.fromString((String) obj))),
-            entry("fuzzy_rewrite", (qb, obj) -> qb.fuzzyRewrite((String) obj)),
+            entry(FUZZY_REWRITE_FIELD.getPreferredName(), (qb, obj) -> qb.fuzzyRewrite((String) obj)),
             entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), (qb, obj) -> qb.fuzzyTranspositions((Boolean) obj)),
             entry(LENIENT_FIELD.getPreferredName(), (qb, obj) -> qb.lenient((Boolean) obj)),
             entry(MAX_EXPANSIONS_FIELD.getPreferredName(), (qb, obj) -> qb.maxExpansions((Integer) obj)),

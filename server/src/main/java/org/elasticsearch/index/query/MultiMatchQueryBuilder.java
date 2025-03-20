@@ -57,7 +57,7 @@ public final class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatc
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
-    public static final ParseField FUZZINESS_FIELD = new ParseField("fuzzy_rewrite");
+    public static final ParseField FUZZINESS_FIELD = new ParseField("fuzziness");
     public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
     public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     public static final ParseField OPERATOR_FIELD = new ParseField("operator");

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -145,7 +146,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             boolean hasChanged = false;
             // please do not refactor it to a for-each loop
             // to avoid allocating iterator that performs concurrent modification checks
-            for (int i = 0; i < c.size(); i++) {
+            for (int i = 0, size = c.size(); i < size; i++) {
                 var e = c.get(i);
                 Object next = doTransformExpression(e, traversal);
                 if (e.equals(next) == false) {
@@ -159,6 +160,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
             return hasChanged ? transformed : arg;
         }
+        assert arg instanceof Set<?> == false : "Set arguments are not supported";
 
         return arg;
     }

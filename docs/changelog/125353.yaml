@@ -1,0 +1,5 @@
+pr: 125353
+summary: Throttling reindex requests per node from reindex data stream api
+area: Data streams
+type: enhancement
+issues: []

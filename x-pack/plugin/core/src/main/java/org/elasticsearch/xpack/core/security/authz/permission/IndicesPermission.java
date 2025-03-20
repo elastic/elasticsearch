@@ -331,57 +331,37 @@ public final class IndicesPermission {
                 checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
-                Automaton allowedIndexPrivilegesAutomatonForDataAccess = null;
-                for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatonsForDataAccess.entrySet()) {
-                    Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
-                    if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
-                        Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
-                        if (allowedIndexPrivilegesAutomatonForDataAccess != null) {
-                            allowedIndexPrivilegesAutomatonForDataAccess = Automatons.unionAndMinimize(
-                                Arrays.asList(allowedIndexPrivilegesAutomatonForDataAccess, privilegesAutomaton)
-                            );
-                        } else {
-                            allowedIndexPrivilegesAutomatonForDataAccess = privilegesAutomaton;
-                        }
-                    }
-                }
-                Automaton allowedIndexPrivilegesAutomatonForFailuresAccess = null;
-                for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatonsForFailuresAccess.entrySet()) {
-                    Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
-                    if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
-                        Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
-                        if (allowedIndexPrivilegesAutomatonForFailuresAccess != null) {
-                            allowedIndexPrivilegesAutomatonForFailuresAccess = Automatons.unionAndMinimize(
-                                Arrays.asList(allowedIndexPrivilegesAutomatonForFailuresAccess, privilegesAutomaton)
-                            );
-                        } else {
-                            allowedIndexPrivilegesAutomatonForFailuresAccess = privilegesAutomaton;
-                        }
-                    }
-                }
+                Automaton allowedIndexPrivilegesAutomatonForDataAccess = getIndexPrivilegesAutomaton(
+                    indexGroupAutomatonsForDataAccess,
+                    checkIndexAutomaton
+                );
+                Automaton allowedIndexPrivilegesAutomatonForFailuresAccess = getIndexPrivilegesAutomaton(
+                    indexGroupAutomatonsForFailuresAccess,
+                    checkIndexAutomaton
+                );
                 for (String privilege : checkForPrivileges) {
                     IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
-                    if (allowedIndexPrivilegesAutomatonForDataAccess != null
-                        && indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.DATA)
-                        && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomatonForDataAccess)) {
+                    if (isAuthorized(allowedIndexPrivilegesAutomatonForDataAccess, indexPrivilege, IndexComponentSelector.DATA)) {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
-                    } else if (allowedIndexPrivilegesAutomatonForFailuresAccess != null
-                        && indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES)
-                        && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomatonForFailuresAccess)) {
-                            if (resourcePrivilegesMapBuilder != null) {
-                                resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
-                            }
-                        } else {
-                            if (resourcePrivilegesMapBuilder != null) {
-                                resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
-                                allMatch = false;
-                            } else {
-                                // return early on first privilege not granted
-                                return false;
-                            }
+                    } else if (isAuthorized(
+                        allowedIndexPrivilegesAutomatonForFailuresAccess,
+                        indexPrivilege,
+                        IndexComponentSelector.FAILURES
+                    )) {
+                        if (resourcePrivilegesMapBuilder != null) {
+                            resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
+                    } else {
+                        if (resourcePrivilegesMapBuilder != null) {
+                            resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                            allMatch = false;
+                        } else {
+                            // return early on first privilege not granted
+                            return false;
+                        }
+                    }
                 }
             } else {
                 // the index pattern produced the empty automaton, presumably because the requested pattern expands exclusively inside the
@@ -401,6 +381,37 @@ public final class IndicesPermission {
             }
         }
         return allMatch;
+    }
+
+    private static boolean isAuthorized(
+        Automaton allowedPrivilegesAutomaton,
+        IndexPrivilege indexPrivilege,
+        IndexComponentSelector selector
+    ) {
+        return allowedPrivilegesAutomaton != null
+            && indexPrivilege.getSelectorPredicate().test(selector)
+            && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedPrivilegesAutomaton);
+    }
+
+    private static Automaton getIndexPrivilegesAutomaton(
+        Map<Automaton, Automaton> indexGroupAutomatonsForDataAccess,
+        Automaton checkIndexAutomaton
+    ) {
+        Automaton allowedIndexPrivilegesAutomatonForDataAccess = null;
+        for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatonsForDataAccess.entrySet()) {
+            Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
+            if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
+                Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
+                if (allowedIndexPrivilegesAutomatonForDataAccess != null) {
+                    allowedIndexPrivilegesAutomatonForDataAccess = Automatons.unionAndMinimize(
+                        Arrays.asList(allowedIndexPrivilegesAutomatonForDataAccess, privilegesAutomaton)
+                    );
+                } else {
+                    allowedIndexPrivilegesAutomatonForDataAccess = privilegesAutomaton;
+                }
+            }
+        }
+        return allowedIndexPrivilegesAutomatonForDataAccess;
     }
 
     public Automaton allowedActionsMatcher(String index) {

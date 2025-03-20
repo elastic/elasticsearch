@@ -1,8 +1,13 @@
-
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
 package org.elasticsearch.ingest.common;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ingest.IngestDocument;
 
 import java.util.ArrayList;
@@ -24,8 +29,6 @@ final class CefParser {
         this.removeEmptyValue = removeEmptyValue;
     }
 
-    private static final Logger logger = LogManager.getLogger(CefParser.class);
-
     // Existing patterns...
     private static final Pattern HEADER_PATTERN = Pattern.compile("(?:\\\\\\||\\\\\\\\|[^|])*?");
     private static final Pattern HEADER_NEXT_FIELD_PATTERN = Pattern.compile("(" + HEADER_PATTERN.pattern() + ")\\|");
@@ -38,25 +41,11 @@ final class CefParser {
     private static final Pattern EXTENSION_NEXT_KEY_VALUE_PATTERN = Pattern.compile(
         "(" + EXTENSION_KEY_PATTERN + ")=(" + EXTENSION_VALUE_PATTERN + ")(?:\\s+|$)"
     );
-
-    private static final Map<String, String> HEADER_FIELD_SANITIZER_MAPPING = new HashMap<>();
-    private static final Map<String, String> EXTENSION_VALUE_SANITIZER_MAPPING = new HashMap<>();
     private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = new HashMap<>();
-
     private static final Map<String, String> FIELD_MAPPING = new HashMap<>();
     private static final String ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = "incomplete CEF header";
 
     static {
-        HEADER_FIELD_SANITIZER_MAPPING.put("\\", "\\\\");
-        HEADER_FIELD_SANITIZER_MAPPING.put("|", "\\|");
-        HEADER_FIELD_SANITIZER_MAPPING.put("\n", " ");
-        HEADER_FIELD_SANITIZER_MAPPING.put("\r", " ");
-
-        EXTENSION_VALUE_SANITIZER_MAPPING.put("\\", "\\\\");
-        EXTENSION_VALUE_SANITIZER_MAPPING.put("=", "\\=");
-        EXTENSION_VALUE_SANITIZER_MAPPING.put("\n", "\\\n");
-        EXTENSION_VALUE_SANITIZER_MAPPING.put("\r", "\\\r");
-
         EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\\\", "\\");
         EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\=", "=");
         EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\\n", "\n");
@@ -92,7 +81,7 @@ final class CefParser {
         FIELD_MAPPING.put("rt", "@timestamp");
         FIELD_MAPPING.put("dtz", "event.timezone");
         FIELD_MAPPING.put("deviceTranslatedAddress", "host.nat.ip");
-        FIELD_MAPPING.put("deviceVersion", "observer.version");
+        FIELD_MAPPING.put("device.version", "observer.version");
         FIELD_MAPPING.put("end", "event.end");
         FIELD_MAPPING.put("eventId", "event.id");
         FIELD_MAPPING.put("outcome", "event.outcome");
@@ -212,7 +201,6 @@ final class CefParser {
         if (lastEnd < extensionString.length()) {
             throw new IllegalArgumentException("Invalid extensions; keyless value present: " + extensionString.substring(lastEnd));
         }
-        logger.info(extensions);
         return extensions;
     }
 
@@ -229,42 +217,12 @@ final class CefParser {
         return key;
     }
 
-    public static String sanitizeExtensionKey(String value) {
-        return value.replaceAll("[^a-zA-Z0-9]", "");
-    }
-
-    public static String sanitizeExtensionVal(String value) {
-        String sanitized = value.replace("\r\n", "\n");
-        for (Map.Entry<String, String> entry : EXTENSION_VALUE_SANITIZER_MAPPING.entrySet()) {
-            sanitized = sanitized.replace(entry.getKey(), entry.getValue());
-        }
-        return sanitized;
-    }
-
     public static String desanitizeExtensionVal(String value) {
         String desanitized = value;
         for (Map.Entry<String, String> entry : EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.entrySet()) {
             desanitized = desanitized.replace(entry.getKey(), entry.getValue());
         }
         return desanitized;
-    }
-
-    public static String sanitizeHeaderField(String field) {
-        StringBuilder result = new StringBuilder();
-        for (char c : field.toCharArray()) {
-            String replacement = HEADER_FIELD_SANITIZER_MAPPING.get(String.valueOf(c));
-            result.append(replacement != null ? replacement : c);
-        }
-        return result.toString();
-    }
-
-    public static String sanitizeExtensionValue(String value) {
-        StringBuilder result = new StringBuilder();
-        for (char c : value.toCharArray()) {
-            String replacement = EXTENSION_VALUE_SANITIZER_MAPPING.get(String.valueOf(c));
-            result.append(replacement != null ? replacement : c);
-        }
-        return result.toString();
     }
 
     public static class CEFEvent {
@@ -363,14 +321,18 @@ final class CefParser {
         public Object toObject() {
             Map<String, Object> event = new HashMap<>();
             event.put("version", version);
-            event.put("deviceVendor", deviceVendor);
-            event.put("deviceProduct", deviceProduct);
-            event.put("deviceVersion", deviceVersion);
-            event.put("deviceEventClassId", deviceEventClassId);
+            event.put("device.vendor", deviceVendor);
+            event.put("device.product", deviceProduct);
+            event.put("device.version", deviceVersion);
+            event.put("device.event_class_id", deviceEventClassId);
             event.put("name", name);
             event.put("severity", severity);
-            event.put("extensions", extensions);
-            event.put("translatedFields", translatedFields);
+            if (extensions != null) {
+                event.putAll(extensions);
+            }
+            if (translatedFields != null) {
+                event.putAll(translatedFields);
+            }
             event.put("error.message", errorMessages);
             return event;
         }

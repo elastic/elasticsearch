@@ -86,7 +86,8 @@ public class MetadataOnlyBKDReader extends PointValues {
         pointCount = metaIn.readVLong();
         docCount = metaIn.readVInt();
 
-        // This code has been introduced to process IndexInput created with Lucene86Codec+
+        // This code has been introduced to process IndexInput created with Lucene86Codec+. This is not necessary
+        // in the read-only version for older formats.
         if (isVersionPost86) {
             metaIn.readVInt();
             metaIn.readLong();

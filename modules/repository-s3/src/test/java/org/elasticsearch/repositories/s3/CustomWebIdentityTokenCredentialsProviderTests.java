@@ -9,8 +9,9 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+
 import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
@@ -130,9 +131,9 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         return Map.of("AWS_WEB_IDENTITY_TOKEN_FILE", "/var/run/secrets/eks.amazonaws.com/serviceaccount/token", "AWS_ROLE_ARN", ROLE_ARN);
     }
 
-    private static void assertCredentials(AWSCredentials credentials) {
-        Assert.assertFalse(credentials.getAWSAccessKeyId().isEmpty());
-        Assert.assertFalse(credentials.getAWSSecretKey().isEmpty());
+    private static void assertCredentials(AwsCredentials credentials) {
+        Assert.assertFalse(credentials.accessKeyId().isEmpty());
+        Assert.assertFalse(credentials.secretAccessKey().isEmpty());
     }
 
     @SuppressForbidden(reason = "HTTP server is used for testing")
@@ -152,15 +153,15 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             resourceWatcherService
         );
         try {
-            AWSCredentials credentials = S3Service.buildCredentials(
+            AwsCredentials credentials = S3Service.buildCredentials(
                 LogManager.getLogger(S3Service.class),
                 S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8)),
                 webIdentityTokenCredentialsProvider
-            ).getCredentials();
+            ).resolveCredentials();
 
             assertCredentials(credentials);
         } finally {
-            webIdentityTokenCredentialsProvider.shutdown();
+            webIdentityTokenCredentialsProvider.close();
             httpServer.stop(0);
         }
     }
@@ -198,12 +199,12 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             resourceWatcherService
         );
         try {
-            AWSCredentialsProvider awsCredentialsProvider = S3Service.buildCredentials(
+            AwsCredentialsProvider awsCredentialsProvider = S3Service.buildCredentials(
                 LogManager.getLogger(S3Service.class),
                 S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8)),
                 webIdentityTokenCredentialsProvider
             );
-            assertCredentials(awsCredentialsProvider.getCredentials());
+            assertCredentials(awsCredentialsProvider.resolveCredentials());
 
             var latch = new CountDownLatch(1);
             String newWebIdentityToken = "88f84342080d4671a511e10ae905b2b0";
@@ -215,9 +216,9 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
             Files.writeString(environment.configDir().resolve("repository-s3/aws-web-identity-token-file"), newWebIdentityToken);
 
             safeAwait(latch);
-            assertCredentials(awsCredentialsProvider.getCredentials());
+            assertCredentials(awsCredentialsProvider.resolveCredentials());
         } finally {
-            webIdentityTokenCredentialsProvider.shutdown();
+            webIdentityTokenCredentialsProvider.close();
             httpServer.stop(0);
         }
     }
@@ -248,6 +249,6 @@ public class CustomWebIdentityTokenCredentialsProviderTests extends ESTestCase {
         // on stsClientBuilder which should internally correctly configure the endpoint when the STS client is built.
         assertEquals("us-west-2", webIdentityTokenCredentialsProvider.getSecurityTokenServiceRegion());
 
-        webIdentityTokenCredentialsProvider.shutdown();
+        webIdentityTokenCredentialsProvider.close();
     }
 }

@@ -163,11 +163,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Boolean> DISABLE_CHUNKED_ENCODING = Setting.affixKeySetting(
         PREFIX,
         "disable_chunked_encoding",
-        key -> Setting.boolSetting(
-            key,
-            false,
-            Property.NodeScope
-        )
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
     );
 
     /** An override for the s3 region to use for signing requests. */
@@ -518,7 +514,7 @@ final class S3ClientSettings {
         return defaultValue;
     }
 
-    private static final class Defaults {
+    static final class Defaults {
         static final TimeValue READ_TIMEOUT = TimeValue.timeValueSeconds(50);// TODO NOMERGE confirm previous default
         static final int MAX_CONNECTIONS = 50;// TODO NOMERGE confirm previous default
         static final int RETRY_COUNT = 3;// TODO NOMERGE confirm previous default

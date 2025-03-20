@@ -9,8 +9,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import org.apache.http.HttpStatus;
-
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -37,6 +35,7 @@ import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleWithWebIdentityCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleWithWebIdentityRequest;
 
+import org.apache.http.HttpStatus;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -61,6 +60,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
@@ -206,11 +206,11 @@ class S3Service implements Closeable {
         // TODO NOMERGE ensure this has all the same config features as the v1 SDK
         var s3clientBuilder = S3Client.builder();
         s3clientBuilder.httpClient(buildHttpClient(clientSettings).build());
-        s3clientBuilder.overrideConfiguration(buildClientConfiguration(clientSettings));
-        s3clientBuilder.serviceConfiguration(b -> b.chunkedEncodingEnabled(clientSettings.disableChunkedEncoding? false : true));
+        s3clientBuilder.overrideConfiguration(buildClientConfiguration(clientSettings, isStateless));
+        s3clientBuilder.serviceConfiguration(b -> b.chunkedEncodingEnabled(clientSettings.disableChunkedEncoding ? false : true));
 
         // TODO: credentials
-        s3clientBuilder.credentialsProvider(buildCredentials());
+        s3clientBuilder.credentialsProvider(buildCredentials(LOGGER, clientSettings, new CustomWebIdentityTokenCredentialsProvider()));
 
         if (clientSettings.pathStyleAccess) {
             s3clientBuilder.forcePathStyle(true);
@@ -252,7 +252,7 @@ class S3Service implements Closeable {
         return httpClientBuilder;
     }
 
-    private ClientOverrideConfiguration buildClientConfiguration(S3ClientSettings clientSettings) {
+    static ClientOverrideConfiguration buildClientConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
 
         // TODO: revisit this, does it still make sense to specially retry?
@@ -349,9 +349,12 @@ class S3Service implements Closeable {
     @Override
     public void close() throws IOException {
         releaseCachedClients();
-        webIdentityTokenCredentialsProvider.shutdown();
+        webIdentityTokenCredentialsProvider.close();
     }
 
+    /**
+     * Wraps calls with {@link SocketAccess#doPrivileged(PrivilegedAction)} where needed.
+     */
     static class PrivilegedAwsCredentialsProvider implements AwsCredentialsProvider {
         private final AwsCredentialsProvider delegate;
 
@@ -361,6 +364,10 @@ class S3Service implements Closeable {
 
         // exposed for tests
         AwsCredentialsProvider getDelegate() {
+            return delegate;
+        }
+
+        AwsCredentialsProvider getCredentialsProvider() {
             return delegate;
         }
 
@@ -408,7 +415,7 @@ class S3Service implements Closeable {
         static final String WEB_IDENTITY_TOKEN_FILE_LOCATION = "repository-s3/aws-web-identity-token-file";
 
         private StsAssumeRoleWithWebIdentityCredentialsProvider credentialsProvider;
-        private StsClient securityTokenServiceClient; // AWSSecurityTokenService
+        private StsClient securityTokenServiceClient;
         private String securityTokenServiceRegion;
 
         CustomWebIdentityTokenCredentialsProvider(
@@ -423,6 +430,7 @@ class S3Service implements Closeable {
             if (systemEnvironment.getEnv(AWS_WEB_IDENTITY_ENV_VAR) == null) {
                 return;
             }
+
             // Make sure that a readable symlink to the token file exists in the plugin config directory
             // AWS_WEB_IDENTITY_TOKEN_FILE exists but we only use Web Identity Tokens if a corresponding symlink exists and is readable
             Path webIdentityTokenFileSymlink = environment.configDir().resolve(WEB_IDENTITY_TOKEN_FILE_LOCATION);
@@ -436,6 +444,7 @@ class S3Service implements Closeable {
             if (Files.isReadable(webIdentityTokenFileSymlink) == false) {
                 throw new IllegalStateException("Unable to read a Web Identity Token symlink in the config directory");
             }
+
             String roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN_ENV_VAR);
             if (roleArn == null) {
                 LOGGER.warn(
@@ -444,12 +453,36 @@ class S3Service implements Closeable {
                 );
                 return;
             }
+
             String roleSessionName = Objects.requireNonNullElseGet(
                 systemEnvironment.getEnv(AWS_ROLE_SESSION_NAME_ENV_VAR),
                 // Mimic the default behaviour of the AWS SDK in case the session name is not set
                 // See `com.amazonaws.auth.WebIdentityTokenCredentialsProvider#45`
                 () -> "aws-sdk-java-" + clock.millis()
             );
+
+            securityTokenServiceClient = createStsClient(systemEnvironment, jvmEnvironment);
+
+            try {
+                credentialsProvider = StsAssumeRoleWithWebIdentityCredentialsProvider.builder()
+                    .refreshRequest(
+                        AssumeRoleWithWebIdentityRequest.builder()
+                            .roleArn(roleArn)
+                            .roleSessionName(roleSessionName)
+                            .webIdentityToken(webIdentityTokenFileSymlink.toString())
+                            .build()
+                    )
+                    .stsClient(securityTokenServiceClient)
+                    .build();
+
+                setupFileWatcherToRefreshCredentials(webIdentityTokenFileSymlink, resourceWatcherService);
+            } catch (Exception e) {
+                securityTokenServiceClient.close();
+                throw e;
+            }
+        }
+
+        private StsClient createStsClient(SystemEnvironment systemEnvironment, JvmEnvironment jvmEnvironment) {
             var securityTokenServiceClientBuilder = StsClient.builder();
 
             // Check if we need to use regional STS endpoints
@@ -471,49 +504,36 @@ class S3Service implements Closeable {
 
                 securityTokenServiceClientBuilder.endpointOverride(URI.create(customStsEndpoint));
             }
+
             securityTokenServiceClientBuilder.credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create("", "")));
-            securityTokenServiceClient = SocketAccess.doPrivileged(securityTokenServiceClientBuilder::build);
+            return SocketAccess.doPrivileged(securityTokenServiceClientBuilder::build);
+        }
 
-            try {
-                credentialsProvider = StsAssumeRoleWithWebIdentityCredentialsProvider.builder()
-                    .refreshRequest(
-                        AssumeRoleWithWebIdentityRequest.builder()
-                            .roleArn(roleArn)
-                            .roleSessionName(roleSessionName)
-                            .webIdentityToken(webIdentityTokenFileSymlink.toString())
-                            .build()
-                    )
-                    .stsClient(securityTokenServiceClient)
-                    .build();
+        private void setupFileWatcherToRefreshCredentials(Path webIdentityTokenFileSymlink, ResourceWatcherService resourceWatcherService) {
+            var watcher = new FileWatcher(webIdentityTokenFileSymlink);
+            watcher.addListener(new FileChangesListener() {
 
-                var watcher = new FileWatcher(webIdentityTokenFileSymlink);
-                watcher.addListener(new FileChangesListener() {
-
-                    @Override
-                    public void onFileCreated(Path file) {
-                        onFileChanged(file);
-                    }
-
-                    @Override
-                    public void onFileChanged(Path file) {
-                        if (file.equals(webIdentityTokenFileSymlink)) {
-                            LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
-                            SocketAccess.doPrivilegedVoid(credentialsProvider::resolveCredentials);
-                        }
-                    }
-                });
-                try {
-                    resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
-                } catch (IOException e) {
-                    throw new ElasticsearchException(
-                        "failed to start watching AWS web identity token file [{}]",
-                        e,
-                        webIdentityTokenFileSymlink
-                    );
+                @Override
+                public void onFileCreated(Path file) {
+                    onFileChanged(file);
                 }
-            } catch (Exception e) {
-                securityTokenServiceClient.close();
-                throw e;
+
+                @Override
+                public void onFileChanged(Path file) {
+                    if (file.equals(webIdentityTokenFileSymlink)) {
+                        LOGGER.debug("WS web identity token file [{}] changed, updating credentials", file);
+                        SocketAccess.doPrivilegedVoid(credentialsProvider::resolveCredentials);
+                    }
+                }
+            });
+            try {
+                resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.LOW);
+            } catch (IOException e) {
+                throw new ElasticsearchException(
+                    "failed to start watching AWS web identity token file [{}]",
+                    e,
+                    webIdentityTokenFileSymlink
+                );
             }
         }
 
@@ -525,9 +545,9 @@ class S3Service implements Closeable {
             return securityTokenServiceRegion;
         }
 
-        public void shutdown() throws IOException {
+        public void close() throws IOException {
             if (credentialsProvider != null) {
-                IOUtils.close(credentialsProvider, () -> securityTokenServiceClient.close());
+                IOUtils.close(() -> credentialsProvider.close(), () -> securityTokenServiceClient.close());
             }
         }
 

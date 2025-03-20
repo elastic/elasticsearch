@@ -9,16 +9,8 @@
 
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSCredentialsProviderChain;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
-import com.amazonaws.retry.PredefinedRetryPolicies;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
@@ -27,6 +19,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 
 import java.util.Locale;
 import java.util.Map;
@@ -46,7 +41,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     public void testAWSCredentialsDefaultToInstanceProviders() {
         final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName);
-        final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(
+        final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(
             logger,
             clientSettings,
             webIdentityTokenCredentialsProvider
@@ -61,17 +56,17 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .thenReturn(new BasicAWSCredentials("sts_access_key_id", "sts_secret_key"));
         Mockito.when(webIdentityTokenCredentialsProvider.isActive()).thenReturn(true);
 
-        AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(
+        AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(
             logger,
             S3ClientSettings.getClientSettings(Settings.EMPTY, randomAlphaOfLength(8).toLowerCase(Locale.ROOT)),
             webIdentityTokenCredentialsProvider
         );
         assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
         var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) credentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(AWSCredentialsProviderChain.class));
-        AWSCredentials credentials = privilegedAWSCredentialsProvider.resolveCredentials();
-        assertEquals("sts_access_key_id", credentials.getAWSAccessKeyId());
-        assertEquals("sts_secret_key", credentials.getAWSSecretKey());
+        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(AwsCredentialsProviderChain.class));
+        AwsCredentials credentials = privilegedAWSCredentialsProvider.resolveCredentials();
+        assertEquals("sts_access_key_id", credentials.accessKeyId());
+        assertEquals("sts_secret_key", credentials.secretAccessKey());
     }
 
     public void testAWSCredentialsFromKeystore() {
@@ -90,18 +85,18 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(
+            final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(
                 logger,
                 someClientSettings,
                 webIdentityTokenCredentialsProvider
             );
             assertThat(credentialsProvider, instanceOf(AWSStaticCredentialsProvider.class));
-            assertThat(credentialsProvider.getCredentials().getAWSAccessKeyId(), is(clientName + "_aws_access_key"));
-            assertThat(credentialsProvider.getCredentials().getAWSSecretKey(), is(clientName + "_aws_secret_key"));
+            assertThat(credentialsProvider.resolveCredentials().accessKeyId(), is(clientName + "_aws_access_key"));
+            assertThat(credentialsProvider.resolveCredentials().secretAccessKey(), is(clientName + "_aws_secret_key"));
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(
+        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(
             logger,
             defaultClientSettings,
             webIdentityTokenCredentialsProvider
@@ -122,14 +117,14 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         assertThat(allClientsSettings.size(), is(1));
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(
+        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(
             logger,
             defaultClientSettings,
             webIdentityTokenCredentialsProvider
         );
         assertThat(defaultCredentialsProvider, instanceOf(AWSStaticCredentialsProvider.class));
-        assertThat(defaultCredentialsProvider.getCredentials().getAWSAccessKeyId(), is(awsAccessKey));
-        assertThat(defaultCredentialsProvider.getCredentials().getAWSSecretKey(), is(awsSecretKey));
+        assertThat(defaultCredentialsProvider.resolveCredentials().accessKeyId(), is(awsAccessKey));
+        assertThat(defaultCredentialsProvider.resolveCredentials().secretAccessKey(), is(awsSecretKey));
     }
 
     public void testCredentialsIncomplete() {
@@ -159,7 +154,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             null,
             null,
             3,
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
+            S3ClientSettings.Defaults.THROTTLE_RETRIES,
             ClientConfiguration.DEFAULT_SOCKET_TIMEOUT
         );
     }
@@ -183,7 +178,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             "aws_proxy_username",
             "aws_proxy_password",
             3,
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
+            S3ClientSettings.Defaults.THROTTLE_RETRIES,
             10000
         );
     }
@@ -198,7 +193,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             null,
             null,
             5,
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES,
+            S3ClientSettings.Defaults.THROTTLE_RETRIES,
             50000
         );
     }
@@ -223,7 +218,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     ) {
 
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
-        final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings, false);
+        final ClientOverrideConfiguration configuration = S3Service.buildClientConfiguration(clientSettings, false);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
         assertThat(configuration.getProtocol(), is(expectedProtocol));

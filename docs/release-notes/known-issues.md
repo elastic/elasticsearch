@@ -60,7 +60,7 @@ The connector service has the following known issues:
 
             ::::
 
-    * **Optimize** [**sync rules**](/reference/ingestion-tools/search-connectors/es-sync-rules.md):
+    * **Optimize** [**sync rules**](/reference/search-connectors/es-sync-rules.md):
 
         * Review and optimize sync rules to filter and reduce data retrieved from the source before syncing.
 
@@ -154,5 +154,5 @@ The connector service has the following known issues:
 
 ## Individual connector known issues [es-connectors-known-issues-specific]
 
-Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/ingestion-tools/search-connectors/index.md) for connector-specific known issues.
+Individual connectors may have additional known issues. Refer to [each connector’s reference documentation](/reference/search-connectors/index.md) for connector-specific known issues.
 

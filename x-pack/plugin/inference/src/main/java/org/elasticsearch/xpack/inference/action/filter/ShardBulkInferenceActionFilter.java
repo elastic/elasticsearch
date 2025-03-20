@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -25,6 +26,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -108,6 +110,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final XPackLicenseState licenseState;
     private volatile long batchSizeInBytes;
 
+    private final SetOnce<CircuitBreaker> inferenceBytesCircuitBreaker = new SetOnce<>();
+
     public ShardBulkInferenceActionFilter(
         ClusterService clusterService,
         InferenceServiceRegistry inferenceServiceRegistry,
@@ -124,6 +128,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
     private void setBatchSize(ByteSizeValue newBatchSize) {
         batchSizeInBytes = newBatchSize.getBytes();
+    }
+
+    public void setInferenceBytesCircuitBreaker(CircuitBreaker circuitBreaker) {
+        this.inferenceBytesCircuitBreaker.set(circuitBreaker);
     }
 
     @Override

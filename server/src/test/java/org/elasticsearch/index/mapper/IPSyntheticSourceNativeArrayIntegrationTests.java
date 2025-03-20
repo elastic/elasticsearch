@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.common.network.NetworkAddress;
 
 import java.util.ArrayList;
@@ -26,6 +28,11 @@ public class IPSyntheticSourceNativeArrayIntegrationTests extends NativeArrayInt
     @Override
     protected String getRandomValue() {
         return NetworkAddress.format(randomIp(true));
+    }
+
+    @Override
+    protected String getMalformedValue() {
+        return RandomStrings.randomAsciiOfLength(random(), 8);
     }
 
     public void testSynthesizeArray() throws Exception {

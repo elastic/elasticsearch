@@ -1340,7 +1340,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMetrics() {
-        var query = "METRICS k8s bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
+        var query = "METRICS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'METRICS' expecting {"));

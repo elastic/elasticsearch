@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterName;
@@ -489,7 +490,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             if (mapping != null) {
                 Map<String, IndexFieldCapabilities> fieldCaps = new HashMap<>();
                 for (Map.Entry<String, String> e : mapping.entrySet()) {
-                    var f = new IndexFieldCapabilities(e.getKey(), e.getValue(), false, false, false, false, null, Map.of());
+                    var f = new IndexFieldCapabilitiesBuilder(e.getKey(), e.getValue()).isSearchable(false).isAggregatable(false).build();
                     fieldCaps.put(e.getKey(), f);
                 }
                 var indexResponse = new FieldCapabilitiesIndexResponse(alias, null, fieldCaps, true, IndexMode.STANDARD);

@@ -54,7 +54,7 @@ public class ProjectId implements Writeable, ToXContent {
         }
     }
 
-    static boolean isValidFormatId(String id) {
+    public static boolean isValidFormatId(String id) {
         if (id.length() > MAX_LENGTH) {
             return false;
         }

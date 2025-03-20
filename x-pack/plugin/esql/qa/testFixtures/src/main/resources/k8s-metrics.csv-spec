@@ -1,5 +1,5 @@
 metricsWithoutAggs
-required_capability: metrics_syntax
+required_capability: metrics_command
 METRICS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,network.bytes_in,network.cost | limit 5;
 
 @timestamp:datetime      | cluster:keyword | pod: keyword| network.bytes_in:long | network.cost:double
@@ -11,9 +11,9 @@ METRICS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,n
 ;
 
 metricsWithAggsAndSourceQuoting
-required_capability: metrics_syntax
+required_capability: metrics_command
 required_capability: double_quotes_source_enclosing
-METRICS "k8s" max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT max_bytes DESC;
+METRICS "k8s" | STATS max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT max_bytes DESC;
 
 max_bytes:long | cluster: keyword
 10797          | qa        
@@ -22,49 +22,49 @@ max_bytes:long | cluster: keyword
 ;
 
 maxRateAndSourceTripleQuoting
-required_capability: metrics_syntax
+required_capability: metrics_command
 required_capability: double_quotes_source_enclosing
-METRICS """k8s""" max(rate(network.total_bytes_in, 1minute));
+METRICS k8s | STATS max(rate(network.total_bytes_in, 1minute));
 
 max(rate(network.total_bytes_in, 1minute)): double
 790.4235090751945
 ;
 
 maxCost
-required_capability: metrics_syntax
-METRICS k8s max_cost=max(rate(network.total_cost));
+required_capability: metrics_command
+METRICS k8s | STATS max_cost=max(rate(network.total_cost));
 
 max_cost: double
 0.16151685393258428
 ;
 
 maxRateAndBytes
-required_capability: metrics_syntax
-METRICS k8s max(rate(network.total_bytes_in, 1minute)), max(network.bytes_in);
+required_capability: metrics_command
+METRICS k8s | STATS max(rate(network.total_bytes_in, 1minute)), max(network.bytes_in);
 
 max(rate(network.total_bytes_in, 1minute)): double | max(network.bytes_in): long
 790.4235090751945                                  | 1021
 ;
 
 `maxRateAndMarkupBytes`
-required_capability: metrics_syntax
-METRICS k8s max(rate(network.total_bytes_in, 1minute)), max(network.bytes_in * 1.05);
+required_capability: metrics_command
+METRICS k8s | STATS max(rate(network.total_bytes_in, 1minute)), max(network.bytes_in * 1.05);
 
 max(rate(network.total_bytes_in, 1minute)): double | max(network.bytes_in * 1.05): double
 790.4235090751945                                  | 1072.05
 ;
 
 maxRateAndBytesAndCost
-required_capability: metrics_syntax
-METRICS k8s max(rate(network.total_bytes_in, 1minute)), max(network.bytes_in), max(rate(network.total_cost));
+required_capability: metrics_command
+METRICS k8s | STATS max(rate(network.total_bytes_in, 1minute)), max(network.bytes_in), max(rate(network.total_cost));
 
 max(rate(network.total_bytes_in, 1minute)): double| max(network.bytes_in): long| max(rate(network.total_cost)): double
 790.4235090751945                                 | 1021                       | 0.16151685393258428
 ;
 
 sumRate
-required_capability: metrics_syntax
-METRICS k8s bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster | SORT cluster;
+required_capability: metrics_command
+METRICS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster | SORT cluster;
 
 bytes: double       | sum(rate(network.total_cost)): double | cluster: keyword
 24.49149357711476   | 0.3018995503437827                    | prod
@@ -73,8 +73,8 @@ bytes: double       | sum(rate(network.total_cost)): double | cluster: keyword
 ;
 
 oneRateWithBucket
-required_capability: metrics_syntax
-METRICS k8s max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | SORT time_bucket DESC | LIMIT 2;
+required_capability: metrics_command
+METRICS k8s | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | SORT time_bucket DESC | LIMIT 2;
 
 max(rate(network.total_bytes_in)): double | time_bucket:date
 10.594594594594595                        | 2024-05-10T00:20:00.000Z
@@ -82,8 +82,8 @@ max(rate(network.total_bytes_in)): double | time_bucket:date
 ;
 
 twoRatesWithBucket
-required_capability: metrics_syntax
-METRICS k8s max(rate(network.total_bytes_in)), sum(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | SORT time_bucket DESC | LIMIT 3;
+required_capability: metrics_command
+METRICS k8s | STATS max(rate(network.total_bytes_in)), sum(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute) | SORT time_bucket DESC | LIMIT 3;
 
 max(rate(network.total_bytes_in)): double | sum(rate(network.total_bytes_in)): double | time_bucket:date
 10.594594594594595                        | 42.70864495221802                         | 2024-05-10T00:20:00.000Z
@@ -93,8 +93,8 @@ max(rate(network.total_bytes_in)): double | sum(rate(network.total_bytes_in)): d
 
 
 oneRateWithBucketAndCluster
-required_capability: metrics_syntax
-METRICS k8s max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC, cluster | LIMIT 6;
+required_capability: metrics_command
+METRICS k8s | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC, cluster | LIMIT 6;
 
 max(rate(network.total_bytes_in)): double | time_bucket:date          | cluster: keyword
 10.594594594594595                        | 2024-05-10T00:20:00.000Z  | prod
@@ -106,8 +106,8 @@ max(rate(network.total_bytes_in)): double | time_bucket:date          | cluster:
 ;
 
 BytesAndCostByBucketAndCluster
-required_capability: metrics_syntax
-METRICS k8s max(rate(network.total_bytes_in)), max(network.cost) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC, cluster | LIMIT 6;
+required_capability: metrics_command
+METRICS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC, cluster | LIMIT 6;
 
 max(rate(network.total_bytes_in)): double | max(network.cost): double | time_bucket:date         | cluster: keyword
 10.594594594594595                        | 10.75                     | 2024-05-10T00:20:00.000Z | prod
@@ -119,8 +119,8 @@ max(rate(network.total_bytes_in)): double | max(network.cost): double | time_buc
 ;
 
 oneRateWithBucketAndClusterThenFilter
-required_capability: metrics_syntax
-METRICS k8s max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | WHERE cluster=="prod" | SORT time_bucket DESC | LIMIT 3;
+required_capability: metrics_command
+METRICS k8s | WHERE cluster=="prod" | STATS max(rate(network.total_bytes_in)) BY time_bucket = bucket(@timestamp,5minute), cluster | SORT time_bucket DESC | LIMIT 3;
 
 max(rate(network.total_bytes_in)): double | time_bucket:date          | cluster: keyword
 10.594594594594595                        | 2024-05-10T00:20:00.000Z  | prod

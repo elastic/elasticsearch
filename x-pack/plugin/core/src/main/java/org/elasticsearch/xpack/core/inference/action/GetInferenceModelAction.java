@@ -44,23 +44,15 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         // no effect when getting a single model
         private final boolean persistDefaultConfig;
 
-        // For testing only, retrieves the minimal config from the cluster state.
-        private final boolean returnMinimalConfig;
-
         public Request(String inferenceEntityId, TaskType taskType) {
             this(inferenceEntityId, taskType, PERSIST_DEFAULT_CONFIGS);
         }
 
         public Request(String inferenceEntityId, TaskType taskType, boolean persistDefaultConfig) {
-            this(inferenceEntityId, taskType, persistDefaultConfig, false);
-        }
-
-        public Request(String inferenceEntityId, TaskType taskType, boolean persistDefaultConfig, boolean returnMinimalConfig) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
             this.persistDefaultConfig = persistDefaultConfig;
-            this.returnMinimalConfig = returnMinimalConfig;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -72,13 +64,6 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             } else {
                 this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
             }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA)) {
-                this.returnMinimalConfig = in.readBoolean();
-            } else {
-                this.returnMinimalConfig = false;
-            }
-
         }
 
         public String getInferenceEntityId() {
@@ -93,10 +78,6 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             return persistDefaultConfig;
         }
 
-        public boolean isReturnMinimalConfig() {
-            return returnMinimalConfig;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -104,10 +85,6 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             taskType.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeBoolean(this.persistDefaultConfig);
-            }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA)) {
-                out.writeBoolean(returnMinimalConfig);
             }
         }
 
@@ -118,13 +95,12 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             Request request = (Request) o;
             return Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && taskType == request.taskType
-                && persistDefaultConfig == request.persistDefaultConfig
-                && returnMinimalConfig == request.returnMinimalConfig;
+                && persistDefaultConfig == request.persistDefaultConfig;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceEntityId, taskType, persistDefaultConfig, returnMinimalConfig);
+            return Objects.hash(inferenceEntityId, taskType, persistDefaultConfig);
         }
     }
 

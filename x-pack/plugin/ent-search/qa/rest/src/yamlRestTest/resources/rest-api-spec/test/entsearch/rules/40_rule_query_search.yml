@@ -893,3 +893,74 @@ teardown:
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: 'doc1' }
   - match: { hits.hits.1._id: 'doc4' }
+
+---
+"Multi-index search with missing documents does not error":
+  - requires:
+      cluster_features: [ "test_rule_retriever.with_indices_that_dont_return_rank_docs" ]
+      reason: "Fixed in 9.1"
+
+  - do:
+      indices.create:
+        index: test-index-001
+
+  - do:
+      indices.create:
+        index: test-index-002
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-index-001
+        body:
+          - index:
+              _id: 1
+          - { "text": "patio" }
+          - index:
+              _id: 2
+          - { "text": "catio" }
+
+  - do:
+      bulk:
+        refresh: true
+        index: test-index-002
+        body:
+          - index:
+              _id: 3
+          - { "text": "balcony" }
+          - index:
+              _id: 4
+          - { "text": "overhang" }
+
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: catio-ruleset
+        body:
+          rules:
+            - rule_id: rule1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: foo
+                  values: [ bar ]
+              actions:
+                ids:
+                  - '2'
+
+  - do:
+      search:
+        body:
+          retriever:
+            rule:
+              retriever:
+                standard:
+                  query:
+                    query_string:
+                      query: "patio or balcony"
+              match_criteria:
+                foo: bar
+              ruleset_ids: catio-ruleset
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._id: '2' }
+

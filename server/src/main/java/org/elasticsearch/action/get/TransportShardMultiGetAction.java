@@ -156,12 +156,12 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     }
 
     @Override
-    protected Executor getExecutor(MultiGetShardRequest request, ShardId shardId) {
+    protected Executor getExecutor(ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
         if (projectResolver.getProjectMetadata(clusterState).index(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
         } else {
-            return super.getExecutor(request, shardId);
+            return super.getExecutor(shardId);
         }
     }
 
@@ -290,7 +290,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                         assert r.primaryTerm() > Engine.UNKNOWN_PRIMARY_TERM;
                         final ActionListener<Long> termAndGenerationListener = ContextPreservingActionListener.wrapPreservingContext(
                             listener.delegateFailureAndWrap(
-                                (ll, aLong) -> getExecutor(request, shardId).execute(
+                                (ll, aLong) -> getExecutor(shardId).execute(
                                     ActionRunnable.supply(ll, () -> handleLocalGets(request, r.multiGetShardResponse(), shardId))
                                 )
                             ),
@@ -299,7 +299,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                         indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
                     }
                 }
-            }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(request, shardId))
+            }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(shardId))
         );
     }
 
@@ -353,7 +353,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private void asyncShardMultiGet(MultiGetShardRequest request, ShardId shardId, ActionListener<MultiGetShardResponse> listener)
         throws IOException {
         if (request.refresh() && request.realtime() == false) {
-            getExecutor(request, shardId).execute(ActionRunnable.wrap(listener, l -> {
+            getExecutor(shardId).execute(ActionRunnable.wrap(listener, l -> {
                 var indexShard = getIndexShard(shardId);
                 indexShard.externalRefresh("refresh_flag_mget", l.map(r -> shardOperation(request, shardId)));
             }));

@@ -155,4 +155,8 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(Number::doubleValue, ignoreMalformed);
     }
+
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupportForKeepTests(Number::doubleValue, ignoreMalformed, sourceKeepMode);
+    }
 }

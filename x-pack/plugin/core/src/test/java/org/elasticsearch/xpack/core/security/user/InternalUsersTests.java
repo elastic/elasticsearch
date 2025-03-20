@@ -376,7 +376,7 @@ public class InternalUsersTests extends ESTestCase {
         final IndexAbstraction.ConcreteIndex index = new IndexAbstraction.ConcreteIndex(metadata);
         assertThat(
             "Role " + role + ", action " + action + " access to " + indexName,
-            role.allowedIndicesMatcher(action).test(index),
+            role.allowedIndicesMatcher(action).test(index, null),
             is(expectedValue)
         );
     }

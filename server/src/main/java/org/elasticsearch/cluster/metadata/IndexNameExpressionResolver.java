@@ -28,6 +28,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
@@ -1001,6 +1002,14 @@ public class IndexNameExpressionResolver {
         return expression.contains(SelectorResolver.SELECTOR_SEPARATOR);
     }
 
+    public static boolean hasSelector(@Nullable String expression, IndexComponentSelector selector) {
+        Objects.requireNonNull(selector, "null selectors not supported");
+        if (expression == null) {
+            return false;
+        }
+        return expression.endsWith(SelectorResolver.SELECTOR_SEPARATOR + selector.getKey());
+    }
+
     /**
      * @return If the specified string is a selector expression then this method returns the base expression and its selector part.
      */
@@ -1020,6 +1029,14 @@ public class IndexNameExpressionResolver {
         return selectorExpression == null || IndexComponentSelector.DATA.getKey().equals(selectorExpression)
             ? baseExpression
             : (baseExpression + SelectorResolver.SELECTOR_SEPARATOR + selectorExpression);
+    }
+
+    public static void assertExpressionHasNullOrDataSelector(String expression) {
+        if (Assertions.ENABLED) {
+            var tuple = splitSelectorExpression(expression);
+            assert tuple.v2() == null || IndexComponentSelector.DATA.getKey().equals(tuple.v2())
+                : "Expected expression [" + expression + "] to have a data selector but found [" + tuple.v2() + "]";
+        }
     }
 
     /**

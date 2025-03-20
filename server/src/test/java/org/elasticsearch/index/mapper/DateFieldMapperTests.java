@@ -571,7 +571,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
         // Serializing and deserializing BigDecimal values may lead to parsing errors, a test artifact.
         return syntheticSourceSupportInternal(ignoreMalformed, false);
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilitiesBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -228,8 +228,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                     idx,
                     idx,
                     Map.ofEntries(
-                        Map.entry("foo", new IndexFieldCapabilities("foo", "integer", false, true, true, false, null, Map.of())),
-                        Map.entry("bar", new IndexFieldCapabilities("bar", "long", false, true, true, false, null, Map.of()))
+                        Map.entry("foo", new IndexFieldCapabilitiesBuilder("foo", "integer").build()),
+                        Map.entry("bar", new IndexFieldCapabilitiesBuilder("bar", "long").build())
                     ),
                     true,
                     IndexMode.STANDARD

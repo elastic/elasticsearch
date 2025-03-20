@@ -200,7 +200,8 @@ public class IpFieldMapper extends FieldMapper {
                 hasDocValues.getValue(),
                 stored.getValue(),
                 this,
-                indexCreatedVersion
+                indexCreatedVersion,
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
             );
             return new IpFieldMapper(
                 leafName(),

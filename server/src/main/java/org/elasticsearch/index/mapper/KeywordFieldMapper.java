@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
@@ -389,7 +390,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 hasDocValues.getValue(),
                 stored.getValue(),
                 this,
-                indexCreatedVersion
+                indexCreatedVersion,
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
             );
             return new KeywordFieldMapper(
                 leafName(),

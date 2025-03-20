@@ -57,9 +57,9 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old data stream with a compatibility version < " + Version.CURRENT.major + "0.0",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0",
             "https://ela.st/es-deprecation-ds-reindex",
-            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + "0.0",
+            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + ".0",
             false,
             ofEntries(
                 entry("reindex_required", true),
@@ -126,9 +126,9 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old data stream with a compatibility version < " + Version.CURRENT.major + "0.0",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0",
             "https://ela.st/es-deprecation-ds-reindex",
-            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + "0.0",
+            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + ".0",
             false,
             ofEntries(
                 entry("reindex_required", true),
@@ -285,11 +285,11 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "Old data stream with a compatibility version < " + Version.CURRENT.major + "0.0 has Been Ignored",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0 has Been Ignored",
             "https://ela.st/es-deprecation-ds-reindex",
             "This data stream has read only backing indices that were created before Elasticsearch "
                 + Version.CURRENT.major
-                + "0.0 and have been marked as OK to remain read-only after upgrade",
+                + ".0 and have been marked as OK to remain read-only after upgrade",
             false,
             ofEntries(
                 entry("reindex_required", false),

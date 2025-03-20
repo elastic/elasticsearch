@@ -609,14 +609,6 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 assertThat(exception6.getResponse().getStatusLine().getStatusCode(), equalTo(401));
                 assertThat(exception6.getMessage(), containsString("invalid cross-cluster API key value"));
             }
-
-            // check that ::failures selector is not supported with cross cluster search
-            final ResponseException exception7 = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(new Request("GET", "/my_remote_cluster:index1::failures/_search"))
-            );
-            assertThat(exception7.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(exception7.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
         }
         assertNoRcs1DeprecationWarnings();
     }

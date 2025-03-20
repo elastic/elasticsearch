@@ -7,8 +7,10 @@ import org.elasticsearch.ingest.IngestDocument;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -30,7 +32,7 @@ final class CefParser {
     private static final Pattern HEADER_ESCAPE_CAPTURE = Pattern.compile("\\\\([\\\\|])");
 
     // New patterns for extension parsing
-    private static final String EXTENSION_KEY_PATTERN = "(?:\\w+(?:\\.[^\\.=\\s\\|\\\\\\[\\]]+)*(?:\\[[0-9]+\\])?(?==))";
+    private static final String EXTENSION_KEY_PATTERN = "(?:[\\w-]+(?:\\.[^\\.=\\s\\|\\\\\\[\\]]+)*(?:\\[[0-9]+\\])?(?==))";
     private static final Pattern EXTENSION_KEY_ARRAY_CAPTURE = Pattern.compile("^([^\\[\\]]+)((?:\\[[0-9]+\\])+)$");
     private static final String EXTENSION_VALUE_PATTERN = "(?:\\S|\\s(?!" + EXTENSION_KEY_PATTERN + "=))*";
     private static final Pattern EXTENSION_NEXT_KEY_VALUE_PATTERN = Pattern.compile(
@@ -42,7 +44,7 @@ final class CefParser {
     private static final Map<String, String> EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING = new HashMap<>();
 
     private static final Map<String, String> FIELD_MAPPING = new HashMap<>();
-    private static final Map<String, String> DECODE_MAPPING = new HashMap<>();
+    private static final String ERROR_MESSAGE_INCOMPLETE_CEF_HEADER = "incomplete CEF header";
 
     static {
         HEADER_FIELD_SANITIZER_MAPPING.put("\\", "\\\\");
@@ -52,13 +54,13 @@ final class CefParser {
 
         EXTENSION_VALUE_SANITIZER_MAPPING.put("\\", "\\\\");
         EXTENSION_VALUE_SANITIZER_MAPPING.put("=", "\\=");
-        EXTENSION_VALUE_SANITIZER_MAPPING.put("\n", "\\n");
-        EXTENSION_VALUE_SANITIZER_MAPPING.put("\r", "\\n");
+        EXTENSION_VALUE_SANITIZER_MAPPING.put("\n", "\\\n");
+        EXTENSION_VALUE_SANITIZER_MAPPING.put("\r", "\\\r");
 
         EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\\\", "\\");
         EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\=", "=");
-        EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\n", "\n");
-        EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\r", "\n");
+        EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\\n", "\n");
+        EXTENSION_VALUE_SANITIZER_REVERSE_MAPPING.put("\\\r", "\r");
 
         FIELD_MAPPING.put("app", "network.protocol");
         FIELD_MAPPING.put("in", "source.bytes");
@@ -126,7 +128,7 @@ final class CefParser {
         // Add more mappings as needed
     }
 
-    void process(String cefString) {
+    void process(String cefString, String targetField) {
         List<String> headerFields = new ArrayList<>();
         Matcher headerMatcher = HEADER_NEXT_FIELD_PATTERN.matcher(cefString);
         int extensionStart = 0;
@@ -138,49 +140,65 @@ final class CefParser {
             extensionStart = headerMatcher.end();
         }
 
-        if (headerFields.size() != 7 || !headerFields.get(0).startsWith("CEF:")) {
+        if (headerFields.size() > 0 && headerFields.get(0).startsWith("CEF:")) {
+            CEFEvent event = new CEFEvent();
+            // Add error message if there are not enough header fields
+            if (headerFields.size() != 7) {
+                event.addErrorMessage(ERROR_MESSAGE_INCOMPLETE_CEF_HEADER);
+            }
+            for (int i = 0; i < headerFields.size(); i++) {
+                switch (i) {
+                    case 0:
+                        event.setVersion(headerFields.get(0).substring(4));
+                        break;
+                    case 1:
+                        event.setDeviceVendor(headerFields.get(1));
+                        break;
+                    case 2:
+                        event.setDeviceProduct(headerFields.get(2));
+                        break;
+                    case 3:
+                        event.setDeviceVersion(headerFields.get(3));
+                        break;
+                    case 4:
+                        event.setDeviceEventClassId(headerFields.get(4));
+                        break;
+                    case 5:
+                        event.setName(headerFields.get(5));
+                        break;
+                    case 6:
+                        event.setSeverity(headerFields.get(6));
+                        break;
+                }
+            }
+            String extensionString = cefString.substring(extensionStart);
+            Map<String, String> extensions = parseExtensions(extensionString);
+
+            if (removeEmptyValue) {
+                removeEmptyValue(extensions);
+            }
+            event.setExtensions(extensions);
+
+            Map<String, String> translatedFields = new HashMap<>();
+            for (Map.Entry<String, String> entry : extensions.entrySet()) {
+                String translatedKey = FIELD_MAPPING.getOrDefault(entry.getKey(), entry.getKey());
+                translatedFields.put(translatedKey, entry.getValue());
+            }
+            event.setTranslatedFields(translatedFields);
+
+            ingestDocument.setFieldValue(targetField, event.toObject());
+        } else {
             throw new IllegalArgumentException("Invalid CEF format");
         }
-
-        CEFEvent event = new CEFEvent();
-        event.setVersion(headerFields.get(0).substring(4));
-        event.setDeviceVendor(headerFields.get(1));
-        event.setDeviceProduct(headerFields.get(2));
-        event.setDeviceVersion(headerFields.get(3));
-        event.setDeviceEventClassId(headerFields.get(4));
-        event.setName(headerFields.get(5));
-        event.setSeverity(headerFields.get(6));
-
-        String extensionString = cefString.substring(extensionStart);
-        Map<String, String> extensions = parseExtensions(extensionString);
-
-        if (removeEmptyValue) {
-            removeEmptyValue(extensions);
-        }
-
-        event.setExtensions(extensions);
-
-        Map<String, String> translatedFields = new HashMap<>();
-        for (Map.Entry<String, String> entry : extensions.entrySet()) {
-            String translatedKey = FIELD_MAPPING.getOrDefault(entry.getKey(), entry.getKey());
-            translatedFields.put(translatedKey, entry.getValue());
-        }
-        event.setTranslatedFields(translatedFields);
-
-        ingestDocument.setFieldValue("cef", event.toObject());
     }
 
     private Map<String, String> parseExtensions(String extensionString) {
         Map<String, String> extensions = new HashMap<>();
-        logger.info(extensionString);
         Matcher matcher = EXTENSION_NEXT_KEY_VALUE_PATTERN.matcher(extensionString);
         int lastEnd = 0;
         while (matcher.find()) {
             String key = matcher.group(1);
             String value = matcher.group(2);
-
-            // Expand abbreviated extension field keys
-            key = DECODE_MAPPING.getOrDefault(key, key);
 
             // Convert extension field name to strict legal field_reference
             if (key.endsWith("]")) {
@@ -198,9 +216,9 @@ final class CefParser {
         return extensions;
     }
 
-    private Map<String, String> removeEmptyValue(Map<String, String> map) {
+    private void removeEmptyValue(Map<String, String> map) {
         map.entrySet().removeIf(entry -> entry.getValue().isEmpty());
-        return map;
+        map.entrySet().removeIf(entry -> entry.getValue() == null);
     }
 
     private String convertArrayLikeKey(String key) {
@@ -257,8 +275,17 @@ final class CefParser {
         private String deviceEventClassId;
         private String name;
         private String severity;
+        private final Set<String> errorMessages = new HashSet<>();
         private Map<String, String> extensions;
         private Map<String, String> translatedFields;
+
+        public Set<String> getErrorMessage() {
+            return errorMessages;
+        }
+
+        public void addErrorMessage(String errorMessage) {
+            this.errorMessages.add(errorMessage);
+        }
 
         // Getters and setters for all fields
         public String getVersion() {
@@ -344,8 +371,8 @@ final class CefParser {
             event.put("severity", severity);
             event.put("extensions", extensions);
             event.put("translatedFields", translatedFields);
+            event.put("error.message", errorMessages);
             return event;
         }
-
     }
 }

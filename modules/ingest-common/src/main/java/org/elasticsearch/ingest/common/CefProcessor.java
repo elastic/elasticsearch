@@ -15,36 +15,20 @@ import org.elasticsearch.ingest.Processor;
 
 import java.util.Map;
 
-/**
- * A processor that breaks line from CSV file into separate fields.
- * If there's more fields requested than there is in the CSV, extra field will
- * not be present in the document after processing.
- * In the same way this processor will skip any field that is empty in CSV.
- * <p>
- * By default it uses rules according to
- * <a href="https://tools.ietf.org/html/rfc4180">RCF 4180</a> with one
- * exception: whitespaces are
- * allowed before or after quoted field. Processor can be tweaked with following
- * parameters:
- * <p>
- * quote: set custom quote character (defaults to ")
- * separator: set custom separator (defaults to ,)
- * trim: trim leading and trailing whitespaces in unquoted fields
- * empty_value: sets custom value to use for empty fields (field is skipped if
- * null)
- */
 public final class CefProcessor extends AbstractProcessor {
 
     public static final String TYPE = "cef";
 
     // visible for testing
     final String field;
+    final String targetField;
     final boolean ignoreMissing;
     final boolean removeEmptyValue;
 
     CefProcessor(String tag, String description, String field, String targetField, boolean ignoreMissing, boolean removeEmptyValue) {
         super(tag, description);
         this.field = field;
+        this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
         this.removeEmptyValue = removeEmptyValue;
     }
@@ -57,7 +41,7 @@ public final class CefProcessor extends AbstractProcessor {
         } else if (line == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
-        new CefParser(ingestDocument, removeEmptyValue).process(line);
+        new CefParser(ingestDocument, removeEmptyValue).process(line, targetField);
         return ingestDocument;
     }
 
@@ -77,7 +61,6 @@ public final class CefProcessor extends AbstractProcessor {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
 
             boolean removeEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", true);
-
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
             return new CefProcessor(processorTag, description, field, targetField, ignoreMissing, removeEmptyValue);

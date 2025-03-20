@@ -103,8 +103,7 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
     }
 
     @Override
-    public Rerank withInferenceResolutionError(String inferenceId, String error) {
-        Expression newInferenceId = new UnresolvedAttribute(inferenceId().source(), inferenceId, error);
+    public Rerank withInferenceId(Expression newInferenceId) {
         return new Rerank(source(), child(), newInferenceId, queryText, rerankFields, scoreAttribute);
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -58,5 +59,9 @@ public abstract class InferencePlan extends UnaryPlan {
 
     public abstract TaskType taskType();
 
-    public abstract LogicalPlan withInferenceResolutionError(String inferenceId, String error);
+    public abstract InferencePlan withInferenceId(Expression newInferenceId);
+
+    public InferencePlan withInferenceResolutionError(String inferenceId, String error) {
+        return withInferenceId(new UnresolvedAttribute(inferenceId().source(), inferenceId, error));
+    }
 }

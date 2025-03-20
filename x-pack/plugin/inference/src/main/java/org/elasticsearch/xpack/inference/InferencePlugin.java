@@ -263,7 +263,9 @@ public class InferencePlugin extends Plugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         var components = new ArrayList<>();
-        var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
+        var throttlerManager = new ThrottlerManager(settings, services.threadPool());
+        throttlerManager.init(services.clusterService());
+
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
         threadPoolSetOnce.set(services.threadPool());

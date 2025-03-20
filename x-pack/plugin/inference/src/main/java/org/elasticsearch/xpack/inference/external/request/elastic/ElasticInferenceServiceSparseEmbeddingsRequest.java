@@ -17,8 +17,8 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
 

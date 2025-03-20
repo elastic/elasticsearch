@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -29,7 +28,6 @@ public class ThrottlerManager implements Closeable {
      * Legacy log throttling setting, kept for BWC compatibility. This setting has no effect in 9.1.0 and later. Do not use.
      * TODO remove in 10.0
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.MACHINE_LEARNING)
     @Deprecated
     public static final Setting<TimeValue> STATS_RESET_INTERVAL_SETTING = Setting.timeSetting(
         "xpack.inference.logging.reset_interval",
@@ -43,7 +41,6 @@ public class ThrottlerManager implements Closeable {
      * Legacy log throttling setting, kept for BWC compatibility. This setting has no effect in 9.1.0 and later. Do not use.
      * TODO remove in 10.0
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.MACHINE_LEARNING)
     @Deprecated
     public static final Setting<TimeValue> LOGGER_WAIT_DURATION_SETTING = Setting.timeSetting(
         "xpack.inference.logging.wait_duration",

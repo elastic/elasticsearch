@@ -27,7 +27,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
@@ -48,7 +47,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     private String dateTimeIndexTomorrow;
 
     // Only used when resolving wildcard expressions
-    private final Supplier<Set<String>> defaultMask = () -> Set.of("index1", "index2", "data-stream1");
+    private final Set<String> defaultMask = Set.of("index1", "index2", "data-stream1");
 
     @Override
     public void setUp() throws Exception {
@@ -215,13 +214,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
     public void testIsIndexVisible() {
         assertThat(isIndexVisible("index1", null), is(true));
-        assertThat(isIndexVisible("index1", "*"), is(true));
         assertThat(isIndexVisible("index1", "data"), is(true));
         assertThat(isIndexVisible("index1", "failures"), is(false)); // *
         // * Indices don't have failure components so the failure component is not visible
 
         assertThat(isIndexVisible("data-stream1", null), is(true));
-        assertThat(isIndexVisible("data-stream1", "*"), is(true));
         assertThat(isIndexVisible("data-stream1", "data"), is(true));
         assertThat(isIndexVisible("data-stream1", "failures"), is(true));
     }
@@ -290,14 +287,14 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
             // this covers the GET * case -- with system access, you can see everything
-            assertThat(isIndexVisible("other", "*"), is(true));
-            assertThat(isIndexVisible(".foo", "*"), is(true));
-            assertThat(isIndexVisible(".bar", "*"), is(true));
+            assertThat(isIndexVisible("other", null), is(true));
+            assertThat(isIndexVisible(".foo", null), is(true));
+            assertThat(isIndexVisible(".bar", null), is(true));
 
             // but if you don't ask for hidden and aliases, you won't see hidden indices or aliases, naturally
-            assertThat(isIndexVisible("other", "*", noHiddenNoAliases), is(true));
-            assertThat(isIndexVisible(".foo", "*", noHiddenNoAliases), is(false));
-            assertThat(isIndexVisible(".bar", "*", noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible("other", null, noHiddenNoAliases), is(true));
+            assertThat(isIndexVisible(".foo", null, noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible(".bar", null, noHiddenNoAliases), is(false));
         }
 
         {
@@ -311,14 +308,14 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
             // this covers the GET * case -- without system access, you can't see everything
-            assertThat(isIndexVisible("other", "*"), is(true));
-            assertThat(isIndexVisible(".foo", "*"), is(false));
-            assertThat(isIndexVisible(".bar", "*"), is(false));
+            assertThat(isIndexVisible("other", null), is(true));
+            assertThat(isIndexVisible(".foo", null), is(false));
+            assertThat(isIndexVisible(".bar", null), is(false));
 
             // no difference here in the datastream case, you can't see these then, either
-            assertThat(isIndexVisible("other", "*", noHiddenNoAliases), is(true));
-            assertThat(isIndexVisible(".foo", "*", noHiddenNoAliases), is(false));
-            assertThat(isIndexVisible(".bar", "*", noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible("other", null, noHiddenNoAliases), is(true));
+            assertThat(isIndexVisible(".foo", null, noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible(".bar", null, noHiddenNoAliases), is(false));
         }
 
         {
@@ -333,14 +330,14 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
             // this covers the GET * case -- with product (only) access, you can't see everything
-            assertThat(isIndexVisible("other", "*"), is(true));
-            assertThat(isIndexVisible(".foo", "*"), is(false));
-            assertThat(isIndexVisible(".bar", "*"), is(false));
+            assertThat(isIndexVisible("other", null), is(true));
+            assertThat(isIndexVisible(".foo", null), is(false));
+            assertThat(isIndexVisible(".bar", null), is(false));
 
             // no difference here in the datastream case, you can't see these then, either
-            assertThat(isIndexVisible("other", "*", noHiddenNoAliases), is(true));
-            assertThat(isIndexVisible(".foo", "*", noHiddenNoAliases), is(false));
-            assertThat(isIndexVisible(".bar", "*", noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible("other", null, noHiddenNoAliases), is(true));
+            assertThat(isIndexVisible(".foo", null, noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible(".bar", null, noHiddenNoAliases), is(false));
         }
     }
 
@@ -366,8 +363,15 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         return resolveAbstractions(expressions, IndicesOptions.strictExpandOpen(), defaultMask);
     }
 
-    private List<String> resolveAbstractions(List<String> expressions, IndicesOptions indicesOptions, Supplier<Set<String>> mask) {
-        return indexAbstractionResolver.resolveIndexAbstractions(expressions, indicesOptions, projectMetadata, mask, (idx) -> true, true);
+    private List<String> resolveAbstractions(List<String> expressions, IndicesOptions indicesOptions, Set<String> mask) {
+        return indexAbstractionResolver.resolveIndexAbstractions(
+            expressions,
+            indicesOptions,
+            projectMetadata,
+            (ignored) -> mask,
+            (ignored, nothing) -> true,
+            true
+        );
     }
 
     private boolean isIndexVisible(String index, String selector) {

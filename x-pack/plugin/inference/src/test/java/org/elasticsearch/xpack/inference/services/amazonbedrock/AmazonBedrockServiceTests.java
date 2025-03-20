@@ -931,6 +931,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             service.infer(
                 mockModel,
                 null,
+                null,
+                null,
                 List.of(""),
                 false,
                 new HashMap<>(),
@@ -977,6 +979,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 ValidationException.class,
                 () -> service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of(""),
                     false,
@@ -1028,6 +1032,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 service.infer(
                     model,
                     null,
+                    null,
+                    null,
                     List.of("abc"),
                     false,
                     new HashMap<>(),
@@ -1069,6 +1075,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
                 service.infer(
                     model,
+                    null,
+                    null,
                     null,
                     List.of("abc"),
                     false,
@@ -1412,6 +1420,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
+                null,
+                null,
                 null,
                 List.of("abc"),
                 false,

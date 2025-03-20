@@ -15,9 +15,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record GoogleVertexAiRerankRequestEntity(String query, List<String> inputs, @Nullable String model, @Nullable Integer topN)
-    implements
-        ToXContentObject {
+public record GoogleVertexAiRerankRequestEntity(
+    String query,
+    List<String> inputs,
+    @Nullable Boolean returnDocuments,
+    @Nullable Integer topN,
+    @Nullable String model,
+    @Nullable Integer taskSettingsTopN
+) implements ToXContentObject {
 
     private static final String MODEL_FIELD = "model";
     private static final String QUERY_FIELD = "query";
@@ -26,6 +31,7 @@ public record GoogleVertexAiRerankRequestEntity(String query, List<String> input
 
     private static final String CONTENT_FIELD = "content";
     private static final String TOP_N_FIELD = "topN";
+    private static final String IGNORE_RECORD_DETAILS_IN_RESPONSE_FIELD = "ignoreRecordDetailsInResponse";
 
     public GoogleVertexAiRerankRequestEntity {
         Objects.requireNonNull(query);
@@ -57,8 +63,16 @@ public record GoogleVertexAiRerankRequestEntity(String query, List<String> input
 
         builder.endArray();
 
+        // prefer the root level top_n over task settings
         if (topN != null) {
             builder.field(TOP_N_FIELD, topN);
+        } else if (taskSettingsTopN != null) {
+            builder.field(TOP_N_FIELD, taskSettingsTopN);
+        }
+
+        if (returnDocuments != null) {
+            // if returnDocuments = true, we do not want to ignore record details
+            builder.field(IGNORE_RECORD_DETAILS_IN_RESPONSE_FIELD, returnDocuments == Boolean.TRUE ? Boolean.FALSE : Boolean.TRUE);
         }
 
         builder.endObject();

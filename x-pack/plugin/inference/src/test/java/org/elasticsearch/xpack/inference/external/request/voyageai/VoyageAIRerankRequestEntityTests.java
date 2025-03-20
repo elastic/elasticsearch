@@ -20,27 +20,15 @@ import java.util.List;
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 
 public class VoyageAIRerankRequestEntityTests extends ESTestCase {
-    public void testXContent_SingleRequest_WritesModelAndTopKIfDefined() throws IOException {
-        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc"), new VoyageAIRerankTaskSettings(8, null, null), "model");
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "model": "model",
-                "query": "query",
-                "documents": [
-                    "abc"
-                ],
-                "top_k": 8
-            }
-            """));
-    }
-
-    public void testXContent_SingleRequest_WritesModelAndTopKIfDefined_ReturnDocumentsTrue() throws IOException {
-        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc"), new VoyageAIRerankTaskSettings(8, true, null), "model");
+    public void testXContent_SingleRequest_WritesAllFieldsIfDefined() throws IOException {
+        var entity = new VoyageAIRerankRequestEntity(
+            "query",
+            List.of("abc"),
+            Boolean.TRUE,
+            12,
+            new VoyageAIRerankTaskSettings(8, Boolean.FALSE, null),
+            "model"
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -54,13 +42,20 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                     "abc"
                 ],
                 "return_documents": true,
-                "top_k": 8
+                "top_k": 12
             }
             """));
     }
 
-    public void testXContent_SingleRequest_WritesModelAndTopKIfDefined_ReturnDocumentsFalse() throws IOException {
-        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc"), new VoyageAIRerankTaskSettings(8, false, null), "model");
+    public void testXContent_SingleRequest_WritesMinimalFields() throws IOException {
+        var entity = new VoyageAIRerankRequestEntity(
+            "query",
+            List.of("abc"),
+            null,
+            null,
+            new VoyageAIRerankTaskSettings(null, true, null),
+            "model"
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -73,14 +68,20 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                 "documents": [
                     "abc"
                 ],
-                "return_documents": false,
-                "top_k": 8
+                "return_documents": true
             }
             """));
     }
 
     public void testXContent_SingleRequest_WritesModelAndTopKIfDefined_TruncationTrue() throws IOException {
-        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc"), new VoyageAIRerankTaskSettings(8, false, true), "model");
+        var entity = new VoyageAIRerankRequestEntity(
+            "query",
+            List.of("abc"),
+            null,
+            null,
+            new VoyageAIRerankTaskSettings(8, false, true),
+            "model"
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -101,7 +102,14 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_SingleRequest_WritesModelAndTopKIfDefined_TruncationFalse() throws IOException {
-        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc"), new VoyageAIRerankTaskSettings(8, false, false), "model");
+        var entity = new VoyageAIRerankRequestEntity(
+            "query",
+            List.of("abc"),
+            null,
+            null,
+            new VoyageAIRerankTaskSettings(8, false, false),
+            "model"
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -121,28 +129,12 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
             """));
     }
 
-    public void testXContent_SingleRequest_DoesNotWriteTopKIfNull() throws IOException {
-        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc"), null, "model");
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        entity.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-
-        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
-            {
-                "model": "model",
-                "query": "query",
-                "documents": [
-                    "abc"
-                ]
-            }
-            """));
-    }
-
-    public void testXContent_MultipleRequests_WritesModelAndTopKIfDefined() throws IOException {
+    public void testXContent_MultipleRequests_WritesAllFieldsIfDefined() throws IOException {
         var entity = new VoyageAIRerankRequestEntity(
             "query",
             List.of("abc", "def"),
+            Boolean.FALSE,
+            11,
             new VoyageAIRerankTaskSettings(8, null, null),
             "model"
         );
@@ -159,13 +151,14 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                     "abc",
                     "def"
                 ],
-                "top_k": 8
+                "return_documents": false,
+                "top_k": 11
             }
             """));
     }
 
     public void testXContent_MultipleRequests_DoesNotWriteTopKIfNull() throws IOException {
-        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc", "def"), null, "model");
+        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc", "def"), null, null, null, "model");
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -179,6 +172,33 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
                    "abc",
                    "def"
                 ]
+            }
+            """));
+    }
+
+    public void testXContent_UsesTaskSettingsTopNIfRootIsNotDefined() throws IOException {
+        var entity = new VoyageAIRerankRequestEntity(
+            "query",
+            List.of("abc"),
+            null,
+            null,
+            new VoyageAIRerankTaskSettings(8, Boolean.FALSE, null),
+            "model"
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "model": "model",
+                "query": "query",
+                "documents": [
+                    "abc"
+                ],
+                "return_documents": false,
+                "top_k": 8
             }
             """));
     }

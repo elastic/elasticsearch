@@ -27,12 +27,12 @@ public class VoyageAIRerankRequestTests extends ESTestCase {
 
     private static final String API_KEY = "foo";
 
-    public void testCreateRequest_WithoutModelSet_And_WithoutTopNSet() throws IOException {
+    public void testCreateRequest_WithMinimalFields() throws IOException {
         var input = "input";
         var query = "query";
         var modelId = "model";
 
-        var request = createRequest(query, input, modelId, null);
+        var request = createRequest(query, input, modelId, null, null, null);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -49,13 +49,14 @@ public class VoyageAIRerankRequestTests extends ESTestCase {
         assertThat(requestMap.get("model"), is(modelId));
     }
 
-    public void testCreateRequest_WithTopNSet() throws IOException {
+    public void testCreateRequest_WithAllFieldsDefined() throws IOException {
         var input = "input";
         var query = "query";
         var topK = 1;
+        var taskSettingsTopK = 2;
         var modelId = "model";
 
-        var request = createRequest(query, input, modelId, topK);
+        var request = createRequest(query, input, modelId, topK, Boolean.FALSE, taskSettingsTopK);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -66,11 +67,12 @@ public class VoyageAIRerankRequestTests extends ESTestCase {
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
 
-        assertThat(requestMap, aMapWithSize(4));
+        assertThat(requestMap, aMapWithSize(5));
         assertThat(requestMap.get("documents"), is(List.of(input)));
         assertThat(requestMap.get("query"), is(query));
         assertThat(requestMap.get("top_k"), is(topK));
         assertThat(requestMap.get("model"), is(modelId));
+        assertThat(requestMap.get("return_documents"), is(Boolean.FALSE));
     }
 
     public void testCreateRequest_WithModelSet() throws IOException {
@@ -78,7 +80,7 @@ public class VoyageAIRerankRequestTests extends ESTestCase {
         var query = "query";
         var modelId = "model";
 
-        var request = createRequest(query, input, modelId, null);
+        var request = createRequest(query, input, modelId, null, null, null);
         var httpRequest = request.createHttpRequest();
 
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -96,15 +98,22 @@ public class VoyageAIRerankRequestTests extends ESTestCase {
     }
 
     public void testTruncate_DoesNotTruncate() {
-        var request = createRequest("query", "input", "null", null);
+        var request = createRequest("query", "input", "null", null, null, null);
         var truncatedRequest = request.truncate();
 
         assertThat(truncatedRequest, sameInstance(request));
     }
 
-    private static VoyageAIRerankRequest createRequest(String query, String input, @Nullable String modelId, @Nullable Integer topK) {
-        var rerankModel = VoyageAIRerankModelTests.createModel(API_KEY, modelId, topK);
-        return new VoyageAIRerankRequest(query, List.of(input), rerankModel);
+    private static VoyageAIRerankRequest createRequest(
+        String query,
+        String input,
+        @Nullable String modelId,
+        @Nullable Integer topK,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer taskSettingsTopK
+    ) {
+        var rerankModel = VoyageAIRerankModelTests.createModel(API_KEY, modelId, taskSettingsTopK);
+        return new VoyageAIRerankRequest(query, List.of(input), returnDocuments, topK, rerankModel);
 
     }
 }

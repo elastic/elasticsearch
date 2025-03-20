@@ -559,7 +559,7 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        setDirectChildFieldValue(context, leafKey, value, path, append, allowDuplicates);
+        setDirectChildFieldValue(context, leafKey, value, path, append, allowDuplicates, true);
     }
 
     private void setDirectChildFieldValue(
@@ -568,7 +568,8 @@ public final class IngestDocument {
         Object value,
         String fullPath,
         boolean append,
-        boolean allowDuplicates
+        boolean allowDuplicates,
+        boolean alwaysAppendAsList
     ) {
         if (parent == null) {
             throw new IllegalArgumentException(Errors.cannotSet(fullPath, fieldName, null));
@@ -578,9 +579,13 @@ public final class IngestDocument {
             if (append) {
                 Object object = map.getOrDefault(fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
                 if (object == NOT_FOUND) {
-                    List<Object> list = new ArrayList<>();
-                    appendValues(list, value);
-                    map.put(fieldName, list);
+                    if (alwaysAppendAsList) {
+                        List<Object> list = new ArrayList<>();
+                        appendValues(list, value);
+                        map.put(fieldName, list);
+                    } else {
+                        map.put(fieldName, value);
+                    }
                 } else {
                     Object list = appendValues(object, value, allowDuplicates);
                     if (list != object) {
@@ -615,10 +620,6 @@ public final class IngestDocument {
         } else {
             throw new IllegalArgumentException(Errors.cannotSet(fullPath, fieldName, parent));
         }
-    }
-
-    private void appendDirectChildFieldValue(Object parent, String fieldName, Object value) {
-        setDirectChildFieldValue(parent, fieldName, value, fieldName, true, true);
     }
 
     @SuppressWarnings("unchecked")
@@ -797,6 +798,10 @@ public final class IngestDocument {
             }
         });
         return allFields;
+    }
+
+    public static Set<String> getAllTopLevelFields(Map<String, Object> input) {
+        return Sets.newHashSet(input.keySet());
     }
 
     /**
@@ -1200,6 +1205,16 @@ public final class IngestDocument {
      =======================================================================================================================*/
 
     /**
+     * Returns whether the document has a direct child field with the exact provided field name, whether it contains dots or not.
+     * @param parent the context object for this lookup
+     * @param fieldName the name of the direct child field, may contain dots
+     * @return whether the document has a direct child field with the provided name
+     */
+    public boolean hasDirectChildField(Object parent, String fieldName) {
+        return hasDirectChildField(parent, fieldName, fieldName, false);
+    }
+
+    /**
      * Returns whether the document has a top level field with the exact provided field name, whether it contains dots or not.
      * @param fieldName the field name to check for
      * @return whether the document has a top level field with the provided name
@@ -1208,7 +1223,51 @@ public final class IngestDocument {
         FieldPath fieldPath = FieldPath.of(fieldName);
         Object root = fieldPath.initialContext(this);
         // since we only look in top level, it's irrelevant for lists, so we can pass false for the last argument
-        return hasDirectChildField(root, fieldPath.getTrimmedPath(), fieldPath.getTrimmedPath(), false);
+        return hasDirectChildField(root, fieldPath.getTrimmedPath());
+    }
+
+    /**
+     * NOTE: not using {@link #resolve(String, String, Object)} in order to avoid all allocations related to it. The difference between
+     * the two approaches is that this API is designed to be used during general and frequent field searches and not for lookup of an
+     * expected specific field. Therefore, we expect it to yield no results in the vast majority of cases.
+     * <br><br>
+     * Returns the value of the direct child field if such with the exact full name exists. The difference from other APIs is that this
+     * API does not resolve the full path, but only the direct child field, even if its name contains dots. In addition, it does not throw
+     * an exception if the field is missing, but returns {@code null} instead.
+     * @param parent the context object for this lookup
+     * @param fieldName the name of the direct child field, may contain dots
+     * @return the value of the direct child field if such with the exact full name exists or {@code null} if the field is missing
+     */
+    @Nullable
+    public Object getDirectChildFieldValue(Object parent, String fieldName) {
+        switch (parent) {
+            case null -> throw new IllegalArgumentException(Errors.cannotResolve(fieldName, fieldName, null));
+            case Map<?, ?> genericMap -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) genericMap;
+                Object value = map.getOrDefault(fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
+                if (value == NOT_FOUND) {
+                    return null;
+                } else {
+                    return value;
+                }
+            }
+            case List<?> list -> {
+                int index;
+                try {
+                    index = Integer.parseInt(fieldName);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+                if (index < 0 || index >= list.size()) {
+                    return null;
+                }
+                return list.get(index);
+            }
+            default -> {
+                return null;
+            }
+        }
     }
 
     /**
@@ -1224,6 +1283,19 @@ public final class IngestDocument {
     }
 
     /**
+     * Sets the provided value to the direct child field with the exact provided field name, whether it contains dots or not, of the
+     * provided parent object. If the field does not exist, it will be created with the provided value. If the field already exists,
+     * the provided value will replace the existing one.
+     * @param parent the parent object
+     * @param fieldName the field name of the direct child field
+     * @param value the value to set
+     * @param fullPath the full path of the field from the root of the document
+     */
+    public void setDirectChildFieldValue(Object parent, String fieldName, Object value, String fullPath) {
+        setDirectChildFieldValue(parent, fieldName, value, fullPath, false, false, false);
+    }
+
+    /**
      * Sets the provided value to the top level field with the exact provided field name, whether it contains dots or not. If the field
      * does not exist, it will be created. If the field already exists, the value will be appended to its current value if the append
      * parameter is set to true, otherwise the existing value will be replaced.
@@ -1235,7 +1307,21 @@ public final class IngestDocument {
     public void setTopLevelFieldValue(String fieldName, Object value, boolean append, boolean allowDuplicates) {
         FieldPath fieldPath = FieldPath.of(fieldName);
         Object root = fieldPath.initialContext(this);
-        setDirectChildFieldValue(root, fieldPath.getTrimmedPath(), value, fieldPath.getTrimmedPath(), append, allowDuplicates);
+        setDirectChildFieldValue(root, fieldPath.getTrimmedPath(), value, fieldPath.getTrimmedPath(), append, allowDuplicates, false);
+    }
+
+    /**
+     * Appends the provided value to the direct child field identified exactly by the provided field name of the provided parent object.
+     * Dots in the field name are not interpreted as nested fields, but considered as part of the field name.
+     * If the field doesn't exist, it will be created and the value will be set to it. If the existing field is a scalar, it will be
+     * converted to a list and the provided value will be added to the newly created list. If the existing field is a list, the value
+     * will be appended to the existing list.
+     * @param parent The parent object
+     * @param fieldName The field name of the direct child field
+     * @param value The value to append to the existing ones
+     */
+    public void appendDirectChildFieldValue(Object parent, String fieldName, Object value) {
+        setDirectChildFieldValue(parent, fieldName, value, fieldName, true, true, false);
     }
 
     /**
@@ -1307,6 +1393,16 @@ public final class IngestDocument {
     }
 
     /**
+     * See {@link #getAllFieldValues(String, Class)}. This method is a convenience method that allows the collection of values of any type.
+     * It is equivalent to calling {@link #getAllFieldValues(String, Class)} with {@link Object} as the type parameter.
+     * @param path the path to collect values by, where each dot can either represent a separator between nested fields or be part of the
+     * @return a list of values that match the provided path
+     */
+    public List<Object> getAllFieldValues(String path) {
+        return getAllFieldValues(path, Object.class);
+    }
+
+    /**
      * Normalizes a field by collecting and removing all values from all document levels that match the provided path, assuming that any dot
      * in the path can either represent a separator between nested fields or be part of the field name itself. The collected values are
      * then set as a top level field with the normalized (possibly dotted) field name. If a single value is collected, it is set as a
@@ -1361,68 +1457,44 @@ public final class IngestDocument {
 
         // we use a thread local list to avoid creating a new list for each call, as in most cases the list will be empty
         List<?> genericValues = threadLocalValues.get();
-        genericValues.clear();
+        try {
+            @SuppressWarnings("unchecked") // safe cast due to type erasure
+            List<T> values = (List<T>) genericValues;
+            collectAllFieldValues(root, fieldPaths.getPathSearchTree(), values, clazz, true);
 
-        @SuppressWarnings("unchecked") // safe cast due to type erasure
-        List<T> values = (List<T>) genericValues;
-        collectAllFieldValues(root, fieldPaths.getPathSearchTree(), values, clazz, true);
-
-        if (values.isEmpty() == false) {
-            // Setting all values as a top level field with the normalized (possibly dotted) field name.
-            // No need for a deep copy here, as we explicitly remove the found fields from the document during collection.
-            // However, we must shallow copy the list as the value list is reused across multiple calls.
-            Object finalValue = values.size() == 1 ? values.getFirst() : new ArrayList<>(values);
-            try {
-                // no need to append because the collect algorithm already collects and removes the value if exists in root level
-                setDirectChildFieldValue(root, fieldPaths.getTrimmedPath(), finalValue, fieldPaths.getTrimmedPath(), false, true);
-            } catch (Exception e) {
-                // todo - shouldn't throw here
+            if (values.isEmpty() == false) {
+                // Setting all values as a top level field with the normalized (possibly dotted) field name.
+                // No need for a deep copy here, as we explicitly remove the found fields from the document during collection.
+                // However, we must shallow copy the list as the value list is reused across multiple calls.
+                Object finalValue = values.size() == 1 ? values.getFirst() : new ArrayList<>(values);
+                try {
+                    // no need to append because the collect algorithm already collects and removes the value if exists in root level
+                    setDirectChildFieldValue(
+                        root,
+                        fieldPaths.getTrimmedPath(),
+                        finalValue,
+                        fieldPaths.getTrimmedPath(),
+                        false,
+                        true,
+                        false
+                    );
+                } catch (Exception e) {
+                    // todo - shouldn't throw here
+                }
             }
+        } finally {
+            // clearing after use to avoid leaking memory
+            genericValues.clear();
         }
     }
 
     /**
-     * NOTE: not using {@link #resolve(String, String, Object)} in order to avoid all allocations related to it. The difference between
-     * the two approaches is that this API is designed to be used during general and frequent field searches and not for lookup of an
-     * expected specific field. Therefore, we expect it to yield no results in the vast majority of cases.
-     *
-     * Returns the value of the direct child field if such with the exact full name exists. The difference from other APIs is that this
-     * API does not resolve the full path, but only the direct child field, even if its name contains dots. In addition, it does not throw
-     * an exception if the field is missing, but returns {@code null} instead.
-     * @param parent the context object for this lookup
-     * @param fieldName the name of the direct child field, may contain dots
-     * @return the value of the direct child field if such with the exact full name exists or {@code null} if the field is missing
+     * See {@link #normalizeField(String, Class)}. This method is a convenience method that allows the normalization of a field with values
+     * of any type. It is equivalent to calling {@link #normalizeField(String, Class)} with {@link Object} as the type parameter.
+     * @param path the path to normalize by, where each dot can either represent a separator between nested fields or be part of field names
      */
-    @Nullable
-    private Object getDirectChildFieldValue(Object parent, String fieldName) {
-        switch (parent) {
-            case null -> throw new IllegalArgumentException(Errors.cannotResolve(fieldName, fieldName, null));
-            case Map<?, ?> genericMap -> {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) genericMap;
-                Object value = map.getOrDefault(fieldName, NOT_FOUND); // getOrDefault is faster than containsKey + get
-                if (value == NOT_FOUND) {
-                    return null;
-                } else {
-                    return value;
-                }
-            }
-            case List<?> list -> {
-                int index;
-                try {
-                    index = Integer.parseInt(fieldName);
-                } catch (NumberFormatException e) {
-                    return null;
-                }
-                if (index < 0 || index >= list.size()) {
-                    return null;
-                }
-                return list.get(index);
-            }
-            default -> {
-                return null;
-            }
-        }
+    public void normalizeField(String path) {
+        normalizeField(path, Object.class);
     }
 
     private <T> void collectAllFieldValues(Object context, PathNode pathNode, List<T> values, Class<T> clazz, boolean removeWhenFound) {
@@ -1450,6 +1522,7 @@ public final class IngestDocument {
                     }
                     if (removeWhenFound) {
                         try {
+                            // todo: when removing, should we remove upwards recursively as long as the parent becomes empty?
                             removeDirectChildField(context, child.getPathElement(), child.getPathElement());
                         } catch (Exception e) {
                             // todo

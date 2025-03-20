@@ -1247,6 +1247,10 @@ public class IngestDocumentTests extends ESTestCase {
         List<String> values = ingestDocument.getAllFieldValues("foo.bar.baz", String.class);
         // expecting that only values of type String are collected
         assertThat(values, containsInAnyOrder("value1", "value2", "value3"));
+
+        // test collection of all values
+        List<Object> allValues = ingestDocument.getAllFieldValues("foo.bar.baz");
+        assertThat(allValues, containsInAnyOrder("value1", "value2", "value3", 4));
     }
 
     public void testGetAllFieldValues_WithNumbersInPath() {
@@ -1301,13 +1305,7 @@ public class IngestDocumentTests extends ESTestCase {
 
         // append to a non-existing field
         ingestDocument.appendTopLevelFieldValue("foo.bar.qux", 4);
-        Object fooBarQux = ingestDocument.getTopLevelFieldValue("foo.bar.qux");
-        // appending to a non-existing field creates a list
-        assertThat(fooBarQux, instanceOf(List.class));
-        @SuppressWarnings("unchecked")
-        List<Integer> fooBarQuxList = (List<Integer>) fooBarQux;
-        assertEquals(1, fooBarQuxList.size());
-        assertThat(fooBarQuxList.getFirst(), equalTo(4));
+        assertEquals(4, ingestDocument.getTopLevelFieldValue("foo.bar.qux"));
     }
 
     public void testRemoveTopLevelField() {

@@ -72,6 +72,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -604,6 +605,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
+        OnlinePrewarmingService.unwrapDirectory(shard.store().directory()).prewarm(shard);
         rewriteAndFetchShardRequest(
             shard,
             request,

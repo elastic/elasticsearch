@@ -164,7 +164,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final List<Tuple<TopDocsStats, MergeResult>> batchedResults = new ArrayList<>();
 
-    public MergeResult consumePartialResult() {
+    MergeResult consumePartialResult() {
         var mergeResult = this.mergeResult;
         this.mergeResult = null;
         assert runningTask.get() == null;

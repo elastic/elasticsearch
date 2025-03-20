@@ -10,7 +10,7 @@ mapped_pages:
 ::::{admonition} Deprecated in 7.12.
 :class: warning
 
-Use [Geoshape](/reference/query-languages/query-dsl/query-dsl-geo-shape-query.md) instead where polygons are defined in GeoJSON or [Well-Known Text (WKT)](http://docs.opengeospatial.org/is/18-010r7/18-010r7.html).
+Use [Geoshape](/reference/query-languages/query-dsl-geo-shape-query.md) instead where polygons are defined in GeoJSON or [Well-Known Text (WKT)](http://docs.opengeospatial.org/is/18-010r7/18-010r7.html).
 ::::
 
 

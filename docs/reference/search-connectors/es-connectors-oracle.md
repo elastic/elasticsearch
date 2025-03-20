@@ -124,7 +124,7 @@ Follow these steps:
     ```
 
 
-For more information, refer to this [Amazon RDS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.md) about Oracle SSL. Oracle docs: [https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070](https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070).
+For more information, refer to this [Amazon RDS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.Oracle.Options.SSL.html) about Oracle SSL. Oracle docs: [https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070](https://docs.oracle.com/database/121/DBSEG/asossl.htm#DBSEG070).
 
 For additional operations, see [*Connectors UI in {{kib}}*](/reference/search-connectors/connectors-ui-in-kibana.md).
 
@@ -238,7 +238,7 @@ docker run \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0-beta1.0 \
+docker.elastic.co/integrations/elastic-connectors:9.0.0 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```

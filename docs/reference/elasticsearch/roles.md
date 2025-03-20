@@ -80,7 +80,7 @@ $$$built-in-roles-logstash-admin$$$ `logstash_admin`
 :   Grants access to the `.logstash*` indices for managing configurations, and grants necessary access for logstash-specific APIs exposed by the logstash x-pack plugin.
 
 $$$built-in-roles-logstash-system$$$ `logstash_system`
-:   Grants access necessary for the Logstash system user to send system-level data (such as monitoring) to {{es}}. For more information, see [Configuring Security in Logstash](logstash://docs/reference/secure-connection.md).
+:   Grants access necessary for the Logstash system user to send system-level data (such as monitoring) to {{es}}. For more information, see [Configuring Security in Logstash](logstash://reference/secure-connection.md).
 
     ::::{note}
     * This role should not be assigned to users as the granted permissions may change between releases.

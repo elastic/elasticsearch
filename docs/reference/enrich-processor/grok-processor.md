@@ -22,7 +22,7 @@ $$$grok-options$$$
 | `field` | yes | - | The field to use for grok expression parsing |
 | `patterns` | yes | - | An ordered list of grok expression to match and extract named captures with. Returns on the first expression in the list that matches. |
 | `pattern_definitions` | no | - | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition. |
-| `ecs_compatibility` | no | `disabled` | Must be `disabled` or `v1`. If `v1`, the processor uses patterns with [Elastic Common Schema (ECS)](ecs://docs/reference/ecs-field-reference.md) field names. |
+| `ecs_compatibility` | no | `disabled` | Must be `disabled` or `v1`. If `v1`, the processor uses patterns with [Elastic Common Schema (ECS)](ecs://reference/ecs-field-reference.md) field names. |
 | `trace_match` | no | false | when true, `_ingest._grok_match_index` will be inserted into your matched document’s metadata with the index into the pattern found in `patterns` that matched. |
 | `ignore_missing` | no | false | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document |
 | `description` | no | - | Description of the processor. Useful for describing the purpose of the processor or its configuration. |
@@ -215,7 +215,7 @@ The above request will return a response body containing a key-value representat
 }
 ```
 
-By default, the API returns a list of legacy Grok patterns. These legacy patterns predate the [Elastic Common Schema (ECS)](ecs://docs/reference/ecs-field-reference.md) and don’t use ECS field names. To return patterns that extract ECS field names, specify `v1` in the optional `ecs_compatibility` query parameter.
+By default, the API returns a list of legacy Grok patterns. These legacy patterns predate the [Elastic Common Schema (ECS)](ecs://reference/ecs-field-reference.md) and don’t use ECS field names. To return patterns that extract ECS field names, specify `v1` in the optional `ecs_compatibility` query parameter.
 
 ```console
 GET _ingest/processor/grok?ecs_compatibility=v1

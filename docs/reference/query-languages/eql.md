@@ -25,14 +25,14 @@ Event Query Language (EQL) is a query language for event-based time series data,
 
 ## Required fields [eql-required-fields]
 
-With the exception of sample queries, EQL searches require that the searched data stream or index  contains a *timestamp* field. By default, EQL uses the `@timestamp` field from the [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://docs/reference/index.md)).
+With the exception of sample queries, EQL searches require that the searched data stream or index  contains a *timestamp* field. By default, EQL uses the `@timestamp` field from the [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://reference/index.md)).
 
 EQL searches also require an *event category* field, unless you use the [`any` keyword](/reference/query-languages/eql/eql-syntax.md#eql-syntax-match-any-event-category) to search for  documents without an event category field. By default, EQL uses the ECS `event.category` field.
 
 To use a different timestamp or event category field, see [Specify a timestamp or event category field](#specify-a-timestamp-or-event-category-field).
 
 ::::{tip}
-While no schema is required to use EQL, we recommend using the [ECS](ecs://docs/reference/index.md). EQL searches are designed to work with core ECS fields by default.
+While no schema is required to use EQL, we recommend using the [ECS](ecs://reference/index.md). EQL searches are designed to work with core ECS fields by default.
 ::::
 
 
@@ -1043,7 +1043,7 @@ The API returns:
 
 ## Specify a timestamp or event category field [specify-a-timestamp-or-event-category-field]
 
-The EQL search API uses the `@timestamp` and `event.category` fields from the [ECS](ecs://docs/reference/index.md) by default. To specify different fields, use the `timestamp_field` and `event_category_field` parameters:
+The EQL search API uses the `@timestamp` and `event.category` fields from the [ECS](ecs://reference/index.md) by default. To specify different fields, use the `timestamp_field` and `event_category_field` parameters:
 
 ```console
 GET /my-data-stream/_eql/search
@@ -1065,7 +1065,7 @@ By default, the EQL search API returns matching hits by timestamp. If two or mor
 
 If you don’t specify a tiebreaker field or the events also share the same tiebreaker value, {{es}} considers the events concurrent and may not return them in a consistent sort order.
 
-To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you use the [ECS](ecs://docs/reference/index.md), we recommend using `event.sequence` as the tiebreaker field.
+To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you use the [ECS](ecs://reference/index.md), we recommend using `event.sequence` as the tiebreaker field.
 
 ```console
 GET /my-data-stream/_eql/search

@@ -557,6 +557,7 @@ public enum DataType {
             && t != SOURCE
             && t != HALF_FLOAT
             && t != PARTIAL_AGG
+            && t != AGGREGATE_METRIC_DOUBLE
             && t.isCounter() == false;
     }
 

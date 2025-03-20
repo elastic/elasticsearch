@@ -107,7 +107,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             "https://ela.st/es-deprecation-9-transform-destination-index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and requires action before upgrading to " + Version.CURRENT.major + ".0. "
+                + "] and requires action before upgrading to "
+                + Version.CURRENT.major
+                + ".0. "
                 + "The following transforms are configured to write to this index: [test-transform]. Refer to the "
                 + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
             false,
@@ -133,7 +135,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             "https://ela.st/es-deprecation-9-transform-destination-index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and requires action before upgrading to " + Version.CURRENT.major + ".0. "
+                + "] and requires action before upgrading to "
+                + Version.CURRENT.major
+                + ".0. "
                 + "The following transforms are configured to write to this index: [test-transform1, test-transform2]. Refer to the "
                 + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
             false,
@@ -163,7 +167,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and requires action before upgrading to " + Version.CURRENT.major + ".0. "
+                        + "] and requires action before upgrading to "
+                        + Version.CURRENT.major
+                        + ".0. "
                         + "The following transforms are configured to write to this index: [test-transform1]. Refer to the "
                         + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
                     false,
@@ -178,7 +184,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and requires action before upgrading to " + Version.CURRENT.major + ".0. "
+                        + "] and requires action before upgrading to "
+                        + Version.CURRENT.major
+                        + ".0. "
                         + "The following transforms are configured to write to this index: [test-transform2]. Refer to the "
                         + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
                     false,
@@ -335,7 +343,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             "https://ela.st/es-deprecation-9-transform-destination-index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and will be supported as a read-only index in " + Version.CURRENT.major + ".0. "
+                + "] and will be supported as a read-only index in "
+                + Version.CURRENT.major
+                + ".0. "
                 + "The following transforms are no longer able to write to this index: [test-transform]. Refer to the "
                 + "migration guide to learn more about how to handle your transforms destination indices.",
             false,
@@ -361,7 +371,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             "https://ela.st/es-deprecation-9-transform-destination-index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and will be supported as a read-only index in " + Version.CURRENT.major + ".0. "
+                + "] and will be supported as a read-only index in "
+                + Version.CURRENT.major
+                + ".0. "
                 + "The following transforms are no longer able to write to this index: [test-transform1, test-transform2]. Refer to the "
                 + "migration guide to learn more about how to handle your transforms destination indices.",
             false,
@@ -391,7 +403,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and will be supported as a read-only index in " + Version.CURRENT.major + ".0. "
+                        + "] and will be supported as a read-only index in "
+                        + Version.CURRENT.major
+                        + ".0. "
                         + "The following transforms are no longer able to write to this index: [test-transform1]. Refer to the "
                         + "migration guide to learn more about how to handle your transforms destination indices.",
                     false,
@@ -406,7 +420,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "https://ela.st/es-deprecation-9-transform-destination-index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and will be supported as a read-only index in " + Version.CURRENT.major + ".0. "
+                        + "] and will be supported as a read-only index in "
+                        + Version.CURRENT.major
+                        + ".0. "
                         + "The following transforms are no longer able to write to this index: [test-transform2]. Refer to the "
                         + "migration guide to learn more about how to handle your transforms destination indices.",
                     false,

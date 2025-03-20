@@ -164,7 +164,9 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     "https://ela.st/es-deprecation-9-index-version",
                     "This read-only index has version: "
                         + currentCompatibilityVersion.toReleaseVersion()
-                        + " and will be supported as read-only in " + Version.CURRENT.major + ".0",
+                        + " and will be supported as read-only in "
+                        + Version.CURRENT.major
+                        + ".0",
                     false,
                     Map.of("reindex_required", true)
                 );

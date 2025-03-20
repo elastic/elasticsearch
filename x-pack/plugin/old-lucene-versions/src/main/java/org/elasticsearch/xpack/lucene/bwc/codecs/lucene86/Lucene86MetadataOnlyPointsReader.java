@@ -111,8 +111,7 @@ public final class Lucene86MetadataOnlyPointsReader extends PointsReader {
     // We only open the metadata field, and do nothing with the other two files (index/data),
     // for which Lucene checks integrity but we don't need to.
     @Override
-    public void checkIntegrity() {
-    }
+    public void checkIntegrity() {}
 
     @Override
     public void close() throws IOException {

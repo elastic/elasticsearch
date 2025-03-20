@@ -237,7 +237,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
 
-        private long memoryUsageInBytes = 0;
+        private long estimatedMemoryUsageInBytes = 0;
+        private long actualMemoryUsageInBytes = 0;
 
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
@@ -249,10 +250,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             this.fieldInferenceMap = fieldInferenceMap;
             this.bulkShardRequest = bulkShardRequest;
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
-            this.onCompletion = () -> {  // TODO: Can we assume that onCompletion _always_ runs, regardless of what errors occur?
+            this.onCompletion = () -> {
+                // TODO: Can we assume that onCompletion _always_ runs, regardless of what errors occur?
+                //       Won't run if estimateMemoryUsage throws, which is the only scenario where it's ok to not run it.
                 CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
-                if (circuitBreaker != null && memoryUsageInBytes > 0) {
-                    circuitBreaker.addWithoutBreaking(-memoryUsageInBytes);
+                if (circuitBreaker != null && actualMemoryUsageInBytes > 0) {
+                    circuitBreaker.addWithoutBreaking(-actualMemoryUsageInBytes);
                 }
 
                 onCompletion.run();
@@ -331,14 +334,16 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                 if (estimatedEmbeddingBytes > 0) {
                     // TODO: Verify that ramBytesUsed is what to use here
-                    memoryUsageInBytes += estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
+                    estimatedMemoryUsageInBytes += estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
 
                     try {
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(memoryUsageInBytes, indexRequest.id());
+                        circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedMemoryUsageInBytes, indexRequest.id());
                     } catch (CircuitBreakingException e) {
-                        circuitBreaker.addWithoutBreaking(-memoryUsageInBytes);
+                        circuitBreaker.addWithoutBreaking(-estimatedMemoryUsageInBytes);
                         throw e;
                     }
+
+                    actualMemoryUsageInBytes = estimatedMemoryUsageInBytes;
                 }
             }
         }
@@ -471,17 +476,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     )
                                 );
                             } else {
-                                acc.addOrUpdateResponse(
-                                    new FieldInferenceResponse(
-                                        request.field(),
-                                        request.sourceField(),
-                                        useLegacyFormat ? request.input() : null,
-                                        request.inputOrder(),
-                                        request.offsetAdjustment(),
-                                        inferenceProvider.model,
-                                        result
-                                    )
-                                );
+                                if (updateActualMemoryUsage(request, result, acc)) {
+                                    acc.addOrUpdateResponse(
+                                        new FieldInferenceResponse(
+                                            request.field(),
+                                            request.sourceField(),
+                                            useLegacyFormat ? request.input() : null,
+                                            request.inputOrder(),
+                                            request.offsetAdjustment(),
+                                            inferenceProvider.model,
+                                            result
+                                        )
+                                    );
+                                }
                             }
                         }
                     }
@@ -735,6 +742,62 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     indexRequest.source(builder);
                 }
             }
+        }
+
+        private boolean updateActualMemoryUsage(FieldInferenceRequest request, ChunkedInference chunkedInference, FieldInferenceResponseAccumulator accumulator) {
+            boolean success = true;
+
+            CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
+            if (circuitBreaker == null) {
+                return success;
+            }
+
+            try {
+                final BulkItemRequest item = bulkShardRequest.items()[request.bulkItemIndex()];
+                final IndexRequest indexRequest = getIndexRequestOrNull(item.request());
+
+                long chunkBytes = 0;
+                Iterator<ChunkedInference.Chunk> chunkIterator = chunkedInference.chunksAsByteReference(
+                    indexRequest.getContentType().xContent()
+                );
+                while (chunkIterator.hasNext()) {
+                    ChunkedInference.Chunk chunk = chunkIterator.next();
+                    chunkBytes += chunk.bytesReference().ramBytesUsed();
+                }
+
+                // This doesn't count the bytes used for the inference metadata field structure (in the new format) or the field structure
+                // around the embeddings (in the legacy format), but it's a close approximation.
+                long bytesUsed = chunkBytes + indexRequest.source().ramBytesUsed();
+                if (bytesUsed <= estimatedMemoryUsageInBytes) {
+                    estimatedMemoryUsageInBytes -= bytesUsed;
+                } else {
+                    long bytesOverEstimate = bytesUsed - estimatedMemoryUsageInBytes;
+                    estimatedMemoryUsageInBytes = 0;
+                    actualMemoryUsageInBytes += bytesOverEstimate;
+
+                    circuitBreaker.addEstimateBytesAndMaybeBreak(bytesOverEstimate, indexRequest.id());
+                }
+            } catch (CircuitBreakingException e) {
+                success = false;
+                accumulator.addFailure(
+                    new InferenceException(
+                        "Circuit breaker exception for inference on field [{}]",
+                        e,
+                        request.field
+                    )
+                );
+            } catch (Exception e) {
+                success = false;
+                accumulator.addFailure(
+                    new InferenceException(
+                        "Exception when calculating memory usage for inference on field [{}]",
+                        e,
+                        request.field
+                    )
+                );
+            }
+
+            return success;
         }
     }
 

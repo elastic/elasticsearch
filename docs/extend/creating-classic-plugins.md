@@ -47,27 +47,26 @@ Some plugins may need additional _entitlements_.
 
 {{es}} limits the ability to perform certain security-sensitive actions as part of its _Entitlement_ security mechanism (e.g. to limit the potential fallout from remote code execution (RCE) vulnerabilities).
 
-The Entitlement model is _scope_-based: the subset of code to which the ability to perform a security-sensitive action is granted is called a _scope_.
-Currently, scope granularity is at the Java module level; in other words, an _entitlement scope_ corresponds to a Java module.
-An _entitlement_ granted to a scope allows its code to perform the security-sensitive action associated with that entitlement. For example, the ability to read a file from the filesystem is limited to scopes that have the `files` entitlement for that particular file.
+The Entitlement model is based on Java modules.
+An _entitlement_ granted to a Java module allows the module's code to perform the security-sensitive action associated with that entitlement. For example, the ability to create threads is limited to modules that have the `manage_threads` entitlement; likewise, the ability to read a file from the filesystem is limited to modules that have the `files` entitlement for that particular file.
 
-In practice, an entitlement allows plugin code to call a well-defined set of corresponding JDK methods; without the entitlement calls to those JDK methods are denied and throw a `NotEntitledException`. Plugin can include the optional `entitlement-policy.yaml` file to define scopes and required entitlements. Any additional entitlement requested by the plugin will be displayed to the user with a large warning, and users will have to confirm them when installing the plugin interactively. Therefore, it is best to avoid requesting any spurious entitlement!
+In practice, an entitlement allows plugin code to call a well-defined set of corresponding JDK methods; without the entitlement calls to those JDK methods are denied and throw a `NotEntitledException`. Plugin can include the optional `entitlement-policy.yaml` file to define modules and required entitlements. Any additional entitlement requested by the plugin will be displayed to the user with a large warning, and users will have to confirm them when installing the plugin interactively. Therefore, it is best to avoid requesting any spurious entitlement!
 
 If you are using the {{es}} Gradle build system, place this file in `src/main/plugin-metadata` and it will be applied during unit tests as well.
 
-An entitlement policy applies to all of your plugin jars (your own code and third party dependencies). You have to write your policy file accordingly. For example, if a plugin uses the Google API client to perform network operations, it will need a policy that may look like this:
+An entitlement policy applies to all of your plugin jars (your own code and third party dependencies). You have to write your policy file accordingly. For example, if a plugin uses the Example API client to perform network operations, it will need a policy that may look like this:
 
 ```YAML
 org.elasticsearch.example-plugin:
   - manage_threads
-com.google.api.client:
+com.example.api.client:
   - set_https_connection_properties
   - outbound_network
 ```
 
-Note how the network related entitlements are granted to the `com.google.api.client` module, as the code performing the sensitive network operations is in the `com.google.api-client` dependency.
+Note how the network related entitlements are granted to the `com.example.api.client` module, as the code performing the sensitive network operations is in the `example-api-client` dependency.
 
-If your plugin is not modular, all entitlements must be specified under the catch-all `ALL-UNNAMED` scope:
+If your plugin is not modular, all entitlements must be specified under the catch-all `ALL-UNNAMED` module name:
 
 ```YAML
 ALL-UNNAMED:
@@ -92,7 +91,7 @@ org.example.module: # or 'ALL-UNNAMED' if the plugin is non-modular
 
 #### `outbound_network`
 
-Allows code to call methods to connect to an endpoint. {{es}} does not grant any network access by default; each plugin that needs to directly connect to an external resource (e.g. to upload or download data) must request this entitlement.
+Allows code to call methods to make a network connection. {{es}} does not grant any network access by default; each plugin that needs to directly connect to an external resource (e.g. to upload or download data) must request this entitlement.
 
 Example:
 ```yaml
@@ -119,7 +118,7 @@ org.example.module: # or 'ALL-UNNAMED' if the plugin is non-modular
 ```
 
 #### `load_native_libraries`
-Allows code to load native libraries and call restricted methods. This entitlement also enables native access for modules it is granted to (see [Restricted Methods](https://docs.oracle.com/en/java/javase/24/core/restricted-methods.html) in the Java documentation). Native code may alter the JVM or circumvent access checks such as file or network restrictions.
+Allows code to load native libraries and call [restricted methods](https://docs.oracle.com/en/java/javase/24/core/restricted-methods.html). This entitlement also enables native access for modules it is granted to. Native code may alter the JVM or circumvent access checks such as file or network restrictions.
 
 Example:
 ```yaml
@@ -134,11 +133,15 @@ Allows code to access the filesystem, to read or write paths as specified by the
 It is possible to specify 3 different types of file entitlement:
   - `path` to specify an absolute path
   - `relative_path` to specify a relative path. The path will be resolved via the `relative_to` field, which is used to qualify the relative path. It can be a specific {{es}} directory (`config` or `data`), or to the user home directory (`home`) (the home of the user running {{es}})
+  - `relative_path` to specify a path resolved via the `relative_to` field, which can have the following values:
+    - `config`: the {{es}} [config directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#config-files-location)
+    - `data`: the {{es}} [data directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/path-settings-overview.html)
+    - `home`: the home directory of the user running {{es}}
   - `path_setting` to specify a path defined via an {{es}} setting. The path can be absolute or relative; in the latter case, the path will be resolved using the `basedir_if_relative` path (which can assume the same values as `relative_to`)
 
 Each of the 3 types has some additional fields:
 - `mode` (required): can be either `read` or `read_write`
-- `platform` (optional): if a path is specific to a platform. Can be `linux`, `macos` or `windows`. If not specified, the path is assumed to be valid on all platforms.
+- `platform` (optional): indicates the entitlement groups be granted on only one platform, which can be one of `linux`, `macos` or `windows`. On other platforms, the entitlement is ignored. If this field is not specified, the entitlement is granted on all platforms.
 - `exclusive`: access to this path is exclusive for this plugin; this means that other plugins will not be able to access to it, not even if they have an entitlement that would normally grant access to that path.
 
 Example:

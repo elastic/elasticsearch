@@ -22,7 +22,10 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public class CastOperatorTests extends ESTestCase {
+/**
+ * In the documentation we document `IS NULL` and `IS NOT NULL` together.
+ */
+public class NullPredicatesTests extends ESTestCase {
     public void testDummy() {
         assert true;
     }
@@ -33,19 +36,18 @@ public class CastOperatorTests extends ESTestCase {
             return;
         }
         DocsV3Support.OperatorConfig op = new DocsV3Support.OperatorConfig(
-            "cast",
-            "::",
+            "predicates",
+            "IS NULL and IS NOT NULL",
             TestCastOperator.class,
             DocsV3Support.OperatorCategory.UNARY,
             false
         );
-        var docs = new DocsV3Support.OperatorsDocsSupport("cast", CastOperatorTests.class, op, CastOperatorTests::signatures);
+        var docs = new DocsV3Support.OperatorsDocsSupport("predicates", NullPredicatesTests.class, op, NullPredicatesTests::signatures);
         docs.renderSignature();
         docs.renderDocs();
     }
 
     public static Map<List<DataType>, DataType> signatures() {
-        // TODO: Make this match reality (not urgent since this list is not yet used in the docs)
         return AbstractFunctionTestCase.signatures(ToStringTests.class);
     }
 
@@ -54,11 +56,10 @@ public class CastOperatorTests extends ESTestCase {
      */
     public class TestCastOperator {
         @FunctionInfo(
-            operator = "::",
+            operator = "predicates",
             returnType = {},
-            description = "The `::` operator provides a convenient alternative syntax to the TO_<type> "
-                + "[conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions).",
-            examples = { @Example(file = "convert", tag = "docsCastOperator") }
+            description = "For NULL comparison use the `IS NULL` and `IS NOT NULL` predicates:",
+            examples = { @Example(file = "null", tag = "is-null"), @Example(file = "null", tag = "is-not-null") }
         )
         public TestCastOperator(
             @Param(

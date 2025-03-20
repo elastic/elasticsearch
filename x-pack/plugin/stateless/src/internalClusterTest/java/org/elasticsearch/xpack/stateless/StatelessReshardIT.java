@@ -83,17 +83,20 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
 
         logger.info("getting reshard metadata");
-        var reshardingMetadata = splitState.get(30, TimeUnit.SECONDS).projectState().metadata().index(indexName).getReshardingMetadata();
+        var reshardingMetadata = splitState.actionGet(SAFE_AWAIT_TIMEOUT)
+            .projectState()
+            .metadata()
+            .index(indexName)
+            .getReshardingMetadata();
         assertNotNull(reshardingMetadata.getSplit());
         assert reshardingMetadata.shardCountBefore() == 1;
         assert reshardingMetadata.shardCountAfter() == 2;
 
-        reshardAction.actionGet(TimeValue.THIRTY_SECONDS);
+        reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
 
         // resharding data should eventually be removed after split executes
-        waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null).get(
-            30,
-            TimeUnit.SECONDS
+        waitForClusterState((state) -> state.projectState().metadata().index(indexName).getReshardingMetadata() == null).actionGet(
+            SAFE_AWAIT_TIMEOUT
         );
 
         int oldShardDocs = 0;
@@ -276,22 +279,23 @@ public class StatelessReshardIT extends AbstractStatelessIntegTestCase {
         var reshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
 
         // wait until we know it's in progress
-        var ignored = splitState.get(30, TimeUnit.SECONDS).projectState().metadata().index(indexName).getReshardingMetadata();
+        var ignored = splitState.actionGet(SAFE_AWAIT_TIMEOUT).projectState().metadata().index(indexName).getReshardingMetadata();
 
         // now start a second reshard, which should fail
-        var failedReshardAction = client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName));
+        assertThrows(
+            IllegalStateException.class,
+            () -> client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT)
+        );
 
         // unblock allocation to allow operations to proceed
         updateClusterSettings(Settings.builder().putNull("cluster.routing.allocation.enable"));
 
-        assertThrows(IllegalStateException.class, () -> failedReshardAction.actionGet(TimeValue.THIRTY_SECONDS));
-
-        reshardAction.actionGet(TimeValue.THIRTY_SECONDS);
+        reshardAction.actionGet(SAFE_AWAIT_TIMEOUT);
 
         checkNumberOfShardsSetting(indexNode, indexName, 2);
 
         // now we should be able to resplit
-        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(TimeValue.THIRTY_SECONDS);
+        client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet(SAFE_AWAIT_TIMEOUT);
         checkNumberOfShardsSetting(indexNode, indexName, 4);
     }
 

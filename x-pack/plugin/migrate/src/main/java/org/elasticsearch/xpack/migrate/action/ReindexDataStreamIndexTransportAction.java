@@ -128,7 +128,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
      * the unit test doesn't fail if it rolls over Integer.MAX_VALUE (since the node selected is the same for Integer.MAX_VALUE and
      * Integer.MAX_VALUE + 1).
      */
-    private final AtomicInteger ingestNodeOffsetGenerator = new AtomicInteger(Randomness.get().nextInt(2 ^ 30));
+    private final AtomicInteger ingestNodeOffsetGenerator = new AtomicInteger(Randomness.get().nextInt((int) Math.pow(2, 30)));
     /*
      * This maps nodeId to a semaphore for that node, controlling the number of concurrent reindex requests we send to that node.
      */

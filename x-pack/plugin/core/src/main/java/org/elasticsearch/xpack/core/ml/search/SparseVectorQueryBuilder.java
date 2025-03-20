@@ -9,20 +9,25 @@ package org.elasticsearch.xpack.core.ml.search;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,12 +38,18 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.client.internal.Client;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Collections;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -222,89 +233,78 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             );
         }
 
-        return (shouldPruneTokens)
-            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context)
-            : WeightedTokensUtils.queryBuilderWithAllTokens(fieldName, queryVectors, ft, context);
+        return rewrite(context).toQuery(context);
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
-        if (queryVectors != null) {
-            return this;
-        } else if (weightedTokensSupplier != null) {
-            TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
-            if (textExpansionResults == null) {
-                return this; // No results yet
-            }
-
-            return new SparseVectorQueryBuilder(
-                fieldName,
-                textExpansionResults.getWeightedTokens(),
-                null,
-                null,
-                shouldPruneTokens,
-                tokenPruningConfig
-            );
-        } else if (inferenceId == null) {
-            // Edge case, where inference_id was not specified in the request,
-            // but we did not intercept this and rewrite to a query o field with
-            // pre-configured inference. So we trap here and output a nicer error message.
-            throw new IllegalArgumentException("inference_id required to perform vector search on query string");
+    protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
+        if (queryVectors == null) {
+            return QueryBuilders.wrapperQuery(new MatchNoDocsQuery().toString());
         }
 
-        // TODO move this to xpack core and use inference APIs
-        CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
-            inferenceId,
-            List.of(query),
-            TextExpansionConfigUpdate.EMPTY_UPDATE,
-            false,
-            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
-        );
-        inferRequest.setHighPriority(true);
-        inferRequest.setPrefixType(TrainedModelPrefixStrings.PrefixType.SEARCH);
+        if (context instanceof SearchExecutionContext == false) {
+            return this;
+        }
 
-        SetOnce<TextExpansionResults> textExpansionResultsSupplier = new SetOnce<>();
-        queryRewriteContext.registerAsyncAction(
-            (client, listener) -> executeAsyncWithOrigin(
-                client,
-                ML_ORIGIN,
-                CoordinatedInferenceAction.INSTANCE,
-                inferRequest,
-                ActionListener.wrap(inferenceResponse -> {
+        SearchExecutionContext searchContext = (SearchExecutionContext) context;
+        MappedFieldType fieldType = searchContext.getFieldType(fieldName);
+        if (fieldType == null || fieldType.typeName().equals(ALLOWED_FIELD_TYPE) == false) {
+            throw new IllegalArgumentException("field [" + fieldName + "] is of unsupported type [" + (fieldType == null ? "null" : fieldType.typeName()) + "] for sparse vector query. Supported types are [" + ALLOWED_FIELD_TYPE + "]");
+        }
 
-                    List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
-                    if (inferenceResults.isEmpty()) {
-                        listener.onFailure(new IllegalStateException("inference response contain no results"));
-                        return;
-                    }
-                    if (inferenceResults.size() > 1) {
-                        listener.onFailure(new IllegalStateException("inference response should contain only one result"));
-                        return;
-                    }
+        if (weightedTokensSupplier != null && weightedTokensSupplier.get() != null) {
+            return new SparseVectorQueryBuilder(this, weightedTokensSupplier);
+        }
 
-                    if (inferenceResults.get(0) instanceof TextExpansionResults textExpansionResults) {
-                        textExpansionResultsSupplier.set(textExpansionResults);
-                        listener.onResponse(null);
-                    } else if (inferenceResults.get(0) instanceof WarningInferenceResults warning) {
-                        listener.onFailure(new IllegalStateException(warning.getWarning()));
-                    } else {
-                        listener.onFailure(
-                            new IllegalArgumentException(
-                                "expected a result of type ["
-                                    + TextExpansionResults.NAME
-                                    + "] received ["
-                                    + inferenceResults.get(0).getWriteableName()
-                                    + "]. Is ["
-                                    + inferenceId
-                                    + "] a compatible model?"
-                            )
-                        );
-                    }
-                }, listener::onFailure)
-            )
-        );
+        if (inferenceId == null) {
+            return this;
+        }
 
-        return new SparseVectorQueryBuilder(this, textExpansionResultsSupplier);
+        var listener = new SetOnce<TextExpansionResults>();
+        try {
+            var request = InferModelAction.Request.forTextInput(
+                inferenceId,
+                TextExpansionConfigUpdate.EMPTY_UPDATE,
+                List.of(query),
+                false,
+                TimeValue.timeValueSeconds(30)
+            );
+            SetOnce<InferModelAction.Response> responseSupplier = new SetOnce<>();
+            context.registerAsyncAction((client, actionListener) -> {
+                client.execute(InferModelAction.INSTANCE, request, actionListener.delegateFailureAndWrap((l, response) -> {
+                    responseSupplier.set(response);
+                    actionListener.onResponse(null);
+                }));
+            });
+
+            if (responseSupplier.get() == null) {
+                throw new ElasticsearchStatusException(
+                    "Failed to get inference results",
+                    RestStatus.INTERNAL_SERVER_ERROR
+                );
+            }
+
+            var response = responseSupplier.get();
+            InferenceResults inferenceResults = response.getInferenceResults().get(0);
+            if (inferenceResults instanceof TextExpansionResults == false) {
+                throw new ElasticsearchStatusException(
+                    "Unexpected inference response type [{}] from model [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    inferenceResults.getClass().getSimpleName(),
+                    inferenceId
+                );
+            }
+            listener.set((TextExpansionResults) inferenceResults);
+
+            return new SparseVectorQueryBuilder(this, listener);
+        } catch (Exception e) {
+            throw new ElasticsearchStatusException(
+                "Failed to get inference response from model [{}]",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e,
+                inferenceId
+            );
+        }
     }
 
     @Override

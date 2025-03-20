@@ -12,6 +12,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -22,20 +24,46 @@ import java.util.Iterator;
  */
 public class PlannerProfile implements Writeable, ChunkedToXContentObject {
 
+    public record RuleProfile(String batchName, String ruleName, long durationNanos, int runs, int runsWithChanges) implements Writeable, ToXContentObject {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(batchName);
+            out.writeString(ruleName);
+            out.writeLong(durationNanos);
+            out.writeInt(runs);
+            out.writeInt(runsWithChanges);
+        }
+
+        public RuleProfile readFrom(StreamInput in) throws IOException {
+            String batchName = in.readString();
+            String ruleName = in.readString();
+            long durationNanos = in.readLong();
+            int runs = in.readInt();
+            int runsWithChanges = in.readInt();
+            return new RuleProfile(batchName, ruleName, durationNanos, runs, runsWithChanges);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            // NOCOMMIT
+            return null;
+        }
+    }
+
     public static final PlannerProfile EMPTY = new PlannerProfile(false, "");
 
     private final boolean isLocalPlanning;
     private final String nodeName;
 
+    public PlannerProfile(boolean isLocalPlanning, String nodeName) {
+        this.isLocalPlanning = isLocalPlanning;
+        this.nodeName = nodeName;
+    }
+
     public static PlannerProfile readFrom(StreamInput in) throws IOException {
         boolean isLocalPlanning = in.readBoolean();
         String nodeName = in.readString();
         return new PlannerProfile(isLocalPlanning, nodeName);
-    }
-
-    public PlannerProfile(boolean isLocalPlanning, String nodeName) {
-        this.isLocalPlanning = isLocalPlanning;
-        this.nodeName = nodeName;
     }
 
     @Override

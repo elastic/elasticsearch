@@ -252,7 +252,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
             this.onCompletion = () -> {
                 // TODO: Can we assume that onCompletion _always_ runs, regardless of what errors occur?
-                //       Won't run if estimateMemoryUsage throws, which is the only scenario where it's ok to not run it.
+                // Won't run if estimateMemoryUsage throws, which is the only scenario where it's ok to not run it.
                 CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
                 if (circuitBreaker != null && actualMemoryUsageInBytes > 0) {
                     circuitBreaker.addWithoutBreaking(-actualMemoryUsageInBytes);
@@ -744,7 +744,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
         }
 
-        private boolean updateActualMemoryUsage(FieldInferenceRequest request, ChunkedInference chunkedInference, FieldInferenceResponseAccumulator accumulator) {
+        private boolean updateActualMemoryUsage(
+            FieldInferenceRequest request,
+            ChunkedInference chunkedInference,
+            FieldInferenceResponseAccumulator accumulator
+        ) {
             boolean success = true;
 
             CircuitBreaker circuitBreaker = inferenceBytesCircuitBreaker.get();
@@ -779,21 +783,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             } catch (CircuitBreakingException e) {
                 success = false;
-                accumulator.addFailure(
-                    new InferenceException(
-                        "Circuit breaker exception for inference on field [{}]",
-                        e,
-                        request.field
-                    )
-                );
+                accumulator.addFailure(new InferenceException("Circuit breaker exception for inference on field [{}]", e, request.field));
             } catch (Exception e) {
                 success = false;
                 accumulator.addFailure(
-                    new InferenceException(
-                        "Exception when calculating memory usage for inference on field [{}]",
-                        e,
-                        request.field
-                    )
+                    new InferenceException("Exception when calculating memory usage for inference on field [{}]", e, request.field)
                 );
             }
 

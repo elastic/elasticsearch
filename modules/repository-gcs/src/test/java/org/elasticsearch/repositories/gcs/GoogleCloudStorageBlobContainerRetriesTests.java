@@ -21,6 +21,7 @@ import com.google.cloud.storage.StorageOptions;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -44,6 +45,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
@@ -140,7 +142,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         secureSettings.setFile(CREDENTIALS_FILE_SETTING.getConcreteSettingForNamespace(client).getKey(), createServiceAccount(random()));
         clientSettings.setSecureSettings(secureSettings);
 
-        final GoogleCloudStorageService service = new GoogleCloudStorageService(Settings.EMPTY) {
+        final GoogleCloudStorageService service = new GoogleCloudStorageService() {
             @Override
             StorageOptions createStorageOptions(
                 final GoogleCloudStorageClientSettings gcsClientSettings,
@@ -202,7 +204,9 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
             service,
             BigArrays.NON_RECYCLING_INSTANCE,
             randomIntBetween(1, 8) * 1024,
-            BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(1), 3, TimeValue.timeValueSeconds(1))
+            BackoffPolicy.linearBackoff(TimeValue.timeValueMillis(1), 3, TimeValue.timeValueSeconds(1)),
+            new RepositoryMetadata("repo", "gcs", Settings.EMPTY),
+            RepositoriesMetrics.NOOP
         );
 
         return new GoogleCloudStorageBlobContainer(randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"), blobStore);

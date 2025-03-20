@@ -18,12 +18,14 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.protocol.HttpContext;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,6 +46,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GoogleCloudStorageServiceTests extends ESTestCase {
+
+    private GoogleCloudStorageOperationsStats gcpStats(String bucket) {
+        return new GoogleCloudStorageOperationsStats(
+            bucket,
+            new RepositoryMetadata("repo", "gcp", Settings.EMPTY),
+            RepositoriesMetrics.NOOP
+        );
+    }
 
     public void testClientInitializer() throws Exception {
         final String clientName = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
@@ -75,14 +85,14 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
             .put(GoogleCloudStorageClientSettings.PROXY_PORT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), 8080)
             .build();
         SetOnce<Proxy> proxy = new SetOnce<>();
-        final GoogleCloudStorageService service = new GoogleCloudStorageService(Settings.EMPTY) {
+        final GoogleCloudStorageService service = new GoogleCloudStorageService() {
             @Override
             void notifyProxyIsSet(Proxy p) {
                 proxy.set(p);
             }
         };
         service.refreshAndClearCache(GoogleCloudStorageClientSettings.load(settings));
-        GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
+        GoogleCloudStorageOperationsStats statsCollector = gcpStats("bucket");
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> service.client("another_client", "repo", randomPurpose(), statsCollector)
@@ -118,7 +128,7 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         final Settings settings2 = Settings.builder().setSecureSettings(secureSettings2).build();
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings1)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
-            GoogleCloudStorageOperationsStats statsCollector = new GoogleCloudStorageOperationsStats("bucket");
+            GoogleCloudStorageOperationsStats statsCollector = gcpStats("bucket");
             final Storage client11 = storageService.client("gcs1", "repo1", randomPurpose(), statsCollector);
             assertThat(client11.getOptions().getProjectId(), equalTo("project_gcs11"));
             final Storage client12 = storageService.client("gcs2", "repo2", randomPurpose(), statsCollector);
@@ -163,25 +173,25 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
                 "gcs1",
                 "repo1",
                 operationPurpose,
-                new GoogleCloudStorageOperationsStats("bucket")
+                gcpStats("bucket")
             );
             final Storage repo1ClientOtherPurpose = storageService.client(
                 "gcs1",
                 "repo1",
                 differentOperationPurpose,
-                new GoogleCloudStorageOperationsStats("bucket")
+                gcpStats("bucket")
             );
             final Storage repo2Client = storageService.client(
                 "gcs1",
                 "repo2",
                 operationPurpose,
-                new GoogleCloudStorageOperationsStats("bucket")
+                gcpStats("bucket")
             );
             final Storage repo1ClientSecondInstance = storageService.client(
                 "gcs1",
                 "repo1",
                 operationPurpose,
-                new GoogleCloudStorageOperationsStats("bucket")
+                gcpStats("bucket")
             );
 
             assertNotSame(repo1Client, repo2Client);

@@ -46,7 +46,12 @@ public class PlanConcurrencyCalculator {
         return null;
     }
 
-    private int limitToConcurrency(int limit) {
+    private Integer limitToConcurrency(int limit) {
+        // For high limits, don't limit the concurrency
+        if (limit > 1000) {
+            return null;
+        }
+
         // At least 2 nodes, otherwise log2(limit). E.g.
         // Limit | Concurrency
         // 1 | 2
@@ -69,7 +74,7 @@ public class PlanConcurrencyCalculator {
         Holder<Integer> limitValue = new Holder<>(null);
 
         logicalPlan.forEachUp(node -> {
-            // If a limit or a blacklisted command was already found, ignore the rest
+            // If a limit or a forbidden command was already found, ignore the rest
             if (limitValue.get() == null && forbiddenNodeFound.get() == false) {
                 if (node instanceof EsRelation) {
                     relationFound.set(true);

@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless;
 
-import co.elastic.elasticsearch.serverless.codec.ElasticsearchCompletionPostingsFormat;
 import co.elastic.elasticsearch.serverless.constants.ProjectType;
 import co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings;
 import co.elastic.elasticsearch.stateless.action.TransportFetchShardCommitsInUseAction;
@@ -564,13 +563,6 @@ public class Stateless extends Plugin
             new HollowShardsService(settings, clusterService, indicesService, indexShardCacheWarmer, threadPool, hollowShardMetrics.get())
         );
         components.add(hollowShardsService);
-        if (hasIndexRole) {
-            ElasticsearchCompletionPostingsFormat.configureFSTOnHeap(false);
-        } else if (hasSearchRole) {
-            ElasticsearchCompletionPostingsFormat.configureFSTOnHeap(
-                ElasticsearchCompletionPostingsFormat.COMPLETION_FST_ON_HEAP.get(settings)
-            );
-        }
 
         // autoscaling
         // memory

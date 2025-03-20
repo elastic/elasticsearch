@@ -465,14 +465,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             result.consumeAll();
             next.run();
         } else if (result.isNull() || result.isPartiallyReduced()) {
-            if (result.isPartiallyReduced()) {
-                if (result.hasConsumedTopDocs() == false) {
-                    result.consumeTopDocs();
-                }
-                result.releaseAggs();
-            } else {
-                result.consumeAll();
-            }
             SearchShardTarget target = result.getSearchShardTarget();
             SearchShard searchShard = new SearchShard(target.getClusterAlias(), target.getShardId());
             synchronized (this) {

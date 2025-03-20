@@ -55,11 +55,11 @@ public class DataStreamFailureStoreTemplateTests extends AbstractXContentSeriali
     public void testTemplateComposition() {
         boolean enabled = randomBoolean();
         DataStreamFailureStore.Template template = new DataStreamFailureStore.Template(enabled);
-        DataStreamFailureStore.Template result = DataStreamFailureStore.builder(template).update(template).buildTemplate();
+        DataStreamFailureStore.Template result = DataStreamFailureStore.builder(template).composeTemplate(template).buildTemplate();
         assertThat(result, equalTo(template));
 
         DataStreamFailureStore.Template negatedTemplate = new DataStreamFailureStore.Template(enabled == false);
-        result = DataStreamFailureStore.builder(template).update(negatedTemplate).buildTemplate();
+        result = DataStreamFailureStore.builder(template).composeTemplate(negatedTemplate).buildTemplate();
         ;
         assertThat(result, equalTo(negatedTemplate));
     }

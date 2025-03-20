@@ -88,15 +88,15 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
         assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
 
         // Merge
-        result = DataStreamOptions.builder(fullyConfigured).update(DataStreamOptions.Template.EMPTY).buildTemplate();
+        result = DataStreamOptions.builder(fullyConfigured).composeTemplate(DataStreamOptions.Template.EMPTY).buildTemplate();
         assertThat(result, equalTo(fullyConfigured));
 
         // Override
-        result = DataStreamOptions.builder(fullyConfigured).update(negated).buildTemplate();
+        result = DataStreamOptions.builder(fullyConfigured).composeTemplate(negated).buildTemplate();
         assertThat(result, equalTo(negated));
 
         // Reset
-        result = DataStreamOptions.builder(fullyConfigured).update(RESET).buildTemplate();
+        result = DataStreamOptions.builder(fullyConfigured).composeTemplate(RESET).buildTemplate();
         assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
     }
 }

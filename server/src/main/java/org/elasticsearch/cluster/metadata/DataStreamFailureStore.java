@@ -204,7 +204,7 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
             return this;
         }
 
-        public Builder update(DataStreamFailureStore.Template failureStore) {
+        public Builder composeTemplate(DataStreamFailureStore.Template failureStore) {
             this.enabled(failureStore.enabled());
             return this;
         }

@@ -1703,7 +1703,7 @@ public class MetadataIndexTemplateService {
             if (builder == null) {
                 builder = DataStreamLifecycle.builder(current);
             } else {
-                builder.update(current);
+                builder.composeTemplate(current);
             }
         }
         return builder;
@@ -1779,7 +1779,7 @@ public class MetadataIndexTemplateService {
                 if (builder == null) {
                     builder = DataStreamOptions.builder(currentTemplate);
                 } else {
-                    builder.update(currentTemplate);
+                    builder.composeTemplate(currentTemplate);
                 }
             }
         }

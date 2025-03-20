@@ -185,22 +185,22 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
          * Updates this builder with the values of the provided template. This is not a replacement necessarily, the
          * inner values will be merged.
          */
-        public Builder update(DataStreamOptions.Template options) {
-            return updateFailureStore(options.failureStore());
+        public Builder composeTemplate(DataStreamOptions.Template options) {
+            return failureStore(options.failureStore());
         }
 
         /**
          * Updates the current failure store configuration with the provided value. This is not a replacement necessarily, if both
          * instance contain data the configurations are merged.
          */
-        public Builder updateFailureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {
+        public Builder failureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {
             if (newFailureStore.shouldReset()) {
                 failureStore = null;
             } else if (newFailureStore.isDefined()) {
                 if (failureStore == null) {
                     failureStore = DataStreamFailureStore.builder(newFailureStore.get());
                 } else {
-                    failureStore.update(newFailureStore.get());
+                    failureStore.composeTemplate(newFailureStore.get());
                 }
             }
             return this;

@@ -762,7 +762,7 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
             }
         }
 
-        public Builder update(DataStreamLifecycle.Template template) {
+        public Builder composeTemplate(DataStreamLifecycle.Template template) {
             enabled(template.enabled());
             dataRetention(template.dataRetention());
             downsampling(template.downsampling());

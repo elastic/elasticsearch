@@ -558,6 +558,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         var transportService = searchTransportService.transportService();
         var threadPool = transportService.getThreadPool();
         final Dependencies dependencies = new Dependencies(searchService, threadPool.executor(ThreadPool.Names.SEARCH));
+        // Even though not all searches run on the search pool, we use the search pool size as the upper limit of shards to execute in
+        // parallel to keep the implementation simple instead of working out the exact pool(s) a query will use up-front.
         final int searchPoolMax = threadPool.info(ThreadPool.Names.SEARCH).getMax();
         transportService.registerRequestHandler(
             NODE_SEARCH_ACTION_NAME,

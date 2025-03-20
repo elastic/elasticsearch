@@ -13,6 +13,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -29,7 +30,6 @@ final class CefParser {
         this.removeEmptyValue = removeEmptyValue;
     }
 
-    // Existing patterns...
     private static final Pattern HEADER_PATTERN = Pattern.compile("(?:\\\\\\||\\\\\\\\|[^|])*?");
     private static final Pattern HEADER_NEXT_FIELD_PATTERN = Pattern.compile("(" + HEADER_PATTERN.pattern() + ")\\|");
     private static final Pattern HEADER_ESCAPE_CAPTURE = Pattern.compile("\\\\([\\\\|])");
@@ -112,6 +112,7 @@ final class CefParser {
         FIELD_MAPPING.put("spid", "source.process.pid");
         FIELD_MAPPING.put("sproc", "source.process.name");
         FIELD_MAPPING.put("sourceServiceName", "source.service.name");
+        FIELD_MAPPING.put("suser", "source.user.name");
         FIELD_MAPPING.put("start", "event.start");
         FIELD_MAPPING.put("proto", "network.transport");
         // Add more mappings as needed
@@ -169,13 +170,19 @@ final class CefParser {
             event.setExtensions(extensions);
 
             Map<String, String> translatedFields = new HashMap<>();
-            for (Map.Entry<String, String> entry : extensions.entrySet()) {
-                String translatedKey = FIELD_MAPPING.getOrDefault(entry.getKey(), entry.getKey());
-                translatedFields.put(translatedKey, entry.getValue());
+
+            Iterator<Map.Entry<String, String>> iterator = extensions.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, String> entry = iterator.next();
+                if (FIELD_MAPPING.containsKey(entry.getKey())) {
+                    translatedFields.put(FIELD_MAPPING.get(entry.getKey()), entry.getValue());
+                    iterator.remove();
+                }
             }
             event.setTranslatedFields(translatedFields);
 
             ingestDocument.setFieldValue(targetField, event.toObject());
+            System.out.println(event.toObject());
         } else {
             throw new IllegalArgumentException("Invalid CEF format");
         }
@@ -328,7 +335,9 @@ final class CefParser {
             event.put("name", name);
             event.put("severity", severity);
             if (extensions != null) {
-                event.putAll(extensions);
+                for (Map.Entry<String, String> entry : extensions.entrySet()) {
+                    event.put("extensions." + entry.getKey(), entry.getValue());
+                }
             }
             if (translatedFields != null) {
                 event.putAll(translatedFields);

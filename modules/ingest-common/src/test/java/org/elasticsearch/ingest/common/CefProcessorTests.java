@@ -14,9 +14,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CefProcessorTests extends ESTestCase {
@@ -63,7 +66,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("network.transport"), equalTo("TCP"));
         assertThat(cef.get("source.service.name"), equalTo("httpd"));
         assertThat(cef.get("url.original"), equalTo("https://www.example.com/cart"));
-    }
+        assertThat((Collection<?>) cef.get("error.message"), empty());    }
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidCefFormat() {
@@ -101,6 +104,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("event.id"), equalTo("1"));
         assertThat(cef.get("source.bytes"), equalTo("4294967296"));
         assertThat(cef.get("destination.bytes"), equalTo("4294967296"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -121,6 +125,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -138,6 +143,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
         assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
         assertThat(cef.get("source.port"), equalTo("1232"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -153,6 +159,16 @@ public class CefProcessorTests extends ESTestCase {
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
         assertThat(cef.get("device.product"), equalTo("threat|->manager"));
+        assertThat(cef.get("version"), equalTo("26"));
+        assertThat(cef.get("device.vendor"), equalTo("security"));
+        assertThat(cef.get("device.version"), equalTo("1.0"));
+        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
+        assertThat(cef.get("severity"), equalTo("10"));
+        assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
+        assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
+        assertThat(cef.get("source.port"), equalTo("1232"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -166,7 +182,17 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
+        assertThat(cef.get("version"), equalTo("26"));
+        assertThat(cef.get("device.vendor"), equalTo("security"));
         assertThat(cef.get("device.product"), equalTo("threat=manager"));
+        assertThat(cef.get("device.version"), equalTo("1.0"));
+        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
+        assertThat(cef.get("severity"), equalTo("10"));
+        assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
+        assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
+        assertThat(cef.get("source.port"), equalTo("1232"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -190,6 +216,7 @@ public class CefProcessorTests extends ESTestCase {
 
         assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
         assertThat(cef.get("source.port"), equalTo("1232"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -214,6 +241,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
         assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
         assertThat(cef.get("source.port"), equalTo("1232"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -234,8 +262,9 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
-        Map<String, String> extensions = (Map<String, String>) cef.get("extensions");
-        assertThat(cef.get("moo"), equalTo("this\\|has an escaped pipe"));
+
+        assertThat(cef.get("extensions.moo"), equalTo("this\\|has an escaped pipe"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -256,8 +285,9 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
-        Map<String, String> extensions = (Map<String, String>) cef.get("extensions");
-        assertThat(cef.get("moo"), equalTo("this|has an pipe"));
+
+        assertThat(cef.get("extensions.moo"), equalTo("this|has an pipe"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -280,9 +310,11 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
-        assertThat(cef.get("moo"), equalTo("this =has = equals="));
         assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
         assertThat(cef.get("source.port"), equalTo("1232"));
+
+        assertThat(cef.get("extensions.moo"), equalTo("this =has = equals="));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -305,7 +337,9 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("10"));
 
         assertThat(cef.get("message"), equalTo("a+b=c"));
-        assertThat(cef.get("x"), equalTo("c\\d=z"));
+
+        assertThat(cef.get("extensions.x"), equalTo("c\\d=z"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -330,15 +364,17 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("2"));
 
         assertThat(cef.get("@timestamp"), equalTo("Sep 07 2018 14:50:39"));
-        assertThat(cef.get("cat"), equalTo("Access Log"));
         assertThat(cef.get("destination.ip"), equalTo("1.1.1.1"));
         assertThat(cef.get("destination.domain"), equalTo("foo.example.com"));
-        assertThat(cef.get("suser"), equalTo("redacted"));
+        assertThat(cef.get("source.user.name"), equalTo("redacted"));
         assertThat(cef.get("source.ip"), equalTo("2.2.2.2"));
         assertThat(cef.get("http.request.method"), equalTo("POST"));
         assertThat(cef.get("url.original"), equalTo("'https://foo.example.com/bar/bingo/1'"));
         assertThat(cef.get("user_agent.original"), equalTo("'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='"));
-        assertThat(cef.get("cs1Label"), equalTo("Foo Bar"));
+
+        assertThat(cef.get("extensions.cat"), equalTo("Access Log"));
+        assertThat(cef.get("extensions.cs1Label"), equalTo("Foo Bar"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -362,10 +398,12 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("Very-High"));
 
         assertThat(cef.get("message"), equalTo("Hello World"));
-        assertThat(cef.get("error"), equalTo("Failed because"));
-        assertThat(cef.get("id"), equalTo("=old_id"));
-        assertThat(cef.get("user"), equalTo("root"));
-        assertThat(cef.get("angle"), equalTo("106.7<=180"));
+
+        assertThat(cef.get("extensions.error"), equalTo("Failed because"));
+        assertThat(cef.get("extensions.id"), equalTo("=old_id"));
+        assertThat(cef.get("extensions.user"), equalTo("root"));
+        assertThat(cef.get("extensions.angle"), equalTo("106.7<=180"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -391,6 +429,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("source.port"), equalTo("1232"));
         assertThat(cef.get("message"), equalTo("Trailing space in non-final extensions is  preserved"));
         assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -415,6 +454,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("source.port"), equalTo("1232"));
         assertThat(cef.get("message"), equalTo("Trailing space in final extensions is not preserved"));
         assertThat(cef.get("destination.port"), equalTo("1234"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -439,6 +479,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("source.port"), equalTo("1232"));
         assertThat(cef.get("message"), equalTo("Tabs\tand\rcontrol\ncharacters are preserved"));
         assertThat(cef.get("source.ip"), equalTo("127.0.0.1"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -462,6 +503,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("source.port"), equalTo("1232"));
         assertThat(cef.get("message"), equalTo("Tab is not a separator"));
         assertThat(cef.get("source.ip"), equalTo("127.0.0.1"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -486,6 +528,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("source.port"), equalTo("1232"));
         assertThat(cef.get("message"), equalTo("Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."));
         assertThat(cef.get("destination.port"), equalTo("4432"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -503,13 +546,17 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("version"), equalTo("0"));
         assertThat(cef.get("device.vendor"), equalTo("SentinelOne"));
         assertThat(cef.get("device.product"), equalTo("Mgmt"));
-        assertThat(cef.get("activityID"), equalTo("1111111111111111111"));
-        assertThat(cef.get("activityType"), equalTo("3505"));
-        assertThat(cef.get("siteId"), equalTo("None"));
-        assertThat(cef.get("siteName"), equalTo("None"));
-        assertThat(cef.get("accountId"), equalTo("1222222222222222222"));
-        assertThat(cef.get("accountName"), equalTo("foo-bar mdr"));
-        assertThat(cef.get("notificationScope"), equalTo("ACCOUNT"));
+
+        assertThat(cef.get("extensions.activityID"), equalTo("1111111111111111111"));
+        assertThat(cef.get("extensions.activityType"), equalTo("3505"));
+        assertThat(cef.get("extensions.siteId"), equalTo("None"));
+        assertThat(cef.get("extensions.siteName"), equalTo("None"));
+        assertThat(cef.get("extensions.accountId"), equalTo("1222222222222222222"));
+        assertThat(cef.get("extensions.accountName"), equalTo("foo-bar mdr"));
+        assertThat(cef.get("extensions.notificationScope"), equalTo("ACCOUNT"));
+
+        // Incomplete Header yields an error message too
+        assertThat((Collection<?>) cef.get("error.message"), equalTo(Collections.singleton("incomplete CEF header")));
     }
 
     @Test
@@ -533,6 +580,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
         assertThat(cef.get("source.port"), equalTo(null));
         assertThat(cef.get("source.ip"), equalTo(null));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -553,7 +601,9 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(cef.get("Some-Key"), equalTo("123456"));
+
+        assertThat(cef.get("extensions.Some-Key"), equalTo("123456"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -649,5 +699,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("source.service.name"), equalTo("service"));
         assertThat(cef.get("event.start"), equalTo("1622547800000"));
         assertThat(cef.get("network.transport"), equalTo("TCP"));
+        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 }

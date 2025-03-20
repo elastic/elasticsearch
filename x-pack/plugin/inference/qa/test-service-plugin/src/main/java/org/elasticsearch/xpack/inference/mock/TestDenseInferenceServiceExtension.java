@@ -185,9 +185,9 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 String input = inputs.get(i);
                 List<String> chunkedInput = chunkInputs(input, chunkingSettings);
                 List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>();
-                int offset = 0;
                 for (String c : chunkedInput) {
-                    offset = input.indexOf(c, offset);
+                    // Note: We have to start with an offset of 0 to account for overlaps
+                    int offset = input.indexOf(c);
                     int endOffset = offset + c.length();
                     chunks.add(
                         new TextEmbeddingFloatResults.Chunk(
@@ -195,7 +195,6 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                             new ChunkedInference.TextOffset(offset, endOffset)
                         )
                     );
-                    offset = endOffset;
                 }
                 ChunkedInferenceEmbedding chunkedInferenceEmbedding = new ChunkedInferenceEmbedding(chunks);
                 results.add(chunkedInferenceEmbedding);

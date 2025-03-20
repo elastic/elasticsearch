@@ -311,7 +311,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, IndexComponentSelector.DATA), is(false));
     }
 
-    public void testDataStreamsAreNotIncludedInAuthorizedIndicesWithFailuresSelector() {
+    public void testDataStreamsAreNotIncludedInAuthorizedIndicesWithFailuresSelectorAndAllPrivilege() {
         assumeTrue("requires failure store", DataStream.isFailureStoreFeatureFlagEnabled());
         RoleDescriptor aStarRole = new RoleDescriptor(
             "a_star",
@@ -323,12 +323,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
             "b",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
-            null
-        );
-        RoleDescriptor cRole = new RoleDescriptor(
-            "c",
-            null,
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ_FAILURE_STORE").build() },
             null
         );
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
@@ -371,7 +365,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             )
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
-        final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole, cRole);
+        final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
         CompositeRolesStore.buildRoleFromDescriptors(
             descriptors,
             new FieldPermissionsCache(Settings.EMPTY),
@@ -405,7 +399,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, IndexComponentSelector.FAILURES), is(false));
     }
 
-    public void testDataStreamsAreIncludedInAuthorizedIndicesWithFailuresSelector() {
+    public void testDataStreamsAreIncludedInAuthorizedIndicesWithFailuresSelectorAndAllPrivilege() {
         assumeTrue("requires failure store", DataStream.isFailureStoreFeatureFlagEnabled());
         RoleDescriptor aStarRole = new RoleDescriptor(
             "a_star",
@@ -417,12 +411,6 @@ public class AuthorizedIndicesTests extends ESTestCase {
             "b",
             null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
-            null
-        );
-        RoleDescriptor cRole = new RoleDescriptor(
-            "b",
-            null,
-            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ_FAILURE_STORE").build() },
             null
         );
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
@@ -465,7 +453,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             )
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
-        final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole, cRole);
+        final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
         CompositeRolesStore.buildRoleFromDescriptors(
             descriptors,
             new FieldPermissionsCache(Settings.EMPTY),
@@ -502,6 +490,168 @@ public class AuthorizedIndicesTests extends ESTestCase {
         assertThat(authorizedIndices.check("ba", IndexComponentSelector.FAILURES), is(false));
         assertThat(authorizedIndices.check(internalSecurityIndex, IndexComponentSelector.DATA), is(false));
         assertThat(authorizedIndices.check(internalSecurityIndex, IndexComponentSelector.FAILURES), is(false));
+        assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, IndexComponentSelector.FAILURES), is(false));
+    }
+
+    public void testDataStreamsAreIncludedInAuthorizedIndicesWithFailuresSelector() {
+        assumeTrue("requires failure store", DataStream.isFailureStoreFeatureFlagEnabled());
+        RoleDescriptor aReadFailuresStarRole = new RoleDescriptor(
+            "a_read_failure_store",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a*").privileges("read_failure_store").build() },
+            null
+        );
+        RoleDescriptor aReadRole = new RoleDescriptor(
+            "a_read",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a*").privileges("read").build() },
+            null
+        );
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        final String internalSecurityIndex = randomFrom(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+        );
+        String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
+        String failureIndex = DataStream.getDefaultFailureStoreName("adatastream1", 1, 1);
+        Metadata metadata = Metadata.builder()
+            .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("bbbbb").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(
+                new IndexMetadata.Builder(internalSecurityIndex).settings(indexSettings)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(new AliasMetadata.Builder(SecuritySystemIndices.SECURITY_MAIN_ALIAS).build())
+                    .build(),
+                true
+            )
+            .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder(failureIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(
+                DataStreamTestHelper.newInstance(
+                    "adatastream1",
+                    List.of(new Index(backingIndex, "_na_")),
+                    List.of(new Index(failureIndex, "_na_"))
+                )
+            )
+            .build();
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final Set<RoleDescriptor> descriptors = Sets.newHashSet(aReadFailuresStarRole, aReadRole);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            descriptors,
+            new FieldPermissionsCache(Settings.EMPTY),
+            null,
+            RESTRICTED_INDICES,
+            future
+        );
+        Role roles = future.actionGet();
+        TransportRequest request = new ResolveIndexAction.Request(new String[] { "a*" });
+        AuthorizationEngine.RequestInfo requestInfo = getRequestInfo(request, TransportSearchAction.TYPE.name());
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+            roles,
+            requestInfo,
+            metadata.getProject().getIndicesLookup(),
+            () -> ignore -> {}
+        );
+        assertAuthorizedFor(
+            authorizedIndices,
+            IndexComponentSelector.DATA,
+            "a1",
+            "a2",
+            "aaaaaa",
+            "adatastream1",
+            backingIndex,
+            failureIndex
+        );
+        assertAuthorizedFor(authorizedIndices, IndexComponentSelector.FAILURES, "adatastream1", failureIndex);
+        assertThat(authorizedIndices.all(IndexComponentSelector.DATA), not(contains("bbbbb")));
+        assertThat(authorizedIndices.check("bbbbb", IndexComponentSelector.DATA), is(false));
+        assertThat(authorizedIndices.check("bbbbb", IndexComponentSelector.FAILURES), is(false));
+        assertThat(authorizedIndices.check("ba", IndexComponentSelector.DATA), is(false));
+        assertThat(authorizedIndices.check("ba", IndexComponentSelector.FAILURES), is(false));
+        assertThat(authorizedIndices.check(internalSecurityIndex, IndexComponentSelector.DATA), is(false));
+        assertThat(authorizedIndices.check(internalSecurityIndex, IndexComponentSelector.FAILURES), is(false));
+        assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, IndexComponentSelector.FAILURES), is(false));
+    }
+
+    public void testDataStreamsAreNotIncludedInAuthorizedIndicesWithFailuresSelector() {
+        assumeTrue("requires failure store", DataStream.isFailureStoreFeatureFlagEnabled());
+        RoleDescriptor aReadFailuresStarRole = new RoleDescriptor(
+            "a_read_failure_store",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a*").privileges("read_failure_store").build() },
+            null
+        );
+        RoleDescriptor aReadRole = new RoleDescriptor(
+            "a_read",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a*").privileges("read").build() },
+            null
+        );
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+        final String internalSecurityIndex = randomFrom(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
+        );
+        String backingIndex = DataStream.getDefaultBackingIndexName("adatastream1", 1);
+        String failureIndex = DataStream.getDefaultFailureStoreName("adatastream1", 1, 1);
+        Metadata metadata = Metadata.builder()
+            .put(new IndexMetadata.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("a2").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("aaaaaa").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder("bbbbb").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(
+                new IndexMetadata.Builder(internalSecurityIndex).settings(indexSettings)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .putAlias(new AliasMetadata.Builder(SecuritySystemIndices.SECURITY_MAIN_ALIAS).build())
+                    .build(),
+                true
+            )
+            .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(new IndexMetadata.Builder(failureIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
+            .put(
+                DataStreamTestHelper.newInstance(
+                    "adatastream1",
+                    List.of(new Index(backingIndex, "_na_")),
+                    List.of(new Index(failureIndex, "_na_"))
+                )
+            )
+            .build();
+        final PlainActionFuture<Role> future = new PlainActionFuture<>();
+        final Set<RoleDescriptor> descriptors = Sets.newHashSet(aReadFailuresStarRole, aReadRole);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            descriptors,
+            new FieldPermissionsCache(Settings.EMPTY),
+            null,
+            RESTRICTED_INDICES,
+            future
+        );
+        Role roles = future.actionGet();
+        AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
+            roles,
+            getRequestInfo(TransportSearchAction.TYPE.name()),
+            metadata.getProject().getIndicesLookup(),
+            () -> ignore -> {}
+        );
+        assertAuthorizedFor(authorizedIndices, IndexComponentSelector.DATA, "a1", "a2", "aaaaaa");
+        assertAuthorizedFor(authorizedIndices, IndexComponentSelector.FAILURES);
+
+        assertThat(authorizedIndices.check("bbbbb", IndexComponentSelector.DATA), is(false));
+        assertThat(authorizedIndices.check("bbbbb", IndexComponentSelector.FAILURES), is(false));
+
+        assertThat(authorizedIndices.check("ba", IndexComponentSelector.DATA), is(false));
+        assertThat(authorizedIndices.check("ba", IndexComponentSelector.FAILURES), is(false));
+
+        // data are authorized when explicitly tested (they are not "unavailable" for the Security filter)
+        assertThat(authorizedIndices.check("adatastream1", IndexComponentSelector.DATA), is(true));
+        assertThat(authorizedIndices.check("adatastream1", IndexComponentSelector.FAILURES), is(true));
+
+        assertThat(authorizedIndices.check(internalSecurityIndex, IndexComponentSelector.DATA), is(false));
+        assertThat(authorizedIndices.check(internalSecurityIndex, IndexComponentSelector.FAILURES), is(false));
+        assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, IndexComponentSelector.DATA), is(false));
         assertThat(authorizedIndices.check(SecuritySystemIndices.SECURITY_MAIN_ALIAS, IndexComponentSelector.FAILURES), is(false));
     }
 

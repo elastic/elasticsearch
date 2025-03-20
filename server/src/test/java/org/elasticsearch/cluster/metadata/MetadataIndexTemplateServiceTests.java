@@ -1563,14 +1563,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Component A: "lifecycle": {"retention": "30d"}
         // Component B: "lifecycle": {"retention": null}
         // Composable Z: -
-        // Result: "lifecycle": {"enabled": true, "retention": null}, here the result of the composition is with retention explicitly
+        // Result: "lifecycle": {"enabled": true}, here the result of the composition is with retention explicitly
         // nullified, but effectively this is equivalent to infinite retention.
-        assertLifecycleResolution(service, project, List.of(ct30d, ctNullRetention), null, lifecycleNullRetention);
+        assertLifecycleResolution(service, project, List.of(ct30d, ctNullRetention), null, DataStreamLifecycle.Template.DEFAULT);
 
         // Component A: "lifecycle": {"enabled": true}
         // Component B: "lifecycle": {"retention": "45d", "downsampling": [{"after": "30d", "fixed_interval": "3h"}]}
         // Composable Z: "lifecycle": {"retention": null}
-        // Result: "lifecycle": {"enabled": true, "retention": null, "downsampling": [{"after": "30d", "fixed_interval": "3h"}]} ,
+        // Result: "lifecycle": {"enabled": true, "downsampling": [{"after": "30d", "fixed_interval": "3h"}]} ,
         // here the result of the composition is with retention explicitly nullified, but effectively this is equivalent to infinite
         // retention.
         assertLifecycleResolution(

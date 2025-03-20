@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
@@ -127,7 +128,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -752,17 +752,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 rerank = rerank.withRerankFields(newFields);
             }
 
-            // Ensure the score attribute is resolved
+            // Ensure the score attribute is present in the output.
             if (rerank.scoreAttribute() instanceof UnresolvedAttribute ua) {
                 Attribute resolved = resolveAttribute(ua, childrenOutput);
-                if (resolved.resolved() == false) {
-                    resolved = ua.withUnresolvedMessage(format(null, "Missing required column [{}] for RERANK", MetadataAttribute.SCORE));
-                } else if (resolved.dataType() != DOUBLE) {
-                    resolved = ua.withUnresolvedMessage(
-                        format("_score has the wrong type; [{}] expected but got [{}]", DataType.DOUBLE, resolved.dataType())
-                    );
+                if (resolved.resolved() == false || resolved.dataType() != DOUBLE) {
+                    resolved = MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE);
                 }
-
                 rerank = rerank.withScoreAttribute(resolved);
             }
 
@@ -1081,7 +1076,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             var u = resolved;
                             var previousAliasName = reverseAliasing.get(resolved.name());
                             if (previousAliasName != null) {
-                                String message = format(
+                                String message = LoggerMessageFormat.format(
                                     null,
                                     "Column [{}] renamed to [{}] and is no longer available [{}]",
                                     resolved.name(),
@@ -1491,7 +1486,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static UnresolvedAttribute unresolvedAttribute(Expression value, String type, Exception e) {
-            String message = format(
+            String message = LoggerMessageFormat.format(
                 "Cannot convert string [{}] to [{}], error [{}]",
                 value.fold(FoldContext.small() /* TODO remove me */),
                 type,

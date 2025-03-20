@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
 public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogicalPlan {
 
@@ -41,6 +43,7 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
     private final Attribute scoreAttribute;
     private final Expression queryText;
     private final List<Alias> rerankFields;
+    private List<Attribute> lazyOutput;
 
     public Rerank(Source source, LogicalPlan child, Expression inferenceId, Expression queryText, List<Alias> rerankFields) {
         super(source, child, inferenceId);
@@ -126,7 +129,11 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
     @Override
     protected AttributeSet computeReferences() {
         AttributeSet refs = computeReferences(rerankFields);
-        refs.add(scoreAttribute);
+
+        if (planHasAttribute(child(), scoreAttribute)) {
+            refs.add(scoreAttribute);
+        }
+
         return refs;
     }
 
@@ -165,5 +172,20 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
     public LogicalPlan surrogate() {
         Order sortOrder = new Order(source(), scoreAttribute, Order.OrderDirection.DESC, Order.NullsPosition.ANY);
         return new OrderBy(source(), this, List.of(sortOrder));
+    }
+
+    @Override
+    public List<Attribute> output() {
+        if (lazyOutput == null) {
+            lazyOutput = planHasAttribute(child(), scoreAttribute)
+                ? child().output()
+                : mergeOutputAttributes(List.of(scoreAttribute), child().output());
+        }
+
+        return lazyOutput;
+    }
+
+    public static boolean planHasAttribute(QueryPlan<?> plan, Attribute attribute) {
+        return plan.output().stream().anyMatch(attr -> attr.equals(attribute));
     }
 }

@@ -568,11 +568,18 @@ public class LocalExecutionPlanner {
 
         String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
         String queryText = BytesRefs.toString(rerank.queryText().fold(context.foldCtx));
-        int scoreChannel = source.layout.get(rerank.scoreAttribute().id()).channel();
+
+        Layout.Builder layoutBuilder = source.layout.builder();
+        if (source.layout.get(rerank.scoreAttribute().id()) == null) {
+            layoutBuilder.append(rerank.scoreAttribute());
+        }
+        Layout outputLayout = layoutBuilder.build();
+
+        int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
             new RerankOperator.Factory(inferenceService, inferenceId, queryText, rerankFieldsEvaluatorSuppliers, scoreChannel),
-            source.layout
+            outputLayout
         );
     }
 

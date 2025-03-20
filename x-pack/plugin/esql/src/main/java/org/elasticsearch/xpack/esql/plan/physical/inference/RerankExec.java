@@ -12,16 +12,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+import static org.elasticsearch.xpack.esql.plan.logical.inference.Rerank.planHasAttribute;
 
 public class RerankExec extends InferenceExec {
 
@@ -93,6 +98,26 @@ public class RerankExec extends InferenceExec {
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
         return new RerankExec(source(), newChild, inferenceId(), queryText, rerankFields, scoreAttribute);
+    }
+
+    @Override
+    public List<Attribute> output() {
+        if (planHasAttribute(child(), scoreAttribute)) {
+            return child().output();
+        }
+
+        return mergeOutputAttributes(List.of(scoreAttribute), child().output());
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        AttributeSet refs = Rerank.computeReferences(rerankFields);
+
+        if (planHasAttribute(child(), scoreAttribute)) {
+            refs.add(scoreAttribute);
+        }
+
+        return refs;
     }
 
     @Override

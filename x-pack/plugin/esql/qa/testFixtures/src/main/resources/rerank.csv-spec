@@ -74,3 +74,22 @@ book_no:keyword | title:text                         | author:text              
 4536            | War and Peace (Signet Classics)    | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
 9032            | War and Peace: A Novel (6 Volumes) | Tolstoy Leo                                 | 0.02083333395421505
 ;
+
+
+reranker add the _score column when missing
+required_capability: rerank
+required_capability: match_function
+
+FROM books
+| WHERE title:"war and peace" AND author:"Tolstoy"
+| RERANK "war and peace" ON title WITH "test_reranker"
+| KEEP book_no, title, author, _score
+;
+
+
+book_no:keyword | title:text                                            | author:text                                 | _score:double
+5327            | War and Peace                                         | Leo Tolstoy                                 | 0.03846153989434242
+4536            | War and Peace (Signet Classics)                       | [John Hockenberry, Leo Tolstoy, Pat Conroy] | 0.02222222276031971
+9032            | War and Peace: A Novel (6 Volumes)                    | Tolstoy Leo                                 | 0.02083333395421505
+2776            | The Devil and Other Stories (Oxford World's Classics) | Leo Tolstoy                                 | 0.01515151560306549
+;

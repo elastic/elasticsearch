@@ -3358,6 +3358,10 @@ public class AnalyzerTests extends ESTestCase {
             assertThat(rerank.queryText(), equalTo(string("italian food recipe")));
             assertThat(rerank.inferenceId(), equalTo(string("reranking-inference-id")));
             assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", titleAttribute))));
+            assertThat(
+                rerank.scoreAttribute(),
+                equalTo(relation.output().stream().filter(attr -> attr.name().equals(MetadataAttribute.SCORE)).findFirst().get())
+            );
         }
 
         {
@@ -3397,6 +3401,10 @@ public class AnalyzerTests extends ESTestCase {
             Attribute yearAttribute = relation.output().stream().filter(attribute -> attribute.name().equals("year")).findFirst().get();
             assertThat(yearAttribute, notNullValue());
             assertThat(rerank.rerankFields().get(2), equalTo(alias("yearRenamed", yearAttribute)));
+            assertThat(
+                rerank.scoreAttribute(),
+                equalTo(relation.output().stream().filter(attr -> attr.name().equals(MetadataAttribute.SCORE)).findFirst().get())
+            );
         }
 
         {
@@ -3412,15 +3420,46 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testRerankRequiresScore() {
-        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
+    public void testResolveRerankScoreFields() {
+        {
+            // When the metadata field is required in FROM, it is reused.
+            LogicalPlan plan = analyze("""
+                FROM books METADATA _score
+                | WHERE title:"italian food recipe" OR description:"italian food recipe"
+                | RERANK "italian food recipe" ON title WITH "reranking-inference-id"
+                """, "mapping-books.json");
 
-        VerificationException ve = expectThrows(
-            VerificationException.class,
-            () -> analyze("FROM books | RERANK \"italian food recipe\" ON title WITH \"reranking-inference-id\"", "mapping-books.json")
+            Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
+            Rerank rerank = as(limit.child(), Rerank.class);
+            Filter filter = as(rerank.child(), Filter.class);
+            EsRelation relation = as(filter.child(), EsRelation.class);
 
-        );
-        assertThat(ve.getMessage(), containsString("Missing required column [_score] for RERANK"));
+            Attribute metadataScoreAttribute = relation.output()
+                .stream()
+                .filter(attr -> attr.name().equals(MetadataAttribute.SCORE))
+                .findFirst()
+                .get();
+            assertThat(rerank.scoreAttribute(), equalTo(metadataScoreAttribute));
+            assertThat(rerank.output(), hasItem(metadataScoreAttribute));
+        }
+
+        {
+            // When the metadata field is not required in FROM, it is added to the output of RERANK
+            LogicalPlan plan = analyze("""
+                FROM books
+                | WHERE title:"italian food recipe" OR description:"italian food recipe"
+                | RERANK "italian food recipe" ON title WITH "reranking-inference-id"
+                """, "mapping-books.json");
+
+            Limit limit = as(plan, Limit.class); // Implicit limit added by AddImplicitLimit rule.
+            Rerank rerank = as(limit.child(), Rerank.class);
+            Filter filter = as(rerank.child(), Filter.class);
+            EsRelation relation = as(filter.child(), EsRelation.class);
+
+            assertThat(relation.output().stream().noneMatch(attr -> attr.name().equals(MetadataAttribute.SCORE)), is(true));
+            assertThat(rerank.scoreAttribute(), equalTo(MetadataAttribute.create(EMPTY, MetadataAttribute.SCORE)));
+            assertThat(rerank.output(), hasItem(rerank.scoreAttribute()));
+        }
     }
 
     @Override

@@ -156,7 +156,7 @@ public class RerankOperator extends AsyncOperator<Page> {
     }
 
     private Page buildOutput(Page inputPage, RankedDocsResults rankedDocsResults) {
-        int blockCount = inputPage.getBlockCount();
+        int blockCount = Integer.max(inputPage.getBlockCount(), scoreChannel + 1);
         Block[] blocks = new Block[blockCount];
 
         try {

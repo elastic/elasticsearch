@@ -301,6 +301,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
 
                     for (String sourceField : inferenceFieldMetadata.getSourceFields()) {
+                        // TODO: Improve this check. Still need to generate a second copy of source when clearing inference results in an
+                        // update request.
                         var valueObj = XContentMapValues.extractValue(sourceField, docMap);
                         if (valueObj == null) {
                             continue;
@@ -316,6 +318,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                         for (String v : values) {
                             // TODO: Estimate chunk count based on string length
+                            // TODO: Handle empty input here. No embeddings will be generated for such input.
                             estimatedEmbeddingBytes += switch (minimalServiceSettings.taskType()) {
                                 case SPARSE_EMBEDDING -> 128; // TODO: Estimate sparse embedding size
                                 case TEXT_EMBEDDING -> minimalServiceSettings.elementType()

@@ -390,9 +390,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/610_function_score/Random}
   issue: https://github.com/elastic/elasticsearch/issues/125010
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test010Install
-  issue: https://github.com/elastic/elasticsearch/issues/119441
 - class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
   method: testGetDataStreamResponse
   issue: https://github.com/elastic/elasticsearch/issues/125083

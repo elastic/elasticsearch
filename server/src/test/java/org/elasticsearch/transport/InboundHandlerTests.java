@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -171,19 +170,19 @@ public class InboundHandlerTests extends ESTestCase {
         );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        final Writeable body = new TestRequest(requestValue);
-        OutboundMessage.Request request = new OutboundMessage.Request(
-            threadPool.getThreadContext(),
-            body,
-            TransportVersion.current(),
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        BytesReference fullRequestBytes = OutboundHandler.serialize(
             action,
             requestId,
             false,
-            null
+            TransportVersion.current(),
+            false,
+            null,
+            new TestRequest(requestValue),
+            threadPool.getThreadContext(),
+            new RecyclerBytesStreamOutput(recycler)
         );
 
-        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        BytesReference fullRequestBytes = request.serialize(body, new RecyclerBytesStreamOutput(recycler));
         BytesReference requestContent = fullRequestBytes.slice(TcpHeader.HEADER_SIZE, fullRequestBytes.length() - TcpHeader.HEADER_SIZE);
         Header requestHeader = new Header(
             fullRequestBytes.length() - 6,

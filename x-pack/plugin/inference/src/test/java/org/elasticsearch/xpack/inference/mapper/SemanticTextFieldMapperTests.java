@@ -644,7 +644,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
             Model model1 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
             Model model2 = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
-            ChunkingSettings chunkingSettings = generateRandomChunkingSettings();
+            ChunkingSettings chunkingSettings = null; // Some chunking settings configs can produce different Lucene docs counts
             XContentBuilder mapping = mapping(b -> {
                 addSemanticTextMapping(b, fieldName1, model1.getInferenceEntityId(), setSearchInferenceId ? searchInferenceId : null);
                 addSemanticTextMapping(b, fieldName2, model2.getInferenceEntityId(), setSearchInferenceId ? searchInferenceId : null);

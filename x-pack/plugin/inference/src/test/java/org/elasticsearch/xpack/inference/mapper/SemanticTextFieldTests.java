@@ -319,7 +319,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             return null; // Use model defaults
         }
         return randomBoolean()
-            ? new WordBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(0, 10))
+            ? new WordBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(1, 10))
             : new SentenceBoundaryChunkingSettings(randomIntBetween(20, 100), randomIntBetween(0, 1));
     }
 

@@ -37,7 +37,7 @@ setup:
       indices.refresh: {}
 
 ---
-"Field caps":
+Field caps:
 
   - do:
       field_caps:
@@ -48,7 +48,7 @@ setup:
   - match: { fields.foo.text.aggregatable: true }
 
 ---
-"Exist query":
+Exist query:
 
   - do:
       search:
@@ -62,7 +62,7 @@ setup:
   - match: { "hits.hits.0._score": 1.0 }
 
 ---
-"Match query":
+Match query:
 
   - do:
       search:
@@ -76,7 +76,7 @@ setup:
   - match: { "hits.hits.0._score": 1.0 }
 
 ---
-"Match Phrase query":
+Match Phrase query:
 
   - do:
       search:
@@ -90,7 +90,7 @@ setup:
   - match: { "hits.hits.0._score": 1.0 }
 
 ---
-"Match Phrase Prefix query":
+Match Phrase Prefix query:
 
   - do:
       search:
@@ -104,7 +104,20 @@ setup:
   - match: { "hits.hits.0._score": 1.0 }
 
 ---
-"Query String query with phrase":
+Match template query:
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match:
+              foo.template: powers
+
+  - match: { "hits.total.value": 1 }
+
+---
+Query String query with phrase:
 
   - do:
       search:
@@ -121,7 +134,7 @@ setup:
 
 
 ---
-"Regexp query":
+Regexp query:
 
   - do:
       search:
@@ -135,7 +148,7 @@ setup:
   - match: { "hits.hits.0._score": 1.0 }
 
 ---
-"Wildcard query":
+Wildcard query:
 
   - do:
       search:
@@ -149,7 +162,7 @@ setup:
   - match: { "hits.hits.0._score": 1.0 }
 
 ---
-"Prefix query":
+Prefix query:
 
   - do:
       search:
@@ -163,7 +176,7 @@ setup:
   - match: { "hits.hits.0._score": 1.0 }
 
 ---
-"Fuzzy query":
+Fuzzy query:
 
   - do:
       search:
@@ -177,9 +190,10 @@ setup:
   - match: { "hits.hits.0._score": 1.0 }
 
 ---
-"Span query":
+Span query:
 
   - do:
+      catch: bad_request
       search:
         index: test
         body:
@@ -187,10 +201,8 @@ setup:
             span_term:
               foo: lucene
 
-  - match: { "hits.total.value": 3 }
-
 ---
-"Term intervals query":
+Term intervals query:
 
   - do:
       search:
@@ -206,7 +218,7 @@ setup:
   - match: { "hits.total.value": 2 }
 
 ---
-"Prefix intervals query":
+Prefix intervals query:
 
   - do:
       search:
@@ -221,7 +233,7 @@ setup:
   - match: { "hits.total.value": 3 }
 
 ---
-"Wildcard intervals query":
+Wildcard intervals query:
 
   - do:
       search:
@@ -236,7 +248,7 @@ setup:
   - match: { "hits.total.value": 1 }
 
 ---
-"Fuzzy intervals query":
+Fuzzy intervals query:
 
   - do:
       search:
@@ -251,7 +263,7 @@ setup:
   - match: { "hits.total.value": 3 }
 
 ---
-"Wildcard highlighting":
+Wildcard highlighting:
 
   - do:
       search:
@@ -267,6 +279,27 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.foo: "The Apache Software Foundation manages many projects including Lucene" }
   - match: { hits.hits.0.highlight.foo.0: "The Apache Software Foundation manages <em>many</em> projects including Lucene" }
+
+---
+Terms aggregation:
+
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            term_agg:
+              terms:
+                field: foo.template
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.term_agg.buckets: 10 }
+  - match: { aggregations.term_agg.buckets.0.key: apache }
+  - match: { aggregations.term_agg.buckets.0.doc_count: 3 }
+  - match: { aggregations.term_agg.buckets.1.key: lucene }
+  - match: { aggregations.term_agg.buckets.1.doc_count: 3 }
+  - match: { aggregations.term_agg.buckets.2.key: elasticsearch }
+  - match: { aggregations.term_agg.buckets.2.doc_count: 2 }
 
 ---
 synthetic_source:

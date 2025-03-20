@@ -18,7 +18,7 @@ import static java.util.Collections.singletonMap;
 public class PatternedTextMapperPlugin extends Plugin implements MapperPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(PatternedTextFieldMapper.CONTENT_TYPE, PatternedTextFieldMapper.PARSER);
+        return singletonMap(PatternedTextFieldType.CONTENT_TYPE, PatternedTextFieldMapper.PARSER);
     }
 
 }

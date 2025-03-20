@@ -13,10 +13,11 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
@@ -34,7 +35,6 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.hamcrest.Matchers;
 
@@ -47,13 +47,13 @@ import java.util.function.Supplier;
 public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         assertEquals(new ConstantScoreQuery(new TermQuery(new Term("field", "foo"))), ft.termQuery("foo", null));
         assertEquals(AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "fOo")), ft.termQueryCaseInsensitive("fOo", null));
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         List<BytesRef> terms = new ArrayList<>();
         terms.add(new BytesRef("foo"));
         terms.add(new BytesRef("bar"));
@@ -61,7 +61,7 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRangeQuery() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         assertEquals(
             new TermRangeQuery("field", BytesRefs.toBytesRef("foo"), BytesRefs.toBytesRef("bar"), true, false),
             ft.rangeQuery("foo", "bar", true, false, null, null, null, MOCK_CONTEXT)
@@ -78,7 +78,7 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpQuery() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_CONTEXT));
 
         ElasticsearchException ee = expectThrows(
@@ -89,7 +89,7 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyQuery() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         assertEquals(
             new ConstantScoreQuery(new FuzzyQuery(new Term("field", "foo"), 2, 1, 50, true)),
             ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true, MOCK_CONTEXT)
@@ -116,7 +116,7 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
             return doc;
         };
 
-        MappedFieldType fieldType = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType fieldType = new PatternedTextFieldType("field");
         assertEquals(List.of("value"), fetchDocValues(fieldType, documentSupplier));
     }
 
@@ -126,47 +126,69 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testPhraseQuery() throws IOException {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 4, 7));
         Query query = ft.phraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
-        assertEquals(new PhraseQuery("field", "a", "b"), delegate);
-        assertNotEquals(new MatchAllDocsQuery(), SourceConfirmedTextQuery.approximate(delegate));
+        assertEquals(
+            new BooleanQuery.Builder().add(new PhraseQuery("field", "a", "b"), BooleanClause.Occur.SHOULD)
+                .add(new PhraseQuery("field.template", "a", "b"), BooleanClause.Occur.SHOULD)
+                .build()
+                .toString(),
+            delegate.toString()
+        );
     }
 
     public void testMultiPhraseQuery() throws IOException {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 0, 0, 3), new Token("c", 4, 7));
         Query query = ft.multiPhraseQuery(ts, 0, true, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
-        MultiPhraseQuery expected = new MultiPhraseQuery.Builder().add(new Term[] { new Term("field", "a"), new Term("field", "b") })
-            .add(new Term("field", "c"))
+        Query expected = new BooleanQuery.Builder().add(
+            new MultiPhraseQuery.Builder().add(new Term[] { new Term("field", "a"), new Term("field", "b") })
+                .add(new Term("field", "c"))
+                .build(),
+            BooleanClause.Occur.SHOULD
+        )
+            .add(
+                new MultiPhraseQuery.Builder().add(new Term[] { new Term("field.template", "a"), new Term("field.template", "b") })
+                    .add(new Term("field.template", "c"))
+                    .build(),
+                BooleanClause.Occur.SHOULD
+            )
             .build();
-        assertEquals(expected, delegate);
-        assertNotEquals(new MatchAllDocsQuery(), SourceConfirmedTextQuery.approximate(delegate));
+        assertEquals(expected.toString(), delegate.toString());
     }
 
     public void testPhrasePrefixQuery() throws IOException {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 0, 0, 3), new Token("c", 4, 7));
         Query query = ft.phrasePrefixQuery(ts, 0, 10, MOCK_CONTEXT);
         Query delegate = unwrapPositionalQuery(query);
         MultiPhrasePrefixQuery expected = new MultiPhrasePrefixQuery("field");
         expected.add(new Term[] { new Term("field", "a"), new Term("field", "b") });
         expected.add(new Term("field", "c"));
-        assertEquals(expected, delegate);
-        assertNotEquals(new MatchAllDocsQuery(), SourceConfirmedTextQuery.approximate(delegate));
+        MultiPhrasePrefixQuery expectedTemplate = new MultiPhrasePrefixQuery("field.template");
+        expectedTemplate.add(new Term[] { new Term("field.template", "a"), new Term("field.template", "b") });
+        expectedTemplate.add(new Term("field.template", "c"));
+        assertEquals(
+            new BooleanQuery.Builder().add(expected, BooleanClause.Occur.SHOULD)
+                .add(expectedTemplate, BooleanClause.Occur.SHOULD)
+                .build()
+                .toString(),
+            delegate.toString()
+        );
     }
 
     public void testTermIntervals() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(termIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(Intervals.term(new BytesRef("foo")), ((SourceIntervalsSource) termIntervals).getIntervalsSource());
     }
 
     public void testPrefixIntervals() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(prefixIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -176,7 +198,7 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testWildcardIntervals() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(wildcardIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -186,7 +208,7 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testRegexpIntervals() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(regexpIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(
@@ -196,13 +218,13 @@ public class PatternedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFuzzyIntervals() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         assertThat(fuzzyIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
     }
 
     public void testRangeIntervals() {
-        MappedFieldType ft = new PatternedTextFieldMapper.Type("field");
+        MappedFieldType ft = new PatternedTextFieldType("field");
         IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
         assertThat(rangeIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(

@@ -31,7 +31,19 @@ public class PatternedTextValueProcessor {
         "^(\\d{4})[-/](\\d{2})[-/](\\d{2})[T ](\\d{2}):(\\d{2}):(\\d{2})(\\.(\\d{3})Z?)?[ ]?([\\+\\-]\\d{2}([:]?\\d{2})?)?$"
     );
 
-    record Parts(String template, Long timestamp, List<String> args, String indexed) {}
+    record Parts(String template, Long timestamp, List<String> args, String indexed) {
+        String templateStripped() {
+            List<String> stripped = new ArrayList<>();
+            String[] parts = template.split(SPACE);
+            for (String part : parts) {
+                if (part.startsWith("%") == false) {
+                    stripped.add(part);
+                }
+            }
+            return String.join(SPACE, stripped);
+        }
+
+    }
 
     static Parts split(String text) {
         StringBuilder template = new StringBuilder();

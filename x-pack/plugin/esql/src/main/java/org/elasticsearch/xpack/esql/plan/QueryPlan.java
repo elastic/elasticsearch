@@ -156,10 +156,26 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
                     transformed.set(i, next);
                 }
             }
-
+            return hasChanged ? transformed : arg;
+        } else if (arg instanceof Collection<?> c) {
+            List<Object> transformed = null;
+            boolean hasChanged = false;
+            int i = 0;
+            for (Object e : c) {
+                Object next = doTransformExpression(e, traversal);
+                if (e.equals(next) == false) {
+                    if (hasChanged == false) {
+                        hasChanged = true;
+                        // TODO if collection is a set then this silently changes its semantics by allowing duplicates
+                        // We should fix it or confirm this branch is never needed
+                        transformed = new ArrayList<>(c);
+                    }
+                    transformed.set(i, next);
+                }
+                i++;
+            }
             return hasChanged ? transformed : arg;
         }
-        assert arg instanceof Collection<?> == false : "Non-List Collection implementations are not supported";
 
         return arg;
     }

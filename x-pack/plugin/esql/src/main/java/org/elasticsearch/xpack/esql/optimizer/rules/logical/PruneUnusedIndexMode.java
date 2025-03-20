@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -23,7 +25,7 @@ public final class PruneUnusedIndexMode extends OptimizerRules.OptimizerRule<EsR
     @Override
     protected LogicalPlan rule(EsRelation r) {
         if (r.indexMode() == IndexMode.TIME_SERIES) {
-            if (r.output().stream().anyMatch(a -> a.name().equals(MetadataAttribute.TSID_FIELD)) == false) {
+            if (Expressions.anyMatch(r.output(), a -> MetadataAttribute.TSID_FIELD.equals(((Attribute) a).name())) == false) {
                 return new EsRelation(r.source(), r.indexPattern(), IndexMode.STANDARD, r.indexNameWithModes(), r.output());
             }
         }

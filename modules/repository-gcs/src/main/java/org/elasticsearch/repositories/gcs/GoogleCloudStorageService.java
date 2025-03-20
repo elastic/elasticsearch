@@ -14,6 +14,7 @@ import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.util.SecurityUtils;
+import com.google.api.gax.retrying.ResultRetryAlgorithm;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 import com.google.cloud.ServiceOptions;
@@ -24,6 +25,7 @@ import com.google.cloud.storage.StorageRetryStrategy;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.OperationPurpose;
@@ -41,6 +43,7 @@ import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URI;
 import java.net.URL;
+import java.net.UnknownHostException;
 import java.security.KeyStore;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -207,7 +210,7 @@ public class GoogleCloudStorageService {
         final HttpTransportOptions httpTransportOptions
     ) {
         final StorageOptions.Builder storageOptionsBuilder = StorageOptions.newBuilder()
-            .setStorageRetryStrategy(StorageRetryStrategy.getLegacyStorageRetryStrategy())
+            .setStorageRetryStrategy(getRetryStrategy())
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 return Strings.hasLength(gcsClientSettings.getApplicationName())
@@ -262,6 +265,19 @@ public class GoogleCloudStorageService {
             storageOptionsBuilder.setCredentials(serviceAccountCredentials);
         }
         return storageOptionsBuilder.build();
+    }
+
+    protected StorageRetryStrategy getRetryStrategy() {
+        return ShouldRetryDecorator.decorate(
+            StorageRetryStrategy.getLegacyStorageRetryStrategy(),
+            (Throwable prevThrowable, Object prevResponse, ResultRetryAlgorithm<Object> delegate) -> {
+                // Retry in the event of an unknown host exception
+                if (ExceptionsHelper.unwrap(prevThrowable, UnknownHostException.class) != null) {
+                    return true;
+                }
+                return delegate.shouldRetry(prevThrowable, prevResponse);
+            }
+        );
     }
 
     /**

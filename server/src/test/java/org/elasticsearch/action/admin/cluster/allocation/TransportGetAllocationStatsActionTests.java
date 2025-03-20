@@ -29,6 +29,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CyclicBarrier;
@@ -40,7 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,33 +88,43 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
     }
 
     public void testReturnsOnlyRequestedStats() throws Exception {
+        int expectedNumberOfStatsServiceCalls = 0;
 
-        var metrics = EnumSet.copyOf(randomSubsetOf(Metric.values().length, Metric.values()));
+        for (final var metrics : List.of(
+            EnumSet.of(Metric.ALLOCATIONS, Metric.FS),
+            EnumSet.of(Metric.ALLOCATIONS),
+            EnumSet.of(Metric.FS),
+            EnumSet.noneOf(Metric.class),
+            EnumSet.allOf(Metric.class),
+            EnumSet.copyOf(randomSubsetOf(between(1, Metric.values().length), EnumSet.allOf(Metric.class)))
+        )) {
+            var request = new TransportGetAllocationStatsAction.Request(
+                TimeValue.ONE_MINUTE,
+                new TaskId(randomIdentifier(), randomNonNegativeLong()),
+                metrics
+            );
 
-        var request = new TransportGetAllocationStatsAction.Request(
-            TimeValue.ONE_MINUTE,
-            new TaskId(randomIdentifier(), randomNonNegativeLong()),
-            metrics
-        );
+            when(allocationStatsService.stats()).thenReturn(
+                Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats())
+            );
 
-        when(allocationStatsService.stats()).thenReturn(Map.of(randomIdentifier(), NodeAllocationStatsTests.randomNodeAllocationStats()));
+            var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
+            action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);
+            var response = future.get();
 
-        var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
-        action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);
-        var response = future.get();
+            if (metrics.contains(Metric.ALLOCATIONS)) {
+                assertThat(response.getNodeAllocationStats(), not(anEmptyMap()));
+                verify(allocationStatsService, times(++expectedNumberOfStatsServiceCalls)).stats();
+            } else {
+                assertThat(response.getNodeAllocationStats(), anEmptyMap());
+                verify(allocationStatsService, times(expectedNumberOfStatsServiceCalls)).stats();
+            }
 
-        if (metrics.contains(Metric.ALLOCATIONS)) {
-            assertThat(response.getNodeAllocationStats(), not(anEmptyMap()));
-            verify(allocationStatsService).stats();
-        } else {
-            assertThat(response.getNodeAllocationStats(), anEmptyMap());
-            verify(allocationStatsService, never()).stats();
-        }
-
-        if (metrics.contains(Metric.FS)) {
-            assertNotNull(response.getDiskThresholdSettings());
-        } else {
-            assertNull(response.getDiskThresholdSettings());
+            if (metrics.contains(Metric.FS)) {
+                assertNotNull(response.getDiskThresholdSettings());
+            } else {
+                assertNull(response.getDiskThresholdSettings());
+            }
         }
     }
 

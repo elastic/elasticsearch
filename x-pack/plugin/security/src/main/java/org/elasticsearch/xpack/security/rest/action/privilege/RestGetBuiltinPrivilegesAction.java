@@ -42,7 +42,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestGetBuiltinPrivilegesAction.class);
     // TODO remove this once we can update docs tests again
-    private static final Set<String> FAILURE_STORE_PRIVILEGES_TO_EXCLUDE = Set.of("read_failure_store");
+    private static final Set<String> FAILURE_STORE_PRIVILEGES_TO_EXCLUDE = Set.of("read_failure_store", "manage_failure_store");
     private final GetBuiltinPrivilegesResponseTranslator responseTranslator;
 
     public RestGetBuiltinPrivilegesAction(

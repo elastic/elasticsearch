@@ -111,16 +111,20 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 validateClusterString(clusterString, c);
                 // Do not allow selectors on remote cluster expressions until they are supported
                 if (selectorString != null) {
-                    InvalidIndexNameException ie = new InvalidIndexNameException(
-                        reassembleIndexName(clusterString, indexPattern, selectorString),
-                        "Selectors are not yet supported on remote cluster patterns"
-                    );
-                    throw new ParsingException(ie, source(c), ie.getMessage());
+                    throwOnMixingSelectorWithCluster(reassembleIndexName(clusterString, indexPattern, selectorString), c);
                 }
             }
             patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
         });
         return Strings.collectionToDelimitedString(patterns, ",");
+    }
+
+    private static void throwOnMixingSelectorWithCluster(String indexPattern, EsqlBaseParser.IndexPatternContext c) {
+        InvalidIndexNameException ie = new InvalidIndexNameException(
+            indexPattern,
+            "Selectors are not yet supported on remote cluster patterns"
+        );
+        throw new ParsingException(ie, source(c), ie.getMessage());
     }
 
     private static String reassembleIndexName(String clusterString, String indexPattern, String selectorString) {
@@ -154,10 +158,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             if (isRemoteIndexName(index)) { // skip the validation if there is remote cluster
                 // Ensure that there are no selectors as they are not yet supported
                 if (index.contains(SELECTOR_SEPARATOR)) {
-                    IllegalArgumentException ie = new IllegalArgumentException(
-                        "Cannot specify remote cluster and selector in same pattern"
-                    );
-                    throw new ParsingException(ie, source(ctx), ie.getMessage());
+                    throwOnMixingSelectorWithCluster(index, ctx);
                 }
                 continue;
             }

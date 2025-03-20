@@ -620,13 +620,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command,
                     "\"cluster:foo::data\"",
                     lineNumber,
-                    "Cannot specify remote cluster and selector in same pattern"
+                    "Invalid index name [cluster:foo::data], Selectors are not yet supported on remote cluster patterns"
                 );
                 expectErrorWithLineNumber(
                     command,
                     "\"cluster:foo::failures\"",
                     lineNumber,
-                    "Cannot specify remote cluster and selector in same pattern"
+                    "Invalid index name [cluster:foo::failures], Selectors are not yet supported on remote cluster patterns"
                 );
 
                 // Wildcards

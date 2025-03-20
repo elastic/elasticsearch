@@ -341,27 +341,32 @@ public final class IndicesPermission {
                 );
                 for (String privilege : checkForPrivileges) {
                     IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
-                    if (isAuthorized(allowedIndexPrivilegesAutomatonForDataAccess, indexPrivilege, IndexComponentSelector.DATA)) {
+                    boolean checkDataAccess = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.DATA);
+                    boolean checkFailuresAccess = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES);
+                    assert checkDataAccess || checkFailuresAccess
+                        : "index privilege must map to at least one of [data, failures] selectors";
+                    Automaton automatonToCheck = indexPrivilege.getAutomaton();
+                    if (checkDataAccess
+                        && allowedIndexPrivilegesAutomatonForDataAccess != null
+                        && Automatons.subsetOf(automatonToCheck, allowedIndexPrivilegesAutomatonForDataAccess)) {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
-                    } else if (isAuthorized(
-                        allowedIndexPrivilegesAutomatonForFailuresAccess,
-                        indexPrivilege,
-                        IndexComponentSelector.FAILURES
-                    )) {
-                        if (resourcePrivilegesMapBuilder != null) {
-                            resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
-                        }
-                    } else {
-                        if (resourcePrivilegesMapBuilder != null) {
-                            resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
-                            allMatch = false;
+                    } else if (checkFailuresAccess
+                        && allowedIndexPrivilegesAutomatonForFailuresAccess != null
+                        && Automatons.subsetOf(automatonToCheck, allowedIndexPrivilegesAutomatonForFailuresAccess)) {
+                            if (resourcePrivilegesMapBuilder != null) {
+                                resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
+                            }
                         } else {
-                            // return early on first privilege not granted
-                            return false;
+                            if (resourcePrivilegesMapBuilder != null) {
+                                resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                                allMatch = false;
+                            } else {
+                                // return early on first privilege not granted
+                                return false;
+                            }
                         }
-                    }
                 }
             } else {
                 // the index pattern produced the empty automaton, presumably because the requested pattern expands exclusively inside the
@@ -381,16 +386,6 @@ public final class IndicesPermission {
             }
         }
         return allMatch;
-    }
-
-    private static boolean isAuthorized(
-        Automaton allowedPrivilegesAutomaton,
-        IndexPrivilege indexPrivilege,
-        IndexComponentSelector selector
-    ) {
-        return allowedPrivilegesAutomaton != null
-            && indexPrivilege.getSelectorPredicate().test(selector)
-            && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedPrivilegesAutomaton);
     }
 
     private static Automaton getIndexPrivilegesAutomaton(

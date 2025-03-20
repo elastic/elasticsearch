@@ -49,7 +49,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.BULK_MERGE_ENABLED;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.OPTIMIZED_MERGE_ENABLED;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
@@ -687,10 +686,7 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         meta.writeInt(sumNumDocsWithField);
     }
 
-    private static SortedNumericDocValues mergeNumericValues(
-        List<NumericDocValuesSub> subs,
-        boolean indexIsSorted
-    ) throws IOException {
+    private static SortedNumericDocValues mergeNumericValues(List<NumericDocValuesSub> subs, boolean indexIsSorted) throws IOException {
         long cost = 0;
         for (NumericDocValuesSub sub : subs) {
             cost += sub.values.cost();

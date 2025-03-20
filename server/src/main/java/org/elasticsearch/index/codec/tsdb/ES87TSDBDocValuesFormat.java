@@ -91,7 +91,7 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.toString(optimizedMergeDefault))
         );
         boolean bulkMergeDefault = TSDB_DOC_VALUES_BULK_MERGE.isEnabled();
-//        BULK_MERGE_ENABLED = Boolean.parseBoolean(System.getProperty(BULK_MERGE_ENABLED_NAME, Boolean.toString(bulkMergeDefault)));
+        // BULK_MERGE_ENABLED = Boolean.parseBoolean(System.getProperty(BULK_MERGE_ENABLED_NAME, Boolean.toString(bulkMergeDefault)));
         BULK_MERGE_ENABLED = false;
     }
 

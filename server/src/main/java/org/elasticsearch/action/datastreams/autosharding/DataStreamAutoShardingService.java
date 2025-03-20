@@ -325,7 +325,7 @@ public class DataStreamAutoShardingService {
         /*
          * Define:
          *  - shardsByMaxThreads = number of shards required to ensure no more than 50% utilization with max number of threads per shard
-         *  - shardsByMaxThreads = number of shards required to ensure no more than 50% utilization with min number of threads per shard
+         *  - shardsByMinThreads = number of shards required to ensure no more than 50% utilization with min number of threads per shard
          * Note that shardsByMaxThreads <= shardsByMinThreads.
          * This returns:
          *  - shardsByMaxThreads if shardsByMaxThreads > 3

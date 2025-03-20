@@ -53,7 +53,7 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         @Nullable List<Double> shardsRecentWriteLoad
     ) {
         if (shardsWriteLoad.size() != shardsUptimeInMillis.size()) {
-            assert false;
+            assert false : "IndexWriteLoad.create() was called with non-matched lengths for shardWriteLoad and shardUptimeInMillis";
             throw new IllegalArgumentException(
                 "The same number of shard write loads and shard uptimes should be provided, but "
                     + shardsWriteLoad
@@ -64,12 +64,13 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
         }
 
         if (shardsWriteLoad.isEmpty()) {
-            assert false;
+            assert false : "IndexWriteLoad.create() was called with empty shardsRecentWriteLoad";
+            ;
             throw new IllegalArgumentException("At least one shard write load and uptime should be provided, but none was provided");
         }
 
         if (shardsRecentWriteLoad != null && shardsRecentWriteLoad.size() != shardsUptimeInMillis.size()) {
-            assert false;
+            assert false : "IndexWriteLoad.create() was called with non-matched lengths for shardsRecentWriteLoad and shardUptimeInMillis";
             throw new IllegalArgumentException(
                 "The same number of shard write loads and shard uptimes should be provided, but "
                     + shardsWriteLoad
@@ -91,11 +92,13 @@ public class IndexWriteLoad implements Writeable, ToXContentFragment {
     private final double[] shardRecentWriteLoad;
 
     private IndexWriteLoad(double[] shardWriteLoad, long[] shardUptimeInMillis, @Nullable double[] shardRecentWriteLoad) {
-        assert shardWriteLoad.length == shardUptimeInMillis.length;
+        assert shardWriteLoad.length == shardUptimeInMillis.length
+            : "IndexWriteLoad constructor was called with non-matched lengths for shardWriteLoad and shardUptimeInMillis";
         this.shardWriteLoad = shardWriteLoad;
         this.shardUptimeInMillis = shardUptimeInMillis;
         if (shardRecentWriteLoad != null) {
-            assert shardRecentWriteLoad.length == shardUptimeInMillis.length;
+            assert shardRecentWriteLoad.length == shardUptimeInMillis.length
+                : "IndexWriteLoad constructor was called with non-matched lengths for shardRecentWriteLoad and shardUptimeInMillis";
             this.shardRecentWriteLoad = shardRecentWriteLoad;
         } else {
             this.shardRecentWriteLoad = new double[shardUptimeInMillis.length];

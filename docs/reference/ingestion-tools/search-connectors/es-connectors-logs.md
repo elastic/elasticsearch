@@ -37,7 +37,7 @@ You can filter by `service.type`:
 
 ## Logs reference [es-connectors-logs-reference]
 
-Logs use Elastic Common Schema (ECS), without extensions. See [the ECS Reference^](ecs://docs/reference/index.md) for more information.
+Logs use Elastic Common Schema (ECS), without extensions. See [the ECS Reference^](ecs://reference/index.md) for more information.
 
 The fields logged are:
 

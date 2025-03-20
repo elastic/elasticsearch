@@ -290,7 +290,7 @@ Python
 :   See [elasticsearch.helpers.*](https://elasticsearch-py.readthedocs.io/en/stable/helpers.html)
 
 JavaScript
-:   See [client.helpers.*](elasticsearch-js://docs/reference/client-helpers.md)
+:   See [client.helpers.*](elasticsearch-js://reference/client-helpers.md)
 
 ::::
 

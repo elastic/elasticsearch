@@ -1763,7 +1763,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         project = service.addIndexTemplateV2(project, true, "my-template", it);
 
-        DataStreamLifecycle.Template resolvedLifecycle = MetadataIndexTemplateService.resolveLifecycle(project, "my-template");
+        DataStreamLifecycle.Builder resolvedLifecycleBuilder = MetadataIndexTemplateService.resolveLifecycle(project, "my-template");
+        DataStreamLifecycle.Template resolvedLifecycle = resolvedLifecycleBuilder == null ? null : resolvedLifecycleBuilder.buildTemplate();
         assertThat(resolvedLifecycle, equalTo(expected));
     }
 

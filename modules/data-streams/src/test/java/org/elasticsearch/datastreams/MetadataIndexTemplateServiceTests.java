@@ -146,7 +146,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         {
             DataStreamLifecycle.Template lifecycle = new DataStreamLifecycle.Template(true, randomRetention(), randomDownsampling());
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
-            DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             // Defaults to true
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
@@ -157,7 +157,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         {
             DataStreamLifecycle.Template lifecycle = new DataStreamLifecycle.Template(false, randomPositiveTimeValue(), randomRounds());
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DEFAULT);
-            DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(true));
             assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
             assertThat(result.downsampling(), equalTo(lifecycle.downsampling().get()));
@@ -167,7 +167,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle.Template lifecycle1 = new DataStreamLifecycle.Template(false, randomPositiveTimeValue(), randomRounds());
             DataStreamLifecycle.Template lifecycle2 = new DataStreamLifecycle.Template(true, randomPositiveTimeValue(), randomRounds());
             List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle1, lifecycle2);
-            DataStreamLifecycle result = composeDataLifecycles(lifecycles).toDataStreamLifecycle();
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             assertThat(result.enabled(), equalTo(lifecycle2.enabled()));
             assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention().get()));
             assertThat(result.downsampling(), equalTo(lifecycle2.downsampling().get()));

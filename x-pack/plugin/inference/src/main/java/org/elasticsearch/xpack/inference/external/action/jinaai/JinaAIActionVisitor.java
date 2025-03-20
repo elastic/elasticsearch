@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.action.jinaai;
 
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
@@ -15,7 +14,7 @@ import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankMode
 import java.util.Map;
 
 public interface JinaAIActionVisitor {
-    ExecutableAction create(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType);
+    ExecutableAction create(JinaAIEmbeddingsModel model, Map<String, Object> taskSettings);
 
     ExecutableAction create(JinaAIRerankModel model, Map<String, Object> taskSettings);
 }

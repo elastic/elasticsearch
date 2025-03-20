@@ -6,6 +6,11 @@ mapped_pages:
 
 # Ingest processor reference [processors]
 
+:::{note}
+This section provides detailed **reference information** for ingest processors.
+
+Refer to [Transform and enrich data](docs-content://manage-data/ingest/transform-enrich.md) in the **Manage data** section for overview and conceptual information.
+:::
 
 An [ingest pipeline](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) is made up of a sequence of processors that are applied to documents as they are ingested into an index. Each processor performs a specific task, such as filtering, transforming, or enriching data.
 

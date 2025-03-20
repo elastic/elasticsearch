@@ -17,13 +17,13 @@ import java.util.Map;
 import java.util.Objects;
 
 public class BooleanFieldBlockLoaderTests extends BlockLoaderTestCase {
-    public BooleanFieldBlockLoaderTests() {
-        super(FieldType.BOOLEAN);
+    public BooleanFieldBlockLoaderTests(Params params) {
+        super(FieldType.BOOLEAN.toString(), params);
     }
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value) {
         var rawNullValue = fieldMapping.get("null_value");
 
         Boolean nullValue;

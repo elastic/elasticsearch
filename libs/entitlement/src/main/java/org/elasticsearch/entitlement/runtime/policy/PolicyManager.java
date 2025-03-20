@@ -745,7 +745,7 @@ public class PolicyManager {
      */
     private static String getModuleName(Class<?> requestingClass) {
         String name = requestingClass.getModule().getName();
-        return (name == null)? ALL_UNNAMED : name;
+        return (name == null) ? ALL_UNNAMED : name;
     }
 
     @Override

@@ -160,3 +160,4 @@ org.example.module: # or 'ALL-UNNAMED' if the plugin is non-modular
         - property.one
         - property.two
 ```
+Check the Entitlements [README in the elasticsearch repository](https://github.com/elastic/elasticsearch/blob/main/libs/entitlement/README.md) for more information.

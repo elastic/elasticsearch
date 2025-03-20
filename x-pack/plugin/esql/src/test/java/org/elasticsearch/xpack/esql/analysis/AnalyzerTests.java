@@ -3421,6 +3421,8 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testResolveRerankScoreField() {
+        assumeTrue("Requires RERANK command", EsqlCapabilities.Cap.RERANK.isEnabled());
+
         {
             // When the metadata field is required in FROM, it is reused.
             LogicalPlan plan = analyze("""

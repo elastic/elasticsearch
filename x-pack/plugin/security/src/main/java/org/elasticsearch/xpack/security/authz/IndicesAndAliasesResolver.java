@@ -392,9 +392,7 @@ class IndicesAndAliasesResolver {
                 );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
-            if (indicesReplacedWithNoIndices)
-
-            {
+            if (indicesReplacedWithNoIndices) {
                 if (indicesRequest instanceof GetAliasesRequest == false) {
                     throw new IllegalStateException(
                         GetAliasesRequest.class.getSimpleName()

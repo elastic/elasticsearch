@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -1432,7 +1433,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
     public void testBuildInferenceRequest() {
         var id = randomAlphaOfLength(5);
         var inputs = randomList(1, 3, () -> randomAlphaOfLength(4));
-        var inputType = randomFrom(InputType.SEARCH, InputType.INGEST);
+        var inputType = InputTypeTests.randomWithoutUnspecified();
         var timeout = randomTimeValue();
         var request = ElasticsearchInternalService.buildInferenceRequest(
             id,
@@ -1444,10 +1445,14 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         assertEquals(id, request.getId());
         assertEquals(inputs, request.getTextInput());
-        assertEquals(
-            inputType == InputType.INGEST ? TrainedModelPrefixStrings.PrefixType.INGEST : TrainedModelPrefixStrings.PrefixType.SEARCH,
-            request.getPrefixType()
-        );
+        if (inputType == InputType.INTERNAL_INGEST || inputType == InputType.INGEST) {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.INGEST, request.getPrefixType());
+        } else if (inputType == InputType.INTERNAL_SEARCH || inputType == InputType.SEARCH) {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.SEARCH, request.getPrefixType());
+        } else {
+            assertEquals(TrainedModelPrefixStrings.PrefixType.NONE, request.getPrefixType());
+        }
+
         assertEquals(timeout, request.getInferenceTimeout());
         assertEquals(false, request.isChunked());
     }

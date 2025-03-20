@@ -19,6 +19,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
@@ -1444,14 +1445,14 @@ public class RBACEngineTests extends ESTestCase {
             lookup,
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
-        assertThat(authorizedIndices.check(dataStreamName), is(true));
+        assertThat(authorizedIndices.all(IndexComponentSelector.DATA), hasItem(dataStreamName));
+        assertThat(authorizedIndices.check(dataStreamName, IndexComponentSelector.DATA), is(true));
         assertThat(
-            authorizedIndices.all().get(),
-            hasItems(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY))
+            authorizedIndices.all(IndexComponentSelector.DATA),
+            hasItems(backingIndices.stream().map(im -> im.getIndex().getName()).toList().toArray(Strings.EMPTY_ARRAY))
         );
         for (String index : backingIndices.stream().map(im -> im.getIndex().getName()).toList()) {
-            assertThat(authorizedIndices.check(index), is(true));
+            assertThat(authorizedIndices.check(index, IndexComponentSelector.DATA), is(true));
         }
     }
 
@@ -1487,7 +1488,8 @@ public class RBACEngineTests extends ESTestCase {
             lookup,
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices.all().get().isEmpty(), is(true));
+        assertThat(authorizedIndices.all(IndexComponentSelector.DATA).isEmpty(), is(true));
+        assertThat(authorizedIndices.all(IndexComponentSelector.FAILURES).isEmpty(), is(true));
     }
 
     public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {

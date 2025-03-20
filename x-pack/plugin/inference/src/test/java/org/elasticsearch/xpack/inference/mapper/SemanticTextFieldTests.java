@@ -44,6 +44,7 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunk;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSemanticTextFieldChunkLegacy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -143,37 +144,43 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public void testModelSettingsValidation() {
         NullPointerException npe = expectThrows(NullPointerException.class, () -> {
-            new MinimalServiceSettings(null, 10, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
+            new MinimalServiceSettings("service", null, 10, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(npe.getMessage(), equalTo("task type must not be null"));
 
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, 10, null, null);
+            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, 10, null, null);
         });
         assertThat(ex.getMessage(), containsString("[dimensions] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE, null);
+            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("[similarity] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
+            new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(ex.getMessage(), containsString("[element_type] is not allowed"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.TEXT_EMBEDDING, null, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT);
+            new MinimalServiceSettings(
+                "service",
+                TaskType.TEXT_EMBEDDING,
+                null,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            );
         });
         assertThat(ex.getMessage(), containsString("required [dimensions] field is missing"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.TEXT_EMBEDDING, 10, null, DenseVectorFieldMapper.ElementType.FLOAT);
+            new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, null, DenseVectorFieldMapper.ElementType.FLOAT);
         });
         assertThat(ex.getMessage(), containsString("required [similarity] field is missing"));
 
         ex = expectThrows(IllegalArgumentException.class, () -> {
-            new MinimalServiceSettings(TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
+            new MinimalServiceSettings("service", TaskType.TEXT_EMBEDDING, 10, SimilarityMeasure.COSINE, null);
         });
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
@@ -288,7 +295,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         while (inputsIt.hasNext() && chunkIt.hasNext()) {
             String input = inputsIt.next();
             var chunk = chunkIt.next();
-            chunks.add(toSemanticTextFieldChunk(input, offsetAdjustment, chunk, useLegacyFormat));
+            chunks.add(useLegacyFormat ? toSemanticTextFieldChunkLegacy(input, chunk) : toSemanticTextFieldChunk(offsetAdjustment, chunk));
 
             // When using the inference metadata fields format, all the input values are concatenated so that the
             // chunk text offsets are expressed in the context of a single string. Calculate the offset adjustment

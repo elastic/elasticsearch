@@ -53,6 +53,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -63,6 +64,7 @@ import org.elasticsearch.common.scheduler.TimeValueSchedule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -477,7 +479,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         for (Index index : targetIndices) {
             IndexMetadata backingIndexMeta = metadata.getProject().index(index);
             assert backingIndexMeta != null : "the data stream backing indices must exist";
-            List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = dataStream.getDownsamplingRoundsFor(
                 index,
                 metadata.getProject()::index,
                 nowSupplier
@@ -515,18 +517,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> waitForInProgressOrTriggerDownsampling(
         DataStream dataStream,
         IndexMetadata backingIndex,
-        List<DataStreamLifecycle.Downsampling.Round> downsamplingRounds,
+        List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds,
         Metadata metadata
     ) {
         assert dataStream.getIndices().contains(backingIndex.getIndex())
             : "the provided backing index must be part of data stream:" + dataStream.getName();
         assert downsamplingRounds.isEmpty() == false : "the index should be managed and have matching downsampling rounds";
         Set<Index> affectedIndices = new HashSet<>();
-        DataStreamLifecycle.Downsampling.Round lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
+        DataStreamLifecycle.DownsamplingRound lastRound = downsamplingRounds.get(downsamplingRounds.size() - 1);
 
         Index index = backingIndex.getIndex();
         String indexName = index.getName();
-        for (DataStreamLifecycle.Downsampling.Round round : downsamplingRounds) {
+        for (DataStreamLifecycle.DownsamplingRound round : downsamplingRounds) {
             // the downsample index name for each round is deterministic
             String downsampleIndexName = DownsampleConfig.generateDownsampleIndexName(
                 DOWNSAMPLED_INDEX_PREFIX,
@@ -564,7 +566,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     /**
      * Issues a request downsample the source index to the downsample index for the specified round.
      */
-    private void downsampleIndexOnce(DataStreamLifecycle.Downsampling.Round round, String sourceIndex, String downsampleIndexName) {
+    private void downsampleIndexOnce(DataStreamLifecycle.DownsamplingRound round, String sourceIndex, String downsampleIndexName) {
         DownsampleAction.Request request = new DownsampleAction.Request(
             TimeValue.THIRTY_SECONDS /* TODO should this be longer/configurable? */,
             sourceIndex,
@@ -597,8 +599,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> evaluateDownsampleStatus(
         DataStream dataStream,
         IndexMetadata.DownsampleTaskStatus downsampleStatus,
-        DataStreamLifecycle.Downsampling.Round currentRound,
-        DataStreamLifecycle.Downsampling.Round lastRound,
+        DataStreamLifecycle.DownsamplingRound currentRound,
+        DataStreamLifecycle.DownsamplingRound lastRound,
         Index backingIndex,
         Index downsampleIndex
     ) {
@@ -694,10 +696,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     downsampleIndexName,
                     dataStream
                 );
+                @FixForMultiProject(description = "The correct project ID should be passed here")
+                final var projectId = ProjectId.DEFAULT;
                 swapSourceWithDownsampleIndexQueue.submitTask(
                     "data-stream-lifecycle-delete-source[" + backingIndexName + "]-add-to-datastream-[" + downsampleIndexName + "]",
                     new DeleteSourceAndAddDownsampleToDS(
                         settings,
+                        projectId,
                         dataStream.getName(),
                         backingIndexName,
                         downsampleIndexName,
@@ -779,7 +784,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      */
     private void clearErrorStoreForUnmanagedIndices(DataStream dataStream) {
         Metadata metadata = clusterService.state().metadata();
-        for (String indexName : errorStore.getAllIndices()) {
+        final var projectId = metadata.getProject().id();
+        for (String indexName : errorStore.getAllIndices(projectId)) {
             IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(indexName);
             DataStream parentDataStream = indexAbstraction != null ? indexAbstraction.getParentDataStream() : null;
             if (indexAbstraction == null || parentDataStream == null) {
@@ -787,13 +793,13 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     "Clearing recorded error for index [{}] because the index doesn't exist or is not a data stream backing index anymore",
                     indexName
                 );
-                errorStore.clearRecordedError(indexName);
+                errorStore.clearRecordedError(projectId, indexName);
             } else if (parentDataStream.getName().equals(dataStream.getName())) {
                 // we're only verifying the indices that pertain to this data stream
                 IndexMetadata indexMeta = metadata.getProject().index(indexName);
                 if (dataStream.isIndexManagedByDataStreamLifecycle(indexMeta.getIndex(), metadata.getProject()::index) == false) {
                     logger.trace("Clearing recorded error for index [{}] because the index is not managed by DSL anymore", indexName);
-                    errorStore.clearRecordedError(indexName);
+                    errorStore.clearRecordedError(projectId, indexName);
                 }
             }
         }
@@ -861,7 +867,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (latestDataStream.getWriteIndex().getName().equals(currentRunWriteIndex.getName())) {
                     // data stream has not been rolled over in the meantime so record the error against the write index we
                     // attempted the rollover
-                    errorStore.recordError(currentRunWriteIndex.getName(), e);
+                    errorStore.recordError(clusterService.state().metadata().getProject().id(), currentRunWriteIndex.getName(), e);
                 }
             }
         }
@@ -1069,7 +1075,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (e instanceof IndexNotFoundException) {
                     // index was already deleted, treat this as a success
                     logger.trace("Clearing recorded error for index [{}] because the index was deleted", targetIndex);
-                    errorStore.clearRecordedError(targetIndex);
+                    errorStore.clearRecordedError(clusterService.state().metadata().getProject().id(), targetIndex);
                     listener.onResponse(null);
                     return;
                 }
@@ -1152,7 +1158,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (e instanceof IndexNotFoundException) {
                     // index was already deleted, treat this as a success
                     logger.trace("Clearing recorded error for index [{}] because the index was deleted", targetIndex);
-                    errorStore.clearRecordedError(targetIndex);
+                    errorStore.clearRecordedError(clusterService.state().metadata().getProject().id(), targetIndex);
                     listener.onResponse(null);
                     return;
                 }
@@ -1188,7 +1194,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (e instanceof IndexNotFoundException) {
                     logger.trace("Data stream lifecycle did not delete index [{}] as it was already deleted", targetIndex);
                     // index was already deleted, treat this as a success
-                    errorStore.clearRecordedError(targetIndex);
+                    errorStore.clearRecordedError(clusterService.state().metadata().getProject().id(), targetIndex);
                     listener.onResponse(null);
                     return;
                 }
@@ -1336,7 +1342,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         @Override
         public void onResponse(Void unused) {
             logger.trace("Clearing recorded error for index [{}] because the [{}] action was successful", targetIndex, actionName);
-            errorStore.clearRecordedError(targetIndex);
+            @FixForMultiProject(description = "Don't use default project ID")
+            final var projectId = Metadata.DEFAULT_PROJECT_ID;
+            errorStore.clearRecordedError(projectId, targetIndex);
         }
 
         @Override
@@ -1359,8 +1367,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         String logMessage,
         int signallingErrorRetryThreshold
     ) {
-        ErrorEntry previousError = errorStore.recordError(targetIndex, e);
-        ErrorEntry currentError = errorStore.getError(targetIndex);
+        @FixForMultiProject(description = "Don't use default project ID")
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        ErrorEntry previousError = errorStore.recordError(projectId, targetIndex, e);
+        ErrorEntry currentError = errorStore.getError(projectId, targetIndex);
         if (previousError == null || (currentError != null && previousError.error().equals(currentError.error()) == false)) {
             logger.error(logMessage, e);
         } else {

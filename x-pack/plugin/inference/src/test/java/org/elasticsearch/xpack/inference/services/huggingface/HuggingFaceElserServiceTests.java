@@ -99,7 +99,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                 List.of("abc"),
                 new HashMap<>(),
                 null,
-                InputType.INGEST,
+                InputType.INTERNAL_SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

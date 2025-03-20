@@ -6,6 +6,12 @@ mapped_pages:
 
 # Elasticsearch plugins [intro]
 
+:::{note}
+This section provides detailed **reference information** for Elasticsearch plugins.
+
+Refer to [Add plugins and extensions](docs-content://deploy-manage/deploy/elastic-cloud/add-plugins-extensions.md) in the **Deploy and manage** section for overview, getting started and conceptual information.
+:::
+
 Plugins are a way to enhance the core Elasticsearch functionality in a custom manner. They range from adding custom mapping types, custom analyzers, native scripts, custom discovery and more.
 
 Plugins contain JAR files, but may also contain scripts and config files, and must be installed on every node in the cluster. After installation, each node must be restarted before the plugin becomes visible.

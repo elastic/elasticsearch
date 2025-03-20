@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -30,7 +31,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.jinaai.JinaAIActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankModel;
@@ -65,6 +67,15 @@ public class JinaAIService extends SenderService {
 
     private static final String SERVICE_NAME = "Jina AI";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
+
+    public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.CLASSIFICATION,
+        InputType.CLUSTERING,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
 
     public JinaAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -232,7 +243,6 @@ public class JinaAIService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -244,14 +254,19 @@ public class JinaAIService extends SenderService {
         JinaAIModel jinaaiModel = (JinaAIModel) model;
         var actionCreator = new JinaAIActionCreator(getSender(), getServiceComponents());
 
-        var action = jinaaiModel.accept(actionCreator, taskSettings, inputType);
+        var action = jinaaiModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
+    }
+
+    @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -272,8 +287,8 @@ public class JinaAIService extends SenderService {
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = jinaaiModel.accept(actionCreator, taskSettings, inputType);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            var action = jinaaiModel.accept(actionCreator, taskSettings);
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 
@@ -294,7 +309,7 @@ public class JinaAIService extends SenderService {
         if (model instanceof JinaAIEmbeddingsModel embeddingsModel) {
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
-            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity(serviceSettings.getEmbeddingType()) : similarityFromModel;
             var maxInputTokens = serviceSettings.maxInputTokens();
 
             var updatedServiceSettings = new JinaAIEmbeddingsServiceSettings(
@@ -305,7 +320,8 @@ public class JinaAIService extends SenderService {
                 ),
                 similarityToUse,
                 embeddingSize,
-                maxInputTokens
+                maxInputTokens,
+                serviceSettings.getEmbeddingType()
             );
 
             return new JinaAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);
@@ -322,7 +338,10 @@ public class JinaAIService extends SenderService {
      *
      * @return The default similarity.
      */
-    static SimilarityMeasure defaultSimilarity() {
+    static SimilarityMeasure defaultSimilarity(JinaAIEmbeddingType embeddingType) {
+        if (embeddingType == JinaAIEmbeddingType.BINARY || embeddingType == JinaAIEmbeddingType.BIT) {
+            return SimilarityMeasure.L2_NORM;
+        }
         return SimilarityMeasure.DOT_PRODUCT;
     }
 

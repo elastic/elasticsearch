@@ -131,7 +131,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
         tasks.withType(ComposeUp.class).named("composeUp").configure(t -> {
             // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
-            if (buildParams.isCi()) {
+            if (buildParams.getCi()) {
                 t.usesService(dockerComposeThrottle);
                 t.usesService(dockerSupport);
             }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode;
@@ -22,12 +23,18 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static java.util.Comparator.comparing;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
+import static org.elasticsearch.entitlement.runtime.policy.FileUtils.PATH_ORDER;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 public final class FileAccessTree {
 
@@ -39,28 +46,47 @@ public final class FileAccessTree {
     /**
      * An intermediary structure to help globally validate exclusive paths, and then build exclusive paths for individual modules.
      */
-    record ExclusivePath(String componentName, String moduleName, String path) {
+    record ExclusivePath(String componentName, Set<String> moduleNames, String path) {
 
         @Override
         public String toString() {
-            return "[[" + componentName + "] [" + moduleName + "] [" + path + "]]";
+            return "[[" + componentName + "] " + moduleNames + " [" + path + "]]";
         }
     }
 
     static List<ExclusivePath> buildExclusivePathList(List<ExclusiveFileEntitlement> exclusiveFileEntitlements, PathLookup pathLookup) {
-        List<ExclusivePath> exclusivePaths = new ArrayList<>();
+        Map<String, ExclusivePath> exclusivePaths = new HashMap<>();
         for (ExclusiveFileEntitlement efe : exclusiveFileEntitlements) {
             for (FilesEntitlement.FileData fd : efe.filesEntitlement().filesData()) {
                 if (fd.exclusive()) {
                     List<Path> paths = fd.resolvePaths(pathLookup).toList();
                     for (Path path : paths) {
-                        exclusivePaths.add(new ExclusivePath(efe.componentName(), efe.moduleName(), normalizePath(path)));
+                        String normalizedPath = normalizePath(path);
+                        var exclusivePath = exclusivePaths.computeIfAbsent(
+                            normalizedPath,
+                            k -> new ExclusivePath(efe.componentName(), new HashSet<>(), normalizedPath)
+                        );
+                        if (exclusivePath.componentName().equals(efe.componentName()) == false) {
+                            throw new IllegalArgumentException(
+                                "Path ["
+                                    + normalizedPath
+                                    + "] is already exclusive to ["
+                                    + exclusivePath.componentName()
+                                    + "]"
+                                    + exclusivePath.moduleNames
+                                    + ", cannot add exclusive access for ["
+                                    + efe.componentName()
+                                    + "]["
+                                    + efe.moduleName
+                                    + "]"
+                            );
+                        }
+                        exclusivePath.moduleNames.add(efe.moduleName());
                     }
                 }
             }
         }
-        exclusivePaths.sort((ep1, ep2) -> PATH_ORDER.compare(ep1.path(), ep2.path()));
-        return exclusivePaths;
+        return exclusivePaths.values().stream().sorted(comparing(ExclusivePath::path, PATH_ORDER)).distinct().toList();
     }
 
     static void validateExclusivePaths(List<ExclusivePath> exclusivePaths) {
@@ -90,11 +116,12 @@ public final class FileAccessTree {
         String moduleName,
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
+        Path componentPath,
         List<ExclusivePath> exclusivePaths
     ) {
         List<String> updatedExclusivePaths = new ArrayList<>();
         for (ExclusivePath exclusivePath : exclusivePaths) {
-            if (exclusivePath.componentName().equals(componentName) == false || exclusivePath.moduleName().equals(moduleName) == false) {
+            if (exclusivePath.componentName().equals(componentName) == false || exclusivePath.moduleNames().contains(moduleName) == false) {
                 updatedExclusivePaths.add(exclusivePath.path());
             }
         }
@@ -103,7 +130,7 @@ public final class FileAccessTree {
         List<String> writePaths = new ArrayList<>();
         BiConsumer<Path, Mode> addPath = (path, mode) -> {
             var normalized = normalizePath(path);
-            if (mode == Mode.READ_WRITE) {
+            if (mode == READ_WRITE) {
                 writePaths.add(normalized);
             }
             readPaths.add(normalized);
@@ -138,8 +165,13 @@ public final class FileAccessTree {
             });
         }
 
-        // everything has access to the temp dir and the jdk
-        addPathAndMaybeLink.accept(pathLookup.tempDir(), Mode.READ_WRITE);
+        // everything has access to the temp dir, config dir, to their own dir (their own jar files) and the jdk
+        addPathAndMaybeLink.accept(pathLookup.tempDir(), READ_WRITE);
+        // TODO: this grants read access to the config dir for all modules until explicit read entitlements can be added
+        addPathAndMaybeLink.accept(pathLookup.configDir(), Mode.READ);
+        if (componentPath != null) {
+            addPathAndMaybeLink.accept(componentPath, Mode.READ);
+        }
 
         // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?
         Path jdk = Paths.get(System.getProperty("java.home"));
@@ -154,14 +186,15 @@ public final class FileAccessTree {
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
 
-    private static List<String> pruneSortedPaths(List<String> paths) {
+    // package private for testing
+    static List<String> pruneSortedPaths(List<String> paths) {
         List<String> prunedReadPaths = new ArrayList<>();
         if (paths.isEmpty() == false) {
             String currentPath = paths.get(0);
             prunedReadPaths.add(currentPath);
             for (int i = 1; i < paths.size(); ++i) {
                 String nextPath = paths.get(i);
-                if (isParent(currentPath, nextPath) == false) {
+                if (currentPath.equals(nextPath) == false && isParent(currentPath, nextPath) == false) {
                     prunedReadPaths.add(nextPath);
                     currentPath = nextPath;
                 }
@@ -175,9 +208,10 @@ public final class FileAccessTree {
         String moduleName,
         FilesEntitlement filesEntitlement,
         PathLookup pathLookup,
+        @Nullable Path componentPath,
         List<ExclusivePath> exclusivePaths
     ) {
-        return new FileAccessTree(componentName, moduleName, filesEntitlement, pathLookup, exclusivePaths);
+        return new FileAccessTree(componentName, moduleName, filesEntitlement, pathLookup, componentPath, exclusivePaths);
     }
 
     boolean canRead(Path path) {
@@ -236,30 +270,4 @@ public final class FileAccessTree {
     public int hashCode() {
         return Objects.hash(Arrays.hashCode(readPaths), Arrays.hashCode(writePaths));
     }
-
-    /**
-     * For our lexicographic sort trick to work correctly, we must have path separators sort before
-     * any other character so that files in a directory appear immediately after that directory.
-     * For example, we require [/a, /a/b, /a.xml] rather than the natural order [/a, /a.xml, /a/b].
-     */
-    private static final Comparator<String> PATH_ORDER = (s1, s2) -> {
-        Path p1 = Path.of(s1);
-        Path p2 = Path.of(s2);
-        var i1 = p1.iterator();
-        var i2 = p2.iterator();
-        while (i1.hasNext() && i2.hasNext()) {
-            int cmp = i1.next().compareTo(i2.next());
-            if (cmp != 0) {
-                return cmp;
-            }
-        }
-        if (i1.hasNext()) {
-            return 1;
-        } else if (i2.hasNext()) {
-            return -1;
-        } else {
-            assert p1.equals(p2);
-            return 0;
-        }
-    };
 }

@@ -1,47 +1,49 @@
 {
-  "inference.get":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-inference-api.html",
-      "description":"Get an inference endpoint"
+  "inference.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/get-inference-api.html",
+      "description": "Get an inference endpoint"
     },
-    "stability":"experimental",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_inference",
-          "methods":[
+          "path": "/_inference",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_inference/{inference_id}",
-          "methods":[
+          "path": "/_inference/{inference_id}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "inference_id":{
-              "type":"string",
-              "description":"The inference Id"
+          "parts": {
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
             }
           }
         },
         {
-          "path":"/_inference/{task_type}/{inference_id}",
-          "methods":[
+          "path": "/_inference/{task_type}/{inference_id}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "task_type":{
-              "type":"string",
-              "description":"The task type"
+          "parts": {
+            "task_type": {
+              "type": "string",
+              "description": "The task type"
             },
-            "inference_id":{
-              "type":"string",
-              "description":"The inference Id"
+            "inference_id": {
+              "type": "string",
+              "description": "The inference Id"
             }
           }
         }

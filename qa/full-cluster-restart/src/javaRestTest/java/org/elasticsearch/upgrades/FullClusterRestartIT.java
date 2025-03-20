@@ -15,6 +15,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.RestClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -108,18 +109,28 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     protected static LocalClusterConfigProvider clusterConfig = c -> {};
 
-    private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
-        .nodes(2)
-        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
-        .setting("xpack.security.enabled", "false")
-        // some tests rely on the translog not being flushed
-        .setting("indices.memory.shard_inactive_time", "60m")
-        .apply(() -> clusterConfig)
-        .feature(FeatureFlag.TIME_SERIES_MODE)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
-        .build();
+    private static ElasticsearchCluster cluster = buildCluster();
+
+    private static ElasticsearchCluster buildCluster() {
+        Version oldVersion = Version.fromString(OLD_CLUSTER_VERSION);
+        var cluster = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
+            .version(getOldClusterTestVersion())
+            .nodes(2)
+            .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+            .setting("xpack.security.enabled", "false")
+            // some tests rely on the translog not being flushed
+            .setting("indices.memory.shard_inactive_time", "60m")
+            .apply(() -> clusterConfig)
+            .feature(FeatureFlag.TIME_SERIES_MODE)
+            .feature(FeatureFlag.FAILURE_STORE_ENABLED);
+
+        if (oldVersion.before(Version.fromString("8.18.0"))) {
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper");
+            cluster.jvmArg("-da:org.elasticsearch.index.mapper.MapperService");
+        }
+        return cluster.build();
+    }
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);

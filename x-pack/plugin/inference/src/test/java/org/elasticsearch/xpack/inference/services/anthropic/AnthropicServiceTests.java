@@ -47,6 +47,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -553,13 +554,11 @@ public class AnthropicServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamChatCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"Hello"},{"delta":", World"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException {
+    private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new AnthropicService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = AnthropicChatCompletionModelTests.createChatCompletionModel(
@@ -580,7 +579,7 @@ public class AnthropicServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -591,11 +590,7 @@ public class AnthropicServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
+        streamChatCompletion().hasNoEvents()
             .hasErrorWithStatusCode(RestStatus.REQUEST_ENTITY_TOO_LARGE.getStatus())
             .hasErrorContaining("blah");
     }
@@ -655,8 +650,8 @@ public class AnthropicServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AnthropicService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

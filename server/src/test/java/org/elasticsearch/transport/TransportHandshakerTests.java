@@ -32,6 +32,8 @@ import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.transport.TransportHandshaker.V8_19_FIRST_VERSION;
+import static org.elasticsearch.transport.TransportHandshaker.getDeprecationMessage;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.doThrow;
@@ -101,10 +103,8 @@ public class TransportHandshakerTests extends ESTestCase {
 
     @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.transport.TransportHandshaker:WARN")
     public void testIncompatibleHandshakeRequest() throws Exception {
-        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(
-            getRandomIncompatibleTransportVersion(),
-            randomIdentifier()
-        );
+        var remoteVersion = getRandomIncompatibleTransportVersion();
+        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(remoteVersion, randomIdentifier());
         BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
         bytesStreamOutput.setTransportVersion(HANDSHAKE_REQUEST_VERSION);
         handshakeRequest.writeTo(bytesStreamOutput);
@@ -149,7 +149,7 @@ public class TransportHandshakerTests extends ESTestCase {
                 handshakeRequest.transportVersion.bestKnownVersion(),
                 asInstanceOf(TransportHandshaker.HandshakeResponse.class, responseFuture.result()).getTransportVersion()
             );
-
+            assertDeprecationMessageIsLogged(remoteVersion, remoteVersion.toReleaseVersion(), channel);
         } else {
             final TestTransportChannel channel = new TestTransportChannel(ActionListener.running(() -> fail("should not complete")));
 
@@ -186,10 +186,13 @@ public class TransportHandshakerTests extends ESTestCase {
         assertFalse(versionFuture.isDone());
 
         final var remoteVersion = TransportVersionUtils.randomCompatibleVersion(random());
-        handler.handleResponse(new TransportHandshaker.HandshakeResponse(remoteVersion, randomIdentifier()));
+        var releaseVersion = randomIdentifier();
+        handler.handleResponse(new TransportHandshaker.HandshakeResponse(remoteVersion, releaseVersion));
 
         assertTrue(versionFuture.isDone());
         assertEquals(remoteVersion, versionFuture.result());
+
+        assertDeprecationMessageIsLogged(remoteVersion, releaseVersion, channel);
     }
 
     @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.transport.TransportHandshaker:WARN")
@@ -201,10 +204,11 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        final var randomIncompatibleTransportVersion = getRandomIncompatibleTransportVersion();
-        final var handshakeResponse = new TransportHandshaker.HandshakeResponse(randomIncompatibleTransportVersion, randomIdentifier());
+        var remoteVersion = getRandomIncompatibleTransportVersion();
+        var releaseVersion = randomIdentifier();
+        final var handshakeResponse = new TransportHandshaker.HandshakeResponse(remoteVersion, releaseVersion);
 
-        if (randomIncompatibleTransportVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE)) {
+        if (remoteVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE)) {
             // we fall back to the best known version
             MockLog.assertThatLogger(
                 () -> handler.handleResponse(handshakeResponse),
@@ -223,13 +227,13 @@ public class TransportHandshakerTests extends ESTestCase {
                         handshakeResponse.getTransportVersion(),
                         Build.current().version(),
                         TransportVersion.current(),
-                        randomIncompatibleTransportVersion.bestKnownVersion()
+                        remoteVersion.bestKnownVersion()
                     )
                 )
             );
 
             assertTrue(versionFuture.isDone());
-            assertEquals(randomIncompatibleTransportVersion.bestKnownVersion(), versionFuture.result());
+            assertEquals(remoteVersion.bestKnownVersion(), versionFuture.result());
         } else {
             MockLog.assertThatLogger(
                 () -> handler.handleResponse(handshakeResponse),
@@ -252,6 +256,13 @@ public class TransportHandshakerTests extends ESTestCase {
                     containsString("which has an incompatible wire format")
                 )
             );
+        }
+        assertDeprecationMessageIsLogged(remoteVersion, releaseVersion, channel);
+    }
+
+    private void assertDeprecationMessageIsLogged(TransportVersion remoteVersion, String remoteReleaseVersion, Object channel) {
+        if (remoteVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && remoteVersion.before(V8_19_FIRST_VERSION)) {
+            assertWarnings(getDeprecationMessage(TransportVersion.current(), remoteVersion, remoteReleaseVersion, channel));
         }
     }
 

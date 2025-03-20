@@ -20,10 +20,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
@@ -35,7 +37,6 @@ import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -44,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,25 +73,31 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        Utils.storeSparseModel(client());
-        Utils.storeDenseModel(
-            client(),
-            randomIntBetween(1, 100),
-            // dot product means that we need normalized vectors; it's not worth doing that in this test
-            randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values())),
-            // TODO: Allow element type BIT once TestDenseInferenceServiceExtension supports it
-            randomValueOtherThan(DenseVectorFieldMapper.ElementType.BIT, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()))
+        DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        // dot product means that we need normalized vectors; it's not worth doing that in this test
+        SimilarityMeasure similarity = randomValueOtherThan(
+            SimilarityMeasure.DOT_PRODUCT,
+            () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
         );
+        int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
+
+        Utils.storeSparseModel(client());
+        Utils.storeDenseModel(client(), dimensions, similarity, elementType);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
+        long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
+        return Settings.builder()
+            .put(otherSettings)
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .put(INDICES_INFERENCE_BATCH_SIZE.getKey(), ByteSizeValue.ofBytes(batchSizeInBytes))
+            .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateInferencePlugin.class);
+        return List.of(LocalStateInferencePlugin.class);
     }
 
     @Override

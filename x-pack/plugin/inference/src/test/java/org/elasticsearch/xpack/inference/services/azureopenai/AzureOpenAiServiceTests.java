@@ -55,6 +55,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -768,7 +769,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 List.of(""),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -824,7 +825,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -838,9 +839,10 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(2));
+            assertThat(requestMap.size(), Matchers.is(3));
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
+            assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
         }
     }
 
@@ -912,7 +914,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -984,7 +990,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -1056,7 +1066,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -1117,7 +1131,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user", "dimensions", 3)));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "dimensions", 3, "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -1190,7 +1208,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "user", "user")));
+            // service.checkModelConfig validates by performing inference with InputType.INTERNAL_INGEST
+            MatcherAssert.assertThat(
+                requestMap,
+                Matchers.is(Map.of("input", List.of("how big"), "user", "user", "input_type", "internal_ingest"))
+            );
         }
     }
 
@@ -1267,7 +1289,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1339,9 +1361,9 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                List.of("foo", "bar"),
+                List.of("a", "bb"),
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1352,7 +1374,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("foo", floatResult.chunks().get(0).matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
                 assertArrayEquals(
                     new float[] { 0.123f, -0.123f },
@@ -1364,7 +1386,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("bar", floatResult.chunks().get(0).matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
                 assertArrayEquals(
                     new float[] { 1.123f, -1.123f },
@@ -1379,9 +1401,10 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), Matchers.is(2));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("foo", "bar")));
+            assertThat(requestMap.size(), Matchers.is(3));
+            assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
             assertThat(requestMap.get("user"), Matchers.is("user"));
+            assertThat(requestMap.get("input_type"), Matchers.is("internal_ingest"));
         }
     }
 
@@ -1408,13 +1431,11 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamChatCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"hello, world"}]}""");
     }
 
-    private InferenceServiceResults streamChatCompletion() throws IOException, URISyntaxException {
+    private InferenceEventsAssertion streamChatCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new AzureOpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = AzureOpenAiCompletionModelTests.createCompletionModel(
@@ -1439,7 +1460,7 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -1455,13 +1476,14 @@ public class AzureOpenAiServiceTests extends ESTestCase {
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-        var result = streamChatCompletion();
-
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
-            .hasErrorWithStatusCode(401)
-            .hasErrorContaining("You didn't provide an API key...");
+        var e = assertThrows(ElasticsearchStatusException.class, this::streamChatCompletion);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Received an authentication error status code for request from inference entity id [id] status [401]."
+                    + " Error message: [You didn't provide an API key...]"
+            )
+        );
     }
 
     @SuppressWarnings("checkstyle:LineLength")
@@ -1558,8 +1580,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

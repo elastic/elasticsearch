@@ -20,13 +20,13 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
-    public KeywordFieldBlockLoaderTests() {
-        super(FieldType.KEYWORD);
+    public KeywordFieldBlockLoaderTests(Params params) {
+        super(FieldType.KEYWORD.toString(), params);
     }
 
     @SuppressWarnings("unchecked")
     @Override
-    protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
+    protected Object expected(Map<String, Object> fieldMapping, Object value) {
         var nullValue = (String) fieldMapping.get("null_value");
 
         var ignoreAbove = fieldMapping.get("ignore_above") == null
@@ -44,9 +44,9 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove))
             .filter(Objects::nonNull);
 
-        if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
+        boolean hasDocValues = hasDocValues(fieldMapping, true);
+        if (hasDocValues) {
             // Sorted and no duplicates
-
             var resultList = convertValues.andThen(Stream::distinct)
                 .andThen(Stream::sorted)
                 .andThen(Stream::toList)

@@ -13,7 +13,9 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -28,6 +30,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -59,9 +62,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
@@ -76,7 +81,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
+import static org.elasticsearch.xpack.inference.external.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createCompletionModel;
@@ -850,7 +855,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 List.of(""),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -859,6 +864,43 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(
                 thrownException.getMessage(),
                 is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
+    public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
+
+        try (var service = new OpenAiService(factory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid input_type [ingest]. The input_type option is not supported by this service;")
             );
 
             verify(factory, times(1)).createSender();
@@ -886,7 +928,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 List.of(""),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -985,7 +1027,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1078,13 +1120,60 @@ public class OpenAiServiceTests extends ESTestCase {
                 }
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
+            var latch = new CountDownLatch(1);
+            service.unifiedCompletionInfer(
+                model,
+                UnifiedCompletionRequest.of(
+                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
+                ),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                ActionListener.runAfter(ActionTestUtils.assertNoSuccessListener(e -> {
+                    try (var builder = XContentFactory.jsonBuilder()) {
+                        var t = unwrapCause(e);
+                        assertThat(t, isA(UnifiedChatCompletionException.class));
+                        ((UnifiedChatCompletionException) t).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
+                            try {
+                                xContent.toXContent(builder, EMPTY_PARAMS);
+                            } catch (IOException ex) {
+                                throw new RuntimeException(ex);
+                            }
+                        });
+                        var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
+
+                        assertThat(json, is("""
+                            {\
+                            "error":{\
+                            "code":"model_not_found",\
+                            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
+                            [404]. Error message: [The model `gpt-4awero` does not exist or you do not have access to it.]",\
+                            "type":"invalid_request_error"\
+                            }}"""));
+                    } catch (IOException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }), latch::countDown)
+            );
+            assertTrue(latch.await(30, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testMidStreamUnifiedCompletionError() throws Exception {
+        String responseJson = """
+            event: error
+            data: { "error": { "message": "Timed out waiting for more data", "type": "timeout" } }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
         testStreamError("""
             {\
             "error":{\
-            "code":"model_not_found",\
-            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
-            [404]. Error message: [The model `gpt-4awero` does not exist or you do not have access to it.]",\
-            "type":"invalid_request_error"\
+            "message":"Received an error response for request from inference entity id [id]. Error message: \
+            [Timed out waiting for more data]",\
+            "type":"timeout"\
             }}""");
     }
 
@@ -1121,22 +1210,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 }
             });
         }
-    }
-
-    public void testMidStreamUnifiedCompletionError() throws Exception {
-        String responseJson = """
-            event: error
-            data: { "error": { "message": "Timed out waiting for more data", "type": "timeout" } }
-
-            """;
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-        testStreamError("""
-            {\
-            "error":{\
-            "message":"Received an error response for request from inference entity id [id]. Error message: \
-            [Timed out waiting for more data]",\
-            "type":"timeout"\
-            }}""");
     }
 
     public void testUnifiedCompletionMalformedError() throws Exception {
@@ -1178,13 +1251,11 @@ public class OpenAiServiceTests extends ESTestCase {
             """;
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-        var result = streamCompletion();
-
-        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+        streamCompletion().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"hello, world"}]}""");
     }
 
-    private InferenceServiceResults streamCompletion() throws IOException {
+    private InferenceEventsAssertion streamCompletion() throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = OpenAiChatCompletionModelTests.createCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
@@ -1200,7 +1271,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 listener
             );
 
-            return listener.actionGet(TIMEOUT);
+            return InferenceEventsAssertion.assertThat(listener.actionGet(TIMEOUT)).hasFinishedStream();
         }
     }
 
@@ -1216,19 +1287,54 @@ public class OpenAiServiceTests extends ESTestCase {
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-        var result = streamCompletion();
+        var e = assertThrows(ElasticsearchStatusException.class, this::streamCompletion);
+        assertThat(e.status(), equalTo(RestStatus.UNAUTHORIZED));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Received an authentication error status code for request from inference entity id [id] status [401]. "
+                    + "Error message: [You didn't provide an API key...]"
+            )
+        );
+    }
 
-        InferenceEventsAssertion.assertThat(result)
-            .hasFinishedStream()
-            .hasNoEvents()
-            .hasErrorWithStatusCode(401)
-            .hasErrorContaining("You didn't provide an API key...");
+    public void testInfer_StreamRequestRetry() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(503).setBody("""
+            {
+              "error": {
+                "message": "server busy",
+                "type": "server_busy"
+              }
+            }"""));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("""
+            data: {\
+                "id":"12345",\
+                "object":"chat.completion.chunk",\
+                "created":123456789,\
+                "model":"gpt-4o-mini",\
+                "system_fingerprint": "123456789",\
+                "choices":[\
+                    {\
+                        "index":0,\
+                        "delta":{\
+                            "content":"hello, world"\
+                        },\
+                        "logprobs":null,\
+                        "finish_reason":null\
+                    }\
+                ]\
+            }
+
+            """));
+
+        streamCompletion().hasNoErrors().hasEvent("""
+            {"completion":[{"delta":"hello, world"}]}""");
     }
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new OpenAiService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 
@@ -1691,7 +1797,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1788,9 +1894,9 @@ public class OpenAiServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                List.of("foo", "bar"),
+                List.of("a", "bb"),
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -1801,7 +1907,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("foo", floatResult.chunks().get(0).matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
                 assertTrue(
                     Arrays.equals(
@@ -1814,7 +1920,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("bar", floatResult.chunks().get(0).matchedText());
+                assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
                 assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
                 assertTrue(
                     Arrays.equals(
@@ -1832,7 +1938,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(3));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("foo", "bar")));
+            assertThat(requestMap.get("input"), Matchers.is(List.of("a", "bb")));
             assertThat(requestMap.get("model"), Matchers.is("model"));
             assertThat(requestMap.get("user"), Matchers.is("user"));
         }

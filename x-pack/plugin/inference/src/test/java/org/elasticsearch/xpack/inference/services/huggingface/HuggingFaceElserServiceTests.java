@@ -96,7 +96,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                 model,
                 List.of("abc"),
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -110,7 +110,6 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                     List.of(
                         new SparseEmbeddingResults.Chunk(
                             List.of(new WeightedToken(".", 0.13315596f)),
-                            "abc",
                             new ChunkedInference.TextOffset(0, "abc".length())
                         )
                     )

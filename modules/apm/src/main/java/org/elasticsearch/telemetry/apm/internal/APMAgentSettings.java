@@ -90,6 +90,11 @@ public class APMAgentSettings {
      */
     @SuppressForbidden(reason = "Need to be able to manipulate APM agent-related properties to set them dynamically")
     public void setAgentSetting(String key, String value) {
+        if (key.startsWith("global_labels.")) {
+            // Invalid agent setting, leftover from flattening global labels in APMJVMOptions
+            // https://github.com/elastic/elasticsearch/issues/120791
+            return;
+        }
         final String completeKey = "elastic.apm." + Objects.requireNonNull(key);
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             if (value == null || value.isEmpty()) {
@@ -242,8 +247,8 @@ public class APMAgentSettings {
         return new Setting<>(qualifiedKey, "", (value) -> {
             if (qualifiedKey.equals("_na_") == false && PERMITTED_AGENT_KEYS.contains(namespace) == false) {
                 if (namespace.startsWith("global_labels.")) {
-                    // The nested labels syntax is transformed in APMJvmOptions.
-                    // Ignore these here to not fail if not correctly removed.
+                    // Invalid agent setting, leftover from flattening global labels in APMJVMOptions
+                    // https://github.com/elastic/elasticsearch/issues/120791
                     return value;
                 }
                 throw new IllegalArgumentException("Configuration [" + qualifiedKey + "] is either prohibited or unknown.");

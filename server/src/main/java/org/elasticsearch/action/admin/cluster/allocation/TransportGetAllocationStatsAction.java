@@ -224,29 +224,22 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
         void setTTL(TimeValue ttl) {
             ttlMillis = ttl.millis();
-
             if (ttlMillis == 0L) {
                 cachedStats.set(null);
             }
         }
 
         Map<String, NodeAllocationStats> get() {
-
             if (ttlMillis == 0L) {
                 return null;
             }
 
+            // We don't set the atomic ref to null here upon expiration since we know it is about to be replaced with a fresh instance.
             final var stats = cachedStats.get();
-
-            if (stats == null || threadPool.relativeTimeInMillis() - stats.timestampMillis > ttlMillis) {
-                return null;
-            }
-
-            return stats.stats;
+            return stats == null || threadPool.relativeTimeInMillis() - stats.timestampMillis > ttlMillis ? null : stats.stats;
         }
 
         void put(Map<String, NodeAllocationStats> stats) {
-
             if (ttlMillis > 0L) {
                 cachedStats.set(new CachedAllocationStats(stats, threadPool.relativeTimeInMillis()));
             }

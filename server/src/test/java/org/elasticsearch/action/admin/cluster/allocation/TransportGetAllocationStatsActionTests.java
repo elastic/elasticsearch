@@ -74,9 +74,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             new ClusterSettings(
-                Settings.builder()
-                    .put(TransportGetAllocationStatsAction.CACHE_TTL_SETTING.getKey(), allocationStatsCacheTTL.toString())
-                    .build(),
+                Settings.builder().put(TransportGetAllocationStatsAction.CACHE_TTL_SETTING.getKey(), allocationStatsCacheTTL).build(),
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
             )
         );
@@ -113,7 +111,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
     private void setAllocationStatsCacheTTL(TimeValue ttl) {
         clusterService.getClusterSettings()
-            .applySettings(Settings.builder().put(TransportGetAllocationStatsAction.CACHE_TTL_SETTING.getKey(), ttl.toString()).build());
+            .applySettings(Settings.builder().put(TransportGetAllocationStatsAction.CACHE_TTL_SETTING.getKey(), ttl).build());
     };
 
     public void testReturnsOnlyRequestedStats() throws Exception {
@@ -223,12 +221,10 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
                 EnumSet.of(Metric.ALLOCATIONS)
             );
 
-            final var future = new PlainActionFuture<TransportGetAllocationStatsAction.Response>();
-            action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, future);
-            final var response = future.get();
-            assertSame("Expected the cached allocation stats to be returned", response.getNodeAllocationStats(), allocationStats.get());
-
-            l.onResponse(null);
+            action.masterOperation(mock(Task.class), request, ClusterState.EMPTY_STATE, l.map(response -> {
+                assertSame("Expected the cached allocation stats to be returned", response.getNodeAllocationStats(), allocationStats.get());
+                return null;
+            }));
         };
 
         // Initial cache miss, all threads should get the same value.
@@ -236,8 +232,13 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
         verify(allocationStatsService, times(++numExpectedAllocationStatsServiceCalls)).stats();
 
+        // Advance the clock to a time less than or equal to the TTL and verify we still get the cached stats.
+        threadPool.setCurrentTimeInMillis(startTimeMillis + between(0, (int) allocationStatsCacheTTL.millis()));
+        ESTestCase.startInParallel(between(1, 5), threadNumber -> safeAwait(threadTask));
+        verify(allocationStatsService, times(numExpectedAllocationStatsServiceCalls)).stats();
+
         // Force the cached stats to expire.
-        threadPool.setCurrentTimeInMillis(startTimeMillis + (2 * allocationStatsCacheTTL.getMillis()));
+        threadPool.setCurrentTimeInMillis(startTimeMillis + allocationStatsCacheTTL.getMillis() + 1);
 
         // Expect a single call to the stats service on the cache miss.
         resetExpectedAllocationStats.run();
@@ -246,8 +247,8 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
 
         // Update the TTL setting to disable the cache, we expect a service call each time.
         setAllocationStatsCacheTTL(TimeValue.ZERO);
-        threadTask.accept(ActionListener.noop());
-        threadTask.accept(ActionListener.noop());
+        safeAwait(threadTask);
+        safeAwait(threadTask);
         numExpectedAllocationStatsServiceCalls += 2;
         verify(allocationStatsService, times(numExpectedAllocationStatsServiceCalls)).stats();
 

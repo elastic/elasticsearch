@@ -26,10 +26,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
@@ -773,10 +773,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             long sourcePrimaryTerm;
             if (shardRouting.recoverySource().getType() == Type.SPLIT) {
                 IndexMetadata indexMetadata = project.index(shardRouting.index());
-                IndexRoutingTable routingTable = originalState.routingTable(project.id()).index(shardRouting.index());
-                // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadata indicate the
-                // split specifics
-                int preSplitSize = routingTable.size() / 2;
+                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+                assert reshardingMetadata != null;
+                int preSplitSize = reshardingMetadata.shardCountBefore();
                 int sourceShardId = shardRouting.id() % preSplitSize;
                 sourcePrimaryTerm = indexMetadata.primaryTerm(sourceShardId);
             } else {

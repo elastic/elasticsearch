@@ -31,6 +31,7 @@ import java.util.Objects;
  * - {@link PeerRecoverySource} recovery from a primary on another node
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
+ * - {@link SplitRecoverySource} recovery that is split from a source shard
  */
 public abstract class RecoverySource implements Writeable, ToXContentObject {
 
@@ -323,7 +324,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
     }
 
     /**
-     * peer recovery from a primary shard
+     * split recovery from a source primary shard
      */
     public static class SplitRecoverySource extends RecoverySource {
 

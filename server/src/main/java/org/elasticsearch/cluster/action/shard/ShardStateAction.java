@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -722,7 +724,7 @@ public class ShardStateAction {
                             // TODO: Currently invalid shard split triggers if the primary term changes, the source primary term changes or
                             // is >= the target primary term or if the source is relocating. In the second and third scenario this will be
                             // swallow currently. In the split process we will need to handle this.
-                            taskContext.success(task::onSuccess);
+                            taskContext.success(() -> task.onFailure(new IllegalStateException("Cannot start")));
                         } else {
                             logger.debug(
                                 "{} starting shard {} (shard started task: [{}])",
@@ -827,17 +829,18 @@ public class ShardStateAction {
                 return false;
             }
             IndexRoutingTable routingTable = clusterState.routingTable(projectId).index(startedShardEntry.shardId.getIndex());
-            // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadatata indicate the
-            // split specifics
-            int sourceShardId = startedShardEntry.shardId.getId() % (routingTable.size() / 2);
             final IndexMetadata indexMetadata = clusterState.metadata().getProject(projectId).index(startedShardEntry.shardId.getIndex());
             assert indexMetadata != null;
+            IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
+            assert reshardingMetadata != null;
+            IndexReshardingState.Split split = reshardingMetadata.getSplit();
+            int sourceShardId = startedShardEntry.shardId.getId() % split.shardCountBefore();
             long currentSourcePrimaryTerm = indexMetadata.primaryTerm(sourceShardId);
             long primaryTermDiff = startedShardEntry.primaryTerm - currentSourcePrimaryTerm;
-            // The source primary term must not have changed, the target primary term must at least be 1 greater and the source cannot be
-            // relocating.
+            // The source primary term must not have changed, the target primary term must at least be equal to or greater and the source
+            // cannot be relocating.
             if (startedShardEntry.shardSplit.sourcePrimaryTerm() != currentSourcePrimaryTerm
-                || primaryTermDiff < 1
+                || primaryTermDiff < 0
                 || routingTable.shard(sourceShardId).primaryShard().relocating()) {
                 return true;
             } else {

@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.GlobalRoutingTable;
@@ -135,10 +136,7 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
                     boolean split = recoverySource != null && recoverySource.getType() == RecoverySource.Type.SPLIT;
                     updatedIndexMetadata = updates.increaseTerm
                         ? split
-                            ? updatedIndexMetadata.withSetPrimaryTerm(
-                                shardId.id(),
-                                splitPrimaryTerm(updatedIndexMetadata, shardId, indexRoutingTable.size())
-                            )
+                            ? updatedIndexMetadata.withSetPrimaryTerm(shardId.id(), splitPrimaryTerm(updatedIndexMetadata, shardId))
                             : updatedIndexMetadata.withIncrementedPrimaryTerm(shardId.id())
                         : updatedIndexMetadata;
                 }
@@ -151,16 +149,16 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
         return updatedMetadata.build();
     }
 
-    private static long splitPrimaryTerm(IndexMetadata updatedIndexMetadata, ShardId shardId, int shardCount) {
-        // TODO: Splits only double atm. However, eventually there will be a reshard object in the index metadatata indicate the
-        // split specifics
+    private static long splitPrimaryTerm(IndexMetadata updatedIndexMetadata, ShardId shardId) {
+        IndexReshardingMetadata reshardingMetadata = updatedIndexMetadata.getReshardingMetadata();
+        assert reshardingMetadata != null;
 
-        // We take the max of the source and target primary terms and increment by 1. This guarantees that the target primary term stays
-        // greater than the source.
+        // We take the max of the source and target primary terms. This guarantees that the target primary term stays
+        // greater than or equal to the source.
         return Math.max(
-            updatedIndexMetadata.primaryTerm(shardId.getId() % (shardCount / 2)),
-            updatedIndexMetadata.primaryTerm(shardId.id())
-        ) + 1;
+            updatedIndexMetadata.primaryTerm(shardId.getId() % reshardingMetadata.shardCountBefore()),
+            updatedIndexMetadata.primaryTerm(shardId.id()) + 1
+        );
     }
 
     /**

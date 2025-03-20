@@ -9,11 +9,11 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpHandler;
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 import com.amazonaws.AbortedException;
 import com.amazonaws.DnsResolver;
 import com.amazonaws.SdkClientException;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.util.Base16;
@@ -63,8 +63,6 @@ import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
-
-import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -1300,7 +1298,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         public void close() throws IOException {
             super.close();
             if (in instanceof final S3RetryingInputStream s3Stream) {
-                assertTrue("Stream " + toString() + " should have reached EOF or should have been aborted but got [eof=" + s3Stream.isEof()
+                assertTrue(
+                    "Stream "
+                        + toString()
+                        + " should have reached EOF or should have been aborted but got [eof="
+                        + s3Stream.isEof()
                         + ", aborted="
                         + s3Stream.isAborted()
                         + ']',

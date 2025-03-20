@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.s3;
 
+import org.apache.http.HttpStatus;
+
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -205,6 +207,7 @@ class S3Service implements Closeable {
         var s3clientBuilder = S3Client.builder();
         s3clientBuilder.httpClient(buildHttpClient(clientSettings).build());
         s3clientBuilder.overrideConfiguration(buildClientConfiguration(clientSettings));
+        s3clientBuilder.serviceConfiguration(b -> b.chunkedEncodingEnabled(clientSettings.disableChunkedEncoding? false : true));
 
         // TODO: credentials
         s3clientBuilder.credentialsProvider(buildCredentials());
@@ -223,19 +226,20 @@ class S3Service implements Closeable {
     }
 
     private Signer getSigner(S3ClientSettings.AwsSignerOverrideType signerOverrideType) {
-        // TODO NOMERGE replace with switch?
-        if (signerOverrideType == S3ClientSettings.AwsSignerOverrideType.Aws4Signer
-            || signerOverrideType == S3ClientSettings.AwsSignerOverrideType.AWS4SignerType) {
-            return Aws4Signer.create();
-        } else if (signerOverrideType == S3ClientSettings.AwsSignerOverrideType.AWS3SignerType
-            || signerOverrideType == S3ClientSettings.AwsSignerOverrideType.AwsS3V4Signer) {
+        switch (signerOverrideType) {
+            case S3ClientSettings.AwsSignerOverrideType.Aws4Signer:
+            case S3ClientSettings.AwsSignerOverrideType.AWS4SignerType:
+                return Aws4Signer.create();
+            case S3ClientSettings.AwsSignerOverrideType.AWS3SignerType:
+            case S3ClientSettings.AwsSignerOverrideType.AwsS3V4Signer:
                 return AwsS3V4Signer.create();
-            } else if (signerOverrideType == S3ClientSettings.AwsSignerOverrideType.NoOpSigner
-                || signerOverrideType == S3ClientSettings.AwsSignerOverrideType.NoOpSignerType) {
-                    return new NoOpSigner();
-                } else {
-                    return null;
-                }
+            case S3ClientSettings.AwsSignerOverrideType.NoOpSigner:
+            case S3ClientSettings.AwsSignerOverrideType.NoOpSignerType:
+                return new NoOpSigner();
+            default:
+                throw new IllegalArgumentException("Invalid enum state [" + signerOverrideType + "]");
+        }
+
     }
 
     private ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
@@ -253,6 +257,7 @@ class S3Service implements Closeable {
 
         // TODO: revisit this, does it still make sense to specially retry?
         RetryPolicy.Builder retryPolicy = RetryPolicy.builder();
+        retryPolicy.numRetries(clientSettings.maxRetries);
         if (isStateless) {
             // Create a 403 error retyable policy.
             retryPolicy.retryCondition((retryPolicyContext) -> {
@@ -265,7 +270,6 @@ class S3Service implements Closeable {
                 return false;
             });
         }
-        retryPolicy.numRetries(clientSettings.maxRetries);
 
         clientOverrideConfiguration.retryPolicy(retryPolicy.build());
         clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, getSigner(clientSettings.signerOverride));
@@ -523,7 +527,7 @@ class S3Service implements Closeable {
 
         public void shutdown() throws IOException {
             if (credentialsProvider != null) {
-                IOUtils.close(credentialsProvider, () -> securityTokenServiceClient.shutdown());
+                IOUtils.close(credentialsProvider, () -> securityTokenServiceClient.close());
             }
         }
 

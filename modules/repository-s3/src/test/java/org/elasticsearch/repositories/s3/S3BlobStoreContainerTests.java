@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.s3;
 
 import software.amazon.awssdk.services.s3.S3Client;
-
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;

@@ -166,9 +166,7 @@ final class S3ClientSettings {
         key -> Setting.boolSetting(
             key,
             false,
-            Property.NodeScope,
-            // TODO NOMERGE why deprecated?
-            Property.Deprecated
+            Property.NodeScope
         )
     );
 
@@ -192,8 +190,8 @@ final class S3ClientSettings {
         // AWS SDK V2 Signer types
         Aws4Signer,
         AwsS3V4Signer,
-        NoOpSigner;
-    };
+        NoOpSigner
+    }
 
     /** An override for the signer to use. */
     static final Setting.AffixSetting<AwsSignerOverrideType> SIGNER_OVERRIDE = Setting.affixKeySetting(
@@ -241,7 +239,7 @@ final class S3ClientSettings {
     final boolean pathStyleAccess;
 
     /** Whether chunked encoding should be disabled or not. */
-    final boolean disableChunkedEncoding; // TODO: deprecated in V2, remove. Encoding can be disabled by setting an HTTP endpoint, I think?
+    final boolean disableChunkedEncoding;
 
     /** Region to use for signing requests or empty string to use default. */
     final String region;

@@ -151,7 +151,9 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         }
         builder.array(SOURCE_FIELDS_FIELD, sourceFields);
         if (chunkingSettings != null) {
-            builder.field(CHUNKING_SETTINGS_FIELD, chunkingSettings);
+            builder.startObject(CHUNKING_SETTINGS_FIELD);
+            builder.mapContents(chunkingSettings);
+            builder.endObject();
         }
         return builder.endObject();
     }

@@ -57,7 +57,8 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        // do not add elements at the top-level as any element at this level is parsed as a new inference field
+        // do not add elements at the top-level as any element at this level is parsed as a new inference field,
+        // and do not add additional elements to chunking maps as they will fail parsing with extra data
         return field -> field.equals("") || field.contains(CHUNKING_SETTINGS_FIELD);
     }
 
@@ -78,7 +79,7 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     }
 
     private static Map<String, Object> generateRandomWordBoundaryChunkingSettings() {
-        return Map.of("strategy", "word_boundary", "max_chunk_size", randomIntBetween(20, 100), "overlap", randomIntBetween(0, 50));
+        return Map.of("strategy", "word_boundary", "max_chunk_size", randomIntBetween(20, 100), "overlap", randomIntBetween(1, 50));
     }
 
     private static Map<String, Object> generateRandomSentenceBoundaryChunkingSettings() {

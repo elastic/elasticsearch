@@ -410,7 +410,7 @@ on 1 October 2015:
 ---------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
-If you specify a `time_zone` of `-01:00`, midnight in that time zone is one hour
+If you specify a `time_zone` of `+01:00`, midnight in that time zone is one hour
 before midnight UTC:
 
 [source,console]

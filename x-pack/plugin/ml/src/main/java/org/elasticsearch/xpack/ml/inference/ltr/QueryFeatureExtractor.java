@@ -47,9 +47,12 @@ public class QueryFeatureExtractor implements FeatureExtractor {
             if (weight == null) {
                 continue;
             }
-            Scorer scorer = weight.scorer(segmentContext);
-            if (scorer != null) {
-                subScorers.add(new FeatureDisiWrapper(scorer, featureNames.get(i)));
+            var scorerSupplier = weight.scorerSupplier(segmentContext);
+            if (scorerSupplier != null) {
+                var scorer = scorerSupplier.get(0L);
+                if (scorer != null) {
+                    subScorers.add(new FeatureDisiWrapper(scorer, featureNames.get(i)));
+                }
             }
         }
         approximation = subScorers.size() > 0 ? new DisjunctionDISIApproximation(subScorers) : null;

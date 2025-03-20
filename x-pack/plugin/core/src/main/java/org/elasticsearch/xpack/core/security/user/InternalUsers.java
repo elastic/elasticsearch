@@ -28,6 +28,7 @@ import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
@@ -247,12 +248,25 @@ public class InternalUsers {
         new RoleDescriptor(
             UsernamesField.LAZY_ROLLOVER_ROLE,
             new String[] {},
-            new RoleDescriptor.IndicesPrivileges[] {
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("*")
-                    .privileges(LazyRolloverAction.NAME)
-                    .allowRestrictedIndices(true)
-                    .build() },
+            DataStream.isFailureStoreFeatureFlagEnabled()
+                ? new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("*")
+                        .privileges(LazyRolloverAction.NAME)
+                        .allowRestrictedIndices(true)
+                        .build(),
+                    RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("*")
+                        // needed to rollover failure store
+                        .privileges("manage_failure_store")
+                        .allowRestrictedIndices(true)
+                        .build() }
+                : new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder()
+                        .indices("*")
+                        .privileges(LazyRolloverAction.NAME)
+                        .allowRestrictedIndices(true)
+                        .build(), },
             null,
             null,
             new String[] {},

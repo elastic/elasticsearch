@@ -1639,3 +1639,346 @@ id:integer | name:keyword | count:long
 13         | lllll        | 2
 14         | mmmmm        | 2
 ;
+
+MultiTypedFieldsEvalKeepSort
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| Eval x = emp_no
+| KEEP x, languages, hire_date, avg_worked_seconds
+| SORT x, hire_date
+| limit 2
+;
+
+x:long |languages:integer |hire_date:date_nanos     |avg_worked_seconds:unsigned_long
+10001  |2                 |1986-06-26T00:00:00.000Z |268728049
+10001  |2                 |1986-06-26T00:00:00.000Z |268728049
+;
+
+MultiTypedFieldsDropKeepSort
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| DROP salary
+| KEEP emp_no, languages, hire_date, avg_worked_seconds
+| SORT emp_no, hire_date
+| limit 2
+;
+
+emp_no:long |languages:integer |hire_date:date_nanos     |avg_worked_seconds:unsigned_long
+10001       |2                 |1986-06-26T00:00:00.000Z |268728049
+10001       |2                 |1986-06-26T00:00:00.000Z |268728049
+;
+
+MultiTypedFieldsRenameKeepSort
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+from employees, employees_incompatible
+| RENAME emp_no as new_emp_no, languages as new_languages, hire_date as new_hire_date, avg_worked_seconds as new_avg_worked_seconds
+| KEEP new_emp_no, new_languages, new_hire_date, new_avg_worked_seconds
+| SORT new_emp_no, new_hire_date
+| limit 2
+;
+
+new_emp_no:long |new_languages:integer |new_hire_date:date_nanos |new_avg_worked_seconds:unsigned_long
+10001           |2                     |1986-06-26T00:00:00.000Z |268728049
+10001           |2                     |1986-06-26T00:00:00.000Z |268728049
+;
+
+MultiTypedFieldsDropEvalKeepSort
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| DROP birth_date
+| EVAL x = emp_no + 1, y = hire_date + 1 year, z = hire_date::datetime
+| KEEP emp_no, x, hire_date, y, z
+| SORT emp_no, hire_date
+| limit 2
+;
+
+emp_no:long |x:long |hire_date:date_nanos     |y:date_nanos             |z:date
+10001       |10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+10001       |10002  |1986-06-26T00:00:00.000Z |1987-06-26T00:00:00.000Z |1986-06-26T00:00:00.000Z
+;
+
+MultiTypedFieldsEvalFilterKeepSort
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| EVAL x = emp_no + 1, y = hire_date + 1 day
+| WHERE emp_no > 10010 AND hire_date > "1992-01-01" AND languages < 3 AND height > 1.2
+| KEEP emp_no, hire_date
+| SORT emp_no, hire_date
+| limit 4
+;
+
+emp_no:long |hire_date:date_nanos
+10016       | 1995-01-27T00:00:00.000Z
+10016       | 1995-01-27T00:00:00.000Z
+10017       | 1993-08-03T00:00:00.000Z
+10017       | 1993-08-03T00:00:00.000Z
+;
+
+MultiTypedFieldsStatsByNumeric
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| STATS x=count(emp_no), y=max(hire_date), z=max(height) BY languages
+| SORT languages
+;
+
+x:long | y:date_nanos             | z:double | languages:integer
+30     | 1999-04-30T00:00:00.000Z | 2.06     | 1
+38     | 1995-01-27T00:00:00.000Z | 2.1      | 2
+34     | 1996-11-05T00:00:00.000Z | 2.1      | 3
+36     | 1995-03-13T00:00:00.000Z | 2.0      | 4
+42     | 1994-04-09T00:00:00.000Z | 2.1      | 5
+20     | 1997-05-19T00:00:00.000Z | 2.1      | null
+;
+
+MultiTypedFieldsStatsByDateNanos
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| STATS x=count(emp_no), y=avg(salary_change), z=max(height) BY hire_date
+| Eval y = round(y, 1), z = round(z, 1)
+| KEEP x, y, z, hire_date
+| SORT hire_date
+| LIMIT 5
+;
+
+x:long | y:double | z:double | hire_date:date_nanos
+2      | null     | 1.9      | 1985-02-18T00:00:00.000Z
+2      | null     | 2.0      | 1985-02-24T00:00:00.000Z
+2      | 3.3      | 2.0      | 1985-05-13T00:00:00.000Z
+2      | 0.2      | 1.8      | 1985-07-09T00:00:00.000Z
+2      | 3.6      | 1.5      | 1985-09-17T00:00:00.000Z
+;
+
+MultiTypedFieldsWhereMvExpandKeepSortNumeric
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| WHERE emp_no == 10003
+| MV_EXPAND salary_change
+| KEEP emp_no, salary_change
+| EVAL salary_change = round(salary_change, 2)
+| SORT salary_change
+;
+
+emp_no:long | salary_change:double
+10003       | 12.82
+10003       | 12.82
+10003       | 14.68
+10003       | 14.68
+;
+
+MultiTypedFieldsMvExpandKeepSortNumeric
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| MV_EXPAND salary_change
+| KEEP emp_no, salary_change
+| EVAL salary_change = round(salary_change, 2)
+| SORT emp_no, salary_change
+| LIMIT 10
+;
+
+emp_no:long | salary_change:double
+10001       | 1.19
+10001       | 1.19
+10002       | -7.23
+10002       | -7.23
+10002       | 11.17
+10002       | 11.17
+10003       | 12.82
+10003       | 12.82
+10003       | 14.68
+10003       | 14.68
+;
+
+MultiTypedFieldsEvalLookupJoinNumeric
+required_capability: join_lookup_v12
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| KEEP emp_no, language_code, language_name
+| SORT emp_no
+;
+
+emp_no:long | language_code:integer | language_name:keyword
+10091       | 3                     | Spanish
+10091       | 3                     | Spanish
+10092       | 1                     | English
+10092       | 1                     | English
+10093       | 3                     | Spanish
+10093       | 3                     | Spanish
+;
+
+MultiTypedMVFields
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| WHERE emp_no <= 10002
+| EVAL x = ROUND(MV_MAX(salary_change),2)
+| KEEP emp_no, x
+| SORT emp_no
+| LIMIT 4
+;
+
+emp_no:long | x:double
+10001       | 1.19
+10001       | 1.19
+10002       | 11.17
+10002       | 11.17
+;
+
+MultiTypedMVFieldsWhere
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| WHERE emp_no <= 10002 AND ROUND(MV_MAX(salary_change),2) > 10
+| KEEP emp_no
+;
+
+emp_no:long
+10002
+10002
+;
+
+MultiTypedMVFieldsStatsMaxMin
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| WHERE emp_no <= 10002
+| STATS max = MAX(salary_change), min = MIN(salary_change)
+| EVAL x = round(max, 2), y = round(min, 2)
+| KEEP x, y
+;
+
+x:double |y:double
+11.17    |-7.23
+;
+
+MultiTypedMVFieldsStatsValues
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| WHERE emp_no <= 10002
+| STATS c = MV_COUNT(VALUES(salary_change))
+;
+
+c:integer
+6
+;
+
+MultiTypedDateDiff
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| WHERE emp_no <= 10003
+| EVAL diff_sec_1 = DATE_DIFF("seconds", TO_DATE_NANOS("1986-01-23T12:15:03.360103847Z"), hire_date)
+| EVAL diff_sec_2 = DATE_DIFF("seconds", TO_DATETIME("1986-01-23T12:15:03.360103847Z"), hire_date)
+| KEEP emp_no, hire_date, diff_sec_1, diff_sec_2
+| SORT emp_no, hire_date
+;
+
+emp_no:long | hire_date:date_nanos     | diff_sec_1:integer | diff_sec_2:integer
+10001       | 1986-06-26T00:00:00.000Z | 13261496           | 13261496
+10001       | 1986-06-26T00:00:00.000Z | 13261496           | 13261496
+10002       | 1985-11-21T00:00:00.000Z | -5487303           | -5487303
+10002       | 1985-11-21T00:00:00.000Z | -5487303           | -5487303
+10003       | 1986-08-28T00:00:00.000Z | 18704696           | 18704696
+10003       | 1986-08-28T00:00:00.000Z | 18704696           | 18704696
+;
+
+MultiTypedDateFormat
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| WHERE emp_no <= 10003
+| EVAL a = DATE_FORMAT(hire_date), b = DATE_FORMAT("yyyy-MM-dd", hire_date), c = DATE_FORMAT("strict_date_optional_time_nanos", hire_date)
+| KEEP emp_no, hire_date, a, b, c
+| SORT emp_no, hire_date
+;
+
+emp_no:long | hire_date:date_nanos     | a:keyword                | b:keyword  | c:keyword
+10001       | 1986-06-26T00:00:00.000Z | 1986-06-26T00:00:00.000Z | 1986-06-26 | 1986-06-26T00:00:00.000Z
+10001       | 1986-06-26T00:00:00.000Z | 1986-06-26T00:00:00.000Z | 1986-06-26 | 1986-06-26T00:00:00.000Z
+10002       | 1985-11-21T00:00:00.000Z | 1985-11-21T00:00:00.000Z | 1985-11-21 | 1985-11-21T00:00:00.000Z
+10002       | 1985-11-21T00:00:00.000Z | 1985-11-21T00:00:00.000Z | 1985-11-21 | 1985-11-21T00:00:00.000Z
+10003       | 1986-08-28T00:00:00.000Z | 1986-08-28T00:00:00.000Z | 1986-08-28 | 1986-08-28T00:00:00.000Z
+10003       | 1986-08-28T00:00:00.000Z | 1986-08-28T00:00:00.000Z | 1986-08-28 | 1986-08-28T00:00:00.000Z
+;
+
+MultiTypedDateTrunc
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| WHERE emp_no <= 10003
+| EVAL yr = DATE_TRUNC(1 year, hire_date), mo = DATE_TRUNC(1 month, hire_date)
+| SORT hire_date DESC
+| KEEP emp_no, hire_date, yr, mo
+;
+
+emp_no:long | hire_date:date_nanos     | yr:date_nanos            | mo:date_nanos
+10003       | 1986-08-28T00:00:00.000Z | 1986-01-01T00:00:00.000Z | 1986-08-01T00:00:00.000Z
+10003       | 1986-08-28T00:00:00.000Z | 1986-01-01T00:00:00.000Z | 1986-08-01T00:00:00.000Z
+10001       | 1986-06-26T00:00:00.000Z | 1986-01-01T00:00:00.000Z | 1986-06-01T00:00:00.000Z
+10001       | 1986-06-26T00:00:00.000Z | 1986-01-01T00:00:00.000Z | 1986-06-01T00:00:00.000Z
+10002       | 1985-11-21T00:00:00.000Z | 1985-01-01T00:00:00.000Z | 1985-11-01T00:00:00.000Z
+10002       | 1985-11-21T00:00:00.000Z | 1985-01-01T00:00:00.000Z | 1985-11-01T00:00:00.000Z
+;
+
+MultiTypedBucketDateNanosByYear
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| STATS c = count(*) BY yr = BUCKET(hire_date, 1 year)
+| SORT yr DESC, c
+;
+
+c:long | yr:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+6      | 1993-01-01T00:00:00.000Z
+16     | 1992-01-01T00:00:00.000Z
+12     | 1991-01-01T00:00:00.000Z
+24     | 1990-01-01T00:00:00.000Z
+26     | 1989-01-01T00:00:00.000Z
+18     | 1988-01-01T00:00:00.000Z
+30     | 1987-01-01T00:00:00.000Z
+22     | 1986-01-01T00:00:00.000Z
+22     | 1985-01-01T00:00:00.000Z
+;
+
+MultiTypedBucketDateNanosByMonth
+required_capability: implicit_casting_union_typed_numeric_and_date
+
+FROM employees, employees_incompatible
+| STATS c = count(*) BY mo = BUCKET(hire_date, 20, "1986-01-01", "1999-12-31")
+| SORT mo DESC, c
+;
+
+c:long | mo:date_nanos
+2      | 1999-01-01T00:00:00.000Z
+2      | 1997-01-01T00:00:00.000Z
+2      | 1996-01-01T00:00:00.000Z
+10     | 1995-01-01T00:00:00.000Z
+8      | 1994-01-01T00:00:00.000Z
+6      | 1993-01-01T00:00:00.000Z
+16     | 1992-01-01T00:00:00.000Z
+12     | 1991-01-01T00:00:00.000Z
+24     | 1990-01-01T00:00:00.000Z
+26     | 1989-01-01T00:00:00.000Z
+18     | 1988-01-01T00:00:00.000Z
+30     | 1987-01-01T00:00:00.000Z
+22     | 1986-01-01T00:00:00.000Z
+22     | 1985-01-01T00:00:00.000Z
+;

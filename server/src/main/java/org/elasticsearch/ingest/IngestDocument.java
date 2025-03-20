@@ -299,7 +299,7 @@ public final class IngestDocument {
     private boolean hasDirectChildField(Object parent, String fieldName, String path, boolean failOutOfRange) {
         if (parent == null) {
             return false;
-        } else if (context instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
+        } else if (parent instanceof IngestCtxMap map) { // optimization: handle IngestCtxMap separately from Map
             return map.containsKey(fieldName);
         } else if (parent instanceof Map<?, ?> map) {
             return map.containsKey(fieldName);
@@ -638,7 +638,7 @@ public final class IngestDocument {
                 return;
             }
             map.put(fieldName, value);
-        } else if (context instanceof Map<?, ?>) {
+        } else if (parent instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) parent;
             if (append) {
@@ -1292,9 +1292,9 @@ public final class IngestDocument {
     }
 
     /**
-     * NOTE: not using {@link #resolve(String, String, Object)} in order to avoid all allocations related to it. The difference between
-     * the two approaches is that this API is designed to be used during general and frequent field searches and not for lookup of an
-     * expected specific field. Therefore, we expect it to yield no results in the vast majority of cases.
+     * NOTE: not using {@link #resolve(String[], int, String, Object)} in order to avoid all allocations related to it. The difference
+     * between the two approaches is that this API is designed to be used during general and frequent field searches and not for lookup
+     * of an expected specific field. Therefore, we expect it to yield no results in the vast majority of cases.
      * <br><br>
      * Returns the value of the direct child field if such with the exact full name exists. The difference from other APIs is that this
      * API does not resolve the full path, but only the direct child field, even if its name contains dots. In addition, it does not throw
@@ -1405,13 +1405,22 @@ public final class IngestDocument {
     }
 
     /**
-     * Removes the top level field with the exact provided field name, whether it contains dots or not.
+     * Convenience method for {@link #removeTopLevelField(String, boolean)} with the ignoreMissing parameter set to true.
      * @param fieldName the field name to remove
      */
     public void removeTopLevelField(String fieldName) {
+        removeTopLevelField(fieldName, true);
+    }
+
+    /**
+     * Removes the top level field with the exact provided field name, whether it contains dots or not.
+     * @param fieldName the field name to remove
+     * @param ignoreMissing whether to ignore the missing field and not throw an exception
+     */
+    public void removeTopLevelField(String fieldName, boolean ignoreMissing) {
         FieldPath fieldPath = FieldPath.of(fieldName);
         Object root = fieldPath.initialContext(this);
-        removeDirectChildField(root, fieldPath.getTrimmedPath(), fieldPath.getTrimmedPath());
+        removeDirectChildField(root, fieldPath.getTrimmedPath(), fieldPath.getTrimmedPath(), ignoreMissing);
     }
 
     /**
@@ -1588,7 +1597,7 @@ public final class IngestDocument {
                     if (removeWhenFound) {
                         try {
                             // todo: when removing, should we remove upwards recursively as long as the parent becomes empty?
-                            removeDirectChildField(context, child.getPathElement(), child.getPathElement());
+                            removeDirectChildField(context, child.getPathElement(), child.getPathElement(), true);
                         } catch (Exception e) {
                             // todo
                         }

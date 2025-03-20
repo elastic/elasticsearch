@@ -99,7 +99,7 @@ public class StGeohex extends SpatialGridFunction implements EvaluatorMapper {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, StGeohex::new, spatialField, parameter, bounds, false);
+        return NodeInfo.create(this, StGeohex::new, spatialField, parameter, bounds);
     }
 
     @Override

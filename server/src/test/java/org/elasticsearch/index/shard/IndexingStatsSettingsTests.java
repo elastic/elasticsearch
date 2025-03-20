@@ -14,6 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingStatsSettingsTests extends ESTestCase {
@@ -39,5 +42,61 @@ public class IndexingStatsSettingsTests extends ESTestCase {
             Settings.builder().put(IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING.getKey(), "90m").build()
         );
         assertThat(settings.getRecentWriteLoadHalfLifeForNewShards(), equalTo(TimeValue.timeValueMinutes(90)));
+    }
+
+    public void testRecentWriteLoadHalfLife_minValue() {
+        IndexingStatsSettings settings = new IndexingStatsSettings(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(
+                        IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING.getKey(),
+                        IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_MIN.toString()
+                    )
+                    .build()
+            )
+        );
+        assertThat(settings.getRecentWriteLoadHalfLifeForNewShards(), equalTo(IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_MIN));
+    }
+
+    public void testRecentWriteLoadHalfLife_valueTooSmall() {
+        long tooFewMillis = IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_MIN.getMillis() / 2;
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new IndexingStatsSettings(
+                ClusterSettings.createBuiltInClusterSettings(
+                    Settings.builder().put(IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING.getKey(), tooFewMillis + "ms").build()
+                )
+            )
+        );
+    }
+
+    public void testRecentWriteLoadHalfLife_maxValue() {
+        IndexingStatsSettings settings = new IndexingStatsSettings(
+            ClusterSettings.createBuiltInClusterSettings(
+                Settings.builder()
+                    .put(
+                        IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING.getKey(),
+                        IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_MAX.toString()
+                    )
+                    .build()
+            )
+        );
+        assertThat(settings.getRecentWriteLoadHalfLifeForNewShards(), equalTo(IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_MAX));
+    }
+
+    public void testRecentWriteLoadHalfLife_valueTooLarge() {
+        int tooManyDays = BigDecimal.valueOf(Long.MAX_VALUE)
+            .add(BigDecimal.ONE)
+            .divide(BigDecimal.valueOf(24 * 60 * 60 * 1_000_000_000L), RoundingMode.UP)
+            .setScale(0, RoundingMode.UP)
+            .intValueExact();
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> new IndexingStatsSettings(
+                ClusterSettings.createBuiltInClusterSettings(
+                    Settings.builder().put(IndexingStatsSettings.RECENT_WRITE_LOAD_HALF_LIFE_SETTING.getKey(), tooManyDays + "d").build()
+                )
+            )
+        );
     }
 }

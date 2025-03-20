@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -604,7 +605,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 List.of(""),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -613,6 +614,44 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
                 is("The internal model was invalid, please delete the service [service_name] with id [model_id] and add it again.")
+            );
+
+            verify(factory, times(1)).createSender();
+            verify(sender, times(1)).start();
+        }
+
+        verify(sender, times(1)).close();
+        verifyNoMoreInteractions(factory);
+        verifyNoMoreInteractions(sender);
+    }
+
+    public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
+        var sender = mock(Sender.class);
+
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var model = IbmWatsonxEmbeddingsModelTests.createModel(modelId, projectId, URI.create(url), apiVersion, apiKey, getUrl(webServer));
+
+        try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            var thrownException = expectThrows(
+                ValidationException.class,
+                () -> service.infer(
+                    model,
+                    null,
+                    List.of(""),
+                    false,
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+            MatcherAssert.assertThat(
+                thrownException.getMessage(),
+                is("Validation Failed: 1: Invalid input_type [ingest]. The input_type option is not supported by this service;")
             );
 
             verify(factory, times(1)).createSender();
@@ -661,7 +700,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 List.of(input),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -723,7 +762,15 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 getUrl(webServer)
             );
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            service.chunkedInfer(
+                model,
+                null,
+                input,
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
@@ -796,7 +843,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 List.of("abc"),
                 false,
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );

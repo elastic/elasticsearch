@@ -165,6 +165,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -335,6 +336,7 @@ public class Stateless extends Plugin
     private final boolean sharedCachedSettingExplicitlySet;
     private final boolean sharedCacheMmapExplicitlySet;
     private final boolean useRealMemoryCircuitBreakerExplicitlySet;
+    private final boolean pageCacheReyclerLimitExplicitlySet;
 
     private final boolean hasSearchRole;
     private final boolean hasIndexRole;
@@ -361,6 +363,7 @@ public class Stateless extends Plugin
         sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
         sharedCacheMmapExplicitlySet = SharedBlobCacheService.SHARED_CACHE_MMAP.exists(settings);
         useRealMemoryCircuitBreakerExplicitlySet = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.exists(settings);
+        pageCacheReyclerLimitExplicitlySet = PageCacheRecycler.LIMIT_HEAP_SETTING.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasIndexRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.INDEX_ROLE);
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
@@ -446,6 +449,11 @@ public class Stateless extends Plugin
         if (useRealMemoryCircuitBreakerExplicitlySet == false) {
             if (hasIndexRole) {
                 settings.put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), false);
+            }
+        }
+        if (pageCacheReyclerLimitExplicitlySet == false) {
+            if (hasIndexRole) {
+                settings.put(PageCacheRecycler.LIMIT_HEAP_SETTING.getKey(), "3%");
             }
         }
         // always override counting reads, stateless does not expose this number so the overhead for tracking it is wasted in any case

@@ -96,6 +96,7 @@ import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
@@ -193,6 +194,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
     private final ThreadPool threadPool;
+    @Nullable
+    private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final MapperService mapperService;
     private final IndexCache indexCache;
     private final Store store;
@@ -297,6 +300,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos;
     private volatile long indexingTimeBeforeShardStartedInNanos;
+    private volatile double recentIndexingLoadAtShardStarted;
     private final SubscribableListener<Void> waitForEngineOrClosedShardListeners = new SubscribableListener<>();
 
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
@@ -316,6 +320,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexEventListener indexEventListener,
         final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         final ThreadPool threadPool,
+        final ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         final BigArrays bigArrays,
         final Engine.Warmer warmer,
         final List<SearchOperationListener> searchOperationListener,
@@ -326,7 +331,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
         final Engine.IndexCommitListener indexCommitListener,
-        final MapperMetrics mapperMetrics
+        final MapperMetrics mapperMetrics,
+        final IndexingStatsSettings indexingStatsSettings
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -342,9 +348,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
+        this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
-        this.internalIndexingStats = new InternalIndexingStats();
+        this.internalIndexingStats = new InternalIndexingStats(relativeTimeInNanosSupplier, indexingStatsSettings);
         var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
@@ -552,6 +559,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
                 startedRelativeTimeInNanos = getRelativeTimeInNanos();
                 indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
+                recentIndexingLoadAtShardStarted = internalIndexingStats.recentIndexingLoad(startedRelativeTimeInNanos);
             } else if (currentRouting.primary()
                 && currentRouting.relocating()
                 && replicationTracker.isRelocated()
@@ -1361,11 +1369,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
         }
 
+        long currentTimeInNanos = getRelativeTimeInNanos();
         return internalIndexingStats.stats(
             throttled,
             throttleTimeInMillis,
             indexingTimeBeforeShardStartedInNanos,
-            getRelativeTimeInNanos() - startedRelativeTimeInNanos
+            currentTimeInNanos - startedRelativeTimeInNanos,
+            currentTimeInNanos,
+            recentIndexingLoadAtShardStarted
         );
     }
 
@@ -3545,6 +3556,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             warmer,
             store,
@@ -4491,14 +4503,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Registers a listener for an event when the shard advances to the provided primary term and segment generation
+     * Registers a listener for an event when the shard advances to the provided primary term and segment generation.
+     * Completes the listener with a {@link IndexShardClosedException} if the shard is closed.
      */
     public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
-        waitForEngineOrClosedShard(
-            listener.delegateFailureAndWrap(
-                (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
-            )
-        );
+        waitForEngineOrClosedShard(listener.delegateFailureAndWrap((l, ignored) -> {
+            if (state == IndexShardState.CLOSED) {
+                l.onFailure(new IndexShardClosedException(shardId));
+            } else {
+                getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l);
+            }
+        }));
     }
 
     /**

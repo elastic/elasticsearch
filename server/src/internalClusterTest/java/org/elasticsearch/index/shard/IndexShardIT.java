@@ -31,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -123,7 +124,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
 
         ClusterService cs = getInstanceFromNode(ClusterService.class);
-        final Index index = cs.state().metadata().index("test").getIndex();
+        final Index index = cs.state().metadata().getProject().index("test").getIndex();
         Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
         logger.info("--> paths: [{}]", (Object) shardPaths);
         // Should not be able to acquire the lock because it's already open
@@ -625,6 +626,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             indexService.getIndexEventListener(),
             wrapper,
             indexService.getThreadPool(),
+            indexService.getThreadPoolMergeExecutorService(),
             indexService.getBigArrays(),
             null,
             Collections.emptyList(),
@@ -635,7 +637,8 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
             System::nanoTime,
             null,
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 
@@ -745,7 +748,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final ClusterState clusterState = clusterService.state();
 
-        final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject().index(indexName);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 

@@ -21,6 +21,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -202,6 +203,15 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     public static boolean isSourceAttribute(Attribute attr) {
         return DOC_ID_FIELD.getName().equals(attr.name());
+    }
+
+    public boolean hasScoring() {
+        for (Attribute a : attrs()) {
+            if (a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

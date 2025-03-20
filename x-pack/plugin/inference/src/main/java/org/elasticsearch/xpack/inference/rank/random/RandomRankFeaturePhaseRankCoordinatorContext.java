@@ -11,8 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Random;
 
 /**
@@ -24,7 +22,7 @@ public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePha
     private final Integer seed;
 
     public RandomRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, Integer seed) {
-        super(size, from, rankWindowSize);
+        super(size, from, rankWindowSize, false);
         this.seed = seed;
     }
 
@@ -40,16 +38,4 @@ public class RandomRankFeaturePhaseRankCoordinatorContext extends RankFeaturePha
         }
         scoreListener.onResponse(scores);
     }
-
-    /**
-     * Sorts documents by score descending.
-     * @param originalDocs documents to process
-     */
-    @Override
-    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
-        return Arrays.stream(originalDocs)
-            .sorted(Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed())
-            .toArray(RankFeatureDoc[]::new);
-    }
-
 }

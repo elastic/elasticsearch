@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,6 +47,7 @@ class PostRecoveryMerger {
     private static final boolean TRIGGER_MERGE_AFTER_RECOVERY;
 
     static {
+        @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_INDEXING) // remove this escape hatch
         final var propertyValue = System.getProperty("es.trigger_merge_after_recovery");
         if (propertyValue == null) {
             TRIGGER_MERGE_AFTER_RECOVERY = true;
@@ -95,7 +97,7 @@ class PostRecoveryMerger {
             return recoveryListener;
         }
 
-        if (indexMetadata.getCreationVersion().before(IndexVersions.MERGE_ON_RECOVERY_VERSION)) {
+        if (indexMetadata.getCreationVersion().before(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)) {
             return recoveryListener;
         }
 

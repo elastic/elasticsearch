@@ -1,0 +1,6 @@
+pr: 122637
+summary: Use `FallbackSyntheticSourceBlockLoader` for `unsigned_long` and `scaled_float`
+  fields
+area: Mapping
+type: enhancement
+issues: []

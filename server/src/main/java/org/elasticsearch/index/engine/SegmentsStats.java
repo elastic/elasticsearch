@@ -251,19 +251,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
         private final long max;
 
         FileStats(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                this.ext = in.readString();
-                this.total = in.readVLong();
-                this.count = in.readVLong();
-                this.min = in.readVLong();
-                this.max = in.readVLong();
-            } else {
-                this.ext = in.readString();
-                this.total = in.readLong();
-                this.count = 0L;
-                this.min = 0L;
-                this.max = 0L;
-            }
+            this.ext = in.readString();
+            this.total = in.readVLong();
+            this.count = in.readVLong();
+            this.min = in.readVLong();
+            this.max = in.readVLong();
         }
 
         public FileStats(String ext, long total, long count, long min, long max) {
@@ -296,16 +288,11 @@ public class SegmentsStats implements Writeable, ToXContentFragment {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-                out.writeString(ext);
-                out.writeVLong(total);
-                out.writeVLong(count);
-                out.writeVLong(min);
-                out.writeVLong(max);
-            } else {
-                out.writeString(ext);
-                out.writeLong(total);
-            }
+            out.writeString(ext);
+            out.writeVLong(total);
+            out.writeVLong(count);
+            out.writeVLong(min);
+            out.writeVLong(max);
         }
 
         @Override

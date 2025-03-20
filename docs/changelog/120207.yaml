@@ -1,5 +1,0 @@
-pr: 120207
-summary: Make `requests_per_second` configurable to throttle reindexing
-area: Data streams
-type: enhancement
-issues: []

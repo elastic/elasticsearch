@@ -13,9 +13,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
@@ -124,6 +127,63 @@ public class LimitOperatorTests extends OperatorTestCase {
                 assertTrue(op.isFinished());
             }
         }
+    }
+
+    public void testEarlyTermination() {
+        int numDrivers = between(1, 4);
+        final List<Driver> drivers = new ArrayList<>();
+        final int limit = between(1, 10_000);
+        final LimitOperator.Factory limitFactory = new LimitOperator.Factory(limit);
+        final AtomicInteger receivedRows = new AtomicInteger();
+        for (int i = 0; i < numDrivers; i++) {
+            DriverContext driverContext = driverContext();
+            SourceOperator sourceOperator = new SourceOperator() {
+                boolean finished = false;
+
+                @Override
+                public void finish() {
+                    finished = true;
+                }
+
+                @Override
+                public boolean isFinished() {
+                    return finished;
+                }
+
+                @Override
+                public Page getOutput() {
+                    return new Page(randomBlock(driverContext.blockFactory(), between(1, 100)));
+                }
+
+                @Override
+                public void close() {
+
+                }
+            };
+            SinkOperator sinkOperator = new PageConsumerOperator(p -> {
+                receivedRows.addAndGet(p.getPositionCount());
+                p.releaseBlocks();
+            });
+            drivers.add(
+                new Driver(
+                    "unset",
+                    "test",
+                    "cluster",
+                    "node",
+                    0,
+                    0,
+                    driverContext,
+                    () -> "test",
+                    sourceOperator,
+                    List.of(limitFactory.get(driverContext)),
+                    sinkOperator,
+                    TimeValue.timeValueMillis(1),
+                    () -> {}
+                )
+            );
+        }
+        runDriver(drivers);
+        assertThat(receivedRows.get(), equalTo(limit));
     }
 
     Block randomBlock(BlockFactory blockFactory, int size) {

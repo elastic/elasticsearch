@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -20,8 +21,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -33,12 +37,15 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -73,6 +80,7 @@ public class DiskThresholdMonitor {
     private final Supplier<ClusterState> clusterStateSupplier;
     private final LongSupplier currentTimeMillisSupplier;
     private final RerouteService rerouteService;
+    private final ProjectResolver projectResolver;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
     // Keeps track of whether the cleanup of existing index blocks (upon disabling
@@ -111,11 +119,13 @@ public class DiskThresholdMonitor {
         ClusterSettings clusterSettings,
         Client client,
         LongSupplier currentTimeMillisSupplier,
-        RerouteService rerouteService
+        RerouteService rerouteService,
+        ProjectResolver projectResolver
     ) {
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
+        this.projectResolver = projectResolver;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
     }
@@ -176,9 +186,9 @@ public class DiskThresholdMonitor {
             lastNodes = Collections.unmodifiableSet(nodes);
         }
 
-        final Set<String> indicesToMarkReadOnly = new HashSet<>();
+        final Set<Index> indicesToMarkReadOnly = new HashSet<>();
+        final Set<Index> indicesNotToAutoRelease = new HashSet<>();
         RoutingNodes routingNodes = state.getRoutingNodes();
-        Set<String> indicesNotToAutoRelease = new HashSet<>();
         markNodesMissingUsageIneligibleForRelease(routingNodes, usages, indicesNotToAutoRelease);
 
         final List<DiskUsage> usagesOverHighThreshold = new ArrayList<>();
@@ -209,9 +219,8 @@ public class DiskThresholdMonitor {
 
                 if (routingNode != null) { // might be temporarily null if the ClusterInfoService and the ClusterService are out of step
                     for (ShardRouting routing : routingNode) {
-                        String indexName = routing.index().getName();
-                        indicesToMarkReadOnly.add(indexName);
-                        indicesNotToAutoRelease.add(indexName);
+                        indicesToMarkReadOnly.add(routing.index());
+                        indicesNotToAutoRelease.add(routing.index());
                     }
                 }
 
@@ -227,8 +236,7 @@ public class DiskThresholdMonitor {
             if (usage.freeBytes() < diskThresholdSettings.getFreeBytesThresholdHighStage(total).getBytes()) {
                 if (routingNode != null) { // might be temporarily null if the ClusterInfoService and the ClusterService are out of step
                     for (ShardRouting routing : routingNode) {
-                        String indexName = routing.index().getName();
-                        indicesNotToAutoRelease.add(indexName);
+                        indicesNotToAutoRelease.add(routing.index());
                     }
                 }
             }
@@ -384,22 +392,28 @@ public class DiskThresholdMonitor {
                 .collect(Collectors.toSet());
 
             // Generate a set of all the indices that exist on either the target or source of a node replacement
-            final Set<String> indicesOnReplaceSourceOrTarget = new HashSet<>();
+            final Set<Index> indicesOnReplaceSourceOrTarget = new HashSet<>();
             for (String nodeId : nodesIdsPartOfReplacement) {
                 for (ShardRouting shardRouting : state.getRoutingNodes().node(nodeId)) {
-                    indicesOnReplaceSourceOrTarget.add(shardRouting.index().getName());
+                    indicesOnReplaceSourceOrTarget.add(shardRouting.index());
                 }
             }
 
-            final Set<String> indicesToAutoRelease = state.routingTable()
-                .indicesRouting()
-                .keySet()
-                .stream()
-                .filter(index -> indicesNotToAutoRelease.contains(index) == false)
-                .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            Set<Index> indicesToAutoRelease = new HashSet<>();
+            for (IndexRoutingTable indexRouting : state.globalRoutingTable().indexRouting()) {
+                Index index = indexRouting.getIndex();
+                if (indicesNotToAutoRelease.contains(index)) {
+                    continue;
+                }
                 // Do not auto release indices that are on either the source or the target of a node replacement
-                .filter(index -> indicesOnReplaceSourceOrTarget.contains(index) == false)
-                .collect(Collectors.toSet());
+                if (indicesOnReplaceSourceOrTarget.contains(index)) {
+                    continue;
+                }
+                var projectId = state.metadata().projectFor(index).id();
+                if (state.getBlocks().hasIndexBlock(projectId, index.getName(), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)) {
+                    indicesToAutoRelease.add(index);
+                }
+            }
 
             if (indicesToAutoRelease.isEmpty() == false) {
                 logger.info(
@@ -407,15 +421,18 @@ public class DiskThresholdMonitor {
                         + indicesToAutoRelease
                         + " since they are now allocated to nodes with sufficient disk space"
                 );
-                updateIndicesReadOnly(indicesToAutoRelease, asyncRefs.acquire(), false);
+                updateIndicesReadOnly(state, indicesToAutoRelease, asyncRefs.acquire(), false);
             } else {
                 logger.trace("no auto-release required");
             }
 
-            indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
+            indicesToMarkReadOnly.removeIf(index -> {
+                final String indexName = index.getName();
+                return state.getBlocks().indexBlocked(state.metadata().projectFor(index).id(), ClusterBlockLevel.WRITE, indexName);
+            });
             logger.trace("marking indices as read-only: [{}]", indicesToMarkReadOnly);
             if (indicesToMarkReadOnly.isEmpty() == false) {
-                updateIndicesReadOnly(indicesToMarkReadOnly, asyncRefs.acquire(), true);
+                updateIndicesReadOnly(state, indicesToMarkReadOnly, asyncRefs.acquire(), true);
             }
         }
     }
@@ -429,7 +446,7 @@ public class DiskThresholdMonitor {
             info,
             SnapshotShardSizeInfo.EMPTY,
             reroutedClusterState.metadata(),
-            reroutedClusterState.routingTable(),
+            reroutedClusterState.globalRoutingTable(),
             0L
         );
     }
@@ -437,13 +454,12 @@ public class DiskThresholdMonitor {
     private static void markNodesMissingUsageIneligibleForRelease(
         RoutingNodes routingNodes,
         Map<String, DiskUsage> usages,
-        Set<String> indicesToMarkIneligibleForAutoRelease
+        Set<Index> indicesToMarkIneligibleForAutoRelease
     ) {
         for (RoutingNode routingNode : routingNodes) {
             if (usages.containsKey(routingNode.nodeId()) == false) {
                 for (ShardRouting routing : routingNode) {
-                    String indexName = routing.index().getName();
-                    indicesToMarkIneligibleForAutoRelease.add(indexName);
+                    indicesToMarkIneligibleForAutoRelease.add(routing.index());
                 }
             }
         }
@@ -453,24 +469,39 @@ public class DiskThresholdMonitor {
         lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
     }
 
-    protected void updateIndicesReadOnly(Set<String> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
+    protected void updateIndicesReadOnly(ClusterState clusterState, Set<Index> indicesToUpdate, Releasable onCompletion, boolean readOnly) {
         // set read-only block but don't block on the response
         Settings readOnlySettings = readOnly ? READ_ONLY_ALLOW_DELETE_SETTINGS : NOT_READ_ONLY_ALLOW_DELETE_SETTINGS;
-        client.admin()
-            .indices()
-            .prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
-            .setSettings(readOnlySettings)
-            .origin("disk-threshold-monitor")
-            .execute(
-                ActionListener.releaseAfter(
-                    ActionListener.runAfter(
-                        ActionListener.<AcknowledgedResponse>noop()
-                            .delegateResponse((l, e) -> logger.debug(() -> "setting indices [" + readOnly + "] read-only failed", e)),
-                        this::setLastRunTimeMillis
-                    ),
-                    onCompletion
-                )
-            );
+        final Map<ProjectId, Set<String>> indicesByProject = new HashMap<>();
+        for (Index index : indicesToUpdate) {
+            var project = clusterState.metadata().projectFor(index);
+            indicesByProject.computeIfAbsent(project.id(), ignore -> Sets.newHashSetWithExpectedSize(indicesToUpdate.size()))
+                .add(index.getName());
+        }
+
+        final ActionListener<AcknowledgedResponse> countdownListener = new CountDownActionListener(
+            indicesByProject.size(),
+            ActionListener.releaseAfter(
+                ActionListener.runAfter(
+                    ActionListener.<Void>noop()
+                        .delegateResponse((l, e) -> logger.debug(() -> "setting indices [" + readOnly + "] read-only failed", e)),
+                    this::setLastRunTimeMillis
+                ),
+                onCompletion
+            )
+        ).map(ignore -> null);
+
+        indicesByProject.forEach(
+            (projectId, indices) -> projectResolver.executeOnProject(
+                projectId,
+                () -> client.admin()
+                    .indices()
+                    .prepareUpdateSettings(indices.toArray(Strings.EMPTY_ARRAY))
+                    .setSettings(readOnlySettings)
+                    .origin("disk-threshold-monitor")
+                    .execute(countdownListener)
+            )
+        );
     }
 
     private void removeExistingIndexBlocks() {
@@ -478,30 +509,35 @@ public class DiskThresholdMonitor {
             checkFinished();
             return;
         }
-        ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
+        final ClusterState state = clusterStateSupplier.get();
+        ActionListener<Void> wrappedListener = new CountDownActionListener(state.metadata().projects().size(), ActionListener.wrap(r -> {
             cleanupUponDisableCalled.set(true);
             checkFinished();
         }, e -> {
             logger.debug("removing read-only blocks from indices failed", e);
             checkFinished();
-        });
-        final ClusterState state = clusterStateSupplier.get();
-        final Set<String> indicesToRelease = state.getBlocks()
-            .indices()
-            .keySet()
-            .stream()
-            .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
-            .collect(Collectors.toUnmodifiableSet());
-        logger.trace("removing read-only block from indices [{}]", indicesToRelease);
-        if (indicesToRelease.isEmpty() == false) {
-            client.admin()
-                .indices()
-                .prepareUpdateSettings(indicesToRelease.toArray(Strings.EMPTY_ARRAY))
-                .setSettings(NOT_READ_ONLY_ALLOW_DELETE_SETTINGS)
-                .origin("disk-threshold-monitor")
-                .execute(wrappedListener.map(r -> null));
-        } else {
-            wrappedListener.onResponse(null);
+        }));
+        for (var projectId : state.metadata().projects().keySet()) {
+            final Set<String> indicesToRelease = state.getBlocks()
+                .indices(projectId)
+                .keySet()
+                .stream()
+                .filter(index -> state.getBlocks().hasIndexBlock(projectId, index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+                .collect(Collectors.toUnmodifiableSet());
+            logger.trace("removing read-only block from indices [{}] for project [{}]", indicesToRelease, projectId);
+            if (indicesToRelease.isEmpty() == false) {
+                projectResolver.executeOnProject(
+                    projectId,
+                    () -> client.admin()
+                        .indices()
+                        .prepareUpdateSettings(indicesToRelease.toArray(Strings.EMPTY_ARRAY))
+                        .setSettings(NOT_READ_ONLY_ALLOW_DELETE_SETTINGS)
+                        .origin("disk-threshold-monitor")
+                        .execute(wrappedListener.map(r -> null))
+                );
+            } else {
+                wrappedListener.onResponse(null);
+            }
         }
     }
 

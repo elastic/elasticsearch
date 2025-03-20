@@ -64,7 +64,6 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -247,7 +246,7 @@ public class Analysis {
         } catch (IOException ioe) {
             String message = Strings.format("IOException while reading %s: %s", settingPath, path);
             throw new IllegalArgumentException(message, ioe);
-        } catch (AccessControlException ace) {
+        } catch (SecurityException ace) {
             throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
         }
     }

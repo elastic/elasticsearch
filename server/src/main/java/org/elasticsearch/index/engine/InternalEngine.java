@@ -254,7 +254,11 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
-            mergeScheduler = createMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings());
+            mergeScheduler = createMergeScheduler(
+                engineConfig.getShardId(),
+                engineConfig.getIndexSettings(),
+                engineConfig.getThreadPoolMergeExecutorService()
+            );
             scheduler = mergeScheduler.getMergeScheduler();
             throttle = new IndexThrottle();
             try {
@@ -2818,15 +2822,95 @@ public class InternalEngine extends Engine {
         return indexWriter.getConfig();
     }
 
-    protected ElasticsearchMergeScheduler createMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
-        return new EngineMergeScheduler(shardId, indexSettings);
+    private void maybeFlushAfterMerge(OnGoingMerge merge) {
+        if (indexWriter.hasPendingMerges() == false && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+            // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the
+            // writer
+            // we deadlock on engine#close for instance.
+            engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    if (isClosed.get() == false) {
+                        logger.warn("failed to flush after merge has finished", e);
+                    } else {
+                        logger.info("failed to flush after merge has finished during shard close");
+                    }
+                }
+
+                @Override
+                protected void doRun() {
+                    // if we have no pending merges and we are supposed to flush once merges have finished to
+                    // free up transient disk usage of the (presumably biggish) segments that were just merged
+                    flush();
+                }
+            });
+        } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
+            // we hit a significant merge which would allow us to free up memory if we'd commit it hence on the next change
+            // we should execute a flush on the next operation if that's a flush after inactive or indexing a document.
+            // we could fork a thread and do it right away but we try to minimize forking and piggyback on outside events.
+            shouldPeriodicallyFlushAfterBigMerge.set(true);
+        }
     }
 
-    private final class EngineMergeScheduler extends ElasticsearchConcurrentMergeScheduler {
+    protected ElasticsearchMergeScheduler createMergeScheduler(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+    ) {
+        if (threadPoolMergeExecutorService != null) {
+            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
+        } else {
+            return new EngineConcurrentMergeScheduler(shardId, indexSettings);
+        }
+    }
+
+    private final class EngineThreadPoolMergeScheduler extends ThreadPoolMergeScheduler {
+        EngineThreadPoolMergeScheduler(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+        ) {
+            super(shardId, indexSettings, threadPoolMergeExecutorService);
+        }
+
+        @Override
+        protected synchronized void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            logger.info(
+                "now throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                numRunningMerges,
+                numQueuedMerges,
+                configuredMaxMergeCount
+            );
+            InternalEngine.this.activateThrottling();
+        }
+
+        @Override
+        protected synchronized void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {
+            logger.info(
+                "stop throttling indexing: numRunningMerges={}, numQueuedMerges={}, maxNumMergesConfigured={}",
+                numRunningMerges,
+                numQueuedMerges,
+                configuredMaxMergeCount
+            );
+            InternalEngine.this.deactivateThrottling();
+        }
+
+        @Override
+        public synchronized void afterMerge(OnGoingMerge merge) {
+            maybeFlushAfterMerge(merge);
+        }
+
+        @Override
+        protected void handleMergeException(final Throwable exc) {
+            mergeException(exc);
+        }
+    }
+
+    private final class EngineConcurrentMergeScheduler extends ElasticsearchConcurrentMergeScheduler {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
-        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+        EngineConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
             super(shardId, indexSettings);
         }
 
@@ -2850,33 +2934,7 @@ public class InternalEngine extends Engine {
                     deactivateThrottling();
                 }
             }
-            if (indexWriter.hasPendingMerges() == false
-                && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
-                // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer
-                // we deadlock on engine#close for instance.
-                engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (isClosed.get() == false) {
-                            logger.warn("failed to flush after merge has finished", e);
-                        } else {
-                            logger.info("failed to flush after merge has finished during shard close");
-                        }
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        // if we have no pending merges and we are supposed to flush once merges have finished to
-                        // free up transient disk usage of the (presumably biggish) segments that were just merged
-                        flush();
-                    }
-                });
-            } else if (merge.getTotalBytesSize() >= engineConfig.getIndexSettings().getFlushAfterMergeThresholdSize().getBytes()) {
-                // we hit a significant merge which would allow us to free up memory if we'd commit it hence on the next change
-                // we should execute a flush on the next operation if that's a flush after inactive or indexing a document.
-                // we could fork a thread and do it right away but we try to minimize forking and piggyback on outside events.
-                shouldPeriodicallyFlushAfterBigMerge.set(true);
-            }
+            maybeFlushAfterMerge(merge);
         }
 
         @Override
@@ -2925,7 +2983,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> extraCommitUserData = getCommitExtraUserData();
+                final Map<String, String> extraCommitUserData = getCommitExtraUserData(localCheckpoint);
                 final Map<String, String> commitData = Maps.newMapWithExpectedSize(8 + extraCommitUserData.size());
                 commitData.putAll(extraCommitUserData);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
@@ -2973,8 +3031,10 @@ public class InternalEngine extends Engine {
     /**
      * Allows InternalEngine extenders to return custom key-value pairs which will be included in the Lucene commit user-data. Custom user
      * data keys can be overwritten by if their keys conflict keys used by InternalEngine.
+     *
+     * @param localCheckpoint the local checkpoint of the commit
      */
-    protected Map<String, String> getCommitExtraUserData() {
+    protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
         return Collections.emptyMap();
     }
 
@@ -3468,7 +3528,9 @@ public class InternalEngine extends Engine {
     <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
         throws EngineException {
         assert scope == SearcherScope.INTERNAL : "performActionWithDirectoryReader(...) isn't prepared for external usage";
-        assert store.hasReferences();
+        if (store.tryIncRef() == false) {
+            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
+        }
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
@@ -3484,6 +3546,8 @@ public class InternalEngine extends Engine {
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
             logger.error("failed to perform action with directory reader", ex);
             throw new EngineException(shardId, "failed to perform action with directory reader", ex);
+        } finally {
+            store.decRef();
         }
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.ann.Aggregator;
@@ -135,45 +136,127 @@ class ValuesIntAggregator {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
+        /**
+         * Builds a {@link Block} with the unique values collected for the {@code #selected}
+         * groups. This is the implementation of the final and intermediate results of the agg.
+         */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
-            try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
-                for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int selectedGroup = selected.getInt(s);
-                    /*
-                     * Count can effectively be in three states - 0, 1, many. We use those
-                     * states to buffer the first value, so we can avoid calling
-                     * beginPositionEntry on single valued fields.
-                     */
-                    int count = 0;
-                    int first = 0;
-                    for (int id = 0; id < values.size(); id++) {
-                        long both = values.get(id);
-                        int group = (int) (both >>> Integer.SIZE);
-                        if (group == selectedGroup) {
-                            int value = (int) both;
-                            switch (count) {
-                                case 0 -> first = value;
-                                case 1 -> {
-                                    builder.beginPositionEntry();
-                                    builder.appendInt(first);
-                                    builder.appendInt(value);
-                                }
-                                default -> builder.appendInt(value);
-                            }
-                            count++;
-                        }
-                    }
-                    switch (count) {
-                        case 0 -> builder.appendNull();
-                        case 1 -> builder.appendInt(first);
-                        default -> builder.endPositionEntry();
+
+            long selectedCountsSize = 0;
+            long idsSize = 0;
+            try {
+                /*
+                 * Get a count of all groups less than the maximum selected group. Count
+                 * *downwards* so that we can flip the sign on all of the actually selected
+                 * groups. Negative values in this array are always unselected groups.
+                 */
+                int selectedCountsLen = selected.max() + 1;
+                long adjust = RamUsageEstimator.alignObjectSize(
+                    RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + selectedCountsLen * Integer.BYTES
+                );
+                blockFactory.adjustBreaker(adjust);
+                selectedCountsSize = adjust;
+                int[] selectedCounts = new int[selectedCountsLen];
+                for (int id = 0; id < values.size(); id++) {
+                    long both = values.get(id);
+                    int group = (int) (both >>> Float.SIZE);
+                    if (group < selectedCounts.length) {
+                        selectedCounts[group]--;
                     }
                 }
-                return builder.build();
+
+                /*
+                 * Total the selected groups and turn the counts into the start index into a sort-of
+                 * off-by-one running count. It's really the number of values that have been inserted
+                 * into the results before starting on this group. Unselected groups will still
+                 * have negative counts.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
+                 */
+                int total = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    int count = -selectedCounts[group];
+                    selectedCounts[group] = total;
+                    total += count;
+                }
+
+                /*
+                 * Build a list of ids to insert in order *and* convert the running
+                 * count in selectedCounts[group] into the end index (exclusive) in
+                 * ids for each group.
+                 * Here we use the negative counts to signal that a group hasn't been
+                 * selected and the id containing values for that group is ignored.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will start with 0, 3, -2, 4, 5.
+                 * The counts will end with 3, 4, -2, 5, 9.
+                 */
+                adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + total * Integer.BYTES);
+                blockFactory.adjustBreaker(adjust);
+                idsSize = adjust;
+                int[] ids = new int[total];
+                for (int id = 0; id < values.size(); id++) {
+                    long both = values.get(id);
+                    int group = (int) (both >>> Float.SIZE);
+                    if (group < selectedCounts.length && selectedCounts[group] >= 0) {
+                        ids[selectedCounts[group]++] = id;
+                    }
+                }
+
+                /*
+                 * Insert the ids in order.
+                 */
+                try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
+                    int start = 0;
+                    for (int s = 0; s < selected.getPositionCount(); s++) {
+                        int group = selected.getInt(s);
+                        int end = selectedCounts[group];
+                        int count = end - start;
+                        switch (count) {
+                            case 0 -> builder.appendNull();
+                            case 1 -> append(builder, ids[start]);
+                            default -> {
+                                builder.beginPositionEntry();
+                                for (int i = start; i < end; i++) {
+                                    append(builder, ids[i]);
+                                }
+                                builder.endPositionEntry();
+                            }
+                        }
+                        start = end;
+                    }
+                    return builder.build();
+                }
+            } finally {
+                blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
             }
+        }
+
+        private void append(IntBlock.Builder builder, int id) {
+            long both = values.get(id);
+            int value = (int) both;
+            builder.appendInt(value);
         }
 
         @Override

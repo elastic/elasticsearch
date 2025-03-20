@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -53,6 +54,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             IndexVersion::current,
+            () -> Version.CURRENT,
             true,
             true
         );
@@ -116,6 +118,7 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             IndexVersion::current,
+            () -> Version.CURRENT,
             true,
             true
         );

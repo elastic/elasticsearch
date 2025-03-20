@@ -27,6 +27,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -3334,6 +3335,21 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener should have been called", called.get(), equalTo(true));
     }
 
+    public void testWaitForPrimaryTermAndGenerationFailsForClosedShard() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard initializingShard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        var future = new PlainActionFuture<Long>();
+        initializingShard.waitForPrimaryTermAndGeneration(0L, 0L, future);
+
+        assertFalse("waitForPrimaryTermAndGeneration should be waiting", future.isDone());
+        closeShards(initializingShard);
+        // Should bail out earlier without calling the engine
+        assertNotNull(ExceptionsHelper.unwrap(expectThrows(Exception.class, future::get), IndexShardClosedException.class));
+    }
+
     public void testRecoverFromLocalShard() throws IOException {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("source")
@@ -5017,6 +5033,7 @@ public class IndexShardTests extends IndexShardTestCase {
             EngineConfig configWithWarmer = new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
+                config.getThreadPoolMergeExecutorService(),
                 config.getIndexSettings(),
                 warmer,
                 config.getStore(),
@@ -5105,7 +5122,15 @@ public class IndexShardTests extends IndexShardTestCase {
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
-            fakeClock
+            fakeClock,
+            // Use a listener to advance the fake clock once per indexing operation:
+            new IndexingOperationListener() {
+                @Override
+                public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+                    fakeClock.advance();
+                    return IndexingOperationListener.super.preIndex(shardId, operation);
+                }
+            }
         );
 
         // Now simulate that each operation takes 1 minute to complete.
@@ -5213,24 +5238,19 @@ public class IndexShardTests extends IndexShardTestCase {
 
     static class FakeClock implements LongSupplier {
         private final AtomicLong currentRelativeTime = new AtomicLong();
-        private final AtomicInteger tick = new AtomicInteger();
-        private volatile TimeValue elapsedTimePerPairOfQueries = TimeValue.ZERO;
+        private volatile TimeValue simulatedElapsedRelativeTime = TimeValue.ZERO;
 
         @Override
         public long getAsLong() {
-            // Since the clock is checked at the beginning and at the end of
-            // the indexing op, just increase the current relative time at the
-            // end.
-            if (tick.getAndIncrement() % 2 == 0) {
-                return currentRelativeTime.get();
-            } else {
-                return currentRelativeTime.addAndGet(elapsedTimePerPairOfQueries.nanos());
-            }
+            return currentRelativeTime.get();
         }
 
-        void setSimulatedElapsedRelativeTime(TimeValue elapsedTimePerPairOfQueries) {
-            tick.set(0);
-            this.elapsedTimePerPairOfQueries = elapsedTimePerPairOfQueries;
+        void setSimulatedElapsedRelativeTime(TimeValue simulatedElapsedRelativeTime) {
+            this.simulatedElapsedRelativeTime = simulatedElapsedRelativeTime;
+        }
+
+        public void advance() {
+            currentRelativeTime.addAndGet(simulatedElapsedRelativeTime.nanos());
         }
     }
 

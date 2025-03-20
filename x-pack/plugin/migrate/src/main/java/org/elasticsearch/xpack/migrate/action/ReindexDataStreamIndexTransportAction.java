@@ -12,6 +12,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -24,6 +25,7 @@ import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -34,9 +36,12 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Assertions;
@@ -51,15 +56,19 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
 
 public class ReindexDataStreamIndexTransportAction extends HandledTransportAction<
     ReindexDataStreamIndexAction.Request,
@@ -98,6 +107,14 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
     private final ClusterService clusterService;
     private final Client client;
+    private final TransportService transportService;
+    /*
+     * The following is incremented in order to keep track of the current round-robin position for ingest nodes that we send sliced requests
+     * to. We bound its random starting value to less than or equal to 2 ^ 30 (the default is Integer.MAX_VALUE or 2 ^ 31 - 1) only so that
+     * the unit test doesn't fail if it rolls over Integer.MAX_VALUE (since the node selected is the same for Integer.MAX_VALUE and
+     * Integer.MAX_VALUE + 1).
+     */
+    private final AtomicInteger ingestNodeOffsetGenerator = new AtomicInteger(Randomness.get().nextInt(2 ^ 30));
 
     @Inject
     public ReindexDataStreamIndexTransportAction(
@@ -116,6 +133,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         );
         this.clusterService = clusterService;
         this.client = client;
+        this.transportService = transportService;
     }
 
     @Override
@@ -124,10 +142,11 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         ReindexDataStreamIndexAction.Request request,
         ActionListener<ReindexDataStreamIndexAction.Response> listener
     ) {
+        var project = clusterService.state().projectState();
         var sourceIndexName = request.getSourceIndex();
         var destIndexName = generateDestIndexName(sourceIndexName);
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
+        IndexMetadata sourceIndex = project.metadata().index(sourceIndexName);
         if (sourceIndex == null) {
             listener.onFailure(new ResourceNotFoundException("source index [{}] does not exist", sourceIndexName));
             return;
@@ -135,7 +154,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
         Settings settingsBefore = sourceIndex.getSettings();
 
-        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(clusterService.state().metadata(), false);
+        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(project.metadata(), false);
         if (hasOldVersion.test(sourceIndex.getIndex()) == false) {
             logger.warn(
                 "Migrating index [{}] with version [{}] is unnecessary as its version is not before [{}]",
@@ -145,19 +164,10 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             );
         }
 
-        if (settingsBefore.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false)) {
-            var errorMessage = String.format(Locale.ROOT, "Cannot reindex index [%s] which has a read block.", destIndexName);
-            listener.onFailure(new ElasticsearchException(errorMessage));
-            return;
-        }
-        if (settingsBefore.getAsBoolean(IndexMetadata.SETTING_BLOCKS_METADATA, false)) {
-            var errorMessage = String.format(Locale.ROOT, "Cannot reindex index [%s] which has a metadata block.", destIndexName);
-            listener.onFailure(new ElasticsearchException(errorMessage));
-            return;
-        }
         final boolean wasClosed = isClosed(sourceIndex);
-        SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> removeMetadataBlocks(sourceIndexName, taskId, l))
             .<OpenIndexResponse>andThen(l -> openIndexIfClosed(sourceIndexName, wasClosed, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> setReadOnly(sourceIndexName, l, taskId))
             .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
@@ -166,6 +176,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<AcknowledgedResponse>andThen(l -> copyIndexMetadataToDest(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> sanityCheck(sourceIndexName, destIndexName, l, taskId))
             .<CloseIndexResponse>andThen(l -> closeIndexIfWasClosed(destIndexName, wasClosed, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> removeAPIBlocks(sourceIndexName, taskId, l, READ_ONLY))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
@@ -201,9 +212,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         return indexMetadata.getState().equals(IndexMetadata.State.CLOSE);
     }
 
-    private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
-        logger.debug("Setting write block on source index [{}]", sourceIndexName);
-        addBlockToIndex(WRITE, sourceIndexName, new ActionListener<>() {
+    private void setReadOnly(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
+        logger.debug("Setting read-only on source index [{}]", sourceIndexName);
+        addBlockToIndex(READ_ONLY, sourceIndexName, new ActionListener<>() {
             @Override
             public void onResponse(AddIndexBlockResponse response) {
                 if (response.isAcknowledged()) {
@@ -254,6 +265,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var settingsOverride = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            // remove lifecycle so that ILM does not start processing before the index is added to data stream
+            .putNull(IndexMetadata.LIFECYCLE_NAME)
             .build();
 
         var request = new CreateIndexFromSourceAction.Request(
@@ -307,7 +320,28 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
                 listener.onResponse(bulkByScrollResponse);
             }
         }, listener::onFailure);
-        client.execute(ReindexAction.INSTANCE, reindexRequest, checkForFailuresListener);
+        /*
+         * Reindex will potentially run a pipeline for each document. If we run all reindex requests on the same node (locally), that
+         * becomes a bottleneck. This code round-robins reindex requests to all ingest nodes to spread out the pipeline workload. When a
+         * data stream has many indices, this can improve performance a good bit.
+         */
+        final DiscoveryNode[] ingestNodes = clusterService.state().getNodes().getIngestNodes().values().toArray(DiscoveryNode[]::new);
+        if (ingestNodes.length == 0) {
+            listener.onFailure(new NoNodeAvailableException("No ingest nodes in cluster"));
+        } else {
+            DiscoveryNode ingestNode = ingestNodes[Math.floorMod(ingestNodeOffsetGenerator.incrementAndGet(), ingestNodes.length)];
+            logger.debug("Sending reindex request to {}", ingestNode.getName());
+            transportService.sendRequest(
+                ingestNode,
+                ReindexAction.NAME,
+                reindexRequest,
+                new ActionListenerResponseHandler<>(
+                    checkForFailuresListener,
+                    BulkByScrollResponse::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
+            );
+        }
     }
 
     private void updateSettings(
@@ -395,6 +429,29 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         addIndexBlockRequest.markVerified(false);
         addIndexBlockRequest.setParentTask(parentTaskId);
         client.admin().indices().execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest, listener);
+    }
+
+    /**
+     * All metadata blocks need to be removed at the start for the following reasons:
+     * 1) If the source index has a metadata only block, the read-only block can't be added.
+     * 2) If the source index is read-only and closed, it can't be opened.
+     */
+    private void removeMetadataBlocks(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {
+        logger.debug("Removing metadata blocks from index [{}]", indexName);
+        removeAPIBlocks(indexName, parentTaskId, listener, METADATA, READ_ONLY);
+    }
+
+    private void removeAPIBlocks(
+        String indexName,
+        TaskId parentTaskId,
+        ActionListener<AcknowledgedResponse> listener,
+        IndexMetadata.APIBlock... blocks
+    ) {
+        Settings.Builder settings = Settings.builder();
+        Arrays.stream(blocks).forEach(b -> settings.putNull(b.settingName()));
+        var updateSettingsRequest = new UpdateSettingsRequest(settings.build(), indexName);
+        updateSettingsRequest.setParentTask(parentTaskId);
+        client.execute(TransportUpdateSettingsAction.TYPE, updateSettingsRequest, listener);
     }
 
     private void getIndexDocCount(String index, TaskId parentTaskId, ActionListener<Long> listener) {

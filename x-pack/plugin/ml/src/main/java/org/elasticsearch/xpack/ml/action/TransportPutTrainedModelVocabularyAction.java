@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -46,7 +45,6 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
         ThreadPool threadPool,
         XPackLicenseState licenseState,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         TrainedModelProvider trainedModelProvider
     ) {
         super(

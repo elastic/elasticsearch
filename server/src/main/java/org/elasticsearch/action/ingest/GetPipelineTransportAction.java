@@ -12,20 +12,20 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
-public class GetPipelineTransportAction extends TransportLocalClusterStateAction<GetPipelineRequest, GetPipelineResponse> {
+public class GetPipelineTransportAction extends TransportLocalProjectMetadataAction<GetPipelineRequest, GetPipelineResponse> {
 
     /**
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
@@ -34,13 +34,19 @@ public class GetPipelineTransportAction extends TransportLocalClusterStateAction
     @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @SuppressWarnings("this-escape")
     @Inject
-    public GetPipelineTransportAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    public GetPipelineTransportAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
+    ) {
         super(
             GetPipelineAction.NAME,
             actionFilters,
             transportService.getTaskManager(),
             clusterService,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
 
         transportService.registerRequestHandler(
@@ -57,15 +63,14 @@ public class GetPipelineTransportAction extends TransportLocalClusterStateAction
     protected void localClusterStateOperation(
         Task task,
         GetPipelineRequest request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetPipelineResponse> listener
     ) throws Exception {
-        ((CancellableTask) task).ensureNotCancelled();
-        listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state, request.getIds()), request.isSummary()));
+        listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state.metadata(), request.getIds()), request.isSummary()));
     }
 
     @Override
-    protected ClusterBlockException checkBlock(GetPipelineRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetPipelineRequest request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 

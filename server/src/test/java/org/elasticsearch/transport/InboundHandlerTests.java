@@ -128,7 +128,6 @@ public class InboundHandlerTests extends ESTestCase {
 
     public void testRequestAndResponse() throws Exception {
         String action = "test-request";
-        int headerSize = TcpHeader.headerSize(TransportVersion.current());
         boolean isError = randomBoolean();
         AtomicReference<TestRequest> requestCaptor = new AtomicReference<>();
         AtomicReference<TestResponse> responseCaptor = new AtomicReference<>();
@@ -183,7 +182,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
         BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
-        BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
+        BytesReference requestContent = fullRequestBytes.slice(TcpHeader.HEADER_SIZE, fullRequestBytes.length() - TcpHeader.HEADER_SIZE);
         Header requestHeader = new Header(
             fullRequestBytes.length() - 6,
             requestId,
@@ -208,7 +207,7 @@ public class InboundHandlerTests extends ESTestCase {
         }
 
         BytesReference fullResponseBytes = channel.getMessageCaptor().get();
-        BytesReference responseContent = fullResponseBytes.slice(headerSize, fullResponseBytes.length() - headerSize);
+        BytesReference responseContent = fullResponseBytes.slice(TcpHeader.HEADER_SIZE, fullResponseBytes.length() - TcpHeader.HEADER_SIZE);
         Header responseHeader = new Header(fullRequestBytes.length() - 6, requestId, responseStatus, TransportVersion.current());
         InboundMessage responseMessage = new InboundMessage(responseHeader, ReleasableBytesReference.wrap(responseContent), () -> {});
         responseHeader.finishParsingHeader(responseMessage.openOrGetStreamInput());
@@ -277,7 +276,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow request",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling request*modules-network.html#modules-network-threading-model"
+                    "handling request*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 
@@ -312,7 +311,7 @@ public class InboundHandlerTests extends ESTestCase {
                     "expected slow response",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
-                    "handling response*modules-network.html#modules-network-threading-model"
+                    "handling response*/configuration-reference/networking-settings?version=*#modules-network-threading-model"
                 )
             );
 

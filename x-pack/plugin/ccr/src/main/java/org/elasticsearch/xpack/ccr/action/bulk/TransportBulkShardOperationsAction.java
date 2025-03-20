@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +54,8 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
         final ShardStateAction shardStateAction,
         final ActionFilters actionFilters,
         final IndexingPressure indexingPressure,
-        final SystemIndices systemIndices
+        final SystemIndices systemIndices,
+        final ProjectResolver projectResolver
     ) {
         super(
             settings,
@@ -70,6 +72,7 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
             PrimaryActionExecution.RejectOnOverload,
             indexingPressure,
             systemIndices,
+            projectResolver,
             ReplicaActionExecution.SubjectToCircuitBreaker
         );
     }
@@ -122,6 +125,11 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
     @Override
     protected int primaryOperationCount(BulkShardOperationsRequest request) {
         return request.getOperations().size();
+    }
+
+    @Override
+    protected long primaryLargestOperationSize(BulkShardOperationsRequest request) {
+        return request.getOperations().stream().mapToLong(Translog.Operation::estimateSize).max().orElse(0);
     }
 
     public static Translog.Operation rewriteOperationWithPrimaryTerm(Translog.Operation operation, long primaryTerm) {

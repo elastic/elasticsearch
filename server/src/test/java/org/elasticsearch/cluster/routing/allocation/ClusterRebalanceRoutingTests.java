@@ -57,8 +57,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -146,8 +146,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -240,8 +240,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -317,8 +317,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -426,8 +426,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -504,8 +504,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -613,8 +613,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject().index("test1"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -704,7 +704,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             }
         );
         assertCriticalWarnings(
-            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[cluster.routing.allocation.type] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
         );
 
         Metadata metadata = Metadata.builder()
@@ -725,8 +726,8 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         // we use a second index here (test1) that never gets assigned otherwise allocateUnassigned
         // is never called if we don't have unassigned shards.
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
-            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.getProject().index("test"))
+            .addAsNew(metadata.getProject().index("test1"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();

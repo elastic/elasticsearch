@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,26 +28,29 @@ public class ToLower extends ChangeCase {
     @FunctionInfo(
         returnType = { "keyword" },
         description = "Returns a new string representing the input string converted to lower case.",
-        examples = @Example(file = "string", tag = "to_lower")
+        examples = { @Example(file = "string", tag = "to_lower"), @Example(file = "string", tag = "to_lower_mv"), }
     )
-    public ToLower(
-        Source source,
-        @Param(
-            name = "str",
-            type = { "keyword", "text" },
-            description = "String expression. If `null`, the function returns `null`."
-        ) Expression field,
-        Configuration configuration
-    ) {
+    public ToLower(Source source, @Param(name = "str", type = { "keyword", "text" }, description = """
+        String expression. If `null`, the function returns `null`.
+        The input can be a single- or multi-valued column or an expression.""") Expression field, Configuration configuration) {
         super(source, field, configuration, Case.LOWER);
     }
 
     private ToLower(StreamInput in) throws IOException {
-        this(Source.EMPTY, in.readNamedWriteable(Expression.class), ((PlanStreamInput) in).configuration());
+        this(
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)
+                ? Source.readFrom((PlanStreamInput) in)
+                : Source.EMPTY,
+            in.readNamedWriteable(Expression.class),
+            ((PlanStreamInput) in).configuration()
+        );
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS)) {
+            source().writeTo(out);
+        }
         out.writeNamedWriteable(field());
     }
 

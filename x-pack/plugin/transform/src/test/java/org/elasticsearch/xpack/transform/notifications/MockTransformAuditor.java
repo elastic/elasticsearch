@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -48,7 +49,9 @@ public class MockTransformAuditor extends TransformAuditor {
     public static MockTransformAuditor createMockAuditor() {
         Map<String, IndexTemplateMetadata> templates = Map.of(AUDIT_INDEX, mock(IndexTemplateMetadata.class));
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates);
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(metadata.getProject()).thenReturn(project);
+        when(project.templates()).thenReturn(templates);
         ClusterState state = mock(ClusterState.class);
         when(state.getMetadata()).thenReturn(metadata);
         ClusterService clusterService = mock(ClusterService.class);

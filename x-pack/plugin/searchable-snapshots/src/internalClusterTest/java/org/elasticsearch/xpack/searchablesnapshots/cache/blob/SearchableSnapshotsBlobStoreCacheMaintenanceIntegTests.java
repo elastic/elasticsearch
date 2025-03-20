@@ -349,7 +349,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             .setRefresh(true);
         var resp = safeGet(client().execute(ReindexAction.INSTANCE, reindexRequest));
         assertThat(resp.getBulkFailures(), is(empty()));
-        indicesAdmin().prepareAliases()
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .removeIndex(SNAPSHOT_BLOB_CACHE_INDEX)
             .addAlias(migratedSnapshotBlobCache, SNAPSHOT_BLOB_CACHE_INDEX)
             .get();
@@ -386,7 +386,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
     }
 
     private Settings getIndexSettings(String indexName) {
-        return indicesAdmin().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName);
+        return indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get().getIndexToSettings().get(indexName);
     }
 
     private Map<String, Tuple<Settings, Long>> mountRandomIndicesWithCache(String repositoryName, int min, int max) throws Exception {

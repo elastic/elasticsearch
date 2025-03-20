@@ -1,4 +1,0 @@
-<<cluster-shard-limit,Cluster shard limits>> prevent creation of more than
-1000 non-frozen shards per node, and 3000 frozen shards per dedicated frozen
-node. Make sure you have enough nodes of each type in your cluster to handle
-the number of shards you need.

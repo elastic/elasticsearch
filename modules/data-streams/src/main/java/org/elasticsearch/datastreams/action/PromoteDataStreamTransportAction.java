@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -49,7 +48,6 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         super(
@@ -100,7 +98,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
     }
 
     static ClusterState promoteDataStream(ClusterState currentState, PromoteDataStreamAction.Request request) {
-        DataStream dataStream = currentState.getMetadata().dataStreams().get(request.getName());
+        DataStream dataStream = currentState.getMetadata().getProject().dataStreams().get(request.getName());
 
         if (dataStream == null) {
             throw new ResourceNotFoundException("data stream [" + request.getName() + "] does not exist");
@@ -118,6 +116,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
         var datastreamName = dataStream.getName();
 
         var matchingIndex = currentState.metadata()
+            .getProject()
             .templatesV2()
             .values()
             .stream()

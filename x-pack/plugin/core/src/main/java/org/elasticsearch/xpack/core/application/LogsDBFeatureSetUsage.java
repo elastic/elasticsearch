@@ -28,7 +28,7 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         super(input);
         indicesCount = input.readVInt();
         indicesWithSyntheticSource = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.LOGSDB_TELEMETRY_STATS)) {
+        if (input.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             numDocs = input.readVLong();
             sizeInBytes = input.readVLong();
         } else {
@@ -36,7 +36,7 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
             sizeInBytes = 0;
         }
         var transportVersion = input.getTransportVersion();
-        if (transportVersion.isPatchFrom(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE_FIX_8_17)
+        if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0)
             || transportVersion.onOrAfter(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE)) {
             hasCustomCutoffDate = input.readBoolean();
         } else {
@@ -49,12 +49,12 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         super.writeTo(out);
         out.writeVInt(indicesCount);
         out.writeVInt(indicesWithSyntheticSource);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.LOGSDB_TELEMETRY_STATS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
             out.writeVLong(numDocs);
             out.writeVLong(sizeInBytes);
         }
         var transportVersion = out.getTransportVersion();
-        if (transportVersion.isPatchFrom(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE_FIX_8_17)
+        if (transportVersion.isPatchFrom(TransportVersions.V_8_17_0)
             || transportVersion.onOrAfter(TransportVersions.LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE)) {
             out.writeBoolean(hasCustomCutoffDate);
         }
@@ -79,7 +79,7 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.LOGSDB_TELEMETRY;
+        return TransportVersions.V_8_17_0;
     }
 
     @Override

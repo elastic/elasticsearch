@@ -483,6 +483,3 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTests
   method: testCreateRequest_WithEntraIdDefined
   issue: https://github.com/elastic/elasticsearch/issues/125061
-- class: org.elasticsearch.upgrades.ApiKeyBackwardsCompatibilityIT
-  method: testCreatingAndUpdatingApiKeys
-  issue: https://github.com/elastic/elasticsearch/issues/125307

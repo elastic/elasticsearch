@@ -1,6 +1,0 @@
-pr: 125230
-summary: Let `random_score` yaml test explicitly fail on `_id` field
-area: Search
-type: bug
-issues:
- - 125010

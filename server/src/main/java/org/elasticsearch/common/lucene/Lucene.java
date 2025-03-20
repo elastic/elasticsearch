@@ -404,7 +404,7 @@ public class Lucene {
         return new ScoreDoc(in.readVInt(), in.readFloat());
     }
 
-    public static ScoreDoc readScoreDocWithShardIndex(StreamInput in) throws IOException {
+    private static ScoreDoc readScoreDocWithShardIndex(StreamInput in) throws IOException {
         var res = readScoreDoc(in);
         res.shardIndex = in.readVInt();
         return res;

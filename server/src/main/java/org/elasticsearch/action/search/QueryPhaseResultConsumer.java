@@ -91,7 +91,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final AtomicReference<MergeTask> runningTask = new AtomicReference<>();
     final AtomicReference<Exception> failure = new AtomicReference<>();
 
-    public final TopDocsStats topDocsStats;
+    final TopDocsStats topDocsStats;
     private volatile MergeResult mergeResult;
     private volatile boolean hasPartialReduce;
     private volatile int numReducePhases;

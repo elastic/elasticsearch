@@ -68,6 +68,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private long serviceTimeEWMA = -1;
     private int nodeQueueSize = -1;
 
+    private boolean reduced;
+
     private final boolean isNull;
 
     private final RefCounted refCounted;
@@ -90,7 +92,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
     public QuerySearchResult(StreamInput in, boolean delayedAggregations) throws IOException {
         isNull = in.readBoolean();
         if (isNull == false) {
-            ShardSearchContextId id = new ShardSearchContextId(in);
+            ShardSearchContextId id = in.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
+                ? in.readOptionalWriteable(ShardSearchContextId::new)
+                : new ShardSearchContextId(in);
             readFromWithId(id, in, delayedAggregations);
         }
         refCounted = null;
@@ -136,6 +140,23 @@ public final class QuerySearchResult extends SearchPhaseResult {
     @Override
     public QuerySearchResult queryResult() {
         return this;
+    }
+
+    /**
+     * @return true if this result was already partially reduced on the data node that it originated on so that the coordinating node
+     * will skip trying to merge aggregations and top-hits from this instance on the final reduce pass
+     */
+    public boolean isPartiallyReduced() {
+        return reduced;
+    }
+
+    /**
+     * See {@link #isPartiallyReduced()}, calling this method marks this hit as having undergone partial reduction on the data node.
+     */
+    public void markAsPartiallyReduced() {
+        assert (hasConsumedTopDocs() || topDocsAndMaxScore.topDocs.scoreDocs.length == 0) && aggregations == null
+            : "result not yet partially reduced [" + topDocsAndMaxScore + "][" + aggregations + "]";
+        this.reduced = true;
     }
 
     public void searchTimedOut(boolean searchTimedOut) {
@@ -389,7 +410,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
             }
         }
-        setTopDocs(readTopDocs(in));
+        if (in.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
+            if (in.readBoolean()) {
+                setTopDocs(readTopDocs(in));
+            }
+        } else {
+            setTopDocs(readTopDocs(in));
+        }
         hasAggs = in.readBoolean();
         boolean success = false;
         try {
@@ -413,6 +440,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             setRescoreDocIds(new RescoreDocIds(in));
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 rankShardResult = in.readOptionalNamedWriteable(RankShardResult.class);
+                if (in.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
+                    reduced = in.readBoolean();
+                }
             }
             success = true;
         } finally {
@@ -431,7 +461,11 @@ public final class QuerySearchResult extends SearchPhaseResult {
         }
         out.writeBoolean(isNull);
         if (isNull == false) {
-            contextId.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
+                out.writeOptionalWriteable(contextId);
+            } else {
+                contextId.writeTo(out);
+            }
             writeToNoId(out);
         }
     }
@@ -447,7 +481,17 @@ public final class QuerySearchResult extends SearchPhaseResult {
                 out.writeNamedWriteable(sortValueFormats[i]);
             }
         }
-        writeTopDocs(out, topDocsAndMaxScore);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
+            if (topDocsAndMaxScore != null) {
+                out.writeBoolean(true);
+                writeTopDocs(out, topDocsAndMaxScore);
+            } else {
+                assert isPartiallyReduced();
+                out.writeBoolean(false);
+            }
+        } else {
+            writeTopDocs(out, topDocsAndMaxScore);
+        }
         out.writeOptionalWriteable(aggregations);
         if (suggest == null) {
             out.writeBoolean(false);
@@ -466,6 +510,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeOptionalNamedWriteable(rankShardResult);
         } else if (rankShardResult != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
+            out.writeBoolean(reduced);
         }
     }
 

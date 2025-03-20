@@ -144,7 +144,7 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             List<Object> transformed = null;
             boolean hasChanged = false;
             // please do not refactor it to a for-each loop to avoid
-            // allocating iterator that performs concurrent modification checks and extra stack traces
+            // allocating iterator that performs concurrent modification checks and extra stack frames
             for (int i = 0, size = c.size(); i < size; i++) {
                 var e = c.get(i);
                 Object next = doTransformExpression(e, traversal);

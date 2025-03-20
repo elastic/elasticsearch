@@ -644,7 +644,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
     }
 
-    public record MergeResult(
+    record MergeResult(
         List<SearchShard> processedShards,
         TopDocs reducedTopDocs,
         @Nullable InternalAggregations reducedAggs,

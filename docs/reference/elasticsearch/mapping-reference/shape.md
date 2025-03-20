@@ -9,7 +9,7 @@ mapped_pages:
 
 The `shape` data type facilitates the indexing of and searching with arbitrary `x, y` cartesian shapes such as rectangles and polygons. It can be used to index and query geometries whose coordinates fall in a 2-dimensional planar coordinate system.
 
-You can query documents using this type using [shape Query](/reference/query-languages/query-dsl-shape-query.md).
+You can query documents using this type using [shape Query](/reference/query-languages/query-dsl/query-dsl-shape-query.md).
 
 
 ## Mapping Options [shape-mapping-options]

@@ -15,6 +15,9 @@ To learn how to upgrade, check out <upgrade docs>.
 ## 9.1.0 [elasticsearch-910-breaking-changes]
 **Release date:** April 01, 2025
 
+Discovery-Plugins:
+* Upgrade `discovery-ec2` to AWS SDK v2 [#122062](https://github.com/elastic/elasticsearch/pull/122062)
+
 TLS:
 * Drop `TLS_RSA` cipher support for JDK 24 [#123600](https://github.com/elastic/elasticsearch/pull/123600)
 

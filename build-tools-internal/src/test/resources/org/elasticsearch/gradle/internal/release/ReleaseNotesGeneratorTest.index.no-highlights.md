@@ -27,26 +27,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 ## 8.2.0 [elasticsearch-820-release-notes]
 **Release date:** April 01, 2025
 
-### Highlights [elasticsearch-820-highlights]
-
-::::{dropdown} [Notable] Release highlight number 5000
-Release highlight body number 5000
-
-For more information, check [PR #5000](https://github.com/elastic/elasticsearch/pull/5000).
-::::
-
-::::{dropdown} [Notable] Release highlight number 5002
-Release highlight body number 5002
-
-For more information, check [PR #5002](https://github.com/elastic/elasticsearch/pull/5002).
-::::
-
-::::{dropdown} Release highlight number 5001
-Release highlight body number 5001
-
-For more information, check [PR #5001](https://github.com/elastic/elasticsearch/pull/5001).
-::::
-
 ### Features and enhancements [elasticsearch-820-features-enhancements]
 
 Aggregation:
@@ -62,9 +42,6 @@ Indices:
 * Test changelog entry 8_1 [#8002](https://github.com/elastic/elasticsearch/pull/8002) (issues: [#8002](https://github.com/elastic/elasticsearch/pull/8002), [#8002](https://github.com/elastic/elasticsearch/pull/8002))
 
 Search:
-*  [#5002](https://github.com/elastic/elasticsearch/pull/5002)
-*  [#5000](https://github.com/elastic/elasticsearch/pull/5000)
-*  [#5001](https://github.com/elastic/elasticsearch/pull/5001)
 * Test changelog entry 10_0 [#10000](https://github.com/elastic/elasticsearch/pull/10000) (issue: [#10000](https://github.com/elastic/elasticsearch/pull/10000))
 * Test changelog entry 10_1 [#10002](https://github.com/elastic/elasticsearch/pull/10002) (issues: [#10002](https://github.com/elastic/elasticsearch/pull/10002), [#10002](https://github.com/elastic/elasticsearch/pull/10002))
 

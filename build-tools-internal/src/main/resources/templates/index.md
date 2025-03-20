@@ -26,10 +26,9 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 ## ${unqualifiedVersion} [elasticsearch-${versionWithoutSeparator}-release-notes]
 **Release date:** April 01, 2025
-
 <%
 if (!notableHighlights.isEmpty() || !nonNotableHighlights.isEmpty()) {
-    print "### Highlights\n"
+    print "\n### Highlights [elasticsearch-${versionWithoutSeparator}-highlights]\n"
 }
 
 for (highlights in [notableHighlights, nonNotableHighlights]) {

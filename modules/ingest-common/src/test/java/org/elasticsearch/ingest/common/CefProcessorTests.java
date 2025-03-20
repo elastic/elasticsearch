@@ -66,7 +66,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("network.transport"), equalTo("TCP"));
         assertThat(cef.get("source.service.name"), equalTo("httpd"));
         assertThat(cef.get("url.original"), equalTo("https://www.example.com/cart"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());    }
+        assertThat((Collection<?>) cef.get("error.message"), empty());
+    }
 
     @Test(expected = IllegalArgumentException.class)
     public void testInvalidCefFormat() {

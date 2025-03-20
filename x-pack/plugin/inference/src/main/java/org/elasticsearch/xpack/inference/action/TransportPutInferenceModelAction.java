@@ -206,7 +206,8 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
                     } else {
                         delegate.onFailure(e);
                     }
-                })
+                }),
+                timeout
             )
         );
 

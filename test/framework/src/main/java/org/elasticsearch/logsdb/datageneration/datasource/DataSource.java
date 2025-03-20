@@ -32,6 +32,7 @@ public class DataSource {
 
         this.handlers.addAll(additionalHandlers);
 
+        this.handlers.add(new DefaultFieldDataGeneratorHandler());
         this.handlers.add(new DefaultPrimitiveTypesHandler());
         this.handlers.add(new DefaultWrappersHandler());
         this.handlers.add(new DefaultObjectGenerationHandler());

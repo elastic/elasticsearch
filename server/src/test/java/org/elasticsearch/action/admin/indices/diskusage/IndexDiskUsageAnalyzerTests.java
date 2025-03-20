@@ -331,7 +331,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 @Override
                 public PostingsFormat getPostingsFormatForField(String field) {
                     if (field.startsWith("suggest_")) {
-                        return new Completion101PostingsFormat(randomFrom(CompletionPostingsFormat.FSTLoadMode.values()));
+                        return new Completion101PostingsFormat();
                     } else {
                         return super.postingsFormat();
                     }

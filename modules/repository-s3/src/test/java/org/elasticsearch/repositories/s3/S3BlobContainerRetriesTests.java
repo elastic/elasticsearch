@@ -64,6 +64,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import software.amazon.awssdk.services.s3.S3ClientBuilder;
+
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -125,8 +127,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         shouldErrorOnDns = new AtomicBoolean(false);
         service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class)) {
             @Override
-            protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
-                final AmazonS3ClientBuilder builder = super.buildClientBuilder(clientSettings);
+            protected S3ClientBuilder buildS3Client(S3ClientSettings clientSettings) {
+                final S3ClientBuilder builder = super.buildS3Client(clientSettings);
                 final DnsResolver defaultDnsResolver = builder.getClientConfiguration().getDnsResolver();
                 builder.getClientConfiguration().setDnsResolver(host -> {
                     if (shouldErrorOnDns.get() && randomBoolean() && randomBoolean()) {

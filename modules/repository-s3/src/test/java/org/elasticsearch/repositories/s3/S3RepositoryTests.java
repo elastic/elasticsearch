@@ -9,7 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AbstractAmazonS3;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.ReferenceDocs;
@@ -38,11 +38,16 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class S3RepositoryTests extends ESTestCase {
 
-    private static class DummyS3Client extends AbstractAmazonS3 {
+    private static class DummyS3Client implements S3Client {
 
         @Override
-        public void shutdown() {
+        public void close() {
             // TODO check is closed
+        }
+
+        @Override
+        public String serviceName() {
+            return "DummyS3Client";
         }
     }
 

@@ -9,21 +9,13 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PartETag;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
-import com.amazonaws.services.s3.model.StorageClass;
-import com.amazonaws.services.s3.model.UploadPartRequest;
-import com.amazonaws.services.s3.model.UploadPartResult;
+import software.amazon.awssdk.services.s3.S3Client;
+
+import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.StorageClass;
+import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
@@ -114,7 +106,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final AmazonS3 client = configureMockClient(blobStore);
+        final S3Client client = configureMockClient(blobStore);
 
         final ArgumentCaptor<PutObjectRequest> argumentCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
         when(client.putObject(argumentCaptor.capture())).thenReturn(new PutObjectResult());
@@ -123,8 +115,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         blobContainer.executeSingleUpload(randomPurpose(), blobStore, blobName, inputStream, blobSize);
 
         final PutObjectRequest request = argumentCaptor.getValue();
-        assertEquals(bucketName, request.getBucketName());
-        assertEquals(blobPath.buildAsString() + blobName, request.getKey());
+        assertEquals(bucketName, request.bucket());
+        assertEquals(blobPath.buildAsString() + blobName, request.key());
         assertEquals(inputStream, request.getInputStream());
         assertEquals(blobSize, request.getMetadata().getContentLength());
         assertEquals(storageClass.toString(), request.getStorageClass());
@@ -185,7 +177,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             when(blobStore.getCannedACL()).thenReturn(cannedAccessControlList);
         }
 
-        final AmazonS3 client = configureMockClient(blobStore);
+        final S3Client client = configureMockClient(blobStore);
 
         final ArgumentCaptor<InitiateMultipartUploadRequest> initArgCaptor = ArgumentCaptor.forClass(InitiateMultipartUploadRequest.class);
         final InitiateMultipartUploadResult initResult = new InitiateMultipartUploadResult();
@@ -205,8 +197,8 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(client.uploadPart(uploadArgCaptor.capture())).thenAnswer(invocationOnMock -> {
             final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
             final UploadPartResult response = new UploadPartResult();
-            response.setPartNumber(request.getPartNumber());
-            response.setETag(expectedEtags.get(request.getPartNumber() - 1));
+            response.setPartNumber(request.partNumber());
+            response.setETag(expectedEtags.get(request.partNumber() - 1));
             return response;
         });
 
@@ -234,10 +226,10 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         for (int i = 0; i < uploadRequests.size(); i++) {
             final UploadPartRequest uploadRequest = uploadRequests.get(i);
 
-            assertEquals(bucketName, uploadRequest.getBucketName());
-            assertEquals(blobPath.buildAsString() + blobName, uploadRequest.getKey());
-            assertEquals(initResult.getUploadId(), uploadRequest.getUploadId());
-            assertEquals(i + 1, uploadRequest.getPartNumber());
+            assertEquals(bucketName, uploadRequest.bucket());
+            assertEquals(blobPath.buildAsString() + blobName, uploadRequest.key());
+            assertEquals(initResult.getUploadId(), uploadRequest.uploadId());
+            assertEquals(i + 1, uploadRequest.partNumber());
             assertEquals(inputStream, uploadRequest.getInputStream());
 
             if (i == (uploadRequests.size() - 1)) {
@@ -273,7 +265,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         when(blobStore.bufferSizeInBytes()).thenReturn(bufferSize);
         when(blobStore.getStorageClass()).thenReturn(randomFrom(StorageClass.values()));
 
-        final AmazonS3 client = mock(AmazonS3.class);
+        final S3Client client = mock(S3Client.class);
         final AmazonS3Reference clientReference = new AmazonS3Reference(client);
         doAnswer(invocation -> {
             clientReference.incRef();
@@ -350,16 +342,16 @@ public class S3BlobStoreContainerTests extends ESTestCase {
             verify(client, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
 
             final AbortMultipartUploadRequest abortRequest = argumentCaptor.getValue();
-            assertEquals(bucketName, abortRequest.getBucketName());
-            assertEquals(blobName, abortRequest.getKey());
-            assertEquals(uploadId, abortRequest.getUploadId());
+            assertEquals(bucketName, abortRequest.bucket());
+            assertEquals(blobName, abortRequest.key());
+            assertEquals(uploadId, abortRequest.uploadId());
         }
 
         closeMockClient(blobStore);
     }
 
-    private static AmazonS3 configureMockClient(S3BlobStore blobStore) {
-        final AmazonS3 client = mock(AmazonS3.class);
+    private static S3Client configureMockClient(S3BlobStore blobStore) {
+        final S3Client client = mock(S3Client.class);
         try (AmazonS3Reference clientReference = new AmazonS3Reference(client)) {
             clientReference.mustIncRef(); // held by the mock, ultimately released in closeMockClient
             when(blobStore.clientReference()).then(invocation -> {
@@ -439,23 +431,23 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
     public void testInitStorageClass() {
         // it should default to `standard`
-        assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.Standard));
-        assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.STANDARD));
+        assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.STANDARD));
 
         // it should accept [standard, standard_ia, onezone_ia, reduced_redundancy, intelligent_tiering]
-        assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.STANDARD));
         assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.StandardInfrequentAccess));
         assertThat(S3BlobStore.initStorageClass("onezone_ia"), equalTo(StorageClass.OneZoneInfrequentAccess));
-        assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.ReducedRedundancy));
-        assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.IntelligentTiering));
+        assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
+        assertThat(S3BlobStore.initStorageClass("intelligent_tiering"), equalTo(StorageClass.INTELLIGENT_TIERING));
     }
 
     public void testCaseInsensitiveStorageClass() {
-        assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.STANDARD));
         assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.StandardInfrequentAccess));
         assertThat(S3BlobStore.initStorageClass("oNeZoNe_iA"), equalTo(StorageClass.OneZoneInfrequentAccess));
-        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.ReducedRedundancy));
-        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.IntelligentTiering));
+        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.REDUCED_REDUNDANCY));
+        assertThat(S3BlobStore.initStorageClass("intelLigeNt_tieriNG"), equalTo(StorageClass.INTELLIGENT_TIERING));
     }
 
     public void testInvalidStorageClass() {

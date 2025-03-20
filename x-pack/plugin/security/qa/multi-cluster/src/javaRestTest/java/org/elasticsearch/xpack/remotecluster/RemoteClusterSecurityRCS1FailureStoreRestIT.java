@@ -134,13 +134,6 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                   "names": ["local_index"],
                   "privileges": ["read"]
                 }
-              ],
-              "remote_indices": [
-                {
-                  "names": ["test*"],
-                  "privileges": ["read", "read_cross_cluster"],
-                  "clusters": ["my_remote_cluster"]
-                }
               ]
             }""");
         assertOK(adminClient().performRequest(putRoleRequest));

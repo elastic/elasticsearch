@@ -359,9 +359,7 @@ class IndicesAndAliasesResolver {
                 resolvedIndicesBuilder.addRemote(split.getRemote());
             }
 
-            if (resolvedIndicesBuilder.isEmpty())
-
-            {
+            if (resolvedIndicesBuilder.isEmpty()) {
                 if (indicesOptions.allowNoIndices()) {
                     // this is how we tell es core to return an empty response, we can let the request through being sure
                     // that the '-*' wildcard expression will be resolved to no indices. We can't let empty indices through

@@ -52,6 +52,8 @@ import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticI
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -140,7 +142,7 @@ public class ElasticInferenceService extends SenderService {
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
-                MinimalServiceSettings.chatCompletion()
+                MinimalServiceSettings.chatCompletion(NAME)
             ),
             DEFAULT_ELSER_MODEL_ID_V2,
             new DefaultModelConfig(
@@ -153,7 +155,7 @@ public class ElasticInferenceService extends SenderService {
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
-                MinimalServiceSettings.sparseEmbedding()
+                MinimalServiceSettings.sparseEmbedding(NAME)
             )
         );
     }

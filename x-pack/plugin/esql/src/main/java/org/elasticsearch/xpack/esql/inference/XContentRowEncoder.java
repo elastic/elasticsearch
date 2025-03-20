@@ -26,7 +26,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 
-class XContentRowEncoder implements EvalOperator.ExpressionEvaluator {
+public class XContentRowEncoder implements RowEncoder<BytesRefBlock> {
     private final XContentType xContentType;
     private final BlockFactory blockFactory;
     private final String[] fieldNames;
@@ -55,7 +55,7 @@ class XContentRowEncoder implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public Block eval(Page page) {
+    public BytesRefBlock encodeRows(Page page) {
         Block[] fieldValueBlocks = new Block[fieldsValueEvaluators.length];
         try (
             BytesRefStreamOutput outputStream = new BytesRefStreamOutput();
@@ -107,7 +107,7 @@ class XContentRowEncoder implements EvalOperator.ExpressionEvaluator {
         }
     }
 
-    public static final class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    public static final class Factory implements RowEncoder.Factory<BytesRefBlock> {
         private final XContentType xContentType;
         private final Map<String, EvalOperator.ExpressionEvaluator.Factory> fieldsEvaluatorFactories;
 
@@ -116,8 +116,7 @@ class XContentRowEncoder implements EvalOperator.ExpressionEvaluator {
             this.fieldsEvaluatorFactories = fieldsEvaluatorFactories;
         }
 
-        @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public RowEncoder<BytesRefBlock> get(DriverContext context) {
             return new XContentRowEncoder(xContentType, context.blockFactory(), fieldNames(), fieldsValueEvaluators(context));
         }
 

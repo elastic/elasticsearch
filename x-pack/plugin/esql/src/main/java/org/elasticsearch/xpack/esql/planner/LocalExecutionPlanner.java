@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.RerankOperator;
+import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
@@ -566,19 +567,20 @@ public class LocalExecutionPlanner {
             );
         }
 
+        XContentRowEncoder.Factory rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(rerankFieldsEvaluatorSuppliers);
+
         String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
         String queryText = BytesRefs.toString(rerank.queryText().fold(context.foldCtx));
 
-        Layout.Builder layoutBuilder = source.layout.builder();
+        Layout outputLayout = source.layout;
         if (source.layout.get(rerank.scoreAttribute().id()) == null) {
-            layoutBuilder.append(rerank.scoreAttribute());
+            outputLayout = source.layout.builder().append(rerank.scoreAttribute()).build();
         }
-        Layout outputLayout = layoutBuilder.build();
 
         int scoreChannel = outputLayout.get(rerank.scoreAttribute().id()).channel();
 
         return source.with(
-            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rerankFieldsEvaluatorSuppliers, scoreChannel),
+            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rowEncoderFactory, scoreChannel),
             outputLayout
         );
     }

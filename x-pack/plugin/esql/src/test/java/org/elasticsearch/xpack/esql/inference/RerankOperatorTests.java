@@ -24,7 +24,6 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
@@ -43,13 +42,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -66,7 +62,7 @@ public class RerankOperatorTests extends OperatorTestCase {
     private static final String SIMPLE_QUERY = "query text";
     private ThreadPool threadPool;
     private List<ElementType> inputChannelElementTypes;
-    private Map<String, ExpressionEvaluator.Factory> rerankFieldsEvaluatorFactories;
+    private RowEncoder.Factory<BytesRefBlock> rowEncoderFactory;
     private int scoreChannel;
 
     @Before
@@ -74,7 +70,7 @@ public class RerankOperatorTests extends OperatorTestCase {
         int channelCount = randomIntBetween(2, 10);
         scoreChannel = randomIntBetween(0, channelCount - 1);
         inputChannelElementTypes = IntStream.range(0, channelCount).sorted().mapToObj(this::randomElementType).collect(Collectors.toList());
-        rerankFieldsEvaluatorFactories = randomFieldEvaluators().collect(Collectors.toMap((e) -> randomIdentifier(), Function.identity()));
+        rowEncoderFactory = mockRowEncoderFactory();
     }
 
     @Before
@@ -94,14 +90,7 @@ public class RerankOperatorTests extends OperatorTestCase {
     @Override
     protected Operator.OperatorFactory simple() {
         InferenceService inferenceService = mockedSimpleInferenceService();
-
-        return new RerankOperator.Factory(
-            inferenceService,
-            SIMPLE_INFERENCE_ID,
-            SIMPLE_QUERY,
-            rerankFieldsEvaluatorFactories,
-            scoreChannel
-        );
+        return new RerankOperator.Factory(inferenceService, SIMPLE_INFERENCE_ID, SIMPLE_QUERY, rowEncoderFactory, scoreChannel);
     }
 
     private InferenceService mockedSimpleInferenceService() {
@@ -136,31 +125,13 @@ public class RerankOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo(
-            "RerankOperator[inference_id=["
-                + SIMPLE_INFERENCE_ID
-                + "], query=["
-                + SIMPLE_QUERY
-                + "], rerank_fields="
-                + rerankFieldsEvaluatorFactories.keySet()
-                + ", score_channel=["
-                + scoreChannel
-                + "]]"
-        );
+        return expectedToStringOfSimple();
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
-            "RerankOperator[inference_id=["
-                + SIMPLE_INFERENCE_ID
-                + "], query=["
-                + SIMPLE_QUERY
-                + "], row_encoder=[XContentRowEncoder[content_type=[YAML], field_names="
-                + rerankFieldsEvaluatorFactories.keySet()
-                + "]], score_channel=["
-                + scoreChannel
-                + "]]"
+            "RerankOperator[inference_id=[" + SIMPLE_INFERENCE_ID + "], query=[" + SIMPLE_QUERY + "], score_channel=[" + scoreChannel + "]]"
         );
     }
 
@@ -257,33 +228,29 @@ public class RerankOperatorTests extends OperatorTestCase {
         return inputChannelElementTypes.size();
     }
 
-    private int randomInputChannel() {
-        return randomIntBetween(0, inputChannelCount() - 1);
-    }
-
     private ElementType randomElementType(int channel) {
         return channel == scoreChannel ? ElementType.DOUBLE : randomFrom(ElementType.FLOAT, ElementType.DOUBLE, ElementType.LONG);
     }
 
-    private Stream<ExpressionEvaluator.Factory> randomFieldEvaluators() {
-        return Stream.generate(() -> randomFieldEvaluator(randomInputChannel())).limit(randomIntBetween(0, 20));
-    }
-
-    private static ExpressionEvaluator.Factory randomFieldEvaluator(int channel) {
-        return context -> new ExpressionEvaluator() {
+    private RowEncoder.Factory<BytesRefBlock> mockRowEncoderFactory() {
+        RowEncoder.Factory<BytesRefBlock> factory = new RowEncoder.Factory<>() {
             @Override
-            public Block eval(Page page) {
-                Block b = page.getBlock(channel);
-                b.incRef();
-                ;
-                return b;
-            }
+            public RowEncoder<BytesRefBlock> get(DriverContext context) {
+                return new RowEncoder<BytesRefBlock>() {
+                    @Override
+                    public BytesRefBlock encodeRows(Page page) {
+                        return blockFactory().newConstantBytesRefBlockWith(new BytesRef(randomAlphaOfLength(100)), page.getPositionCount());
+                    }
 
-            @Override
-            public void close() {
+                    @Override
+                    public void close() {
 
+                    }
+                };
             }
         };
+
+        return factory;
     }
 
     private void assertExpectedScore(DoubleBlock scoreBlockResult) {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -16,7 +17,6 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
@@ -24,9 +24,6 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
 import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.xpack.esql.inference.XContentRowEncoder.yamlRowEncoderFactory;
 
 public class RerankOperator extends AsyncOperator<Page> {
 
@@ -37,21 +34,13 @@ public class RerankOperator extends AsyncOperator<Page> {
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        Map<String, ExpressionEvaluator.Factory> fieldsEvaluatorFactories,
+        RowEncoder.Factory<BytesRefBlock> rowEncoderFactory,
         int scoreChannel
     ) implements OperatorFactory {
 
         @Override
         public String describe() {
-            return "RerankOperator[inference_id=["
-                + inferenceId
-                + "], query=["
-                + queryText
-                + "], rerank_fields="
-                + fieldsEvaluatorFactories.keySet()
-                + ", score_channel=["
-                + scoreChannel
-                + "]]";
+            return "RerankOperator[inference_id=[" + inferenceId + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
         }
 
         @Override
@@ -61,7 +50,7 @@ public class RerankOperator extends AsyncOperator<Page> {
                 inferenceService,
                 inferenceId,
                 queryText,
-                yamlRowEncoderFactory(fieldsEvaluatorFactories).get(driverContext),
+                rowEncoderFactory().get(driverContext),
                 scoreChannel
             );
         }
@@ -71,7 +60,7 @@ public class RerankOperator extends AsyncOperator<Page> {
     private final BlockFactory blockFactory;
     private final String inferenceId;
     private final String queryText;
-    private final ExpressionEvaluator rowEncoder;
+    private final RowEncoder<BytesRefBlock> rowEncoder;
     private final int scoreChannel;
 
     public RerankOperator(
@@ -79,7 +68,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        ExpressionEvaluator rowEncoder,
+        RowEncoder<BytesRefBlock> rowEncoder,
         int scoreChannel
     ) {
         super(driverContext, inferenceService.getThreadContext(), MAX_INFERENCE_WORKER);
@@ -129,15 +118,7 @@ public class RerankOperator extends AsyncOperator<Page> {
 
     @Override
     public String toString() {
-        return "RerankOperator[inference_id=["
-            + inferenceId
-            + "], query=["
-            + queryText
-            + "], row_encoder=["
-            + rowEncoder
-            + "], score_channel=["
-            + scoreChannel
-            + "]]";
+        return "RerankOperator[inference_id=[" + inferenceId + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
     }
 
     private Page buildOutput(Page inputPage, InferenceAction.Response inferenceResponse) {
@@ -196,17 +177,17 @@ public class RerankOperator extends AsyncOperator<Page> {
     }
 
     private InferenceAction.Request buildInferenceRequest(Page inputPage) {
-        try (BytesRefBlock encodedRowBlock = (BytesRefBlock) rowEncoder.eval(inputPage)) {
-            assert (encodedRowBlock.getPositionCount() == inputPage.getPositionCount());
+        try (BytesRefBlock encodedRowsBlock = rowEncoder.encodeRows(inputPage)) {
+            assert (encodedRowsBlock.getPositionCount() == inputPage.getPositionCount());
             String[] inputs = new String[inputPage.getPositionCount()];
             BytesRef buffer = new BytesRef();
 
             for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
-                if (encodedRowBlock.isNull(pos)) {
+                if (encodedRowsBlock.isNull(pos)) {
                     inputs[pos] = "";
                 } else {
-                    buffer = encodedRowBlock.getBytesRef(encodedRowBlock.getFirstValueIndex(pos), buffer);
-                    inputs[pos] = buffer.utf8ToString();
+                    buffer = encodedRowsBlock.getBytesRef(encodedRowsBlock.getFirstValueIndex(pos), buffer);
+                    inputs[pos] = BytesRefs.toString(buffer);
                 }
             }
 

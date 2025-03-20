@@ -3420,7 +3420,7 @@ public class AnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testResolveRerankScoreFields() {
+    public void testResolveRerankScoreField() {
         {
             // When the metadata field is required in FROM, it is reused.
             LogicalPlan plan = analyze("""

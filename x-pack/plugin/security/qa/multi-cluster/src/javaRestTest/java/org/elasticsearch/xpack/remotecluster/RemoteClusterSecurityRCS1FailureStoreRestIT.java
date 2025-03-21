@@ -127,6 +127,36 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                     ccsMinimizeRoundtrips
                 )
             );
+
+            // user with access to all should be able to search the backing failure index
+            assertSearchResponseContainsIndices(performRequestWithUser(ALL_ACCESS, failureIndexSearchRequest), backingFailureIndexName);
+
+            // user with data only access should not be able to search the backing failure index
+            {
+                final ResponseException exception = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithUser(DATA_ACCESS, failureIndexSearchRequest)
+                );
+                assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+                assertThat(
+                    exception.getMessage(),
+                    containsString(
+                        "action ["
+                            + (ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards")
+                            + "] is unauthorized for user ["
+                            + DATA_ACCESS
+                            + "] "
+                            + "with effective roles ["
+                            + DATA_ACCESS
+                            + "] on indices ["
+                            + backingFailureIndexName
+                            + "], this action is granted by the index privileges [view_index_metadata,manage,read_cross_cluster,all]"
+
+                    )
+                );
+            }
+
+            // for user with access to failure store, it depends on the underlying action that is being sent to the remote cluster
             if (ccsMinimizeRoundtrips) {
                 // this is a special case where indices:data/read/search will be sent to a remote cluster
                 // and the request to backing failure store index will be authorized based on the datastream

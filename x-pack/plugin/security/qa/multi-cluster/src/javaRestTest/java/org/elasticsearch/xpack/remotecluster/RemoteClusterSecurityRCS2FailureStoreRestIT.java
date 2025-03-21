@@ -166,7 +166,6 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
     }
 
     private static void setupUserAndRoleOnQueryCluster() throws IOException {
-        // Create user role with privileges for remote and local indices
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {

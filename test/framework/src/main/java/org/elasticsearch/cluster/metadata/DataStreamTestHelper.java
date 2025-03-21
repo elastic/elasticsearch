@@ -81,6 +81,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
+import static org.elasticsearch.test.ESTestCase.randomPositiveTimeValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -361,7 +362,7 @@ public final class DataStreamTestHelper {
             timeProvider,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
-            randomBoolean() ? DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build() : null,
+            randomBoolean() ? DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build() : null,
             failureStore ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             DataStream.DataStreamIndices.backingIndicesBuilder(indices)
                 .setRolloverOnWrite(replicated == false && randomBoolean())

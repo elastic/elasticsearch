@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 
 import java.io.IOException;
@@ -181,8 +182,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 results.add(
                     new ChunkedInferenceEmbedding(
                         List.of(
-                            new TextEmbeddingFloatResults.Chunk(
-                                nonChunkedResults.embeddings().get(i).values(),
+                            new EmbeddingResults.Chunk(
+                                nonChunkedResults.embeddings().get(i),
                                 new ChunkedInference.TextOffset(0, input.get(i).length())
                             )
                         )
@@ -333,7 +334,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public TestServiceSettings(StreamInput in) throws IOException {
             this(
                 in.readString(),
-                in.readOptionalInt(),
+                in.readInt(),
                 in.readOptionalEnum(SimilarityMeasure.class),
                 in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class)
             );

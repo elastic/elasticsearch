@@ -83,10 +83,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             var expectedDocument = jsonBuilder().startObject();
             var inputDocument = jsonBuilder().startObject();
 
-            boolean expectedContainsArray = values.length > 0 || malformed.length > 1;
-            if (expectedContainsArray) {
+            boolean expectedIsArray = values.length != 0 || malformed.length != 1;
+            if (expectedIsArray) {
                 expectedDocument.startArray("field");
-            } else if (malformed.length > 0) {
+            } else {
                 expectedDocument.field("field");
             }
             inputDocument.startArray("field");
@@ -113,7 +113,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 }
             }
 
-            if (expectedContainsArray) {
+            if (expectedIsArray) {
                 expectedDocument.endArray();
             }
             expectedDocument.endObject();
@@ -259,31 +259,45 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
     }
 
     protected void verifySyntheticArray(Object[][] arrays, XContentBuilder mapping, String... expectedStoredFields) throws IOException {
+        verifySyntheticArray(arrays, arrays, mapping, expectedStoredFields);
+    }
+
+    private XContentBuilder arrayToSource(Object[] array) throws IOException {
+        var source = jsonBuilder().startObject();
+        if (array != null) {
+            source.startArray("field");
+            for (Object arrayValue : array) {
+                source.value(arrayValue);
+            }
+            source.endArray();
+        } else {
+            source.field("field").nullValue();
+        }
+        return source.endObject();
+    }
+
+    protected void verifySyntheticArray(
+        Object[][] inputArrays,
+        Object[][] expectedArrays,
+        XContentBuilder mapping,
+        String... expectedStoredFields
+    ) throws IOException {
+        assertThat(inputArrays.length, equalTo(expectedArrays.length));
+
         var indexService = createIndex(
             "test-index",
             Settings.builder().put("index.mapping.source.mode", "synthetic").put("index.mapping.synthetic_source_keep", "arrays").build(),
             mapping
         );
-        for (int i = 0; i < arrays.length; i++) {
-            var array = arrays[i];
-
+        for (int i = 0; i < inputArrays.length; i++) {
             var indexRequest = new IndexRequest("test-index");
             indexRequest.id("my-id-" + i);
-            var source = jsonBuilder().startObject();
-            if (array != null) {
-                source.startArray("field");
-                for (Object arrayValue : array) {
-                    source.value(arrayValue);
-                }
-                source.endArray();
-            } else {
-                source.field("field").nullValue();
-            }
-            source.endObject();
-            var expectedSource = Strings.toString(source);
-            indexRequest.source(source);
+            var inputSource = arrayToSource(inputArrays[i]);
+            indexRequest.source(inputSource);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             client().index(indexRequest).actionGet();
+
+            var expectedSource = arrayToSource(expectedArrays[i]);
 
             var searchRequest = new SearchRequest("test-index");
             searchRequest.source().query(new IdsQueryBuilder().addIds("my-id-" + i));
@@ -291,7 +305,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             try {
                 var hit = searchResponse.getHits().getHits()[0];
                 assertThat(hit.getId(), equalTo("my-id-" + i));
-                assertThat(hit.getSourceAsString(), equalTo(expectedSource));
+                assertThat(hit.getSourceAsString(), equalTo(Strings.toString(expectedSource)));
             } finally {
                 searchResponse.decRef();
             }
@@ -299,7 +313,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
 
         try (var searcher = indexService.getShard(0).acquireSearcher(getTestName())) {
             var reader = searcher.getDirectoryReader();
-            for (int i = 0; i < arrays.length; i++) {
+            for (int i = 0; i < expectedArrays.length; i++) {
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());

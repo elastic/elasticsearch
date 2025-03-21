@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.lucene.bwc.codecs;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.test.ESTestCase;
-
 import org.apache.lucene.codecs.Codec;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;

@@ -148,7 +148,7 @@ final class OutboundHandler {
         );
         assert response.hasReferences();
         try {
-            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, response));
+            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action));
         } catch (Exception ex) {
             if (isHandshake) {
                 logger.error(

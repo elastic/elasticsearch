@@ -1,0 +1,5 @@
+pr: 125389
+summary: "[8.x] Support 7x segments as archive in 8x / 9x"
+area: Search
+type: bug
+issues: []

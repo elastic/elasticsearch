@@ -1,4 +1,11 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
  * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements.  See the NOTICE file distributed with
@@ -17,7 +24,7 @@
  *
  * Modifications copyright (C) 2021 Elasticsearch B.V.
  */
-package org.elasticsearch.xpack.lucene.bwc.codecs.lucene60;
+package org.elasticsearch.xpack.lucene.bwc.codecs.lucene86;
 
 import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PointsReader;
@@ -28,28 +35,21 @@ import org.apache.lucene.index.SegmentWriteState;
 import java.io.IOException;
 
 /**
- * This is a fork of {@link org.apache.lucene.backward_codecs.lucene60.Lucene60PointsFormat}
- * Allows reading metadata only from Lucene 6.0 point format
+ * This is a fork of {@link org.apache.lucene.backward_codecs.lucene86.Lucene86PointsFormat}
+ * Allows reading metadata only from Lucene 8.6 point format
  **/
-public class Lucene60MetadataOnlyPointsFormat extends PointsFormat {
+public class Lucene86MetadataOnlyPointsFormat extends PointsFormat {
 
-    static final String DATA_CODEC_NAME = "Lucene60PointsFormatData";
-    static final String META_CODEC_NAME = "Lucene60PointsFormatMeta";
+    static final String META_CODEC_NAME = "Lucene86PointsFormatMeta";
 
-    /** Filename extension for the leaf blocks */
-    public static final String DATA_EXTENSION = "dim";
+    /** Filename extension for the meta per field */
+    public static final String META_EXTENSION = "kdm";
 
-    /** Filename extension for the index per field */
-    public static final String INDEX_EXTENSION = "dii";
-
-    static final int DATA_VERSION_START = 0;
-    static final int DATA_VERSION_CURRENT = DATA_VERSION_START;
-
-    static final int INDEX_VERSION_START = 0;
-    static final int INDEX_VERSION_CURRENT = INDEX_VERSION_START;
+    static final int VERSION_START = 0;
+    static final int VERSION_CURRENT = VERSION_START;
 
     /** Sole constructor */
-    public Lucene60MetadataOnlyPointsFormat() {}
+    public Lucene86MetadataOnlyPointsFormat() {}
 
     @Override
     public PointsWriter fieldsWriter(SegmentWriteState state) {
@@ -58,6 +58,6 @@ public class Lucene60MetadataOnlyPointsFormat extends PointsFormat {
 
     @Override
     public PointsReader fieldsReader(SegmentReadState state) throws IOException {
-        return new Lucene60MetadataOnlyPointsReader(state);
+        return new Lucene86MetadataOnlyPointsReader(state);
     }
 }

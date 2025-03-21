@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -94,11 +94,11 @@ public class CopySettingsStep extends ClusterStateActionStep {
             settings.put(key, value);
         }
 
-        Metadata.Builder newMetaData = Metadata.builder(clusterState.getMetadata())
+        ProjectMetadata.Builder newProject = ProjectMetadata.builder(clusterState.getMetadata().getProject())
             .put(
                 IndexMetadata.builder(targetIndexMetadata).settingsVersion(targetIndexMetadata.getSettingsVersion() + 1).settings(settings)
             );
-        return ClusterState.builder(clusterState).metadata(newMetaData).build();
+        return ClusterState.builder(clusterState).putProjectMetadata(newProject).build();
     }
 
     @Override

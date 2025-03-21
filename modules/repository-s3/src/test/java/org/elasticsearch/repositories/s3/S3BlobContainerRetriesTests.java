@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.s3.S3HttpHandler;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
 
 import com.amazonaws.AbortedException;
@@ -125,15 +126,22 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         shouldErrorOnDns = new AtomicBoolean(false);
         service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class)) {
             @Override
-            protected S3ClientBuilder buildS3Client(S3ClientSettings clientSettings) {
-                final S3ClientBuilder builder = super.buildS3Client(clientSettings);
-                final DnsResolver defaultDnsResolver = builder.getClientConfiguration().getDnsResolver();
-                builder.getClientConfiguration().setDnsResolver(host -> {
+            ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
+                // override http server builder dnsResolver
+                final ApacheHttpClient.Builder builder = super.buildHttpClient(clientSettings);
+
+                // NOMERGE: TODO: There doesn't appear to be access to the default DNS Resolver in the HttpServer builder or elsewhere.
+                // Need to find some alternate way to force request errors to test retries...
+                // final DnsResolver defaultDnsResolver = builder.getClientConfiguration().getDnsResolver();
+                // DnsResolver defaultDnsResolver = SystemDefaultRoutePlanner.getSystemDefaultDnsResolver();
+
+                builder.dnsResolver(host -> {
                     if (shouldErrorOnDns.get() && randomBoolean() && randomBoolean()) {
                         throw new UnknownHostException(host);
                     }
                     return defaultDnsResolver.resolve(host);
                 });
+
                 return builder;
             }
         };

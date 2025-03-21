@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 
@@ -21,7 +22,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 
 import java.util.Locale;
 import java.util.Map;
@@ -48,12 +52,12 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         );
         assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
         var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) credentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(EC2ContainerCredentialsProviderWrapper.class));
+        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(DefaultCredentialsProvider.class));
     }
 
     public void testSupportsWebIdentityTokenCredentials() {
         Mockito.when(webIdentityTokenCredentialsProvider.resolveCredentials())
-            .thenReturn(new BasicAWSCredentials("sts_access_key_id", "sts_secret_key"));
+            .thenReturn(AwsBasicCredentials.create("sts_access_key_id", "sts_secret_key"));
         Mockito.when(webIdentityTokenCredentialsProvider.isActive()).thenReturn(true);
 
         AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(
@@ -90,7 +94,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
                 someClientSettings,
                 webIdentityTokenCredentialsProvider
             );
-            assertThat(credentialsProvider, instanceOf(AWSStaticCredentialsProvider.class));
+            assertThat(credentialsProvider, instanceOf(StaticCredentialsProvider.class));
             assertThat(credentialsProvider.resolveCredentials().accessKeyId(), is(clientName + "_aws_access_key"));
             assertThat(credentialsProvider.resolveCredentials().secretAccessKey(), is(clientName + "_aws_secret_key"));
         }
@@ -103,7 +107,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         );
         assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedAwsCredentialsProvider.class));
         var privilegedAWSCredentialsProvider = (S3Service.PrivilegedAwsCredentialsProvider) defaultCredentialsProvider;
-        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(EC2ContainerCredentialsProviderWrapper.class));
+        assertThat(privilegedAWSCredentialsProvider.getCredentialsProvider(), instanceOf(DefaultCredentialsProvider.class));
     }
 
     public void testSetDefaultCredential() {
@@ -148,14 +152,13 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     public void testAWSDefaultConfiguration() {
         launchAWSConfigurationTest(
             Settings.EMPTY,
-            HttpScheme.HTTPS,
             null,
             -1,
             null,
             null,
             3,
             S3ClientSettings.Defaults.THROTTLE_RETRIES,
-            ClientConfiguration.DEFAULT_SOCKET_TIMEOUT
+            Math.toIntExact(S3ClientSettings.Defaults.READ_TIMEOUT.seconds())
         );
     }
 
@@ -172,7 +175,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .build();
         launchAWSConfigurationTest(
             settings,
-            HttpScheme.HTTP,
             "aws_proxy_host",
             8080,
             "aws_proxy_username",
@@ -187,7 +189,6 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         final Settings settings = Settings.builder().put("s3.client.default.max_retries", 5).build();
         launchAWSConfigurationTest(
             settings,
-            HttpScheme.HTTPS,
             null,
             -1,
             null,
@@ -202,12 +203,11 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         final boolean throttling = randomBoolean();
 
         final Settings settings = Settings.builder().put("s3.client.default.use_throttle_retries", throttling).build();
-        launchAWSConfigurationTest(settings, HttpScheme.HTTPS, null, -1, null, null, 3, throttling, 50000);
+        launchAWSConfigurationTest(settings, null, -1, null, null, 3, throttling, 50000);
     }
 
     private void launchAWSConfigurationTest(
         Settings settings,
-        HttpScheme expectedProtocol,
         String expectedProxyHost,
         int expectedProxyPort,
         String expectedProxyUsername,
@@ -218,18 +218,18 @@ public class AwsS3ServiceImplTests extends ESTestCase {
     ) {
 
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
-        final ClientOverrideConfiguration configuration = S3Service.buildClientConfiguration(clientSettings, false);
+        final ApacheHttpClient.Builder httpClientBuilder = S3Service.buildHttpClient(clientSettings);
+        final ClientOverrideConfiguration configuration = S3Service.buildConfiguration(clientSettings, false);
 
-        assertThat(configuration.getResponseMetadataCacheSize(), is(0));
-        assertThat(configuration.getProtocol(), is(expectedProtocol));
-        assertThat(configuration.getProxyHost(), is(expectedProxyHost));
+        assertThat(configuration.(), getResponseMetadataCacheSize(), is(0));
+        assertThat(httpClientBuilder.proxyConfiguration(), is(expectedProxyHost));
         assertThat(configuration.getProxyPort(), is(expectedProxyPort));
         assertThat(configuration.getProxyUsername(), is(expectedProxyUsername));
         assertThat(configuration.getProxyPassword(), is(expectedProxyPassword));
         assertThat(configuration.getMaxErrorRetry(), is(expectedMaxRetries));
         assertThat(configuration.useThrottledRetries(), is(expectedUseThrottleRetries));
         assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
-        assertThat(configuration.getRetryPolicy(), is(PredefinedRetryPolicies.DEFAULT));
+        assertThat(configuration.retryPolicy(), is(PredefinedRetryPolicies.DEFAULT));
     }
 
     public void testEndpointSetting() {

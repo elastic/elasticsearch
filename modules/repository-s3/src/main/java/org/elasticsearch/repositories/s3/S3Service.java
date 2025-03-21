@@ -69,6 +69,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyMap;
+import static software.amazon.awssdk.core.SdkSystemSetting.AWS_REGION;
+import static software.amazon.awssdk.core.SdkSystemSetting.AWS_ROLE_ARN;
+import static software.amazon.awssdk.core.SdkSystemSetting.AWS_ROLE_SESSION_NAME;
+import static software.amazon.awssdk.core.SdkSystemSetting.AWS_WEB_IDENTITY_TOKEN_FILE;
 
 class S3Service implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
@@ -206,11 +210,10 @@ class S3Service implements Closeable {
         // TODO NOMERGE ensure this has all the same config features as the v1 SDK
         var s3clientBuilder = S3Client.builder();
         s3clientBuilder.httpClient(buildHttpClient(clientSettings).build());
-        s3clientBuilder.overrideConfiguration(buildClientConfiguration(clientSettings, isStateless));
+        s3clientBuilder.overrideConfiguration(buildConfiguration(clientSettings, isStateless));
         s3clientBuilder.serviceConfiguration(b -> b.chunkedEncodingEnabled(clientSettings.disableChunkedEncoding == false));
 
-        // TODO: credentials
-        s3clientBuilder.credentialsProvider(buildCredentials(LOGGER, clientSettings, new CustomWebIdentityTokenCredentialsProvider()));
+        s3clientBuilder.credentialsProvider(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
 
         if (clientSettings.pathStyleAccess) {
             s3clientBuilder.forcePathStyle(true);
@@ -233,7 +236,7 @@ class S3Service implements Closeable {
         };
     }
 
-    private ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
+    ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
         ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
@@ -243,7 +246,7 @@ class S3Service implements Closeable {
         return httpClientBuilder;
     }
 
-    static ClientOverrideConfiguration buildClientConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
+    static ClientOverrideConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
 
         // TODO: revisit this, does it still make sense to specially retry?
@@ -390,7 +393,7 @@ class S3Service implements Closeable {
     }
 
     /**
-     * Customizes {@link com.amazonaws.auth.WebIdentityTokenCredentialsProvider}
+     * Customizes {@link StsAssumeRoleWithWebIdentityCredentialsProvider}.
      *
      * <ul>
      * <li>Reads the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
@@ -419,7 +422,7 @@ class S3Service implements Closeable {
         ) {
             // Check whether the original environment variable exists. If it doesn't,
             // the system doesn't support AWS web identity tokens
-            if (systemEnvironment.getEnv(AWS_WEB_IDENTITY_ENV_VAR) == null) {
+            if (systemEnvironment.getEnv(AWS_WEB_IDENTITY_TOKEN_FILE.name()) == null) {
                 return;
             }
 
@@ -437,7 +440,7 @@ class S3Service implements Closeable {
                 throw new IllegalStateException("Unable to read a Web Identity Token symlink in the config directory");
             }
 
-            String roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN_ENV_VAR);
+            String roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN.name());
             if (roleArn == null) {
                 LOGGER.warn(
                     "Unable to use a web identity token for authentication. The AWS_WEB_IDENTITY_TOKEN_FILE environment "
@@ -447,7 +450,7 @@ class S3Service implements Closeable {
             }
 
             String roleSessionName = Objects.requireNonNullElseGet(
-                systemEnvironment.getEnv(AWS_ROLE_SESSION_NAME_ENV_VAR),
+                systemEnvironment.getEnv(AWS_ROLE_SESSION_NAME.name()),
                 // Mimic the default behaviour of the AWS SDK in case the session name is not set
                 // See `com.amazonaws.auth.WebIdentityTokenCredentialsProvider#45`
                 () -> "aws-sdk-java-" + clock.millis()
@@ -482,9 +485,9 @@ class S3Service implements Closeable {
             if ("regional".equalsIgnoreCase(systemEnvironment.getEnv("AWS_STS_REGIONAL_ENDPOINTS"))) {
                 // AWS_REGION should be injected by the EKS pod identity webhook:
                 // https://github.com/aws/amazon-eks-pod-identity-webhook/pull/41
-                securityTokenServiceRegion = systemEnvironment.getEnv(SDKGlobalConfiguration.AWS_REGION_ENV_VAR);
+                securityTokenServiceRegion = systemEnvironment.getEnv(AWS_REGION.name());
                 if (securityTokenServiceRegion != null) {
-                    SocketAccess.doPrivilegedVoid(() -> securityTokenServiceClientBuilder.region(securityTokenServiceRegion));
+                    SocketAccess.doPrivilegedVoid(() -> securityTokenServiceClientBuilder.region(Region.of(securityTokenServiceRegion)));
                 } else {
                     LOGGER.warn("Unable to use regional STS endpoints because the AWS_REGION environment variable is not set");
                 }
@@ -501,6 +504,10 @@ class S3Service implements Closeable {
             return SocketAccess.doPrivileged(securityTokenServiceClientBuilder::build);
         }
 
+        /**
+         * Sets up a {@link FileWatcher} that runs {@link #credentialsProvider#resolveCredentials()} whenever the file to which
+         * {@code webIdentityTokenFileSymlink} refers gets updated.
+         */
         private void setupFileWatcherToRefreshCredentials(Path webIdentityTokenFileSymlink, ResourceWatcherService resourceWatcherService) {
             var watcher = new FileWatcher(webIdentityTokenFileSymlink);
             watcher.addListener(new FileChangesListener() {

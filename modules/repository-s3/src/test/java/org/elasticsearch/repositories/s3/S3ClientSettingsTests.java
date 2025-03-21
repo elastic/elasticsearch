@@ -19,6 +19,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.Mockito;
 
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.services.s3.S3Client;
+
 import java.io.IOException;
 import java.util.Map;
 
@@ -181,7 +184,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
         try (var s3Service = new S3Service(Mockito.mock(Environment.class), Settings.EMPTY, Mockito.mock(ResourceWatcherService.class))) {
-            AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other"));
+            S3Client other = s3Service.buildClient(settings.get("other"));
             assertThat(other.getSignerRegionOverride(), is(region));
         }
     }
@@ -193,9 +196,9 @@ public class S3ClientSettingsTests extends ESTestCase {
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
-        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"), false);
+        ClientOverrideConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"), false);
         assertThat(defaultConfiguration.getSignerOverride(), nullValue());
-        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"), false);
+        ClientOverrideConfiguration configuration = S3Service.buildConfiguration(settings.get("other"), false);
         assertThat(configuration.getSignerOverride(), is(signerOverride));
     }
 
@@ -218,6 +221,6 @@ public class S3ClientSettingsTests extends ESTestCase {
     public void testStatelessDefaultRetryPolicy() {
         final var s3ClientSettings = S3ClientSettings.load(Settings.EMPTY).get("default");
         final var clientConfiguration = S3Service.buildConfiguration(s3ClientSettings, true);
-        assertThat(clientConfiguration.getRetryPolicy(), is(S3Service.RETRYABLE_403_RETRY_POLICY));
+        assertThat(clientConfiguration.retryPolicy(), is(S3Service.RETRYABLE_403_RETRY_POLICY));
     }
 }

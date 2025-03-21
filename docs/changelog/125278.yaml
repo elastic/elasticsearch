@@ -1,0 +1,5 @@
+pr: 125278
+summary: Integrate GCP client with telemetry
+area: Snapshot/Restore
+type: enhancement
+issues: []

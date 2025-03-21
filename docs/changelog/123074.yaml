@@ -1,5 +1,7 @@
 pr: 123074
-summary: ES|QL Reranker command
+summary: Adding ES|QL Reranker command in snapshot builds
 area: Ranking
 type: feature
-issues: []
+issues:
+  - https://github.com/elastic/elasticsearch/issues/124337
+

@@ -7,223 +7,290 @@
 
 package org.elasticsearch.xpack.inference.logging;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogBuilder;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class ThrottlerTests extends ESTestCase {
-
-    private static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
-
-    private ThreadPool threadPool;
+    private DeterministicTaskQueue taskQueue;
 
     @Before
     public void init() {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        taskQueue = new DeterministicTaskQueue();
     }
 
-    @After
-    public void shutdown() {
-        terminate(threadPool);
-    }
-
-    public void testWarn_LogsOnlyOnce() {
-        var logger = mock(Logger.class);
+    public void testExecute_LogsOnlyOnce() {
+        var mockedLogger = mockLogger();
 
         try (
             var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
-                TimeValue.timeValueSeconds(10),
                 Clock.fixed(Instant.now(), ZoneId.systemDefault()),
-                threadPool,
+                taskQueue.getThreadPool(),
                 new ConcurrentHashMap<>()
             )
         ) {
-            throttler.execute("test", logger::warn);
+            throttler.init();
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verify(1, "test");
 
-            verify(logger, times(1)).warn(eq("test"));
+            mockedLogger.clearInvocations();
 
-            throttler.execute("test", logger::warn);
-            verifyNoMoreInteractions(logger);
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verifyNever();
+
+            mockedLogger.verifyNoMoreInteractions();
         }
     }
 
-    public void testWarn_LogsOnce_ThenOnceAfterDuration() {
-        var logger = mock(Logger.class);
-
-        var now = Clock.systemUTC().instant();
-
-        var clock = mock(Clock.class);
+    public void testExecute_LogsOnce_ThenOnceWhenEmittingThreadRuns() {
+        var mockedLogger = mockLogger();
 
         try (
             var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
-                TimeValue.timeValueSeconds(10),
-                clock,
-                threadPool,
+                Clock.fixed(Instant.now(), ZoneId.systemDefault()),
+                taskQueue.getThreadPool(),
                 new ConcurrentHashMap<>()
             )
         ) {
-            when(clock.instant()).thenReturn(now);
+            throttler.init();
 
             // The first call is always logged
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
-            verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verify(1, "test");
 
-            when(clock.instant()).thenReturn(now.plus(Duration.ofMinutes(1)));
-            // This call should be allowed because the clock thinks it's after the duration period
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
-            verify(logger, times(2)).warn(eq("test"), any(Throwable.class));
+            mockedLogger.clearInvocations();
 
-            when(clock.instant()).thenReturn(now);
-            // This call should not be allowed because the clock doesn't think it's pasted the wait period
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
-            verifyNoMoreInteractions(logger);
+            // This should increment the skipped log count but not actually log anything
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verifyNever();
+
+            mockedLogger.clearInvocations();
+
+            // This should log a message with the skip count as 1
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+            mockedLogger.verifyContains(1, "test, repeated 1 time");
+
+            mockedLogger.verifyNoMoreInteractions();
         }
     }
 
-    public void testWarn_AllowsDifferentMessagesToBeLogged() {
-        var logger = mock(Logger.class);
-
-        var clock = mock(Clock.class);
+    public void testExecute_LogsOnce_ThenOnceWhenEmittingThreadRuns_WithException() {
+        var mockedLogger = mockLogger();
 
         try (
             var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
-                TimeValue.timeValueSeconds(10),
-                clock,
-                threadPool,
+                Clock.fixed(Instant.now(), ZoneId.systemDefault()),
+                taskQueue.getThreadPool(),
                 new ConcurrentHashMap<>()
             )
         ) {
-            throttler.execute("test", logger::warn);
-            verify(logger, times(1)).warn(eq("test"));
+            throttler.init();
 
-            throttler.execute("a different message", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
-            verify(logger, times(1)).warn(eq("a different message"), any(Throwable.class));
+            // The first call is always logged
+            throttler.execute(mockedLogger.logger, Level.WARN, "test", new IllegalArgumentException("failed"));
+            mockedLogger.verify(1, "test");
+            mockedLogger.verifyThrowable(1);
+
+            mockedLogger.clearInvocations();
+
+            // This should increment the skipped log count but not actually log anything
+            throttler.execute(mockedLogger.logger, Level.WARN, "test", new IllegalArgumentException("failed"));
+            mockedLogger.verifyNever();
+
+            mockedLogger.clearInvocations();
+
+            // This should log a message with the skip count as 1
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+            mockedLogger.verifyContains(1, "test, repeated 1 time");
+            mockedLogger.verifyThrowable(1);
+
+            mockedLogger.verifyNoMoreInteractions();
         }
     }
 
-    public void testWarn_LogsRepeated1Time() {
-        var logger = mock(Logger.class);
-
-        var now = Clock.systemUTC().instant();
-
-        var clock = mock(Clock.class);
+    public void testExecute_LogsOnce_ThenOnceWhenEmittingThreadRuns_ThenOnceForFirstLog() {
+        var mockedLogger = mockLogger();
 
         try (
             var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
-                TimeValue.timeValueSeconds(10),
-                clock,
-                threadPool,
+                Clock.fixed(Instant.now(), ZoneId.systemDefault()),
+                taskQueue.getThreadPool(),
                 new ConcurrentHashMap<>()
             )
         ) {
-            when(clock.instant()).thenReturn(now);
-            // first message is allowed
-            throttler.execute("test", logger::warn);
-            verify(logger, times(1)).warn(eq("test"));
+            throttler.init();
 
-            when(clock.instant()).thenReturn(now); // don't allow this message because duration hasn't expired
-            throttler.execute("test", logger::warn);
-            verify(logger, times(1)).warn(eq("test"));
+            // The first call is always logged
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verify(1, "test");
 
-            when(clock.instant()).thenReturn(now.plus(Duration.ofMinutes(1))); // allow this message by faking expired duration
-            throttler.execute("test", logger::warn);
-            verify(logger, times(1)).warn(eq("test, repeated 1 time"));
+            mockedLogger.clearInvocations();
+
+            // This should increment the skipped log count but not actually log anything
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verifyNever();
+
+            mockedLogger.clearInvocations();
+
+            // This should log a message with the skip count as 1
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+            mockedLogger.verifyContains(1, "test, repeated 1 time");
+
+            mockedLogger.clearInvocations();
+
+            // Since the thread ran in the code above it will have reset the state so this will be treated as a first message
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verify(1, "test");
+
+            mockedLogger.verifyNoMoreInteractions();
         }
     }
 
-    public void testWarn_LogsRepeated2Times() {
-        var logger = mock(Logger.class);
-
-        var now = Clock.systemUTC().instant();
-
-        var clock = mock(Clock.class);
+    public void testExecute_AllowsDifferentMessagesToBeLogged() {
+        var mockedLogger = mockLogger();
 
         try (
             var throttler = new Throttler(
                 TimeValue.timeValueDays(1),
-                TimeValue.timeValueSeconds(10),
-                clock,
-                threadPool,
+                Clock.fixed(Instant.now(), ZoneId.systemDefault()),
+                taskQueue.getThreadPool(),
                 new ConcurrentHashMap<>()
             )
         ) {
-            when(clock.instant()).thenReturn(now);
-            // message allowed because it is the first one
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
-            verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
+            throttler.init();
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verify(1, "test");
 
-            when(clock.instant()).thenReturn(now); // don't allow these messages because duration hasn't expired
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
-            verify(logger, times(1)).warn(eq("test"), any(Throwable.class));
+            mockedLogger.clearInvocations();
 
-            when(clock.instant()).thenReturn(now.plus(Duration.ofMinutes(1))); // allow this message by faking the duration completion
-            throttler.execute("test", (message) -> logger.warn(message, new IllegalArgumentException("failed")));
-            verify(logger, times(1)).warn(eq("test, repeated 2 times"), any(Throwable.class));
+            throttler.execute(mockedLogger.logger, Level.WARN, "a different message");
+            mockedLogger.verify(1, "a different message");
         }
     }
 
-    public void testResetTask_ClearsInternalsAfterInterval() throws InterruptedException {
-        var calledClearLatch = new CountDownLatch(1);
+    public void testExecute_LogsRepeated2Times() {
+        var mockedLogger = mockLogger();
 
-        var now = Clock.systemUTC().instant();
+        try (
+            var throttler = new Throttler(
+                TimeValue.timeValueDays(1),
+                Clock.fixed(Instant.now(), ZoneId.systemDefault()),
+                taskQueue.getThreadPool(),
+                new ConcurrentHashMap<>()
+            )
+        ) {
+            throttler.init();
 
-        var clock = mock(Clock.class);
-        when(clock.instant()).thenReturn(now);
+            // The first call is always logged
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verify(1, "test");
 
-        var concurrentMap = mock(ConcurrentHashMap.class);
-        doAnswer(invocation -> {
-            calledClearLatch.countDown();
+            // This should increment the skipped log count but not actually log anything
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verifyNoMoreInteractions();
 
-            return Void.TYPE;
-        }).when(concurrentMap).clear();
+            // This should increment the skipped log count but not actually log anything
+            throttler.execute(mockedLogger.logger, Level.WARN, "test");
+            mockedLogger.verifyNoMoreInteractions();
 
-        try (@SuppressWarnings("unchecked")
-        var ignored = new Throttler(TimeValue.timeValueNanos(1), TimeValue.timeValueSeconds(10), clock, threadPool, concurrentMap)) {
-            calledClearLatch.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
+            mockedLogger.clearInvocations();
+
+            // This should log a message with the skip count as 2
+            taskQueue.advanceTime();
+            taskQueue.runAllRunnableTasks();
+            mockedLogger.verifyContains(1, "test, repeated 2 time");
+
+            mockedLogger.verifyNoMoreInteractions();
         }
     }
 
     public void testClose_DoesNotAllowLoggingAnyMore() {
-        var logger = mock(Logger.class);
+        var mockedLogger = mockLogger();
 
         var clock = mock(Clock.class);
 
-        var throttler = new Throttler(
-            TimeValue.timeValueDays(1),
-            TimeValue.timeValueSeconds(10),
-            clock,
-            threadPool,
-            new ConcurrentHashMap<>()
-        );
+        var throttler = new Throttler(TimeValue.timeValueDays(1), clock, taskQueue.getThreadPool(), new ConcurrentHashMap<>());
 
         throttler.close();
-        throttler.execute("test", logger::warn);
-        verifyNoMoreInteractions(logger);
+        throttler.execute(mockedLogger.logger, Level.WARN, "test");
+        mockedLogger.verifyNoMoreInteractions();
+    }
+
+    record MockLogger(Logger logger, LogBuilder logBuilder) {
+        MockLogger clearInvocations() {
+            Mockito.clearInvocations(logger);
+            Mockito.clearInvocations(logBuilder);
+
+            return this;
+        }
+
+        MockLogger verifyNoMoreInteractions() {
+            Mockito.verifyNoMoreInteractions(logger);
+            Mockito.verifyNoMoreInteractions(logBuilder);
+
+            return this;
+        }
+
+        MockLogger verify(int times, String message) {
+            Mockito.verify(logger, times(times)).atLevel(eq(Level.WARN));
+            Mockito.verify(logBuilder, times(times)).log(eq(message));
+
+            return this;
+        }
+
+        MockLogger verifyContains(int times, String message) {
+            Mockito.verify(logger, times(times)).atLevel(eq(Level.WARN));
+            Mockito.verify(logBuilder, times(times)).log(contains(message));
+
+            return this;
+        }
+
+        MockLogger verifyNever() {
+            Mockito.verify(logger, never()).atLevel(eq(Level.WARN));
+            Mockito.verify(logBuilder, never()).log(any(String.class));
+            Mockito.verify(logBuilder, never()).log(any(Throwable.class));
+
+            return this;
+        }
+
+        MockLogger verifyThrowable(int times) {
+            Mockito.verify(logBuilder, times(times)).withThrowable(any(Throwable.class));
+
+            return this;
+        }
+    }
+
+    static MockLogger mockLogger() {
+        var builder = mock(LogBuilder.class);
+        when(builder.withThrowable(any(Throwable.class))).thenReturn(builder);
+        var logger = mock(Logger.class);
+        when(logger.atLevel(any(Level.class))).thenReturn(builder);
+
+        return new MockLogger(logger, builder);
     }
 }

@@ -8,17 +8,22 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.search.SparseVectorQueryBuilder;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -66,5 +71,23 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
         return inferencePlugin.getMappedActionFilters();
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return inferencePlugin.getQueries();
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(super.getNamedWriteables());
+        namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+            QueryBuilder.class,
+            SparseVectorQueryBuilder.NAME,
+            SparseVectorQueryBuilder::new
+        ));
+
+        return namedWriteables;
     }
 }

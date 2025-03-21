@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
@@ -116,7 +117,11 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomWithNull();
-            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(
+                new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -144,7 +149,11 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var inputType = InputTypeTests.randomWithNull();
-        action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -165,7 +174,11 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var inputType = InputTypeTests.randomWithNull();
-        action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -186,7 +199,11 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var inputType = InputTypeTests.randomWithNull();
-        action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -201,7 +218,11 @@ public class AzureOpenAiEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         var inputType = InputTypeTests.randomWithNull();
-        action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of(new ChunkInferenceInput("abc")), inputType),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

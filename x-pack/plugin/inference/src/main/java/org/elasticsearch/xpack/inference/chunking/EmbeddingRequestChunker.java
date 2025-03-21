@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.chunking;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -39,15 +40,24 @@ import java.util.stream.Collectors;
 public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     // Visible for testing
-    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, List<String> inputs) {
+    record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, List<ChunkInferenceInput> inputs) {
         public String chunkText() {
-            return inputs.get(inputIndex).substring(chunk.start(), chunk.end());
+            return inputs.get(inputIndex).input().substring(chunk.start(), chunk.end());
+        }
+
+        public ChunkInferenceInput chunkInput() {
+            ChunkInferenceInput chunkInferenceInput = inputs.get(inputIndex);
+            String chunkText = chunkInferenceInput.input().substring(chunk.start(), chunk.end());
+            return new ChunkInferenceInput(chunkText, chunkInferenceInput.chunkingSettings());
         }
     }
 
     public record BatchRequest(List<Request> requests) {
-        public List<String> inputs() {
-            return requests.stream().map(Request::chunkText).collect(Collectors.toList());
+        public List<ChunkInferenceInput> inputs() {
+            // return requests.stream().map(Request::chunkText).collect(Collectors.toList());
+            return requests.stream()
+                .map(r -> new ChunkInferenceInput(r.chunkText(), r.inputs().getFirst().chunkingSettings()))
+                .collect(Collectors.toList());
         }
     }
 
@@ -71,28 +81,36 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
     private final AtomicArray<Exception> resultsErrors;
     private ActionListener<List<ChunkedInference>> finalListener;
 
-    public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch) {
+    public EmbeddingRequestChunker(List<ChunkInferenceInput> inputs, int maxNumberOfInputsPerBatch) {
         this(inputs, maxNumberOfInputsPerBatch, null);
     }
 
-    public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch, int wordsPerChunk, int chunkOverlap) {
+    public EmbeddingRequestChunker(List<ChunkInferenceInput> inputs, int maxNumberOfInputsPerBatch, int wordsPerChunk, int chunkOverlap) {
         this(inputs, maxNumberOfInputsPerBatch, new WordBoundaryChunkingSettings(wordsPerChunk, chunkOverlap));
     }
 
-    public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch, ChunkingSettings chunkingSettings) {
+    public EmbeddingRequestChunker(
+        List<ChunkInferenceInput> inputs,
+        int maxNumberOfInputsPerBatch,
+        ChunkingSettings defaultChunkingSettings
+    ) {
         this.resultEmbeddings = new ArrayList<>(inputs.size());
         this.resultOffsetStarts = new ArrayList<>(inputs.size());
         this.resultOffsetEnds = new ArrayList<>(inputs.size());
         this.resultsErrors = new AtomicArray<>(inputs.size());
 
-        if (chunkingSettings == null) {
-            chunkingSettings = new WordBoundaryChunkingSettings(DEFAULT_WORDS_PER_CHUNK, DEFAULT_CHUNK_OVERLAP);
+        if (defaultChunkingSettings == null) {
+            defaultChunkingSettings = new WordBoundaryChunkingSettings(DEFAULT_WORDS_PER_CHUNK, DEFAULT_CHUNK_OVERLAP);
         }
-        Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
 
         List<Request> allRequests = new ArrayList<>();
         for (int inputIndex = 0; inputIndex < inputs.size(); inputIndex++) {
-            List<ChunkOffset> chunks = chunker.chunk(inputs.get(inputIndex), chunkingSettings);
+            ChunkingSettings chunkingSettings = inputs.get(inputIndex).chunkingSettings();
+            if (chunkingSettings == null) {
+                chunkingSettings = defaultChunkingSettings;
+            }
+            Chunker chunker = ChunkerBuilder.fromChunkingStrategy(chunkingSettings.getChunkingStrategy());
+            List<ChunkOffset> chunks = chunker.chunk(inputs.get(inputIndex).input(), chunkingSettings);
             int resultCount = Math.min(chunks.size(), MAX_CHUNKS);
             resultEmbeddings.add(new AtomicReferenceArray<>(resultCount));
             resultOffsetStarts.add(new ArrayList<>(resultCount));

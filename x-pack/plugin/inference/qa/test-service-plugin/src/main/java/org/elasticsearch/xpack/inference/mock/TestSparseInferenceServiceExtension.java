@@ -16,8 +16,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -136,15 +136,14 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         public void chunkedInfer(
             Model model,
             @Nullable String query,
-            List<String> input,
+            List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
             InputType inputType,
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input, chunkingSettings));
+                case ANY, SPARSE_EMBEDDING -> listener.onResponse(makeChunkedResults(input));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -166,10 +165,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             return new SparseEmbeddingResults(embeddings);
         }
 
-        private List<ChunkedInference> makeChunkedResults(List<String> inputs, ChunkingSettings chunkingSettings) {
+        private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs) {
             List<ChunkedInference> results = new ArrayList<>();
-            for (String input : inputs) {
-                List<String> chunkedInput = chunkInputs(input, chunkingSettings);
+            for (ChunkInferenceInput chunkInferenceInput : inputs) {
+                String input = chunkInferenceInput.input();
+                List<String> chunkedInput = chunkInputs(chunkInferenceInput);
                 List<SparseEmbeddingResults.Chunk> chunks = new ArrayList<>();
                 for (String c : chunkedInput) {
                     var tokens = new ArrayList<WeightedToken>();

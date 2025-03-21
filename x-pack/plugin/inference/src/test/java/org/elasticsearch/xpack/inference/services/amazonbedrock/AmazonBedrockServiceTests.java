@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -1490,9 +1491,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 service.chunkedInfer(
                     model,
                     null,
-                    List.of("a", "bb"),
+                    List.of(new ChunkInferenceInput("a"), new ChunkInferenceInput("bb")),
                     new HashMap<>(),
-                    null,
                     InputType.INTERNAL_INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener

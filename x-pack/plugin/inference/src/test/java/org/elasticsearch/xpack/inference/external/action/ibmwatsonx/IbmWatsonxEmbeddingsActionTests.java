@@ -114,7 +114,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             action.execute(
-                new EmbeddingsInput(List.of(input), InputTypeTests.randomWithNull()),
+                new EmbeddingsInput(List.of(input), null, InputTypeTests.randomWithNull()),
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
@@ -144,7 +144,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -173,7 +173,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -197,7 +197,7 @@ public class IbmWatsonxEmbeddingsActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );

@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
@@ -508,12 +509,12 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
             StaticModel model = (StaticModel) invocationOnMock.getArguments()[0];
-            List<String> inputs = (List<String>) invocationOnMock.getArguments()[2];
-            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[7];
+            List<ChunkInferenceInput> inputs = (List<ChunkInferenceInput>) invocationOnMock.getArguments()[2];
+            ActionListener<List<ChunkedInference>> listener = (ActionListener<List<ChunkedInference>>) invocationOnMock.getArguments()[6];
             Runnable runnable = () -> {
                 List<ChunkedInference> results = new ArrayList<>();
-                for (String input : inputs) {
-                    results.add(model.getResults(input));
+                for (ChunkInferenceInput input : inputs) {
+                    results.add(model.getResults(input.input()));
                 }
                 listener.onResponse(results);
             };
@@ -528,7 +529,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             }
             return null;
         };
-        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any(), any());
+        doAnswer(chunkedInferAnswer).when(inferenceService).chunkedInfer(any(), any(), any(), any(), any(), any(), any());
 
         Answer<Model> modelAnswer = invocationOnMock -> {
             String inferenceId = (String) invocationOnMock.getArguments()[0];

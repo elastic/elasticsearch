@@ -35,6 +35,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
@@ -70,7 +71,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
@@ -360,23 +360,26 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 modelRegistry.getModelWithSecrets(inferenceId, modelLoadingListener);
                 return;
             }
-            final List<String> inputs = requests.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
+            // final List<String> inputs = requests.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
+            final List<ChunkInferenceInput> inputs = requests.stream()
+                .map(r -> new ChunkInferenceInput(r.input, r.chunkingSettings))
+                .collect(Collectors.toList());
 
             // TODO reconcile
-//            // Batch requests in the order they are specified, grouping by field and chunking settings.
-//            // As each field may have different chunking settings specified, the size of the batch will be <= the configured batchSize.
-//            int currentBatchSize = Math.min(requests.size(), batchSize);
-//            final ChunkingSettings chunkingSettings = requests.isEmpty() == false ? requests.getFirst().chunkingSettings : null;
-//            final List<FieldInferenceRequest> currentBatch = new ArrayList<>();
-//            for (FieldInferenceRequest request : requests) {
-//                if (Objects.equals(request.chunkingSettings, chunkingSettings) == false || currentBatch.size() >= currentBatchSize) {
-//                    break;
-//                }
-//                currentBatch.add(request);
-//            }
-//
-//            final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatch.size(), requests.size());
-//            final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
+            // // Batch requests in the order they are specified, grouping by field and chunking settings.
+            // // As each field may have different chunking settings specified, the size of the batch will be <= the configured batchSize.
+            // int currentBatchSize = Math.min(requests.size(), batchSize);
+            // final ChunkingSettings chunkingSettings = requests.isEmpty() == false ? requests.getFirst().chunkingSettings : null;
+            // final List<FieldInferenceRequest> currentBatch = new ArrayList<>();
+            // for (FieldInferenceRequest request : requests) {
+            // if (Objects.equals(request.chunkingSettings, chunkingSettings) == false || currentBatch.size() >= currentBatchSize) {
+            // break;
+            // }
+            // currentBatch.add(request);
+            // }
+            //
+            // final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatch.size(), requests.size());
+            // final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).collect(Collectors.toList());
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
@@ -430,7 +433,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             };
             inferenceProvider.service()
-                .chunkedInfer(inferenceProvider.model(), null, inputs, Map.of(), chunkingSettings, InputType.INGEST, TimeValue.MAX_VALUE, completionListener);
+                .chunkedInfer(inferenceProvider.model(), null, inputs, Map.of(), InputType.INGEST, TimeValue.MAX_VALUE, completionListener);
         }
 
         /**
@@ -547,7 +550,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 new FieldInferenceResponse(field, sourceField, v, order++, 0, null, EMPTY_CHUNKED_INFERENCE)
                             );
                         } else {
-                            requests.add(new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings));
+                            requests.add(
+                                new FieldInferenceRequest(itemIndex, field, sourceField, v, order++, offsetAdjustment, chunkingSettings)
+                            );
                         }
 
                         // When using the inference metadata fields format, all the input values are concatenated so that the
@@ -628,6 +633,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     new SemanticTextField.InferenceResult(
                         inferenceFieldMetadata.getInferenceId(),
                         model != null ? new MinimalServiceSettings(model) : null,
+                        ChunkingSettingsBuilder.fromMap(inferenceFieldMetadata.getChunkingSettings(), false),
                         chunkMap
                     ),
                     indexRequest.getContentType()

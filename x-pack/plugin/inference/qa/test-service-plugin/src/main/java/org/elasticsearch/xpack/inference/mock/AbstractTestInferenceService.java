@@ -13,6 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceService;
@@ -111,22 +112,23 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     @Override
     public void close() throws IOException {}
 
-    protected List<String> chunkInputs(String input, ChunkingSettings chunkingSettings) {
+    protected List<String> chunkInputs(ChunkInferenceInput input) {
+        ChunkingSettings chunkingSettings = input.chunkingSettings();
         if (chunkingSettings == null) {
-            return List.of(input);
+            return List.of(input.input());
         }
+
         List<String> chunkedInputs = new ArrayList<>();
-        ChunkingStrategy chunkingStrategy = chunkingSettings.getChunkingStrategy();
-        if (chunkingStrategy == ChunkingStrategy.WORD) {
+        if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
             WordBoundaryChunker chunker = new WordBoundaryChunker();
             WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
             List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
-                input,
+                input.input(),
                 wordBoundaryChunkingSettings.maxChunkSize(),
                 wordBoundaryChunkingSettings.overlap()
             );
             for (WordBoundaryChunker.ChunkOffset offset : offsets) {
-                chunkedInputs.add(input.substring(offset.start(), offset.end()));
+                chunkedInputs.add(input.input().substring(offset.start(), offset.end()));
             }
 
         } else {

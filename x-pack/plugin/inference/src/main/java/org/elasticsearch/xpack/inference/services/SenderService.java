@@ -14,8 +14,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -69,21 +69,23 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     ) {
         init();
-        var inferenceInput = createInput(this, model, input, inputType, query, stream);
+        var chunkInferenceInput = input.stream().map(i -> new ChunkInferenceInput(i, null)).toList();
+        var inferenceInput = createInput(this, model, chunkInferenceInput, inputType, query, stream);
         doInfer(model, inferenceInput, taskSettings, timeout, listener);
     }
 
     private static InferenceInputs createInput(
         SenderService service,
         Model model,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         InputType inputType,
         @Nullable String query,
         boolean stream
     ) {
+        List<String> textInput = ChunkInferenceInput.convertToStrings(input);
         return switch (model.getTaskType()) {
-            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(input, stream);
-            case RERANK -> new QueryAndDocsInputs(query, input, stream);
+            case COMPLETION, CHAT_COMPLETION -> new ChatCompletionInput(textInput, stream);
+            case RERANK -> new QueryAndDocsInputs(query, textInput, stream);
             case TEXT_EMBEDDING, SPARSE_EMBEDDING -> {
                 ValidationException validationException = new ValidationException();
                 service.validateInputType(inputType, model, validationException);
@@ -114,9 +116,8 @@ public abstract class SenderService implements InferenceService {
     public void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -130,7 +131,7 @@ public abstract class SenderService implements InferenceService {
         }
 
         // a non-null query is not supported and is dropped by all providers
-        doChunkedInfer(model, new EmbeddingsInput(input, inputType), taskSettings, chunkingSettings != null ? chunkingSettings : model.getConfigurations().getChunkingSettings(), inputType, timeout, listener);
+        doChunkedInfer(model, new EmbeddingsInput(input, inputType), taskSettings, inputType, timeout, listener);
     }
 
     protected abstract void doInfer(
@@ -154,7 +155,6 @@ public abstract class SenderService implements InferenceService {
         Model model,
         EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener

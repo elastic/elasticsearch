@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InputType;
@@ -96,9 +97,8 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("abc"),
+                List.of(new ChunkInferenceInput("abc")),
                 new HashMap<>(),
-                null,
                 InputType.INTERNAL_SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener

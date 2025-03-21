@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -622,9 +623,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 service.chunkedInfer(
                     model,
                     null,
-                    List.of("input text"),
+                    List.of(new ChunkInferenceInput("input text")),
                     new HashMap<>(),
-                    null,
                     InputType.INGEST,
                     InferenceAction.Request.DEFAULT_TIMEOUT,
                     listener
@@ -751,9 +751,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("input text"),
+                List.of(new ChunkInferenceInput("input text")),
                 new HashMap<>(),
-                null,
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener

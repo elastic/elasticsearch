@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceResults;
@@ -723,9 +724,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     public void chunkedInfer(
         Model model,
         @Nullable String query,
-        List<String> input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -742,7 +742,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 input,
                 EMBEDDING_MAX_BATCH_SIZE,
-                chunkingSettings != null ? chunkingSettings : esModel.getConfigurations().getChunkingSettings()
+                esModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
             if (batchedRequests.isEmpty()) {
@@ -1118,7 +1118,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             var inferenceRequest = buildInferenceRequest(
                 esModel.mlNodeDeploymentId(),
                 EmptyConfigUpdate.INSTANCE,
-                batch.batch().inputs(),
+                ChunkInferenceInput.convertToStrings(batch.batch().inputs()),
                 inputType,
                 timeout
             );

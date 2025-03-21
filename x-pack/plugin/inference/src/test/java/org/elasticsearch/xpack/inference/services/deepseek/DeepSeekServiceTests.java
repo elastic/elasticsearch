@@ -350,7 +350,7 @@ public class DeepSeekServiceTests extends ESTestCase {
 
     public void testDoChunkedInferAlwaysFails() throws IOException {
         try (var service = createService()) {
-            service.doChunkedInfer(mock(), mock(), Map.of(), null, InputType.UNSPECIFIED, TIMEOUT, assertNoSuccessListener(e -> {
+            service.doChunkedInfer(mock(), mock(), Map.of(), InputType.UNSPECIFIED, TIMEOUT, assertNoSuccessListener(e -> {
                 assertThat(e, isA(UnsupportedOperationException.class));
                 assertThat(e.getMessage(), equalTo("The deepseek service only supports unified completion"));
             }));

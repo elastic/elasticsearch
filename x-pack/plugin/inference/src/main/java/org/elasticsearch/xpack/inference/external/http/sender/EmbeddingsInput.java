@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkInferenceInput;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class EmbeddingsInput extends InferenceInputs {
 
@@ -23,22 +26,30 @@ public class EmbeddingsInput extends InferenceInputs {
         return (EmbeddingsInput) inferenceInputs;
     }
 
-    private final List<String> input;
+    private final List<ChunkInferenceInput> input;
 
     private final InputType inputType;
 
-    public EmbeddingsInput(List<String> input, @Nullable InputType inputType) {
+    public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType) {
         this(input, inputType, false);
     }
 
-    public EmbeddingsInput(List<String> input, @Nullable InputType inputType, boolean stream) {
+    public EmbeddingsInput(List<String> input, @Nullable ChunkingSettings chunkingSettings, @Nullable InputType inputType) {
+        this(input.stream().map(i -> new ChunkInferenceInput(i, chunkingSettings)).collect(Collectors.toList()), inputType, false);
+    }
+
+    public EmbeddingsInput(List<ChunkInferenceInput> input, @Nullable InputType inputType, boolean stream) {
         super(stream);
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
     }
 
-    public List<String> getInputs() {
+    public List<ChunkInferenceInput> getInputs() {
         return this.input;
+    }
+
+    public List<String> getStringInputs() {
+        return this.input.stream().map(ChunkInferenceInput::input).collect(Collectors.toList());
     }
 
     public InputType getInputType() {

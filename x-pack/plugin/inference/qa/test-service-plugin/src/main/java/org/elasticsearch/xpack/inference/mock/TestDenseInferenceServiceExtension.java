@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -145,9 +146,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         public void chunkedInfer(
             Model model,
             @Nullable String query,
-            List<String> input,
+            List<ChunkInferenceInput> input,
             Map<String, Object> taskSettings,
-            ChunkingSettings chunkingSettings,
             InputType inputType,
             TimeValue timeout,
             ActionListener<List<ChunkedInference>> listener
@@ -155,7 +155,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, TEXT_EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
-                    listener.onResponse(makeChunkedResults(input, modelServiceSettings, chunkingSettings));
+                    listener.onResponse(makeChunkedResults(input, modelServiceSettings));
                 }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
@@ -175,19 +175,15 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             return new TextEmbeddingFloatResults(embeddings);
         }
 
-        private List<ChunkedInference> makeChunkedResults(
-            List<String> inputs,
-            ServiceSettings serviceSettings,
-            ChunkingSettings chunkingSettings
-        ) {
+        private List<ChunkedInference> makeChunkedResults(List<ChunkInferenceInput> inputs, ServiceSettings serviceSettings) {
             var results = new ArrayList<ChunkedInference>();
             for (int i = 0; i < inputs.size(); i++) {
-                String input = inputs.get(i);
-                List<String> chunkedInput = chunkInputs(input, chunkingSettings);
+                ChunkInferenceInput input = inputs.get(i);
+                List<String> chunkedInput = chunkInputs(input);
                 List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>();
                 for (String c : chunkedInput) {
                     // Note: We have to start with an offset of 0 to account for overlaps
-                    int offset = input.indexOf(c);
+                    int offset = input.input().indexOf(c);
                     int endOffset = offset + c.length();
                     chunks.add(
                         new TextEmbeddingFloatResults.Chunk(

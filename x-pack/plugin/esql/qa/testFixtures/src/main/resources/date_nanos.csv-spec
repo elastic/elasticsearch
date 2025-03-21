@@ -221,8 +221,8 @@ required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
 FROM date_nanos | WHERE nanos > TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos > TO_DATE_NANOS(\"2023-10-23T12:27:28.948000000Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos > TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948000000Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -260,8 +260,8 @@ FROM date_nanos
 | WHERE nanos > "2023-10-23" 
 | SORT nanos DESC 
 | KEEP millis, nanos;
-warning:Line 2:9: evaluation of [nanos > \"2023-10-23\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos > \\\"2023-10-23\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date             | nanos:date_nanos              
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
@@ -294,8 +294,8 @@ FROM date_nanos
 | WHERE nanos == "2023-10-23" 
 | SORT nanos DESC 
 | KEEP millis, nanos;
-warning:Line 2:9: evaluation of [nanos == \"2023-10-23\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos == \\\"2023-10-23\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date             | nanos:date_nanos              
 ;
@@ -329,8 +329,8 @@ FROM date_nanos
 | WHERE nanos > "2023-10-23T00:00:00" 
 | SORT nanos DESC 
 | KEEP millis, nanos;
-warning:Line 2:9: evaluation of [nanos > \"2023-10-23T00:00:00\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos > \\\"2023-10-23T00:00:00\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date             | nanos:date_nanos              
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
@@ -363,8 +363,8 @@ FROM date_nanos
 | WHERE nanos == "2023-10-23T12:27:28" 
 | SORT nanos DESC 
 | KEEP millis, nanos;
-warning:Line 2:9: evaluation of [nanos == \"2023-10-23T12:27:28\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos == \\\"2023-10-23T12:27:28\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date             | nanos:date_nanos              
 ;
@@ -397,8 +397,8 @@ FROM date_nanos
 | WHERE nanos > "2023-10-23T00:00:00.000" 
 | SORT nanos DESC 
 | KEEP millis, nanos;
-warning:Line 2:9: evaluation of [nanos > \"2023-10-23T00:00:00.000\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos > \\\"2023-10-23T00:00:00\.000\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date             | nanos:date_nanos              
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
@@ -432,8 +432,8 @@ FROM date_nanos
 | WHERE nanos == "2023-10-23T12:27:28.948" 
 | SORT nanos DESC 
 | KEEP millis, nanos;
-warning:Line 2:9: evaluation of [nanos == \"2023-10-23T12:27:28.948\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos == \\\"2023-10-23T12:27:28\.948\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date             | nanos:date_nanos              
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
@@ -467,8 +467,8 @@ FROM date_nanos
 | WHERE nanos > "2023-10-23T00:00:00.000000000" 
 | SORT nanos DESC 
 | KEEP millis, nanos;
-warning:Line 2:9: evaluation of [nanos > \"2023-10-23T00:00:00.000000000\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos > \\\"2023-10-23T00:00:00\.000000000\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date             | nanos:date_nanos              
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z
@@ -502,8 +502,8 @@ FROM date_nanos
 | WHERE nanos == "2023-10-23T12:27:28.948000000" 
 | SORT nanos DESC 
 | KEEP millis, nanos;
-warning:Line 2:9: evaluation of [nanos == \"2023-10-23T12:27:28.948000000\"] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos == \\\"2023-10-23T12:27:28\.948000000\\\"\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date             | nanos:date_nanos              
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z
@@ -528,8 +528,8 @@ required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
 
 FROM date_nanos | WHERE nanos > TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos > TO_DATETIME(\"2023-10-23T12:27:28.948Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos > TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -559,8 +559,8 @@ required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
 FROM date_nanos | WHERE nanos >= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos >= TO_DATE_NANOS(\"2023-10-23T12:27:28.948Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos >= TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -591,8 +591,8 @@ required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
 
 FROM date_nanos | WHERE nanos >= TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos >= TO_DATETIME(\"2023-10-23T12:27:28.948Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos >= TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -619,8 +619,8 @@ required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
 FROM date_nanos | WHERE nanos < TO_DATE_NANOS("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos < TO_DATE_NANOS(\"2023-10-23T12:27:28.948Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos < TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
@@ -642,8 +642,8 @@ required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
 
 FROM date_nanos | WHERE nanos < TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos < TO_DATETIME(\"2023-10-23T12:27:28.948Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos < TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:15:03.360Z | 2023-10-23T12:15:03.360103847Z | 1698063303360103847
@@ -667,8 +667,8 @@ required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
 FROM date_nanos | WHERE nanos <= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos <= TO_DATE_NANOS(\"2023-10-23T12:27:28.948Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos <= TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
@@ -693,8 +693,8 @@ required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
 
 FROM date_nanos | WHERE nanos <= TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos <= TO_DATETIME(\"2023-10-23T12:27:28.948Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos <= TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
@@ -717,8 +717,8 @@ required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
 FROM date_nanos | WHERE nanos == TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z");
-warning:Line 1:25: evaluation of [nanos == TO_DATE_NANOS(\"2023-10-23T12:27:28.948000000Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos == TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948000000Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
@@ -739,8 +739,8 @@ required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
 
 FROM date_nanos | WHERE nanos == TO_DATETIME("2023-10-23T12:27:28.948Z");
-warning:Line 1:25: evaluation of [nanos == TO_DATETIME(\"2023-10-23T12:27:28.948Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos == TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T12:27:28.948Z | 2023-10-23T12:27:28.948000000Z | 1698064048948000000
@@ -760,8 +760,8 @@ required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
 
 FROM date_nanos | WHERE nanos == TO_DATETIME("2023-10-23T13:33:34.937");
-warning:Line 1:25: evaluation of [nanos == TO_DATETIME(\"2023-10-23T13:33:34.937\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos == TO_DATETIME\(\\\"2023-10-23T13:33:34\.937\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 ;
@@ -787,8 +787,8 @@ required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 
 FROM date_nanos | WHERE nanos != TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") AND millis > "2000-01-01" | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos != TO_DATE_NANOS(\"2023-10-23T12:27:28.948000000Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos != TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948000000Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -821,8 +821,8 @@ required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
 
 FROM date_nanos | WHERE nanos != TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
-warning:Line 1:25: evaluation of [nanos != TO_DATETIME(\"2023-10-23T12:27:28.948Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:25: evaluation of \[nanos != TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 1:25: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -1567,8 +1567,8 @@ required_capability: to_date_nanos
 FROM date_nanos 
 | WHERE nanos IN (TO_DATE_NANOS("2023-10-23T13:55:01.543123456Z"), TO_DATE_NANOS("2023-10-23T12:27:28.948Z"), TO_DATE_NANOS("2017-10-23T13:53:55.832987654Z"));
 ignoreOrder:true
-warning:Line 2:9: evaluation of [nanos IN (TO_DATE_NANOS(\"2023-10-23T13:55:01.543123456Z\"), TO_DATE_NANOS(\"2023-10-23T12:27:28.948Z\"), TO_DATE_NANOS(\"2017-10-23T13:53:55.832987654Z\"))] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos IN \(TO_DATE_NANOS\(\\\"2023-10-23T13:55:01\.543123456Z\\\"\), TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\), TO_DATE_NANOS\(\\\"2017-10-23T13:53:55\.832987654Z\\\"\)\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -1597,8 +1597,8 @@ required_capability: date_nanos_implicit_casting
 FROM date_nanos 
 | WHERE nanos IN ("2023-10-23T13:55:01.543123456Z", "2023-10-23T12:27:28.948Z", "2017-10-23T13:53:55.832987654Z");
 ignoreOrder:true
-warning:Line 2:9: evaluation of [nanos IN (\"2023-10-23T13:55:01.543123456Z\", \"2023-10-23T12:27:28.948Z\", \"2017-10-23T13:53:55.832987654Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[nanos IN \(\\\"2023-10-23T13:55:01\.543123456Z\\\", \\\"2023-10-23T12:27:28\.948Z\\\", \\\"2017-10-23T13:53:55\.832987654Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -1625,8 +1625,8 @@ required_capability: date_nanos_implicit_casting
 FROM date_nanos 
 | WHERE "2023-10-23T13:55:01.543123456Z" IN (nanos);
 ignoreOrder:true
-warning:Line 2:9: evaluation of [\"2023-10-23T13:55:01.543123456Z\" IN (nanos)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 2:9: evaluation of \[\\\"2023-10-23T13:55:01\.543123456Z\\\" IN \(nanos\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 millis:date              | nanos:date_nanos               | num:long
 2023-10-23T13:55:01.543Z | 2023-10-23T13:55:01.543123456Z | 1698069301543123456
@@ -1714,10 +1714,10 @@ FROM date_nanos
 | WHERE nanos >= to_datenanos("2010-03-20T15:08:25.608Z") AND nanos <= to_datenanos("2026-03-20T15:08:25.608Z")
 | KEEP nanos;
 ignoreOrder:true
-warning:Line 3:63: evaluation of [nanos <= to_datenanos(\"2026-03-20T15:08:25.608Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:63: java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 3:9: evaluation of [nanos >= to_datenanos(\"2010-03-20T15:08:25.608Z\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 3:63: evaluation of \[nanos <= to_datenanos\(\\\"2026-03-20T15:08:25\.608Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:63: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 3:9: evaluation of \[nanos >= to_datenanos\(\\\"2010-03-20T15:08:25\.608Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
+warningRegex:Line 3:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 nanos:date_nanos
 2023-10-23T13:55:01.543123456Z

@@ -52,6 +52,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackField;
@@ -75,6 +76,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
@@ -82,6 +84,7 @@ import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInference
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapperTests.addSemanticTextInferenceResults;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbedding;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
@@ -491,6 +494,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         final int denseModelEmbeddingBytes = denseModel.getServiceSettings()
             .elementType()
             .getNumBytes(denseModel.getServiceSettings().dimensions());
+        final Function<XContentBuilder, Long> bytesUsed = b -> BytesReference.bytes(b).ramBytesUsed();
         final ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(sparseModel.getInferenceEntityId(), sparseModel, denseModel.getInferenceEntityId(), denseModel),
@@ -501,27 +505,59 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         XContentBuilder doc0Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "a test value");
         XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "dense_field", "another test value");
+        XContentBuilder doc2Source = IndexRequest.getXContentBuilder(
+            XContentType.JSON,
+            "sparse_field",
+            "a test value",
+            "dense_field",
+            "another test value"
+        );
+        XContentBuilder doc3Source = IndexRequest.getXContentBuilder(
+            XContentType.JSON,
+            "dense_field",
+            List.of("value one", "  ", "value two")
+        );
+        XContentBuilder doc4Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "   ");
+        XContentBuilder doc5Source = XContentFactory.contentBuilder(XContentType.JSON);
+        {
+            doc5Source.startObject();
+            if (useLegacyFormat == false) {
+                doc5Source.field("sparse_field", "a test value");
+            }
+            addSemanticTextInferenceResults(
+                useLegacyFormat,
+                doc5Source,
+                List.of(randomSemanticText(useLegacyFormat, "sparse_field", sparseModel, List.of("a test value"), XContentType.JSON))
+            );
+            doc5Source.endObject();
+        }
+        XContentBuilder doc0UpdateSource = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "an updated value");
+        XContentBuilder doc1UpdateSource = IndexRequest.getXContentBuilder(XContentType.JSON, "dense_field", null);
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
                 assertNull(bulkShardRequest.getInferenceFieldMap());
-                assertThat(bulkShardRequest.items().length, equalTo(3));
+                assertThat(bulkShardRequest.items().length, equalTo(10));
 
                 for (BulkItemRequest item : bulkShardRequest.items()) {
                     assertNull(item.getPrimaryResponse());
                 }
 
                 assertThat(circuitBreaker.getUsed(), equalTo(0L));
-                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(128 + BytesReference.bytes(doc0Source).ramBytesUsed(), "doc_0");
-                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(
-                    denseModelEmbeddingBytes + BytesReference.bytes(doc1Source).ramBytesUsed(),
-                    "doc_1"
-                );
+                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(128 + bytesUsed.apply(doc0Source), "doc_0");
+                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(denseModelEmbeddingBytes + bytesUsed.apply(doc1Source), "doc_1");
+                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(128 + denseModelEmbeddingBytes + bytesUsed.apply(doc2Source), "doc_2");
+                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(denseModelEmbeddingBytes * 2L + bytesUsed.apply(doc3Source), "doc_3");
+                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(bytesUsed.apply(doc4Source), "doc_4");
+                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(128 + bytesUsed.apply(doc0UpdateSource), "doc_0");
+                if (useLegacyFormat == false) {
+                    verify(circuitBreaker).addEstimateBytesAndMaybeBreak(bytesUsed.apply(doc1UpdateSource), "doc_1");
+                }
 
-                // Verify that the only times that addEstimateBytesAndMaybeBreak is called is the two times verified above
-                verify(circuitBreaker, times(2)).addEstimateBytesAndMaybeBreak(anyLong(), anyString());
+                // Verify that the only times that addEstimateBytesAndMaybeBreak is called are the times verified above
+                verify(circuitBreaker, times(useLegacyFormat ? 6 : 7)).addEstimateBytesAndMaybeBreak(anyLong(), anyString());
             } finally {
                 chainExecuted.countDown();
             }
@@ -536,10 +572,20 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             new InferenceFieldMetadata("dense_field", denseModel.getInferenceEntityId(), new String[] { "dense_field" })
         );
 
-        BulkItemRequest[] items = new BulkItemRequest[3];
+        BulkItemRequest[] items = new BulkItemRequest[10];
         items[0] = new BulkItemRequest(0, new IndexRequest("index").id("doc_0").source(doc0Source));
         items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source(doc1Source));
-        items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source("non_inference_field", "yet another test value"));
+        items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source(doc2Source));
+        items[3] = new BulkItemRequest(3, new IndexRequest("index").id("doc_3").source(doc3Source));
+        items[4] = new BulkItemRequest(4, new IndexRequest("index").id("doc_4").source(doc4Source));
+        items[5] = new BulkItemRequest(5, new IndexRequest("index").id("doc_5").source(doc5Source));
+        items[6] = new BulkItemRequest(6, new IndexRequest("index").id("doc_6").source("non_inference_field", "yet another test value"));
+        items[7] = new BulkItemRequest(7, new UpdateRequest().doc(new IndexRequest("index").id("doc_0").source(doc0UpdateSource)));
+        items[8] = new BulkItemRequest(8, new UpdateRequest().doc(new IndexRequest("index").id("doc_1").source(doc1UpdateSource)));
+        items[9] = new BulkItemRequest(
+            9,
+            new UpdateRequest().doc(new IndexRequest("index").id("doc_3").source("non_inference_field", "yet another updated value"))
+        );
 
         BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
         request.setInferenceFieldMap(inferenceFieldMap);

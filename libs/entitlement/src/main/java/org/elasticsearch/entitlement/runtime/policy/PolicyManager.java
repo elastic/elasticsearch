@@ -516,7 +516,7 @@ public class PolicyManager {
                     classEntitlements.componentName(),
                     getModuleName(requestingClass),
                     requestingClass,
-                    PolicyParser.getEntitlementTypeName(entitlementClass)
+                    PolicyParser.buildEntitlementNameFromClass(entitlementClass)
                 ),
                 callerClass,
                 classEntitlements
@@ -529,7 +529,7 @@ public class PolicyManager {
                     classEntitlements.componentName(),
                     getModuleName(requestingClass),
                     requestingClass,
-                    PolicyParser.getEntitlementTypeName(entitlementClass)
+                    PolicyParser.buildEntitlementNameFromClass(entitlementClass)
                 )
             );
     }

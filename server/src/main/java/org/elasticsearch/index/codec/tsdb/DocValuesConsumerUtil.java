@@ -21,8 +21,7 @@ import java.util.List;
 
 class DocValuesConsumerUtil {
 
-    static SortedNumericDocValues mergeSortedNumericValues(List<SortedNumericDocValuesSub> subs, boolean indexIsSorted)
-        throws IOException {
+    static SortedNumericDocValues mergeSortedNumericValues(List<SortedNumericDocValuesSub> subs, boolean indexIsSorted) throws IOException {
         long cost = 0;
         for (SortedNumericDocValuesSub sub : subs) {
             cost += sub.values.cost();
@@ -96,8 +95,7 @@ class DocValuesConsumerUtil {
         }
     }
 
-    static NumericDocValues mergeNumericValues(List<NumericDocValuesSub> subs, boolean indexIsSorted)
-        throws IOException {
+    static NumericDocValues mergeNumericValues(List<NumericDocValuesSub> subs, boolean indexIsSorted) throws IOException {
         long cost = 0;
         for (NumericDocValuesSub sub : subs) {
             cost += sub.values.cost();
@@ -166,8 +164,7 @@ class DocValuesConsumerUtil {
         }
     }
 
-    static SortedDocValues mergeSortedValues(List<SortedDocValuesSub> subs, boolean indexIsSorted)
-        throws IOException {
+    static SortedDocValues mergeSortedValues(List<SortedDocValuesSub> subs, boolean indexIsSorted) throws IOException {
         long cost = 0;
         for (SortedDocValuesSub sub : subs) {
             cost += sub.values.cost();

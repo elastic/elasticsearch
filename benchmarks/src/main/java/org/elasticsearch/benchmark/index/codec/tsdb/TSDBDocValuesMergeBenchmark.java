@@ -96,8 +96,7 @@ public class TSDBDocValuesMergeBenchmark {
         indexWriterWithOptimizedMerge = createIndex(tempDirectoryWithDocValuesSkipper, true);
     }
 
-    private IndexWriter createIndex(final Directory directory, final boolean optimizedMergeEnabled)
-        throws IOException {
+    private IndexWriter createIndex(final Directory directory, final boolean optimizedMergeEnabled) throws IOException {
 
         final IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
         // NOTE: index sort config matching LogsDB's sort order
@@ -118,8 +117,8 @@ public class TSDBDocValuesMergeBenchmark {
 
         long counter1 = 0;
         long counter2 = 10_000_000;
-        long[] gauge1Values = new long[] {2, 4, 6, 8, 10, 12, 14, 16};
-        long[] gauge2Values = new long[] {-2, -4, -6, -8, -10, -12, -14, -16};
+        long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+        long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
         int numHosts = 1000;
 
         final Random random = new Random(seed);

@@ -29,14 +29,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
-import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
+import org.elasticsearch.entitlement.runtime.policy.PolicyUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -78,13 +78,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
-import static org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils.POLICY_OVERRIDE_PREFIX;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
  * This class starts elasticsearch.
  */
 class Elasticsearch {
+
+    private static final String POLICY_PATCH_PREFIX = "es.entitlements.policy.";
+    private static final String SERVER_POLICY_PATCH_NAME = POLICY_PATCH_PREFIX + "server";
 
     /**
      * Main entry point for starting elasticsearch.
@@ -126,9 +128,8 @@ class Elasticsearch {
         final PrintStream out = getStdout();
         final PrintStream err = getStderr();
         final ServerArgs args;
-        final boolean entitlementsEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled", "true"));
-        // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
-        final boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsEnabled;
+
+        final boolean useEntitlements = true;
         try {
             initSecurityProperties();
 
@@ -245,13 +246,20 @@ class Elasticsearch {
 
             var pluginData = Stream.concat(
                 modulesBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
                 pluginsBundles.stream()
-                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+                    .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
 
-            var policyOverrides = collectPluginPolicyOverrides(modulesBundles, pluginsBundles, logger);
-            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData, policyOverrides, Build.current().version());
+            var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);
+            var pluginPolicies = PolicyUtils.createPluginPolicies(pluginData, pluginPolicyPatches, Build.current().version());
+            var serverPolicyPatch = PolicyUtils.parseEncodedPolicyIfExists(
+                System.getProperty(SERVER_POLICY_PATCH_NAME),
+                Build.current().version(),
+                false,
+                "server",
+                PolicyManager.SERVER_LAYER_MODULES.stream().map(Module::getName).collect(Collectors.toUnmodifiableSet())
+            );
 
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
@@ -259,6 +267,7 @@ class Elasticsearch {
             Map<String, Path> sourcePaths = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
                 .collect(Collectors.toUnmodifiableMap(bundle -> bundle.pluginDescriptor().getName(), PluginBundle::getDir));
             EntitlementBootstrap.bootstrap(
+                serverPolicyPatch,
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
                 nodeEnv.settings()::getValues,
@@ -320,33 +329,36 @@ class Elasticsearch {
         }
     }
 
-    private static Map<String, String> collectPluginPolicyOverrides(
+    private static Map<String, String> collectPluginPolicyPatches(
         Set<PluginBundle> modulesBundles,
         Set<PluginBundle> pluginsBundles,
         Logger logger
     ) {
-        var policyOverrides = new HashMap<String, String>();
+        var policyPatches = new HashMap<String, String>();
         var systemProperties = BootstrapInfo.getSystemProperties();
         systemProperties.keys().asIterator().forEachRemaining(key -> {
             var value = systemProperties.get(key);
-            if (key instanceof String k && k.startsWith(POLICY_OVERRIDE_PREFIX) && value instanceof String v) {
-                policyOverrides.put(k.substring(POLICY_OVERRIDE_PREFIX.length()), v);
+            if (key instanceof String k
+                && value instanceof String v
+                && k.startsWith(POLICY_PATCH_PREFIX)
+                && k.equals(SERVER_POLICY_PATCH_NAME) == false) {
+                policyPatches.put(k.substring(POLICY_PATCH_PREFIX.length()), v);
             }
         });
         var pluginNames = Stream.concat(modulesBundles.stream(), pluginsBundles.stream())
             .map(bundle -> bundle.pluginDescriptor().getName())
             .collect(Collectors.toUnmodifiableSet());
 
-        for (var overriddenPluginName : policyOverrides.keySet()) {
-            if (pluginNames.contains(overriddenPluginName) == false) {
+        for (var patchedPluginName : policyPatches.keySet()) {
+            if (pluginNames.contains(patchedPluginName) == false) {
                 logger.warn(
-                    "Found command-line override for unknown plugin [{}] (available plugins: [{}])",
-                    overriddenPluginName,
+                    "Found command-line policy patch for unknown plugin [{}] (available plugins: [{}])",
+                    patchedPluginName,
                     String.join(", ", pluginNames)
                 );
             }
         }
-        return policyOverrides;
+        return policyPatches;
     }
 
     private static class EntitlementSelfTester {

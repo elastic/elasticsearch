@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWrita
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
@@ -180,6 +181,7 @@ public class ExpressionWritables {
         entries.add(StY.ENTRY);
         entries.add(Tan.ENTRY);
         entries.add(Tanh.ENTRY);
+        entries.add(ToAggregateMetricDouble.ENTRY);
         entries.add(ToBase64.ENTRY);
         entries.add(ToBoolean.ENTRY);
         entries.add(ToCartesianPoint.ENTRY);

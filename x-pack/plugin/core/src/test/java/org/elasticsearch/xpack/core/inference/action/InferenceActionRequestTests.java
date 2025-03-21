@@ -174,6 +174,76 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
         assertThat(queryEmptyError.getMessage(), is("Validation Failed: 1: Field [query] cannot be empty for task type [rerank];"));
     }
 
+    public void testValidation_Rerank_WithInputType() {
+        InferenceAction.Request request = new InferenceAction.Request(
+            TaskType.RERANK,
+            "model",
+            "query",
+            List.of("input"),
+            null,
+            InputType.SEARCH,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = request.validate();
+        assertNotNull(queryError);
+        assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [input_type] cannot be specified for task type [rerank];"));
+    }
+
+    public void testValidation_SparseEmbedding_WithInputType() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.SPARSE_EMBEDDING,
+            "model",
+            "",
+            List.of("input"),
+            null,
+            InputType.SEARCH,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(
+            queryError.getMessage(),
+            is("Validation Failed: 1: Field [input_type] cannot be specified for task type [sparse_embedding];")
+        );
+    }
+
+    public void testValidation_Completion_WithInputType() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.COMPLETION,
+            "model",
+            "",
+            List.of("input"),
+            null,
+            InputType.SEARCH,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(queryError.getMessage(), is("Validation Failed: 1: Field [input_type] cannot be specified for task type [completion];"));
+    }
+
+    public void testValidation_ChatCompletion_WithInputType() {
+        InferenceAction.Request queryRequest = new InferenceAction.Request(
+            TaskType.CHAT_COMPLETION,
+            "model",
+            "",
+            List.of("input"),
+            null,
+            InputType.SEARCH,
+            null,
+            false
+        );
+        ActionRequestValidationException queryError = queryRequest.validate();
+        assertNotNull(queryError);
+        assertThat(
+            queryError.getMessage(),
+            is("Validation Failed: 1: Field [input_type] cannot be specified for task type [chat_completion];")
+        );
+    }
+
     public void testParseRequest_DefaultsInputTypeToIngest() throws IOException {
         String singleInputRequest = """
             {
@@ -318,8 +388,10 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
 
     @Override
     protected InferenceAction.Request mutateInstanceForVersion(InferenceAction.Request instance, TransportVersion version) {
+        InferenceAction.Request mutated;
+
         if (version.before(TransportVersions.V_8_12_0)) {
-            return new InferenceAction.Request(
+            mutated = new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
                 null,
@@ -330,7 +402,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 false
             );
         } else if (version.before(TransportVersions.V_8_13_0)) {
-            return new InferenceAction.Request(
+            mutated = new InferenceAction.Request(
                 instance.getTaskType(),
                 instance.getInferenceEntityId(),
                 null,
@@ -344,7 +416,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             && (instance.getInputType() == InputType.UNSPECIFIED
                 || instance.getInputType() == InputType.CLASSIFICATION
                 || instance.getInputType() == InputType.CLUSTERING)) {
-                    return new InferenceAction.Request(
+                    mutated = new InferenceAction.Request(
                         instance.getTaskType(),
                         instance.getInferenceEntityId(),
                         null,
@@ -356,7 +428,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     );
                 } else if (version.before(TransportVersions.V_8_13_0)
                     && (instance.getInputType() == InputType.CLUSTERING || instance.getInputType() == InputType.CLASSIFICATION)) {
-                        return new InferenceAction.Request(
+                        mutated = new InferenceAction.Request(
                             instance.getTaskType(),
                             instance.getInferenceEntityId(),
                             null,
@@ -367,7 +439,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             false
                         );
                     } else if (version.before(TransportVersions.V_8_14_0)) {
-                        return new InferenceAction.Request(
+                        mutated = new InferenceAction.Request(
                             instance.getTaskType(),
                             instance.getInferenceEntityId(),
                             null,
@@ -379,7 +451,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                         );
                     } else if (version.before(TransportVersions.INFERENCE_CONTEXT)
                         && version.isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X) == false) {
-                            return new InferenceAction.Request(
+                            mutated = new InferenceAction.Request(
                                 instance.getTaskType(),
                                 instance.getInferenceEntityId(),
                                 instance.getQuery(),
@@ -390,9 +462,18 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                                 false,
                                 InferenceContext.EMPTY_INSTANCE
                             );
+                        } else {
+                            mutated = instance;
                         }
 
-        return instance;
+        // We always assume that a request has been rerouted, if it came from a node without adaptive rate limiting
+        if (version.before(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
+            mutated.setHasBeenRerouted(true);
+        } else {
+            mutated.setHasBeenRerouted(instance.hasBeenRerouted());
+        }
+
+        return mutated;
     }
 
     public void testWriteTo_WhenVersionIsOnAfterUnspecifiedAdded() throws IOException {

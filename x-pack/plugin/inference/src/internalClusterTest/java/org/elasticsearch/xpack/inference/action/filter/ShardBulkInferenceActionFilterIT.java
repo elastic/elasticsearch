@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -73,6 +74,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
+        ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
         DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         // dot product means that we need normalized vectors; it's not worth doing that in this test
         SimilarityMeasure similarity = randomValueOtherThan(
@@ -80,14 +82,13 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
         );
         int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
-
-        Utils.storeSparseModel(client());
-        Utils.storeDenseModel(client(), dimensions, similarity, elementType);
+        Utils.storeSparseModel(modelRegistry);
+        Utils.storeDenseModel(modelRegistry, dimensions, similarity, elementType);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        long batchSizeInBytes = randomLongBetween(0, ByteSizeValue.ofKb(1).getBytes());
+        long batchSizeInBytes = randomLongBetween(1, ByteSizeValue.ofKb(1).getBytes());
         return Settings.builder()
             .put(otherSettings)
             .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")

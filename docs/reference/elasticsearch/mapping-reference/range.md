@@ -7,7 +7,7 @@ mapped_pages:
 # Range field types [range]
 
 
-Range field types represent a continuous range of values between an upper and lower bound. For example, a range can represent *any date in October* or *any integer from 0 to 9*. They are defined using the operators `gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound. They can be used for querying, and have limited support for aggregations. The only supported aggregations are [histogram](/reference/data-analysis/aggregations/search-aggregations-bucket-histogram-aggregation.md), [cardinality](/reference/data-analysis/aggregations/search-aggregations-metrics-cardinality-aggregation.md).
+Range field types represent a continuous range of values between an upper and lower bound. For example, a range can represent *any date in October* or *any integer from 0 to 9*. They are defined using the operators `gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound. They can be used for querying, and have limited support for aggregations. The only supported aggregations are [histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md), [cardinality](/reference/aggregations/search-aggregations-metrics-cardinality-aggregation.md).
 
 The following range types are supported:
 
@@ -68,7 +68,7 @@ PUT range_index/_doc/1?refresh
 3. Example date range using date time stamp.
 
 
-The following is an example of a [term query](/reference/query-languages/query-dsl-term-query.md) on the `integer_range` field named "expected_attendees". 12 is a value inside the range, so it will match.
+The following is an example of a [term query](/reference/query-languages/query-dsl/query-dsl-term-query.md) on the `integer_range` field named "expected_attendees". 12 is a value inside the range, so it will match.
 
 ```console
 GET range_index/_search
@@ -137,7 +137,7 @@ GET range_index/_search
 }
 ```
 
-1. Range queries work the same as described in [range query](/reference/query-languages/query-dsl-range-query.md).
+1. Range queries work the same as described in [range query](/reference/query-languages/query-dsl/query-dsl-range-query.md).
 2. Range queries over range [fields](/reference/elasticsearch/mapping-reference/field-data-types.md) support a `relation` parameter which can be one of `WITHIN`, `CONTAINS`, `INTERSECTS` (default).
 
 

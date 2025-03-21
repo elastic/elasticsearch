@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
 import java.util.UUID;
@@ -146,7 +147,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
-            this.configDir = workingDir.resolve("config");
+            this.configDir = Optional.ofNullable(spec.getConfigDir()).orElse(workingDir.resolve("config"));
             this.tempDir = workingDir.resolve("tmp"); // elasticsearch temporary directory
             this.debugPort = DefaultLocalClusterHandle.NEXT_DEBUG_PORT.getAndIncrement();
         }
@@ -294,6 +295,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             return workingDir;
         }
 
+        Path getConfigDir() {
+            return configDir;
+        }
+
         public void waitUntilReady() {
             try {
                 Retry.retryUntilTrue(NODE_UP_TIMEOUT, Duration.ofMillis(500), () -> {
@@ -426,7 +431,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 try (Stream<Path> configFiles = Files.walk(distributionDir.resolve("config"))) {
                     for (Path file : configFiles.toList()) {
                         Path relativePath = distributionDir.resolve("config").relativize(file);
-                        Path dest = configDir.resolve(relativePath);
+                        Path dest = configDir.resolve(relativePath.toFile().getPath());
                         if (Files.exists(dest) == false) {
                             Files.createDirectories(dest.getParent());
                             Files.copy(file, dest);
@@ -645,7 +650,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 if (operators.isEmpty() == false) {
                     // TODO: Support service accounts here
                     final String operatorUsersFileName = "operator_users.yml";
-                    final Path destination = workingDir.resolve("config").resolve(operatorUsersFileName);
+                    final Path destination = configDir.resolve(operatorUsersFileName);
                     if (Files.exists(destination)) {
                         throw new IllegalStateException(
                             "Operator users file ["
@@ -672,7 +677,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
         }
 
         private void writeRolesFile() {
-            Path destination = workingDir.resolve("config").resolve("roles.yml");
+            Path destination = configDir.resolve("roles.yml");
             spec.getRolesFiles().forEach(rolesFile -> {
                 try (
                     Writer writer = Files.newBufferedWriter(destination, StandardOpenOption.APPEND);
@@ -862,7 +867,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private Map<String, String> getEnvironmentVariables() {
             Map<String, String> environment = new HashMap<>(spec.resolveEnvironment());
-            environment.put("ES_PATH_CONF", workingDir.resolve("config").toString());
+            environment.put("ES_PATH_CONF", configDir.toString());
             environment.put("ES_TMPDIR", workingDir.resolve("tmp").toString());
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
             environment.put("TMP", workingDir.resolve("tmp").toString());

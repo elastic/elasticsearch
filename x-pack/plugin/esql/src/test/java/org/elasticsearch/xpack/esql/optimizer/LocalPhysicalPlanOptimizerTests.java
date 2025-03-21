@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -1655,6 +1656,34 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             .rewrite("fuzzy")
             .timeZone("America/Los_Angeles");
         assertThat(expectedQStrQuery.toString(), is(planStr.get()));
+    }
+
+    public void testMultiMatchOptionsPushDown() {
+        String query = """
+            from test
+            | where MULTI_MATCH("Anna", "first_name", "last_name", {"slop": 10, "analyzer": "auto",
+            "auto_generate_synonyms_phrase_query": "false", "fuzziness": "auto", "fuzzy_transpositions": false, "lenient": "false",
+            "max_expansions": 10, "minimum_should_match": 3, "operator": "AND", "prefix_length": 20, "tie_breaker": 1.0})
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        AtomicReference<String> planStr = new AtomicReference<>();
+        plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
+
+        var expectedQuery = new MultiMatchQueryBuilder("Anna").fields(Map.of("first_name", 1.0f, "last_name", 1.0f))
+            .slop(10)
+            .analyzer("auto")
+            .autoGenerateSynonymsPhraseQuery(false)
+            .operator(Operator.fromString("AND"))
+            .fuzziness(Fuzziness.fromString("auto"))
+            .fuzzyTranspositions(false)
+            .lenient(false)
+            .maxExpansions(10)
+            .minimumShouldMatch("3")
+            .prefixLength(20)
+            .tieBreaker(1.0f)
+            .boost(0.0f); // TODO: why are we getting boost=0.0 in the actual above?
+        assertThat(expectedQuery.toString(), is(planStr.get()));
     }
 
     /**

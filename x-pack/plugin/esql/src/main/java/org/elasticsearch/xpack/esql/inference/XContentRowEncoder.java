@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
 
 /**
  * Encodes rows into an XContent format (JSON,YAML,...) for further processing.
- * Extracted columns can be specified using {@link EvalOperator}ExpressionEvaluator}
+ * Extracted columns can be specified using {@link ExpressionEvaluator}
  */
 public class XContentRowEncoder implements ExpressionEvaluator {
     private final XContentType xContentType;

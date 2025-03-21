@@ -864,6 +864,8 @@ FROM date_nanos
 | EVAL year = DATE_EXTRACT("year", nn), ns = DATE_EXTRACT("nano_of_second", nn)
 | KEEP nn, year, ns
 | SORT nn DESC;
+# NB: sorting of the MV results isn't deterministic, so we ignore ordering here
+ignoreOrder:true
 warning:Line 3:15: evaluation of [DATE_EXTRACT(\"year\", nn)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 3:15: java.lang.IllegalArgumentException: single-value function encountered multi-value
 warning:Line 3:46: evaluation of [DATE_EXTRACT(\"nano_of_second\", nn)] failed, treating result as null. Only first 20 failures recorded.
@@ -1622,6 +1624,7 @@ required_capability: date_nanos_implicit_casting
 
 FROM date_nanos 
 | WHERE "2023-10-23T13:55:01.543123456Z" IN (nanos);
+ignoreOrder:true
 warning:Line 2:9: evaluation of [\"2023-10-23T13:55:01.543123456Z\" IN (nanos)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
@@ -1710,6 +1713,7 @@ FROM date_nanos
 | WHERE millis > "2020-01-01"
 | WHERE nanos >= to_datenanos("2010-03-20T15:08:25.608Z") AND nanos <= to_datenanos("2026-03-20T15:08:25.608Z")
 | KEEP nanos;
+ignoreOrder:true
 warning:Line 3:63: evaluation of [nanos <= to_datenanos(\"2026-03-20T15:08:25.608Z\")] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 3:63: java.lang.IllegalArgumentException: single-value function encountered multi-value
 warning:Line 3:9: evaluation of [nanos >= to_datenanos(\"2010-03-20T15:08:25.608Z\")] failed, treating result as null. Only first 20 failures recorded.

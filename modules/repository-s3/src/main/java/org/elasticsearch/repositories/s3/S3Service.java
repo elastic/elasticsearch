@@ -35,7 +35,6 @@ import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.auth.StsAssumeRoleWithWebIdentityCredentialsProvider;
 import software.amazon.awssdk.services.sts.model.AssumeRoleWithWebIdentityRequest;
 
-import org.apache.http.HttpStatus;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,6 +49,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -207,7 +207,7 @@ class S3Service implements Closeable {
         var s3clientBuilder = S3Client.builder();
         s3clientBuilder.httpClient(buildHttpClient(clientSettings).build());
         s3clientBuilder.overrideConfiguration(buildClientConfiguration(clientSettings, isStateless));
-        s3clientBuilder.serviceConfiguration(b -> b.chunkedEncodingEnabled(clientSettings.disableChunkedEncoding ? false : true));
+        s3clientBuilder.serviceConfiguration(b -> b.chunkedEncodingEnabled(clientSettings.disableChunkedEncoding == false));
 
         // TODO: credentials
         s3clientBuilder.credentialsProvider(buildCredentials(LOGGER, clientSettings, new CustomWebIdentityTokenCredentialsProvider()));
@@ -225,21 +225,12 @@ class S3Service implements Closeable {
         return s3clientBuilder;
     }
 
-    private Signer getSigner(S3ClientSettings.AwsSignerOverrideType signerOverrideType) {
-        switch (signerOverrideType) {
-            case S3ClientSettings.AwsSignerOverrideType.Aws4Signer:
-            case S3ClientSettings.AwsSignerOverrideType.AWS4SignerType:
-                return Aws4Signer.create();
-            case S3ClientSettings.AwsSignerOverrideType.AWS3SignerType:
-            case S3ClientSettings.AwsSignerOverrideType.AwsS3V4Signer:
-                return AwsS3V4Signer.create();
-            case S3ClientSettings.AwsSignerOverrideType.NoOpSigner:
-            case S3ClientSettings.AwsSignerOverrideType.NoOpSignerType:
-                return new NoOpSigner();
-            default:
-                throw new IllegalArgumentException("Invalid enum state [" + signerOverrideType + "]");
-        }
-
+    private static Signer getSigner(S3ClientSettings.AwsSignerOverrideType signerOverrideType) {
+        return switch (signerOverrideType) {
+            case Aws4Signer, AWS4SignerType -> Aws4Signer.create();
+            case AWS3SignerType, AwsS3V4Signer -> AwsS3V4Signer.create();
+            case NoOpSigner, NoOpSignerType -> new NoOpSigner();
+        };
     }
 
     private ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
@@ -265,7 +256,8 @@ class S3Service implements Closeable {
                     return true;
                 }
                 if (retryPolicyContext.exception() instanceof AwsServiceException ase) {
-                    return ase.statusCode() == HttpStatus.SC_FORBIDDEN && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
+                    return ase.statusCode() == RestStatus.FORBIDDEN.getStatus()
+                        && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
                 }
                 return false;
             });

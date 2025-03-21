@@ -270,7 +270,9 @@ public class EsqlCapabilities {
 
         /**
          * Execute `RENAME` operations sequentially from left to right,
-         * see <a href="https://github.com/elastic/elasticsearch/issues/122250"> ESQL: Align RENAME behavior with EVAL for sequential processing #122250 </a>
+         * see <a href="https://github.com/elastic/elasticsearch/issues/122250">
+         *     ESQL: Align RENAME behavior with EVAL for sequential processing #122250
+         * </a>
          */
         RENAME_SEQUENTIAL_PROCESSING,
 

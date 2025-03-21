@@ -7,7 +7,7 @@ The weighted average of a numeric expression.
 
 ```
 FROM employees
-| STATS w_avg = WEIGHTED_AVG(salary, height) by languages
+| STATS w_avg = WEIGHTED_AVG(salary, height) BY languages
 | EVAL w_avg = ROUND(w_avg)
 | KEEP w_avg, languages
 | SORT languages

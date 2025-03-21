@@ -2,9 +2,15 @@
 
 ## `QSTR` [esql-qstr]
 :::{warning}
+```{applies_to}
+product: COMING 9.1.0
+```
+
 Do not use on production environments. This functionality is in technical preview and
 may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview
 are not subject to the support SLA of official GA features.
+
+Support for optional named parameters is only available from 9.1.0
 :::
 
 **Syntax**

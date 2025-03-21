@@ -1442,7 +1442,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (content.contains(key) == false) {
                     key = replacement.fallback();
                     if (content.contains(key) == false) {
-                        throw new IOException("Template property '" + replacement + "' not found in template.");
+                        throw new IOException("Template property '" + replacement + "' not found in template:\n" + content);
                     }
                 }
                 content = content.replace(key, entry.getValue());

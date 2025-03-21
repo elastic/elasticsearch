@@ -16,7 +16,9 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
@@ -197,10 +199,15 @@ public class ServerProcessBuilder {
 
         var builder = new ProcessBuilder(Stream.concat(Stream.of(command), Stream.concat(jvmOptions.stream(), jvmArgs.stream())).toList());
         builder.environment().putAll(environment);
-        builder.directory(workingDir.toFile());
+        setWorkingDir(builder, workingDir);
         builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 
         return processStarter.start(builder);
+    }
+
+    @SuppressForbidden(reason = "ProcessBuilder takes File")
+    private static void setWorkingDir(ProcessBuilder builder, Path path) {
+        builder.directory(path.toFile());
     }
 
     private static void sendArgs(ServerArgs args, OutputStream processStdin) {

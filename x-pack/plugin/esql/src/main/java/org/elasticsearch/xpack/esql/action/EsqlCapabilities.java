@@ -408,6 +408,12 @@ public class EsqlCapabilities {
         UNION_TYPES_FIX_RENAME_RESOLUTION,
 
         /**
+         * Execute `RENAME` operations sequentially from left to right,
+         * see <a href="https://github.com/elastic/elasticsearch/issues/122250"> ESQL: Align RENAME behavior with EVAL for sequential processing #122250 </a>
+         */
+        RENAME_SEQUENTIAL_PROCESSING,
+
+        /**
          * Fix for union-types when some indexes are missing the required field. Done in #111932.
          */
         UNION_TYPES_MISSING_FIELD,
@@ -906,7 +912,12 @@ public class EsqlCapabilities {
         /**
          * The {@code _query} API now reports the original types.
          */
-        REPORT_ORIGINAL_TYPES;
+        REPORT_ORIGINAL_TYPES,
+
+        /**
+         * The metrics command
+         */
+        METRICS_COMMAND(Build.current().isSnapshot());
 
         private final boolean enabled;
 

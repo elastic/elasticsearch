@@ -40,7 +40,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
 import java.net.spi.URLStreamHandlerProvider;
@@ -63,7 +62,6 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
-import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.deniedToPlugins;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.forPlugins;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -95,26 +93,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     private static final Map<String, CheckAction> checkActions = Stream.of(
         Stream.<Entry<String, CheckAction>>of(
-            entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
-            entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
-            entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline)),
             entry("set_https_connection_properties", forPlugins(RestEntitlementsCheckAction::setHttpsConnectionProperties)),
             entry("set_default_ssl_socket_factory", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLSocketFactory)),
             entry("set_default_hostname_verifier", alwaysDenied(RestEntitlementsCheckAction::setDefaultHostnameVerifier)),
             entry("set_default_ssl_context", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLContext)),
-            entry(
-                "thread_setDefaultUncaughtExceptionHandler",
-                alwaysDenied(RestEntitlementsCheckAction::thread$$setDefaultUncaughtExceptionHandler)
-            ),
-            entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
-
-            entry("locale_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultLocale)),
-            entry("locale_setDefaultForCategory", alwaysDenied(WritePropertiesCheckActions::setDefaultLocaleForCategory)),
-            entry("timeZone_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultTimeZone)),
-
-            entry("system_setProperty", forPlugins(WritePropertiesCheckActions::setSystemProperty)),
-            entry("system_clearProperty", forPlugins(WritePropertiesCheckActions::clearSystemProperty)),
-            entry("system_setSystemProperties", alwaysDenied(WritePropertiesCheckActions::setSystemProperties)),
 
             // This group is a bit nasty: if entitlements don't prevent these, then networking is
             // irreparably borked for the remainder of the test run.
@@ -211,7 +193,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         getTestEntries(SpiActions.class),
         getTestEntries(SystemActions.class),
         getTestEntries(URLConnectionFileActions.class),
-        getTestEntries(URLConnectionNetworkActions.class)
+        getTestEntries(URLConnectionNetworkActions.class),
+        getTestEntries(JvmActions.class),
+        getTestEntries(OperatingSystemActions.class)
     )
         .flatMap(Function.identity())
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
@@ -323,31 +307,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         HttpsURLConnection.setDefaultSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
-    private static void createClassLoader() throws IOException {
-        try (var classLoader = new URLClassLoader("test", new URL[0], RestEntitlementsCheckAction.class.getClassLoader())) {
-            logger.info("Created URLClassLoader [{}]", classLoader.getName());
-        }
-    }
-
-    private static void processBuilder_start() throws IOException {
-        new ProcessBuilder("").start();
-    }
-
-    private static void processBuilder_startPipeline() throws IOException {
-        ProcessBuilder.startPipeline(List.of());
-    }
-
     private static void setHttpsConnectionProperties() {
         new DummyImplementations.DummyHttpsURLConnection().setSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
-    }
-
-    private static void thread$$setDefaultUncaughtExceptionHandler() {
-        Thread.setDefaultUncaughtExceptionHandler(Thread.getDefaultUncaughtExceptionHandler());
-    }
-
-    private static void logManager$() {
-        new java.util.logging.LogManager() {
-        };
     }
 
     @SuppressWarnings("deprecation")

@@ -11,6 +11,7 @@ lexer grammar From;
 //
 FROM : 'from'                 -> pushMode(FROM_MODE);
 
+DEV_METRICS : {this.isDevVersion()}? 'metrics' -> pushMode(FROM_MODE);
 
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.action.elastic;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
 
 public interface ElasticInferenceServiceActionVisitor {
 

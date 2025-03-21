@@ -21,8 +21,8 @@ public class IndexReshardingMetadataTests extends ESTestCase {
         var split = metadata.getSplit();
 
         // starting state is as expected
-        assert split.oldShardCount() == numShards;
-        assert split.newShardCount() == numShards * multiple;
+        assert metadata.shardCountBefore() == numShards;
+        assert metadata.shardCountAfter() == numShards * multiple;
         for (int i = 0; i < numShards; i++) {
             assert split.getSourceShardState(i) == IndexReshardingState.Split.SourceShardState.SOURCE;
         }

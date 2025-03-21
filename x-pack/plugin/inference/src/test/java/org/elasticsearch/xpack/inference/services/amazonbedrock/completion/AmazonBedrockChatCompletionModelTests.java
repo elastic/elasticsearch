@@ -11,8 +11,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
@@ -214,7 +214,7 @@ public class AmazonBedrockChatCompletionModelTests extends ESTestCase {
             "amazonbedrock",
             new AmazonBedrockChatCompletionServiceSettings(region, model, provider, rateLimitSettings),
             new AmazonBedrockChatCompletionTaskSettings(temperature, topP, topK, maxNewTokens),
-            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
+            new AwsSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
         );
     }
 

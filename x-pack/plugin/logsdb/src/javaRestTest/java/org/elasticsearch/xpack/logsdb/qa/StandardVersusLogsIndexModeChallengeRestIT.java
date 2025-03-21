@@ -65,12 +65,12 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
     @Override
     public void baselineMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.standardMapping(builder);
+        dataGenerationHelper.writeStandardMapping(builder);
     }
 
     @Override
     public void contenderMappings(XContentBuilder builder) throws IOException {
-        dataGenerationHelper.logsDbMapping(builder);
+        dataGenerationHelper.writeLogsDbMapping(builder);
     }
 
     @Override
@@ -130,7 +130,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             .size(numberOfDocuments);
 
         final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -148,7 +148,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
             .size(numberOfDocuments);
 
         final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getQueryHits(queryBaseline(searchSourceBuilder)))
             .ignoringSort(true)
@@ -218,7 +218,7 @@ public abstract class StandardVersusLogsIndexModeChallengeRestIT extends Abstrac
 
         final String query = "FROM $index METADATA _source, _id | KEEP _source, _id | LIMIT " + numberOfDocuments;
         final MatchResult matchResult = Matcher.matchSource()
-            .mappings(getContenderMappings(), getBaselineMappings())
+            .mappings(dataGenerationHelper.mapping().lookup(), getContenderMappings(), getBaselineMappings())
             .settings(getContenderSettings(), getBaselineSettings())
             .expected(getEsqlSourceResults(esqlBaseline(query)))
             .ignoringSort(true)

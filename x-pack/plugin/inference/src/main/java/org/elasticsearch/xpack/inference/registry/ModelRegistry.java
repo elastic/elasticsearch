@@ -809,7 +809,11 @@ public class ModelRegistry implements ClusterStateListener {
         }
 
         var request = createDeleteRequest(inferenceEntityIds);
-        client.execute(DeleteByQueryAction.INSTANCE, request, getDeleteModelClusterStateListener(inferenceEntityIds, updateClusterState, listener));
+        client.execute(
+            DeleteByQueryAction.INSTANCE,
+            request,
+            getDeleteModelClusterStateListener(inferenceEntityIds, updateClusterState, listener)
+        );
     }
 
     private ActionListener<BulkByScrollResponse> getDeleteModelClusterStateListener(

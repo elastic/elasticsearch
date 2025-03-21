@@ -95,7 +95,7 @@ public final class OutboundHandler {
      *                 thread.
      */
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
-        internalSend(channel, bytes, () -> "", listener);
+        internalSend(channel, bytes, () -> "raw bytes", listener);
     }
 
     /**
@@ -272,6 +272,7 @@ public final class OutboundHandler {
         ThreadContext threadContext,
         RecyclerBytesStreamOutput byteStreamOutput
     ) throws IOException {
+        assert byteStreamOutput.position() == 0;
         byteStreamOutput.setTransportVersion(version);
         byteStreamOutput.skip(TcpHeader.HEADER_SIZE);
         threadContext.writeTo(byteStreamOutput);
@@ -285,7 +286,12 @@ public final class OutboundHandler {
 
         final int variableHeaderLength = Math.toIntExact(byteStreamOutput.position() - TcpHeader.HEADER_SIZE);
         BytesReference message = serializeMessageBody(writeable, compressionScheme, version, byteStreamOutput);
-        byte status = requestAction != null ? 0 : TransportStatus.setResponse((byte) 0);
+        byte status;
+        if (requestAction != null) {
+            status = 0;
+        } else {
+            status = TransportStatus.setResponse((byte) 0);
+        }
         if (isHandshake) {
             status = TransportStatus.setHandshake(status);
         }

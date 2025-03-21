@@ -7,10 +7,10 @@
 This functionality is in technical preview and may be
 changed or removed in a future release. Elastic will work to fix any
 issues, but features in technical preview are not subject to the support
-SLA of official GA features. ::::
+SLA of official GA features.
 ====
 `LOOKUP JOIN` enables you to add data from another index, AKA a 'lookup'
-index, to your ++{{++esql}} query results, simplifying data enrichment
+index, to your {esql} query results, simplifying data enrichment
 and analysis workflows.
 
 *Syntax*
@@ -41,7 +41,7 @@ contains multi-valued entries, those entries will not match anything
 
 *Description*
 
-The `LOOKUP JOIN` command adds new columns to your ++{++esql} query
+The `LOOKUP JOIN` command adds new columns to your {esql} query
 results table by finding documents in a lookup index that share the same
 join field value as your result rows.
 

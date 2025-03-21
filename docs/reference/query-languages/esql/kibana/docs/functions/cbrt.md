@@ -8,5 +8,5 @@ Cube roots of infinities are null.
 
 ```
 ROW d = 1000.0
-| EVAL c = cbrt(d)
+| EVAL c = CBRT(d)
 ```

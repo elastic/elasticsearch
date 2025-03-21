@@ -83,7 +83,7 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
     @SuppressWarnings("unchecked")
     private void assertMinimalModelsAreUpgraded() throws IOException {
         var fullModels = (List<Map<String, Object>>) get(TaskType.ANY, "*").get("endpoints");
-        var minimalModels = getMinimalConfig();
+        var minimalModels = getMinimalConfigs();
         assertMinimalModelsAreUpgraded(
             fullModels.stream().collect(Collectors.toMap(a -> (String) a.get("inference_id"), a -> a)),
             minimalModels
@@ -92,9 +92,14 @@ public class ModelRegistryUpgradeIT extends InferenceUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertMinimalModelsAreUpgraded(
-        Map<String, Map<String, Object>> fullModels,
+        Map<String, Map<String, Object>> fullModelsWithDefaults,
         Map<String, Map<String, Object>> minimalModels
     ) {
+        // remove the default models as they are not stored in cluster state.
+        var fullModels = fullModelsWithDefaults.entrySet()
+            .stream()
+            .filter(e -> e.getKey().startsWith(".") == false)
+            .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue()));
         assertThat(fullModels.size(), greaterThan(0));
         assertThat(fullModels.size(), equalTo(minimalModels.size()));
         for (var entry : fullModels.entrySet()) {

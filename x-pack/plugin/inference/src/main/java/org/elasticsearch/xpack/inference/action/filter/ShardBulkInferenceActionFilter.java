@@ -282,6 +282,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     indexRequest = ir;
                 } else if (item.request() instanceof UpdateRequest updateRequest) {
                     isUpdateRequest = true;
+                    if (updateRequest.script() != null) {
+                        // Skip script updates, we will error out on those later
+                        continue;
+                    }
+
                     indexRequest = updateRequest.doc();
                 } else {
                     // Ignore delete requests
@@ -295,10 +300,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
                 for (InferenceFieldMetadata inferenceFieldMetadata : fieldInferenceMap.values()) {
                     String inferenceId = inferenceFieldMetadata.getInferenceId();
-                    MinimalServiceSettings minimalServiceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
-                    if (minimalServiceSettings == null) {
-                        throw new IllegalStateException("Model settings for inference ID [" + inferenceId + "] not found");
-                    }
+                    MinimalServiceSettings minimalServiceSettings = null;
 
                     if (isInferenceRequired(inferenceFieldMetadata, docMap) == false) {
                         continue;
@@ -310,8 +312,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             // This is an update request that will clear inference results, which means that a copy of the request source
                             // will be generated
                             noInferenceSourceUpdate = true;
-                        }
-                        if (valueObj == null) {
+                            continue;
+                        } else if (valueObj == null || valueObj == EXPLICIT_NULL) {
                             continue;
                         }
 
@@ -328,6 +330,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 // We update source to insert an empty chunk list on blank input
                                 noInferenceSourceUpdate = true;
                             } else {
+                                if (minimalServiceSettings == null) {
+                                    minimalServiceSettings = getMinimalServiceSettings(inferenceId, inferenceFieldMetadata.getName());
+                                }
+
                                 // TODO: Estimate chunk count based on string length
                                 estimatedEmbeddingBytes += switch (minimalServiceSettings.taskType()) {
                                     case SPARSE_EMBEDDING -> 128; // TODO: Estimate sparse embedding size
@@ -369,6 +375,20 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             actualMemoryUsageInBytes = estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes;
+        }
+
+        private MinimalServiceSettings getMinimalServiceSettings(String inferenceId, String field) {
+            MinimalServiceSettings minimalServiceSettings;
+            try {
+                minimalServiceSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
+                if (minimalServiceSettings == null) {
+                    throw new ResourceNotFoundException("Inference id [{}] not found for field [{}]", inferenceId, field);
+                }
+            } catch (ResourceNotFoundException e) {
+                throw new ResourceNotFoundException("Inference id [{}] not found for field [{}]", e, inferenceId, field);
+            }
+
+            return minimalServiceSettings;
         }
 
         private void executeNext(int itemOffset) {

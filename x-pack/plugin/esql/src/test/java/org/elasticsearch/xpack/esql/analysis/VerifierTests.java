@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MultiMatch;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -53,6 +54,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.hamcrest.Matchers.containsString;
@@ -2267,6 +2269,85 @@ public class VerifierTests extends ESTestCase {
             error("FROM test |  WHERE QSTR(\"first_name: Jean\", {\"unknown_option\": true})"),
             containsString(
                 "1:20: Invalid option [unknown_option] in [QSTR(\"first_name: Jean\", {\"unknown_option\": true})]," + " expected one of "
+            )
+        );
+    }
+
+    public void testMultiMatchOptions() {
+        // Check positive cases
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"analyzer\": \"standard\"})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"slop\": 10})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"auto_generate_synonyms_phrase_query\": true})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"fuzziness\": 2})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"fuzzy_transpositions\": false})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"lenient\": false})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"max_expansions\": 10})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"minimum_should_match\": \"2\"})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"operator\": \"AND\"})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"prefix_length\": 2})");
+        query("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"tie_breaker\": 1.0})");
+        // TODO: "type" option?
+
+        // Check all data types for available options
+        DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
+        for (Map.Entry<String, DataType> allowedOptions : MultiMatch.OPTIONS.entrySet()) {
+            String optionName = allowedOptions.getKey();
+            DataType optionType = allowedOptions.getValue();
+            // Check every possible type for the option - we'll try to convert it to the expected type
+            for (DataType currentType : optionTypes) {
+                String optionValue = switch (currentType) {
+                    case BOOLEAN -> String.valueOf(randomBoolean());
+                    case INTEGER -> String.valueOf(randomIntBetween(0, 100000));
+                    case LONG -> String.valueOf(randomLong());
+                    case FLOAT -> String.valueOf(randomFloat());
+                    case DOUBLE -> String.valueOf(randomDouble());
+                    case KEYWORD -> randomAlphaOfLength(10);
+                    default -> throw new IllegalArgumentException("Unsupported option type: " + currentType);
+                };
+                String queryOptionValue = optionValue;
+                if (currentType == KEYWORD) {
+                    queryOptionValue = "\"" + optionValue + "\"";
+                }
+
+                String query = "FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\""
+                    + optionName
+                    + "\": "
+                    + queryOptionValue
+                    + "})";
+                try {
+                    // Check conversion is possible
+                    DataTypeConverter.convert(optionValue, optionType);
+                    // If no exception was thrown, conversion is possible and should be done
+                    query(query);
+                } catch (InvalidArgumentException e) {
+                    // Conversion is not possible, query should fail
+                    assertEquals(
+                        "1:19: Invalid option ["
+                            + optionName
+                            + "] in [MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\""
+                            + optionName
+                            + "\": "
+                            + queryOptionValue
+                            + "})], cannot "
+                            + (optionType == OBJECT ? "convert from" : "cast")
+                            + " ["
+                            + optionValue
+                            + "]"
+                            + (optionType == OBJECT ? (", type [keyword]") : "")
+                            + " to ["
+                            + optionType.typeName()
+                            + "]",
+                        error(query)
+                    );
+                }
+            }
+        }
+
+        assertThat(
+            error("FROM test | WHERE MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"unknown_option\": true})"),
+            containsString(
+                "1:19: Invalid option [unknown_option] in [MULTI_MATCH([\"first_name\", \"last_name\"], \"Jean\", {\"unknown_option\": true})],"
+                    + " expected one of "
             )
         );
     }

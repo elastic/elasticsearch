@@ -160,13 +160,20 @@ public class RestBulkAction extends BaseRestHandler {
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
         public ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
-            this(allowExplicitIndex, request, handlerSupplier,
+            this(
+                allowExplicitIndex,
+                request,
+                handlerSupplier,
                 new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
             );
         }
 
-        public ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier,
-                            AbstractBulkRequestParser requestParser) {
+        public ChunkHandler(
+            boolean allowExplicitIndex,
+            RestRequest request,
+            Supplier<IncrementalBulkService.Handler> handlerSupplier,
+            AbstractBulkRequestParser requestParser
+        ) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
             this.parser = requestParser.incrementalParser(

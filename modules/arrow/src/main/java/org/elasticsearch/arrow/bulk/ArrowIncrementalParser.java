@@ -16,8 +16,8 @@ import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.ReadChannel;
 import org.apache.arrow.vector.ipc.message.MessageMetadataResult;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;
-import org.elasticsearch.libs.arrow.ArrowFormatException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.libs.arrow.ArrowFormatException;
 
 import java.io.Closeable;
 import java.io.IOException;

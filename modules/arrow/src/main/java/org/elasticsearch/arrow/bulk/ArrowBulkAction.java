@@ -58,7 +58,9 @@ public class ArrowBulkAction extends BaseRestHandler {
         String waitForActiveShards = request.param("wait_for_active_shards");
         TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);
         String refresh = request.param("refresh");
-        return new RestBulkAction.ChunkHandler(false, request,
+        return new RestBulkAction.ChunkHandler(
+            false,
+            request,
             () -> bulkHandler.newBulkRequest(waitForActiveShards, timeout, refresh),
             new ArrowBulkRequestParser(request)
         );

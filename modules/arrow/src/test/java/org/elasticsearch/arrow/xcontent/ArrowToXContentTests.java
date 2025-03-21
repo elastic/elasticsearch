@@ -37,10 +37,7 @@ public class ArrowToXContentTests extends ESTestCase {
 
     public void testWriteField() throws IOException {
 
-        try (
-                var allocator = Arrow.newChildAllocator("test", 0, Long.MAX_VALUE);
-                IntVector vector = new IntVector("intField", allocator);
-        ) {
+        try (var allocator = Arrow.newChildAllocator("test", 0, Long.MAX_VALUE); IntVector vector = new IntVector("intField", allocator);) {
             vector.allocateNew(1);
             vector.set(0, 123);
             vector.setValueCount(1);

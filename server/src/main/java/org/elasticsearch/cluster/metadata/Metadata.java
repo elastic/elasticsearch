@@ -1353,7 +1353,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
                     final var tuple = persistentTasksCustomMetadata.split();
                     builder.putCustom(tuple.v1().getWriteableName(), tuple.v1());
-                    projectCustomConsumer.accept(custom);
+                    projectCustomConsumer.accept(tuple.v2());
                 } else {
                     projectCustomConsumer.accept(custom);
                 }

@@ -53,7 +53,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Metadata.Project
 
     @Deprecated(forRemoval = true)
     public static RepositoriesMetadata get(ClusterState state) {
-        return get(state.metadata().getProject());
+        return get(state.metadata().getDefaultProject());
     }
 
     public static RepositoriesMetadata get(ProjectMetadata project) {

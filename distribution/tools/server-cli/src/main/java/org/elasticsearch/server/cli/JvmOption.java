@@ -109,9 +109,7 @@ class JvmOption {
             Stream.of("-XX:+PrintFlagsFinal", "-version")
         ).flatMap(Function.identity()).toList();
         final ProcessBuilder builder = new ProcessBuilder().command(command);
-        // set temp dir as working dir so it is writeable
-        final Path tmpDir = Files.createTempDirectory("final-flags");
-        setWorkingDir(builder, tmpDir);
+        setWorkingDir(builder);
         final Process process = builder.start();
         final List<String> output = readLinesFromInputStream(process.getInputStream());
         final List<String> error = readLinesFromInputStream(process.getErrorStream());
@@ -131,8 +129,10 @@ class JvmOption {
     }
 
     @SuppressForbidden(reason = "ProcessBuilder takes File")
-    private static void setWorkingDir(ProcessBuilder builder, Path path) {
-        builder.directory(path.toFile());
+    private static void setWorkingDir(ProcessBuilder builder) throws IOException {
+        // set temp dir as working dir so it is writeable
+        final Path tmpDir = Files.createTempDirectory("final-flags");
+        builder.directory(tmpDir.toFile());
     }
 
     private static List<String> readLinesFromInputStream(final InputStream is) throws IOException {

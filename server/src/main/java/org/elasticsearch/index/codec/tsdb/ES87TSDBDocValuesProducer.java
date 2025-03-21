@@ -360,7 +360,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         };
     }
 
-    private abstract class BaseSortedDocValues extends SortedDocValues {
+    abstract class BaseSortedDocValues extends SortedDocValues {
 
         final SortedEntry entry;
         final TermsEnum termsEnum;
@@ -396,7 +396,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
+    abstract static class BaseSortedSetDocValues extends SortedSetDocValues {
 
         final SortedSetEntry entry;
         final IndexInput data;
@@ -1032,7 +1032,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
             // Special case for maxOrd 1, no need to read blocks and use ordinal 0 as only value
             if (entry.docsWithFieldOffset == -1) {
                 // Special case when all docs have a value
-                return new NumericDocValues() {
+                return new BaseNumericDocValues(entry) {
 
                     private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
                     private int doc = -1;
@@ -1081,7 +1081,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     entry.denseRankPower,
                     entry.numValues
                 );
-                return new NumericDocValues() {
+                return new BaseNumericDocValues(entry) {
 
                     @Override
                     public int advance(int target) throws IOException {
@@ -1126,7 +1126,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            return new NumericDocValues() {
+            return new BaseNumericDocValues(entry) {
 
                 private final int maxDoc = ES87TSDBDocValuesProducer.this.maxDoc;
                 private int doc = -1;
@@ -1193,7 +1193,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numValues
             );
-            return new NumericDocValues() {
+            return new BaseNumericDocValues(entry) {
 
                 private final TSDBDocValuesEncoder decoder = new TSDBDocValuesEncoder(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
                 private long currentBlockIndex = -1;
@@ -1248,6 +1248,15 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    abstract static class BaseNumericDocValues extends NumericDocValues {
+
+        final NumericEntry entry;
+
+        BaseNumericDocValues(NumericEntry entry) {
+            this.entry = entry;
+        }
+    }
+
     private NumericValues getValues(NumericEntry entry, final long maxOrd) throws IOException {
         assert entry.numValues > 0;
         final RandomAccessInput indexSlice = data.randomAccessSlice(entry.indexOffset, entry.indexLength);
@@ -1284,7 +1293,44 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd) throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
-            return DocValues.singleton(getNumeric(entry, maxOrd));
+            var numeric = getNumeric(entry, maxOrd);
+            return new BaseSortedNumericDocValues(entry) {
+
+                @Override
+                public long nextValue() throws IOException {
+                    return numeric.longValue();
+                }
+
+                @Override
+                public int docValueCount() {
+                    return 1;
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    return numeric.advanceExact(target);
+                }
+
+                @Override
+                public int docID() {
+                    return numeric.docID();
+                }
+
+                @Override
+                public int nextDoc() throws IOException {
+                    return numeric.nextDoc();
+                }
+
+                @Override
+                public int advance(int target) throws IOException {
+                    return numeric.advance(target);
+                }
+
+                @Override
+                public long cost() {
+                    return numeric.cost();
+                }
+            };
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);
@@ -1294,7 +1340,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
         if (entry.docsWithFieldOffset == -1) {
             // dense
-            return new SortedNumericDocValues() {
+            return new BaseSortedNumericDocValues(entry) {
 
                 int doc = -1;
                 long start, end;
@@ -1355,7 +1401,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                 entry.denseRankPower,
                 entry.numDocsWithField
             );
-            return new SortedNumericDocValues() {
+            return new BaseSortedNumericDocValues(entry) {
 
                 boolean set;
                 long start, end;
@@ -1411,6 +1457,15 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
                     }
                 }
             };
+        }
+    }
+
+    abstract static class BaseSortedNumericDocValues extends SortedNumericDocValues {
+
+        final SortedNumericEntry entry;
+
+        BaseSortedNumericDocValues(SortedNumericEntry entry) {
+            this.entry = entry;
         }
     }
 

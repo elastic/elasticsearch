@@ -89,6 +89,7 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     }
 
     private final int skipIndexIntervalSize;
+    // TODO: remove escape hatch? Is useful now when testing/benchmarking, but current optimized merge logic currently do too scary things.
     private final boolean enableOptimizedMerge;
 
     /** Default constructor. */

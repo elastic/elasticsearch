@@ -269,6 +269,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             long counter2 = 10_000_000;
             long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
             long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
             int numHosts = 10;
 
             int numDocs = 256 + random().nextInt(1024);
@@ -285,6 +286,10 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 d.add(new SortedNumericDocValuesField("counter_2", counter2++));
                 d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
                 d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[i % gauge1Values.length]));
+                int numTags = 3;
+                for (int j = 0; j < numTags; j++) {
+                    d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j])));
+                }
 
                 iw.addDocument(d);
                 if (i % 100 == 0) {

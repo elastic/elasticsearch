@@ -28,10 +28,10 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.BiFunction;
 
 /**
  * Contains mainly forked code from {@link org.apache.lucene.codecs.DocValuesConsumer}.
@@ -58,8 +58,8 @@ class DocValuesConsumerUtil {
         boolean optimizedMergeEnabled,
         FieldInfo mergeFieldInfo,
         MergeState mergeState,
-        BiFunction<ES87TSDBDocValuesProducer, String, FieldEntry> function
-    ) {
+        CheckedFunction<DocValuesProducer, FieldEntry, IOException> getEntryFunction
+    ) throws IOException {
         if (optimizedMergeEnabled == false
             || mergeState.needsIndexSort == false
             || mergeFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
@@ -70,27 +70,16 @@ class DocValuesConsumerUtil {
         int sumNumDocsWithField = 0;
 
         for (DocValuesProducer docValuesProducer : mergeState.docValuesProducers) {
-            if (docValuesProducer instanceof ES87TSDBDocValuesProducer tsdbProducer) {
-                if (tsdbProducer.version != ES87TSDBDocValuesFormat.VERSION_CURRENT) {
-                    return UNSUPPORTED;
-                }
-
-                var entry = function.apply(tsdbProducer, mergeFieldInfo.name);
-                assert entry != null;
-                // TODO: support also fields with offsets
-                if (entry.docsWithFieldOffset != -1) {
-                    return UNSUPPORTED;
-                }
-                sumNumValues += entry.numValues;
-                sumNumDocsWithField += entry.numDocsWithField;
-            } else {
+            // TODO bring back codec version check? (per field doc values producer sits between ES87TSDBDocValuesConsumer)
+            var entry = getEntryFunction.apply(docValuesProducer);
+            if (entry == null) {
                 return UNSUPPORTED;
             }
+
+            sumNumValues += entry.numValues;
+            sumNumDocsWithField += entry.numDocsWithField;
         }
 
-        if (Math.toIntExact(sumNumValues) != sumNumDocsWithField) {
-            return UNSUPPORTED;
-        }
         // Documents marked as deleted should be rare. Maybe in the case of noop operation?
         for (int i = 0; i < mergeState.liveDocs.length; i++) {
             if (mergeState.liveDocs[i] != null) {

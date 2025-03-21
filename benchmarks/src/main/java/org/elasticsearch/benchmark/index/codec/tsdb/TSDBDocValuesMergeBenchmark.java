@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.lucene101.Lucene101Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.Sort;
@@ -120,6 +121,7 @@ public class TSDBDocValuesMergeBenchmark {
         long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
         long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
         int numHosts = 1000;
+        String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
 
         final Random random = new Random(seed);
         IndexWriter indexWriter = new IndexWriter(directory, config);
@@ -137,6 +139,10 @@ public class TSDBDocValuesMergeBenchmark {
             doc.add(new SortedNumericDocValuesField("counter_2", counter2++));
             doc.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
             doc.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[i % gauge1Values.length]));
+            int numTags = 3;
+            for (int j = 0; j < numTags; j++) {
+                doc.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j])));
+            }
 
             indexWriter.addDocument(doc);
         }

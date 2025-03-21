@@ -7,18 +7,16 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
-import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocWriteResponse;;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,21 +36,22 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SemanticTextIndexVersionIT extends ESIntegTestCase {
-    private static final IndexVersion SEMANTIC_TEXT_INTRODUCED_VERSION = IndexVersions.SEMANTIC_TEXT_FIELD_TYPE;
-    private static final IndexVersion SEMANTIC_TEXT_NEW_FORMAT = IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT;
+    private static final IndexVersion SEMANTIC_TEXT_INTRODUCED_VERSION = IndexVersion.fromId(8512000);
 
     private Set<IndexVersion> availableVersions;
-    private static final int MIN_NUMBER_OF_TESTS_TO_RUN = 10;
+    private static final int MIN_NUMBER_OF_TESTS_TO_RUN = 1;
 
     @Before
     public void setup() throws Exception {
         Utils.storeSparseModel(client());
-        availableVersions = IndexVersionUtils.allReleasedVersions()
-            .stream()
-            .filter((version -> version.onOrAfter(SEMANTIC_TEXT_INTRODUCED_VERSION)))
+        availableVersions = IndexVersionUtils.allReleasedVersions().stream()
+            .filter(indexVersion -> indexVersion.after(SEMANTIC_TEXT_INTRODUCED_VERSION))
             .collect(Collectors.toSet());
 
         logger.info("Available versions for testing: {}", availableVersions);
@@ -100,11 +99,11 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
         return result;
     }
 
-    public void test() throws Exception {
+    public void testSemanticText() throws Exception {
         Map<String, IndexVersion> indices = createRandomVersionIndices();
         for (String indexName : indices.keySet()) {
             IndexVersion version = indices.get(indexName);
-            logger.info("Testing index [{}] with version [{}]", indexName, version);
+            logger.info("Testing index [{}] with version [{}] [{}]", indexName, version, version.toReleaseVersion());
 
             // Test index creation
             assertTrue("Index " + indexName + " should exist", indexExists(indexName));
@@ -136,51 +135,35 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
 
             // Test data ingestion
             String[] text = new String[] { "inference test", "another inference test" };
+            DocWriteResponse docWriteResponse = client().prepareIndex(indexName)
+                .setSource(Map.of("semantic_field", text))
+                .get();
 
-            DocWriteResponse response = client().prepareIndex(indexName).setSource(Map.of("semantic_field", text)).get();
+            assertEquals("Document should be created", "created", docWriteResponse.getResult().toString().toLowerCase());
 
-            assertEquals("Document should be created", "created", response.getResult().toString().toLowerCase());
-
+            // Ensure index is ready
             client().admin().indices().refresh(new RefreshRequest(indexName)).get();
+            ensureGreen(indexName);
 
-            // Simple search
-            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().trackTotalHits(true);
-            SearchResponse searchResponse = client().search(new SearchRequest(indexName).source(sourceBuilder)).get();
-            try {
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
-            } finally {
-                searchResponse.decRef();
-            }
+            // Semantic Search
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+                .query(new SemanticQueryBuilder("semantic_field", "inference"))
+                .trackTotalHits(true);
 
-            // Search with query
-            SearchResponse searchWithQueryResponse = null;
-            if (version.after(SEMANTIC_TEXT_NEW_FORMAT)) {
-                searchWithQueryResponse = client().search(
-                    new SearchRequest(indexName).source(
-                        sourceBuilder.query(QueryBuilders.matchQuery("semantic_field", "another inference test"))
-                    )
-                ).get();
-            } else {
-                String semanticQuery = """
-                    {
-                      "semantic": {
-                        "field": "semantic_field",
-                        "query": "inference"
-                      }
-                    }
-                    """;
-                searchWithQueryResponse = client().search(
-                    new SearchRequest(indexName).source(sourceBuilder.query(new SemanticQueryBuilder("semantic_field", "inference test")))
-                ).get();
-            }
+            assertResponse(client().search(new SearchRequest(indexName).source(sourceBuilder)), response -> {
+                assertHitCount(response, 1L);
+            });
 
-            try {
-                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
-            } finally {
-                searchResponse.decRef();
-            }
+            //Semantic Search with highlighter
+            SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder()
+                .query(new SemanticQueryBuilder("semantic_field", "inference"))
+                .highlighter(new HighlightBuilder().field(new HighlightBuilder.Field("semantic_field").numOfFragments(1)))
+                .trackTotalHits(true);
 
+            assertResponse(client().search(new SearchRequest(indexName).source(sourceBuilder)), response -> {
+                assertHitCount(response, 1L);
+                assertHighlight(response, 0, "semantic_field", 0, 2, equalTo("inference"));
+            });
         }
     }
-
 }

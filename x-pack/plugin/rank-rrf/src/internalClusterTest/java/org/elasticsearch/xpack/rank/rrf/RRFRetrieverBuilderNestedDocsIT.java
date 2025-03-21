@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.rank.rrf;
 
-import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -18,7 +17,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
 import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
@@ -26,7 +24,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -139,23 +136,14 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
         final int rankWindowSize = 100;
         final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
-        
+
         // Test standard0 retriever (nested query for views)
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
             QueryBuilders.boolQuery()
-                .should(QueryBuilders.nestedQuery("views", 
-                    QueryBuilders.rangeQuery("views.last30d")
-                        .gte(50),
-                    ScoreMode.Max
-                ))
-                .should(QueryBuilders.nestedQuery("views",
-                    QueryBuilders.rangeQuery("views.all")
-                        .gte(100),
-                    ScoreMode.Max
-                ))
+                .should(QueryBuilders.nestedQuery("views", QueryBuilders.rangeQuery("views.last30d").gte(50), ScoreMode.Max))
+                .should(QueryBuilders.nestedQuery("views", QueryBuilders.rangeQuery("views.all").gte(100), ScoreMode.Max))
         );
-        SearchRequestBuilder req0 = client().prepareSearch(INDEX)
-            .setSource(new SearchSourceBuilder().retriever(standard0));
+        SearchRequestBuilder req0 = client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(standard0));
         SearchResponse resp0 = req0.get();
 
         // Test standard1 retriever (text + ids)
@@ -164,22 +152,12 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
                 .filter(QueryBuilders.idsQuery().addIds("doc_2", "doc_6"))
                 .should(QueryBuilders.matchQuery(TEXT_FIELD, "search"))
         );
-        SearchRequestBuilder req1 = client().prepareSearch(INDEX)
-            .setSource(new SearchSourceBuilder().retriever(standard1));
+        SearchRequestBuilder req1 = client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(standard1));
         SearchResponse resp1 = req1.get();
 
         // Test knnRetrieverBuilder
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
-            VECTOR_FIELD,
-            new float[] { 6.0f },
-            null,
-            10,
-            100,
-            null,
-            0.1f
-        );
-        SearchRequestBuilder req2 = client().prepareSearch(INDEX)
-            .setSource(new SearchSourceBuilder().retriever(knnRetrieverBuilder));
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 6.0f }, null, 10, 100, null, 0.1f);
+        SearchRequestBuilder req2 = client().prepareSearch(INDEX).setSource(new SearchSourceBuilder().retriever(knnRetrieverBuilder));
         SearchResponse resp2 = req2.get();
 
         // Now test the combined RRF retriever
@@ -199,9 +177,7 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
 
         // Assertions
         assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
-        List<String> returnedDocs = Arrays.stream(resp.getHits().getHits())
-            .map(SearchHit::getId)
-            .collect(Collectors.toList());
+        List<String> returnedDocs = Arrays.stream(resp.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList());
         assertThat(returnedDocs, containsInAnyOrder("doc_2", "doc_6"));
     }
 }

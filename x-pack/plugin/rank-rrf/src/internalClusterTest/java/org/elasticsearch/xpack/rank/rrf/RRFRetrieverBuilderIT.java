@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -40,7 +39,6 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
-import org.elasticsearch.common.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -828,7 +826,10 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         var knn = new KnnRetrieverBuilder("vector", null, vectorBuilder, 10, 10, null, null);
         var standard = new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", vectorBuilder, 10, 10, null));
         var rrf = new RRFRetrieverBuilder(
-            Arrays.asList(new CompoundRetrieverBuilder.RetrieverSource(knn, null), new CompoundRetrieverBuilder.RetrieverSource(standard, null)),
+            Arrays.asList(
+                new CompoundRetrieverBuilder.RetrieverSource(knn, null),
+                new CompoundRetrieverBuilder.RetrieverSource(standard, null)
+            ),
             10,
             10
         );

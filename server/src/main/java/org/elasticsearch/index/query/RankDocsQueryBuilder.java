@@ -28,12 +28,12 @@ import java.util.Objects;
 public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuilder> {
 
     public static final String NAME = "rank_docs_query";
-    
+
     /**
      * Default minimum score threshold for documents to be included in results.
-     * Using Float.MIN_VALUE as the default ensures that by default no documents 
+     * Using Float.MIN_VALUE as the default ensures that by default no documents
      * are filtered out based on score, as virtually all scores will be above this threshold.
-     * 
+     *
      * This threshold is separate from the special handling of scores that are exactly 0:
      * - The minScore parameter determines which documents are included in results based on their score
      * - Documents with a score of exactly 0 will always be assigned Float.MIN_VALUE internally

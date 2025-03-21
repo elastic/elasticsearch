@@ -18,14 +18,13 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
-import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.index.query.RankDocsQueryBuilder;
+import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
 import org.elasticsearch.search.rank.RankDoc;
 
 import java.io.IOException;

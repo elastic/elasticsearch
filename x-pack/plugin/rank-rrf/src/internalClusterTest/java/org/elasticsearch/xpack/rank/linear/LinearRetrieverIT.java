@@ -40,13 +40,10 @@ import org.elasticsearch.search.vectors.TestQueryVectorBuilderPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.rank.linear.IdentityScoreNormalizer;
-import org.elasticsearch.xpack.rank.linear.MinMaxScoreNormalizer;
-import org.elasticsearch.xpack.rank.linear.ScoreNormalizer;
 import org.elasticsearch.xpack.rank.rrf.RRFRankPlugin;
 import org.junit.Before;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -1014,11 +1011,7 @@ public class LinearRetrieverIT extends ESIntegTestCase {
 
         try {
             RetrieverBuilder rewrittenRetriever = linearRetriever.rewrite(
-                new QueryRewriteContext(
-                    XContentParserConfiguration.EMPTY,
-                    client(),
-                    System::currentTimeMillis
-                )
+                new QueryRewriteContext(XContentParserConfiguration.EMPTY, client(), System::currentTimeMillis)
             );
             rewrittenRetriever.extractToSearchSourceBuilder(searchSourceBuilder, false);
             searchRequestBuilder.setSource(searchSourceBuilder);

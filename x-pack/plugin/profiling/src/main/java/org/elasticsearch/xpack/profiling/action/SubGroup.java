@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -19,7 +18,6 @@ import java.util.Objects;
 public class SubGroup implements ToXContentFragment {
     private final String name;
     private Long count;
-    @UpdateForV9 // remove legacy XContent rendering
     private final boolean renderLegacyXContent;
     private final Map<String, SubGroup> subgroups;
 

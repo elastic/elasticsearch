@@ -129,11 +129,11 @@ public class DataStreamLifecycleFixtures {
     }
 
     static DataStreamLifecycle.Template randomLifecycleTemplate() {
-        return DataStreamLifecycle.Template.builder()
-            .dataRetention(randomResettable(ESTestCase::randomTimeValue))
-            .downsampling(randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds))
-            .enabled(frequently())
-            .build();
+        return new DataStreamLifecycle.Template(
+            frequently(),
+            randomResettable(ESTestCase::randomTimeValue),
+            randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds)
+        );
     }
 
     private static <T> ResettableValue<T> randomResettable(Supplier<T> supplier) {

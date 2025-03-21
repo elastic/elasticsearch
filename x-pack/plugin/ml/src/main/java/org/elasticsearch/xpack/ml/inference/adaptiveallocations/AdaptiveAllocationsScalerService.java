@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -213,6 +214,7 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
     private volatile Scheduler.Cancellable cancellable;
     private final AtomicBoolean busy;
     private final long scaleToZeroAfterNoRequestsSeconds;
+    private final long scaleUpCooldownTimeMillis;
     private final Set<String> deploymentIdsWithInFlightScaleFromZeroRequests = new ConcurrentSkipListSet<>();
     private final Map<String, String> lastWarningMessages = new ConcurrentHashMap<>();
 
@@ -224,7 +226,17 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         MeterRegistry meterRegistry,
         boolean isNlpEnabled
     ) {
-        this(threadPool, clusterService, client, inferenceAuditor, meterRegistry, isNlpEnabled, DEFAULT_TIME_INTERVAL_SECONDS);
+        this(
+            threadPool,
+            clusterService,
+            client,
+            inferenceAuditor,
+            meterRegistry,
+            isNlpEnabled,
+            DEFAULT_TIME_INTERVAL_SECONDS,
+            SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS,
+            SCALE_UP_COOLDOWN_TIME_MILLIS
+        );
     }
 
     // visible for testing
@@ -235,7 +247,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         InferenceAuditor inferenceAuditor,
         MeterRegistry meterRegistry,
         boolean isNlpEnabled,
-        int timeIntervalSeconds
+        int timeIntervalSeconds,
+        long scaleToZeroAfterNoRequestsSeconds,
+        long scaleUpCooldownTimeMillis
     ) {
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -244,6 +258,8 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         this.meterRegistry = meterRegistry;
         this.isNlpEnabled = isNlpEnabled;
         this.timeIntervalSeconds = timeIntervalSeconds;
+        this.scaleToZeroAfterNoRequestsSeconds = scaleToZeroAfterNoRequestsSeconds;
+        this.scaleUpCooldownTimeMillis = scaleUpCooldownTimeMillis;
 
         lastInferenceStatsByDeploymentAndNode = new HashMap<>();
         lastInferenceStatsTimestampMillis = null;
@@ -251,7 +267,6 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
         scalers = new HashMap<>();
         metrics = new Metrics();
         busy = new AtomicBoolean(false);
-        scaleToZeroAfterNoRequestsSeconds = SCALE_TO_ZERO_AFTER_NO_REQUESTS_TIME_SECONDS;
     }
 
     public synchronized void start() {
@@ -375,6 +390,9 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
 
         Map<String, Stats> recentStatsByDeployment = new HashMap<>();
         Map<String, Integer> numberOfAllocations = new HashMap<>();
+        // Check for recent scale ups in the deployment stats, because a different node may have
+        // caused a scale up when an inference request arrives and there were zero allocations.
+        Set<String> hasRecentObservedScaleUp = new HashSet<>();
 
         for (AssignmentStats assignmentStats : statsResponse.getStats().results()) {
             String deploymentId = assignmentStats.getDeploymentId();
@@ -401,6 +419,12 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
                         (key, value) -> value == null ? recentStats : value.add(recentStats)
                     );
                 }
+                if (nodeStats.getRoutingState() != null && nodeStats.getRoutingState().getState() == RoutingState.STARTING) {
+                    hasRecentObservedScaleUp.add(deploymentId);
+                }
+                if (nodeStats.getStartTime() != null && now < nodeStats.getStartTime().toEpochMilli() + scaleUpCooldownTimeMillis) {
+                    hasRecentObservedScaleUp.add(deploymentId);
+                }
             }
         }
 
@@ -416,9 +440,12 @@ public class AdaptiveAllocationsScalerService implements ClusterStateListener {
             Integer newNumberOfAllocations = adaptiveAllocationsScaler.scale();
             if (newNumberOfAllocations != null) {
                 Long lastScaleUpTimeMillis = lastScaleUpTimesMillis.get(deploymentId);
+                // hasRecentScaleUp indicates whether this service has recently scaled up the deployment.
+                // hasRecentObservedScaleUp indicates whether a deployment recently has started,
+                // potentially triggered by another node.
+                boolean hasRecentScaleUp = lastScaleUpTimeMillis != null && now < lastScaleUpTimeMillis + scaleUpCooldownTimeMillis;
                 if (newNumberOfAllocations < numberOfAllocations.get(deploymentId)
-                    && lastScaleUpTimeMillis != null
-                    && now < lastScaleUpTimeMillis + SCALE_UP_COOLDOWN_TIME_MILLIS) {
+                    && (hasRecentScaleUp || hasRecentObservedScaleUp.contains(deploymentId))) {
                     logger.debug("adaptive allocations scaler: skipping scaling down [{}] because of recent scaleup.", deploymentId);
                     continue;
                 }

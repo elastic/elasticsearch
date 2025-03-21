@@ -64,7 +64,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         ensureGreen();
 
         final String dataStreamName = "metrics-foo";
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -73,7 +73,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
                     )
                 )
             )
-            .build();
+            .buildTemplate();
         DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
             client(),
             dataStreamName,

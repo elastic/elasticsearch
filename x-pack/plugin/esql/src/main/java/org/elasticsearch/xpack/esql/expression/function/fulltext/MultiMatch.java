@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -172,8 +173,11 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression query = in.readNamedWriteable(Expression.class);
         List<Expression> fields = in.readNamedWriteableCollectionAsList(Expression.class);
-        Expression options = in.readNamedWriteable(Expression.class);
-        return new MultiMatch(source, query, fields, options);
+        QueryBuilder queryBuilder = null;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
+        return new MultiMatch(source, query, fields, null, queryBuilder);
     }
 
     @Override
@@ -181,7 +185,9 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         source().writeTo(out);
         out.writeNamedWriteable(query());
         out.writeNamedWriteableCollection(fields);
-        out.writeNamedWriteable(options);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_QUERY_BUILDER_IN_SEARCH_FUNCTIONS)) {
+            out.writeOptionalNamedWriteable(queryBuilder());
+        }
     }
 
     @Override

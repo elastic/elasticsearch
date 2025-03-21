@@ -11,41 +11,57 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
+import org.elasticsearch.xpack.esql.action.PositionToXContent;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-public class XContentRowEncoder implements RowEncoder<BytesRefBlock> {
+
+/**
+ * Encodes rows into an XContent format (JSON,YAML,...) for further processing.
+ * Extracted columns can be specified using {@link EvalOperator}ExpressionEvaluator}
+ */
+public class XContentRowEncoder implements ExpressionEvaluator {
     private final XContentType xContentType;
     private final BlockFactory blockFactory;
-    private final String[] fieldNames;
-    private final EvalOperator.ExpressionEvaluator[] fieldsValueEvaluators;
+    private final ColumnInfoImpl[] columnsInfo;
+    private final ExpressionEvaluator[] fieldsValueEvaluators;
 
-    public static Factory yamlRowEncoderFactory(Map<String, EvalOperator.ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
+    /**
+     * Creates a factory for YAML XContent row encoding.
+     *
+     * @param fieldsEvaluatorFactories A map of column information to expression evaluators.
+     * @return A Factory instance for creating YAML row encoder for the specified column.
+     */
+    public static Factory yamlRowEncoderFactory(Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
         return new Factory(XContentType.YAML, fieldsEvaluatorFactories);
     }
 
     private XContentRowEncoder(
         XContentType xContentType,
         BlockFactory blockFactory,
-        String[] fieldNames,
-        EvalOperator.ExpressionEvaluator[] fieldsValueEvaluators
+        ColumnInfoImpl[] columnsInfo,
+        ExpressionEvaluator[] fieldsValueEvaluators
     ) {
-        assert fieldNames.length == fieldsValueEvaluators.length;
+        assert columnsInfo.length == fieldsValueEvaluators.length;
         this.xContentType = xContentType;
         this.blockFactory = blockFactory;
-        this.fieldNames = fieldNames;
+        this.columnsInfo = columnsInfo;
         this.fieldsValueEvaluators = fieldsValueEvaluators;
     }
 
@@ -54,27 +70,36 @@ public class XContentRowEncoder implements RowEncoder<BytesRefBlock> {
         Releasables.closeExpectNoException(fieldsValueEvaluators);
     }
 
+    /**
+     * Process the provided Page and encode its rows into a BytesRefBlock containing XContent-formatted rows.
+     *
+     * @param page The input Page containing row data.
+     * @return A BytesRefBlock containing the encoded rows.
+     */
     @Override
-    public BytesRefBlock encodeRows(Page page) {
+    public BytesRefBlock eval(Page page) {
         Block[] fieldValueBlocks = new Block[fieldsValueEvaluators.length];
         try (
             BytesRefStreamOutput outputStream = new BytesRefStreamOutput();
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(xContentType, outputStream);
             BytesRefBlock.Builder outputBlockBuilder = blockFactory.newBytesRefBlockBuilder(page.getPositionCount());
         ) {
+
+            PositionToXContent[] toXContents = new PositionToXContent[fieldsValueEvaluators.length];
             for (int b = 0; b < fieldValueBlocks.length; b++) {
                 fieldValueBlocks[b] = fieldsValueEvaluators[b].eval(page);
+                toXContents[b] = PositionToXContent.positionToXContent(columnsInfo[b], fieldValueBlocks[b], new BytesRef());
             }
 
             for (int pos = 0; pos < page.getPositionCount(); pos++) {
                 xContentBuilder.startObject();
                 for (int i = 0; i < fieldValueBlocks.length; i++) {
-                    String fieldName = fieldNames[i];
+                    String fieldName = columnsInfo[i].name();
                     Block currentBlock = fieldValueBlocks[i];
-                    if (currentBlock.isNull(pos)) {
+                    if (currentBlock.isNull(pos) || currentBlock.getValueCount(pos) < 1) {
                         continue;
                     }
-                    xContentBuilder.field(fieldName, toYamlValue(BlockUtils.toJavaObject(currentBlock, pos)));
+                    toXContents[i].positionToXContent(xContentBuilder.field(fieldName), ToXContent.EMPTY_PARAMS, pos);
                 }
                 xContentBuilder.endObject().flush();
                 outputBlockBuilder.appendBytesRef(outputStream.get());
@@ -89,46 +114,37 @@ public class XContentRowEncoder implements RowEncoder<BytesRefBlock> {
         }
     }
 
+    public List<String> fieldNames() {
+        return Arrays.stream(columnsInfo).map(ColumnInfoImpl::name).collect(Collectors.toList());
+    }
+
     @Override
     public String toString() {
-        return "XContentRowEncoder[content_type=[" + xContentType.toString() + "], field_names=" + List.of(fieldNames) + "]";
+        return "XContentRowEncoder[content_type=[" + xContentType.toString() + "], field_names=" + fieldNames() + "]";
     }
 
-    private Object toYamlValue(Object value) {
-        try {
-            return switch (value) {
-                case BytesRef b -> b.utf8ToString();
-                case List<?> l -> l.stream().map(this::toYamlValue).toList();
-                default -> value;
-            };
-        } catch (Error | Exception e) {
-            // Swallow errors caused by invalid byteref.
-            return "";
-        }
-    }
-
-    public static final class Factory implements RowEncoder.Factory<BytesRefBlock> {
+    public static class Factory implements ExpressionEvaluator.Factory {
         private final XContentType xContentType;
-        private final Map<String, EvalOperator.ExpressionEvaluator.Factory> fieldsEvaluatorFactories;
+        private final Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories;
 
-        private Factory(XContentType xContentType, Map<String, EvalOperator.ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
+        private Factory(XContentType xContentType, Map<ColumnInfoImpl, ExpressionEvaluator.Factory> fieldsEvaluatorFactories) {
             this.xContentType = xContentType;
             this.fieldsEvaluatorFactories = fieldsEvaluatorFactories;
         }
 
-        public RowEncoder<BytesRefBlock> get(DriverContext context) {
-            return new XContentRowEncoder(xContentType, context.blockFactory(), fieldNames(), fieldsValueEvaluators(context));
+        public XContentRowEncoder get(DriverContext context) {
+            return new XContentRowEncoder(xContentType, context.blockFactory(), columnsInfo(), fieldsValueEvaluators(context));
         }
 
-        private String[] fieldNames() {
-            return fieldsEvaluatorFactories.keySet().toArray(String[]::new);
+        private ColumnInfoImpl[] columnsInfo() {
+            return fieldsEvaluatorFactories.keySet().toArray(ColumnInfoImpl[]::new);
         }
 
-        private EvalOperator.ExpressionEvaluator[] fieldsValueEvaluators(DriverContext context) {
+        private ExpressionEvaluator[] fieldsValueEvaluators(DriverContext context) {
             return fieldsEvaluatorFactories.values()
                 .stream()
                 .map(factory -> factory.get(context))
-                .toArray(EvalOperator.ExpressionEvaluator[]::new);
+                .toArray(ExpressionEvaluator[]::new);
         }
     }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.inference.TaskType;
@@ -34,7 +35,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        RowEncoder.Factory<BytesRefBlock> rowEncoderFactory,
+        ExpressionEvaluator.Factory rowEncoderFactory,
         int scoreChannel
     ) implements OperatorFactory {
 
@@ -60,7 +61,7 @@ public class RerankOperator extends AsyncOperator<Page> {
     private final BlockFactory blockFactory;
     private final String inferenceId;
     private final String queryText;
-    private final RowEncoder<BytesRefBlock> rowEncoder;
+    private final ExpressionEvaluator rowEncoder;
     private final int scoreChannel;
 
     public RerankOperator(
@@ -68,7 +69,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        RowEncoder<BytesRefBlock> rowEncoder,
+        ExpressionEvaluator rowEncoder,
         int scoreChannel
     ) {
         super(driverContext, inferenceService.getThreadContext(), MAX_INFERENCE_WORKER);
@@ -177,7 +178,7 @@ public class RerankOperator extends AsyncOperator<Page> {
     }
 
     private InferenceAction.Request buildInferenceRequest(Page inputPage) {
-        try (BytesRefBlock encodedRowsBlock = rowEncoder.encodeRows(inputPage)) {
+        try (BytesRefBlock encodedRowsBlock = (BytesRefBlock) rowEncoder.eval(inputPage)) {
             assert (encodedRowsBlock.getPositionCount() == inputPage.getPositionCount());
             String[] inputs = new String[inputPage.getPositionCount()];
             BytesRef buffer = new BytesRef();

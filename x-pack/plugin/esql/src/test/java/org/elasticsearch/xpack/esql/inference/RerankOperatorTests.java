@@ -62,7 +62,7 @@ public class RerankOperatorTests extends OperatorTestCase {
     private static final String SIMPLE_QUERY = "query text";
     private ThreadPool threadPool;
     private List<ElementType> inputChannelElementTypes;
-    private RowEncoder.Factory<BytesRefBlock> rowEncoderFactory;
+    private XContentRowEncoder.Factory rowEncoderFactory;
     private int scoreChannel;
 
     @Before
@@ -232,23 +232,21 @@ public class RerankOperatorTests extends OperatorTestCase {
         return channel == scoreChannel ? ElementType.DOUBLE : randomFrom(ElementType.FLOAT, ElementType.DOUBLE, ElementType.LONG);
     }
 
-    private RowEncoder.Factory<BytesRefBlock> mockRowEncoderFactory() {
-        RowEncoder.Factory<BytesRefBlock> factory = new RowEncoder.Factory<>() {
-            @Override
-            public RowEncoder<BytesRefBlock> get(DriverContext context) {
-                return new RowEncoder<BytesRefBlock>() {
-                    @Override
-                    public BytesRefBlock encodeRows(Page page) {
-                        return blockFactory().newConstantBytesRefBlockWith(new BytesRef(randomAlphaOfLength(100)), page.getPositionCount());
-                    }
+    private XContentRowEncoder.Factory mockRowEncoderFactory() {
+        XContentRowEncoder.Factory factory = mock(XContentRowEncoder.Factory.class);
+        doAnswer(factoryInvocation -> {
+            DriverContext driverContext = factoryInvocation.getArgument(0, DriverContext.class);
+            XContentRowEncoder rowEncoder = mock(XContentRowEncoder.class);
+            doAnswer(
+                encoderInvocation -> {
+                    Page inputPage = encoderInvocation.getArgument(0, Page.class);
+                    return driverContext.blockFactory().newConstantBytesRefBlockWith(new BytesRef(randomRealisticUnicodeOfCodepointLength(4)), inputPage.getPositionCount());
+                }
+            ).when(rowEncoder).eval(any(Page.class));
 
-                    @Override
-                    public void close() {
+            return rowEncoder;
+        }).when(factory).get(any(DriverContext.class));
 
-                    }
-                };
-            }
-        };
 
         return factory;
     }

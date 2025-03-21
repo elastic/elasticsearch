@@ -56,32 +56,17 @@ public class InboundDecoderTests extends ESTestCase {
         }
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes;
-            if (isRequest) {
-                totalBytes = OutboundHandler.serialize(
-                    isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
-                    action,
-                    requestId,
-                    false,
-                    TransportVersion.current(),
-                    null,
-                    new TestRequest(randomAlphaOfLength(100)),
-                    threadContext,
-                    os
-                );
-            } else {
-                totalBytes = OutboundHandler.serialize(
-                    isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
-                    action,
-                    requestId,
-                    false,
-                    TransportVersion.current(),
-                    null,
-                    new TestResponse(randomAlphaOfLength(100)),
-                    threadContext,
-                    os
-                );
-            }
+            final BytesReference totalBytes = OutboundHandler.serialize(
+                isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
+                action,
+                requestId,
+                false,
+                TransportVersion.current(),
+                null,
+                isRequest ? new TestRequest(randomAlphaOfLength(100)) : new TestResponse(randomAlphaOfLength(100)),
+                threadContext,
+                os
+            );
             int totalHeaderSize = TcpHeader.HEADER_SIZE + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
 

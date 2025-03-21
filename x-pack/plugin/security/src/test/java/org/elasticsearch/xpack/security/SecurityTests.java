@@ -228,7 +228,7 @@ public class SecurityTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
     }
 
@@ -862,7 +862,7 @@ public class SecurityTests extends ESTestCase {
                 List.of(),
                 RestExtension.allowAll(),
                 new IncrementalBulkService(null, null),
-                TestProjectResolvers.singleProjectOnly()
+                TestProjectResolvers.alwaysThrow()
             );
             actionModule.initRestHandlers(null, null);
 

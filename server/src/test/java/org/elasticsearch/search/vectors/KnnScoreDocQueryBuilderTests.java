@@ -24,8 +24,8 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.PerDocumentQueryRewriteContext;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -162,14 +162,17 @@ public class KnnScoreDocQueryBuilderTests extends AbstractQueryTestCase<KnnScore
             randomBoolean() ? randomFloat() : null
         );
         QueryRewriteContext context = randomBoolean()
-            ? new InnerHitsRewriteContext(createSearchExecutionContext().getParserConfig(), System::currentTimeMillis)
+            ? new PerDocumentQueryRewriteContext(createSearchExecutionContext().getParserConfig(), System::currentTimeMillis)
             : createSearchExecutionContext();
         assertEquals(new MatchNoneQueryBuilder(), queryBuilder.rewrite(context));
     }
 
     public void testRewriteForInnerHits() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        InnerHitsRewriteContext innerHitsRewriteContext = new InnerHitsRewriteContext(context.getParserConfig(), System::currentTimeMillis);
+        PerDocumentQueryRewriteContext innerHitsRewriteContext = new PerDocumentQueryRewriteContext(
+            context.getParserConfig(),
+            System::currentTimeMillis
+        );
         KnnScoreDocQueryBuilder queryBuilder = new KnnScoreDocQueryBuilder(
             new ScoreDoc[] { new ScoreDoc(0, 4.25f), new ScoreDoc(5, 1.6f) },
             randomAlphaOfLength(10),

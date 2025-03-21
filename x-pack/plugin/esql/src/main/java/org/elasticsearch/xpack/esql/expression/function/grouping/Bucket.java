@@ -140,7 +140,7 @@ public class Bucket extends GroupingFunction implements PostOptimizationVerifica
                 argument, leaving the range out:""", file = "bucket", tag = "docsBucketWeeklyHistogramWithSpan", explanation = """
                 ::::{note}
                 When providing the bucket size as the second parameter, it must be a time
-                duration or date period.
+                duration or date period. Also the reference is epoch, which starts at `0001-01-01T00:00:00Z`.
                 ::::"""),
             @Example(
                 description = "`BUCKET` can also operate on numeric fields. For example, to create a salary histogram:",

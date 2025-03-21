@@ -18,6 +18,7 @@ import java.net.spi.InetAddressResolver;
 import java.net.spi.InetAddressResolverProvider;
 
 class VersionSpecificNetworkChecks {
+    @EntitlementTest(expectedAccess = SERVER_ONLY, fromJavaVersion = 18)
     static void createInetAddressResolverProvider() {
         var x = new InetAddressResolverProvider() {
             @Override
@@ -32,6 +33,7 @@ class VersionSpecificNetworkChecks {
         };
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void httpClientSend() throws InterruptedException {
         HttpClient httpClient = HttpClient.newBuilder().build();
         try {
@@ -41,6 +43,7 @@ class VersionSpecificNetworkChecks {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void httpClientSendAsync() {
         HttpClient httpClient = HttpClient.newBuilder().build();
         httpClient.sendAsync(HttpRequest.newBuilder(URI.create("http://localhost")).build(), HttpResponse.BodyHandlers.discarding());

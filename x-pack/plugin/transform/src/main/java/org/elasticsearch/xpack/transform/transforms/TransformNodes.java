@@ -144,15 +144,18 @@ public final class TransformNodes {
     }
 
     /**
-     * Check if cluster has at least 1 transform nodes and throw an exception if not.
-     * To be used by transport actions only.
-     *
-     * @param clusterState state
+     * Check if cluster has at least 1 transform nodes.
      */
-    public static void throwIfNoTransformNodes(ClusterState clusterState) {
-        if (hasAnyTransformNode(clusterState.getNodes()) == false) {
-            throw ExceptionsHelper.badRequestException(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
-        }
+    public static boolean hasNoTransformNodes(ClusterState clusterState) {
+        return hasAnyTransformNode(clusterState.getNodes()) == false;
+    }
+
+    /**
+     * Use after {@link #hasNoTransformNodes(ClusterState)} to complete the listener with an exception when there are no transform nodes
+     * available. To be used by transport actions only.
+     */
+    public static void completeWithNoTransformNodeException(ActionListener<?> listener) {
+        listener.onFailure(ExceptionsHelper.badRequestException(TransformMessages.REST_WARN_NO_TRANSFORM_NODES));
     }
 
     public static <Request extends TransportRequest, Response extends TransportResponse> boolean redirectToAnotherNodeIfNeeded(

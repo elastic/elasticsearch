@@ -160,7 +160,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         Map<String, Processor.Factory> factories = ingestService.getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
@@ -181,7 +181,7 @@ public class IngestServiceTests extends ESTestCase {
                 client,
                 null,
                 FailureStoreMetrics.NOOP,
-                TestProjectResolvers.singleProjectOnly()
+                TestProjectResolvers.alwaysThrow()
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
@@ -199,7 +199,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         final IndexRequest indexRequest = new IndexRequest("_index").id("_id")
             .source(Map.of())
@@ -2440,7 +2440,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         ingestService.addIngestClusterStateListener(ingestClusterStateListener);
 
@@ -2929,7 +2929,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, clusterState));
 
@@ -3263,7 +3263,7 @@ public class IngestServiceTests extends ESTestCase {
             client,
             null,
             FailureStoreMetrics.NOOP,
-            TestProjectResolvers.singleProjectOnly()
+            TestProjectResolvers.alwaysThrow()
         );
         if (randomBoolean()) {
             /*

@@ -38,6 +38,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
+import static org.elasticsearch.TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA_8_19;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -234,7 +236,12 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
+        return INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return shouldSerialize(version);
     }
 
     @Override
@@ -300,7 +307,12 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
+            return INFERENCE_MODEL_REGISTRY_METADATA_8_19;
+        }
+
+        @Override
+        public boolean supportsVersion(TransportVersion version) {
+            return shouldSerialize(version);
         }
 
         @Override
@@ -312,5 +324,9 @@ public class ModelRegistryMetadata implements Metadata.ProjectCustom {
                 return new ModelRegistryMetadata(settingsDiff.apply(metadata.modelMap), tombstone);
             }
         }
+    }
+
+    static boolean shouldSerialize(TransportVersion version) {
+        return version.isPatchFrom(INFERENCE_MODEL_REGISTRY_METADATA_8_19) || version.onOrAfter(INFERENCE_MODEL_REGISTRY_METADATA);
     }
 }

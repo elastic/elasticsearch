@@ -219,9 +219,7 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
                         "component-template",
                         new ComponentTemplate(
                             Template.builder()
-                                .lifecycle(
-                                    DataStreamLifecycle.Template.builder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)).build()
-                                )
+                                .lifecycle(DataStreamLifecycle.builder().dataRetention(randomTimeValue(2, 100, TimeUnit.DAYS)))
                                 .build(),
                             null,
                             null

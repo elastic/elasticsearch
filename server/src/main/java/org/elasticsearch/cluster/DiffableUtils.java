@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -99,6 +100,18 @@ public final class DiffableUtils {
     }
 
     /**
+     * Merges two map diffs into one unified diff with write-only value serializer.
+     */
+    @SuppressWarnings("unchecked")
+    public static <K, T extends Diffable<T>, T1 extends T, T2 extends T, M extends Map<K, T>> MapDiff<K, T, M> merge(
+        MapDiff<K, T1, ? extends ImmutableOpenMap<K, T1>> diff1,
+        MapDiff<K, T2, ? extends ImmutableOpenMap<K, T2>> diff2,
+        KeySerializer<K> keySerializer
+    ) {
+        return merge(diff1, diff2, keySerializer, DiffableValueSerializer.getWriteOnlyInstance());
+    }
+
+    /**
      * Merges two map diffs into one unified diff.
      */
     @SuppressWarnings("unchecked")
@@ -144,6 +157,29 @@ public final class DiffableUtils {
             return true;
         }
         return false;
+    }
+
+    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> updateDiffsAndUpsertsForKey(
+        MapDiff<K, T, M> diff,
+        Predicate<K> keyPredicate,
+        BiFunction<K, Diff<T>, Diff<T>> diffUpdateFunction,
+        BiFunction<K, T, T> upsertUpdateFunction
+    ) {
+        final var newDiffs = diff.getDiffs().stream().map(entry -> {
+            if (keyPredicate.test(entry.getKey()) == false) {
+                return entry;
+            }
+            return Map.entry(entry.getKey(), diffUpdateFunction.apply(entry.getKey(), entry.getValue()));
+        }).toList();
+
+        final var newUpserts = diff.getUpserts().stream().map(entry -> {
+            if (keyPredicate.test(entry.getKey()) == false) {
+                return entry;
+            }
+            return Map.entry(entry.getKey(), upsertUpdateFunction.apply(entry.getKey(), entry.getValue()));
+        }).toList();
+
+        return new MapDiff<>(diff.keySerializer, diff.valueSerializer, diff.deletes, newDiffs, newUpserts, diff.builderCtor);
     }
 
     /**

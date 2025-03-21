@@ -1481,6 +1481,11 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return this;
         }
 
+        public Builder clearCustoms() {
+            customs.clear();
+            return this;
+        }
+
         public Builder customs(Map<String, Metadata.ProjectCustom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
@@ -2315,6 +2320,12 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
                 builder.previousIndicesLookup = part.indicesLookup;
             }
             return builder.build(true);
+        }
+
+        ProjectMetadataDiff withCustoms(
+            DiffableUtils.MapDiff<String, Metadata.ProjectCustom, ImmutableOpenMap<String, Metadata.ProjectCustom>> customs
+        ) {
+            return new ProjectMetadataDiff(indices, templates, customs, reservedStateMetadata);
         }
     }
 

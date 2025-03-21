@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
@@ -953,11 +954,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 multiProject = null;
             } else {
                 fromNodeBeforeMultiProjectsSupport = false;
-                clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    CLUSTER_CUSTOM_VALUE_SERIALIZER
-                );
+                final var bwcCustoms = maybeReadBwcCustoms(in);
+                clusterCustoms = bwcCustoms.v1();
+                final var defaultProjectCustoms = bwcCustoms.v2();
+
                 reservedStateMetadata = DiffableUtils.readImmutableOpenMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -965,12 +965,56 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 );
 
                 singleProject = null;
-                multiProject = DiffableUtils.readJdkMapDiff(
-                    in,
-                    PROJECT_ID_SERIALIZER,
-                    ProjectMetadata::readFrom,
-                    ProjectMetadata.ProjectMetadataDiff::new
+                multiProject = readMultiProjectDiffs(in, defaultProjectCustoms);
+            }
+        }
+
+        private static
+            Tuple<
+                MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>>,
+                MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>>>
+            maybeReadBwcCustoms(StreamInput in) throws IOException {
+            if (in.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
+                return readBwcCustoms(in);
+            } else {
+                return new Tuple<>(
+                    DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CLUSTER_CUSTOM_VALUE_SERIALIZER),
+                    null
                 );
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private static MapDiff<ProjectId, ProjectMetadata, Map<ProjectId, ProjectMetadata>> readMultiProjectDiffs(
+            StreamInput in,
+            MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>> defaultProjectCustoms
+        ) throws IOException {
+            final var multiProject = DiffableUtils.readJdkMapDiff(
+                in,
+                PROJECT_ID_SERIALIZER,
+                ProjectMetadata::readFrom,
+                ProjectMetadata.ProjectMetadataDiff::new
+            );
+
+            if (defaultProjectCustoms != null && defaultProjectCustoms.isEmpty() == false) {
+                return DiffableUtils.updateDiffsAndUpsertsForKey(multiProject, ProjectId.DEFAULT::equals, (k, v) -> {
+                    assert ProjectId.DEFAULT.equals(k) : k;
+                    assert v instanceof ProjectMetadata.ProjectMetadataDiff : v;
+                    final var projectMetadataDiff = (ProjectMetadata.ProjectMetadataDiff) v;
+                    return projectMetadataDiff.withCustoms(
+                        DiffableUtils.merge(
+                            projectMetadataDiff.customs(),
+                            defaultProjectCustoms,
+                            DiffableUtils.getStringKeySerializer(),
+                            BWC_CUSTOM_VALUE_SERIALIZER
+                        )
+                    );
+                }, (k, v) -> {
+                    assert ProjectId.DEFAULT.equals(k) : k;
+                    return ProjectMetadata.builder(v).clearCustoms().customs(defaultProjectCustoms.apply(v.customs())).build();
+                });
+            } else {
+                return multiProject;
             }
         }
 
@@ -1017,15 +1061,96 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 buildUnifiedCustomDiff().writeTo(out);
                 buildUnifiedReservedStateMetadataDiff().writeTo(out);
             } else {
-                clusterCustoms.writeTo(out);
-                reservedStateMetadata.writeTo(out);
-                if (multiProject != null) {
-                    multiProject.writeTo(out);
+                final var multiProjectForWrite = multiProject != null
+                    ? multiProject
+                    : DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, PROJECT_ID_SERIALIZER);
+
+                if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
+                    writeDiffBeforeRepositoriesMetadataMigration(out, clusterCustoms, multiProjectForWrite, reservedStateMetadata);
                 } else {
-                    // construct the MapDiff to write out this single project
-                    DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, PROJECT_ID_SERIALIZER).writeTo(out);
+                    clusterCustoms.writeTo(out);
+                    reservedStateMetadata.writeTo(out);
+                    multiProjectForWrite.writeTo(out);
                 }
             }
+        }
+
+        @SuppressWarnings({ "rawtypes", "unchecked" })
+        private static void writeDiffBeforeRepositoriesMetadataMigration(
+            StreamOutput out,
+            MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>> clusterCustoms,
+            MapDiff<ProjectId, ProjectMetadata, Map<ProjectId, ProjectMetadata>> multiProject,
+            MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata
+        ) throws IOException {
+            assert out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)
+                && out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM) : out.getTransportVersion();
+
+            final var combineClustersCustoms = new SetOnce<MapDiff<String, MetadataCustom, Map<String, MetadataCustom>>>();
+
+            final var updatedMultiProject = DiffableUtils.updateDiffsAndUpsertsForKey(multiProject, ignore -> true, (k, v) -> {
+                assert v instanceof ProjectMetadata.ProjectMetadataDiff : v;
+                final var projectMetadataDiff = (ProjectMetadata.ProjectMetadataDiff) v;
+                final var bwcCustoms = DiffableUtils.split(
+                    projectMetadataDiff.customs(),
+                    RepositoriesMetadata.TYPE::equals,
+                    PROJECT_CUSTOM_VALUE_SERIALIZER,
+                    type -> RepositoriesMetadata.TYPE.equals(type) == false,
+                    PROJECT_CUSTOM_VALUE_SERIALIZER
+                );
+                if (bwcCustoms.v1().isEmpty()) {
+                    return projectMetadataDiff;
+                }
+
+                if (ProjectId.DEFAULT.equals(k) == false) {
+                    throwForVersionBeforeRepositoriesMetadataMigration(out);
+                }
+
+                combineClustersCustoms.set(
+                    DiffableUtils.<String, MetadataCustom, ClusterCustom, ProjectCustom, Map<String, MetadataCustom>>merge(
+                        clusterCustoms,
+                        bwcCustoms.v1(),
+                        DiffableUtils.getStringKeySerializer()
+                    )
+                );
+                return projectMetadataDiff.withCustoms(bwcCustoms.v2());
+            }, (k, v) -> {
+                final ProjectCustom projectCustom = v.customs().get(RepositoriesMetadata.TYPE);
+                if (projectCustom == null) {
+                    return v;
+                }
+
+                if (ProjectId.DEFAULT.equals(k) == false) {
+                    throwForVersionBeforeRepositoriesMetadataMigration(out);
+                }
+
+                combineClustersCustoms.set(
+                    DiffableUtils.<String, MetadataCustom, ClusterCustom, ProjectCustom, Map<String, MetadataCustom>>merge(
+                        clusterCustoms,
+                        DiffableUtils.singleUpsertDiff(RepositoriesMetadata.TYPE, projectCustom, DiffableUtils.getStringKeySerializer()),
+                        DiffableUtils.getStringKeySerializer()
+                    )
+                );
+                return ProjectMetadata.builder(v).removeCustom(RepositoriesMetadata.TYPE).build();
+            });
+
+            if (combineClustersCustoms.get() != null) {
+                combineClustersCustoms.get().writeTo(out);
+            } else {
+                clusterCustoms.writeTo(out);
+            }
+
+            reservedStateMetadata.writeTo(out);
+            updatedMultiProject.writeTo(out);
+        }
+
+        private static void throwForVersionBeforeRepositoriesMetadataMigration(StreamOutput out) {
+            throw new UnsupportedOperationException(
+                "Serialize a diff containing per-project repository requires version on or after ["
+                    + TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM
+                    + "], but got ["
+                    + out.getTransportVersion()
+                    + "]"
+            );
         }
 
         @SuppressWarnings("unchecked")

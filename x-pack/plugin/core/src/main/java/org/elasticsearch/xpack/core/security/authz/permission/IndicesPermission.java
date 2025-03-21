@@ -866,7 +866,10 @@ public final class IndicesPermission {
 
     private static boolean containsFailuresAccessPrivileges(Set<String> checkForPrivileges) {
         for (String privilege : checkForPrivileges) {
+            // use getNamedOrNull since only a named privilege can be a failures-only privilege (raw action names are always data access)
             IndexPrivilege named = IndexPrivilege.getNamedOrNull(privilege);
+            // note: we are only looking for failures-only privileges here, not `all` which does cover failures but is not a failures-only
+            // privilege
             if (named != null && named.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
                 return true;
             }

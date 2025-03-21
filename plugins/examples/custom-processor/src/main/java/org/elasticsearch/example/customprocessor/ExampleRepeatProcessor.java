@@ -1,5 +1,6 @@
 package org.elasticsearch.example.customprocessor;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -38,13 +39,13 @@ public class ExampleRepeatProcessor extends AbstractProcessor {
     }
 
     public static class Factory implements Processor.Factory {
-
         @Override
         public ExampleRepeatProcessor create(
             Map<String, Processor.Factory> registry,
             String tag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, FIELD_KEY_NAME);
             return new ExampleRepeatProcessor(tag, description, field);

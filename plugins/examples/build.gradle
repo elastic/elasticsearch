@@ -1,15 +1,16 @@
 import org.elasticsearch.gradle.VersionProperties
 
 buildscript {
-  repositories {
-    maven {
-      url = 'https://snapshots.elastic.co/maven/'
+    repositories {
+      maven {
+        url = 'https://snapshots.elastic.co/maven/'
+      }
+      mavenCentral()
+      gradlePluginPortal()
     }
-    mavenCentral()
-  }
-  dependencies {
-    classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
-  }
+    dependencies {
+      classpath "org.elasticsearch.gradle:build-tools:${elasticsearchVersion}"
+    }
 }
 
 subprojects {
@@ -25,13 +26,13 @@ subprojects {
     maven {
       url = 'https://snapshots.elastic.co/maven/'
       mavenContent {
-        if (gradle.includedBuilds) {
+        if (gradle.includedBuilds || gradle.parent != null) {
           // When building in a composite, restrict this to only resolve the Java REST client
           includeModule 'co.elastic.clients', 'elasticsearch-java'
         }
       }
     }
-    if (gradle.includedBuilds.isEmpty()) {
+    if (gradle.includedBuilds.isEmpty() && gradle.parent == null) {
       maven {
         url = "https://artifacts-snapshot.elastic.co/elasticsearch/${elasticsearchVersion}/maven"
         mavenContent {

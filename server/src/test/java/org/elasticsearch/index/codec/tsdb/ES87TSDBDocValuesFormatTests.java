@@ -42,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -275,7 +276,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                 var d = new Document();
 
                 int batchIndex = i / numHosts;
-                String hostName = String.format("host-%03d", batchIndex);
+                String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
                 long timestamp = baseTimestamp + (1000L * i);
 
                 d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
@@ -304,7 +305,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                     assertEquals(i, sortedDocValues.nextDoc());
                     int batchIndex = i / numHosts;
                     assertEquals(batchIndex, sortedDocValues.ordValue());
-                    String expectedHostName = String.format("host-%03d", batchIndex);
+                    String expectedHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
                     assertEquals(expectedHostName, sortedDocValues.lookupOrd(sortedDocValues.ordValue()).utf8ToString());
                 }
             }

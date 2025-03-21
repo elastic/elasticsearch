@@ -56,7 +56,7 @@ public class RailRoadDiagram {
             expressions.add(new Repetition(seq, 1, null));
             expressions.add(new Repetition(new Literal("elseValue"), 0, 1));
         } else {
-            boolean first = true;
+            List<Expression> argExpressions = new ArrayList<>();
             List<EsqlFunctionRegistry.ArgSignature> args = EsqlFunctionRegistry.description(definition).args();
             for (int i = 0; i < args.size(); i++) {
                 EsqlFunctionRegistry.ArgSignature arg = args.get(i);
@@ -65,31 +65,51 @@ public class RailRoadDiagram {
                     if (argName.endsWith("...")) {
                         argName = argName.substring(0, argName.length() - 3);
                     }
-                    expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(argName)), arg.optional ? 0 : 1, null));
+                    argExpressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(argName)), arg.optional ? 0 : 1, null));
                 } else {
-                    if (first) {
-                        first = false;
-                    } else {
-                        expressions.add(new Syntax(","));
-                    }
                     if (arg.optional) {
                         if (definition.name().equals("bucket")) {
                             // BUCKET requires optional args to be optional together, so we need custom code to do that
                             var nextArg = args.get(++i);
                             assert nextArg.optional();
                             Sequence seq = new Sequence(new Literal(argName), new Syntax(","), new Literal(nextArg.name));
-                            expressions.add(new Repetition(seq, 0, 1));
+                            argExpressions.add(new Repetition(seq, 0, 1));
+                        } else if (i < args.size() - 1 && args.get(i + 1).optional() == false) {
+                            // Special case with leading optional args
+                            Sequence seq = new Sequence(new Literal(argName), new Syntax(","));
+                            argExpressions.add(new Repetition(seq, 0, 1));
                         } else {
-                            expressions.add(new Repetition(new Literal(argName), 0, 1));
+                            argExpressions.add(new Repetition(new Literal(argName), 0, 1));
                         }
                     } else {
-                        expressions.add(new Literal(argName));
+                        argExpressions.add(new Literal(argName));
                     }
                 }
             }
+            expressions.addAll(injectCommas(argExpressions, new Syntax(",")));
         }
         expressions.add(new Syntax(")"));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    public static List<Expression> injectCommas(List<Expression> original, Expression comma) {
+        List<Expression> result = new ArrayList<>();
+        for (int i = 0; i < original.size(); i++) {
+            result.add(original.get(i));
+            if (i < original.size() - 1 && hasComma(original.get(i), true) == false && hasComma(original.get(i + 1), false) == false) {
+                result.add(comma);
+            }
+        }
+        return result;
+    }
+
+    private static boolean hasComma(Expression exp, boolean atEnd) {
+        if (exp instanceof Repetition rep && rep.getExpression() instanceof Sequence seq) {
+            Expression[] seqExp = seq.getExpressions();
+            int index = atEnd ? seqExp.length - 1 : 0;
+            return seqExp[index] instanceof Syntax syntax && syntax.text.equals(",");
+        }
+        return false;
     }
 
     /**

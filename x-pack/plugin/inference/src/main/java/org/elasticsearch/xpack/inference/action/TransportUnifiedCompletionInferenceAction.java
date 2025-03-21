@@ -102,7 +102,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
      * as {@link UnifiedChatCompletionException}.
      */
     @Override
-    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Processor<T, T> upstream) {
+    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Publisher<T> upstream) {
         return downstream -> {
             upstream.subscribe(new Flow.Subscriber<>() {
                 @Override

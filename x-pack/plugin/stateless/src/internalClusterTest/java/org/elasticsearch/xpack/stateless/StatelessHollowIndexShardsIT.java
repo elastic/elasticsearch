@@ -1622,7 +1622,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                                 )
                                 : null
                         )
-                        .lifecycle(DataStreamLifecycle.Template.builder().dataRetention(TimeValue.timeValueDays(1)).build())
+                        .lifecycle(DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(1)))
                 )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()

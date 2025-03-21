@@ -38,7 +38,7 @@ you
 
 [discrete]
 [[esql-how-lookup-join-works]]
-==== How the `LOOKUP JOIN` command works ++[++esql-how-lookup-join-works++]++
+==== How the `LOOKUP JOIN` command works
 
 The `LOOKUP JOIN` command adds new columns to a table, with data from
 {es} indices.
@@ -134,8 +134,7 @@ FROM employees
 ====
 `LOOKUP JOIN` does not guarantee the output to be in
 any particular order. If a certain order is required, users should use a
-link:/reference/query-languages/esql/esql-commands.md#esql-sort[`SORT`]
-somewhere after the `LOOKUP JOIN`.
+<<esql-sort,`SORT`>> somewhere after the `LOOKUP JOIN`.
 ====
 
 [discrete]
@@ -157,9 +156,7 @@ with `double` (all represented as `double`)
 join only if they have a `.keyword` subfield
 
 For a complete list of supported data types and their internal
-representations, see the
-link:/reference/query-languages/esql/limitations.md#_supported_types[Supported
-Field Types documentation].
+representations, see the <<esql-supported-types,Supported Field Types documentation>>.
 
 [discrete]
 [[esql-lookup-join-limitations]]
@@ -171,9 +168,7 @@ The following are the current limitations with `LOOKUP JOIN`
 is a `KEYWORD` type. If the main index's join field is `TEXT` type, it
 must have an exact `.keyword` subfield that can be matched with the
 lookup index's `KEYWORD` field.
-* Indices in
-link:/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting[lookup]
-mode are always single-sharded.
+* Indices in <<index-mode-setting,lookup>> mode are always single-sharded.
 * Cross cluster search is unsupported. Both source and lookup indices
 must be local.
 * `LOOKUP JOIN` can only use a single match field and a single index.

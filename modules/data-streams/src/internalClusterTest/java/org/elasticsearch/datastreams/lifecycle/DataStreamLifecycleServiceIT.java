@@ -179,7 +179,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     }
 
     public void testRolloverAndRetention() throws Exception {
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder().dataRetention(TimeValue.ZERO).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).buildTemplate();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -322,7 +322,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          * days ago, and one with an origination date 1 day ago. After data stream lifecycle runs, we expect the one with the old
          * origination date to have been deleted, and the one with the newer origination date to remain.
          */
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder().dataRetention(TimeValue.timeValueDays(7)).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(7)).buildTemplate();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
@@ -974,7 +974,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testReenableDataStreamLifecycle() throws Exception {
         // start with a lifecycle that's not enabled
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder().enabled(false).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder().enabled(false).buildTemplate();
 
         putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
@@ -1033,7 +1033,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     public void testLifecycleAppliedToFailureStore() throws Exception {
         // We configure a lifecycle with downsampling to ensure it doesn't fail
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .dataRetention(TimeValue.timeValueSeconds(20))
             .downsampling(
                 List.of(
@@ -1043,7 +1043,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                     )
                 )
             )
-            .build();
+            .buildTemplate();
 
         putComposableIndexTemplate("id1", """
             {
@@ -1268,8 +1268,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                             Template.builder()
                                 .settings(Settings.EMPTY)
                                 .lifecycle(
-                                    DataStreamLifecycle.Template.builder()
-                                        .dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
+                                    DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(SYSTEM_DATA_STREAM_RETENTION_DAYS))
                                 )
                         )
                         .build(),

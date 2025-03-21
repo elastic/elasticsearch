@@ -56,32 +56,17 @@ public class InboundDecoderTests extends ESTestCase {
         }
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes;
-            if (isRequest) {
-                totalBytes = OutboundHandler.serialize(
-                    action,
-                    requestId,
-                    false,
-                    TransportVersion.current(),
-                    false,
-                    null,
-                    new TestRequest(randomAlphaOfLength(100)),
-                    threadContext,
-                    os
-                );
-            } else {
-                totalBytes = OutboundHandler.serialize(
-                    null,
-                    requestId,
-                    false,
-                    TransportVersion.current(),
-                    false,
-                    null,
-                    new TestResponse(randomAlphaOfLength(100)),
-                    threadContext,
-                    os
-                );
-            }
+            final BytesReference totalBytes = OutboundHandler.serialize(
+                isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
+                action,
+                requestId,
+                false,
+                TransportVersion.current(),
+                null,
+                isRequest ? new TestRequest(randomAlphaOfLength(100)) : new TestResponse(randomAlphaOfLength(100)),
+                threadContext,
+                os
+            );
             int totalHeaderSize = TcpHeader.HEADER_SIZE + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
 
@@ -144,11 +129,11 @@ public class InboundDecoderTests extends ESTestCase {
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
             final BytesReference bytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
                 action,
                 requestId,
                 true,
                 transportVersion,
-                false,
                 compressionScheme,
                 new TestRequest(randomAlphaOfLength(100)),
                 threadContext,
@@ -195,11 +180,11 @@ public class InboundDecoderTests extends ESTestCase {
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
             final BytesReference bytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
                 action,
                 requestId,
                 isHandshake,
                 version,
-                false,
                 randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
                 new TestRequest(randomAlphaOfLength(100)),
                 threadContext,
@@ -243,11 +228,11 @@ public class InboundDecoderTests extends ESTestCase {
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
             final BytesReference bytes = OutboundHandler.serialize(
-                null,
+                OutboundHandler.MessageDirection.RESPONSE,
+                "test:action",
                 requestId,
                 isHandshake,
                 version,
-                false,
                 randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
                 new TestRequest(randomAlphaOfLength(100)),
                 threadContext,
@@ -281,38 +266,23 @@ public class InboundDecoderTests extends ESTestCase {
         } else {
             threadContext.addResponseHeader(headerKey, headerValue);
         }
-        final BytesReference totalBytes;
-        TransportMessage transportMessage;
         Compression.Scheme scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            if (isRequest) {
-                transportMessage = new TestRequest(randomAlphaOfLength(100));
-                totalBytes = OutboundHandler.serialize(
-                    action,
-                    requestId,
-                    false,
-                    TransportVersion.current(),
-                    false,
-                    scheme,
-                    transportMessage,
-                    threadContext,
-                    os
-                );
-            } else {
-                transportMessage = new TestResponse(randomAlphaOfLength(100));
-                totalBytes = OutboundHandler.serialize(
-                    null,
-                    requestId,
-                    false,
-                    TransportVersion.current(),
-                    false,
-                    scheme,
-                    transportMessage,
-                    threadContext,
-                    os
-                );
-            }
+            final TransportMessage transportMessage = isRequest
+                ? new TestRequest(randomAlphaOfLength(100))
+                : new TestResponse(randomAlphaOfLength(100));
+            final BytesReference totalBytes = OutboundHandler.serialize(
+                isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
+                action,
+                requestId,
+                false,
+                TransportVersion.current(),
+                scheme,
+                transportMessage,
+                threadContext,
+                os
+            );
             final BytesStreamOutput out = new BytesStreamOutput();
             transportMessage.writeTo(out);
             final BytesReference uncompressedBytes = out.bytes();
@@ -373,11 +343,11 @@ public class InboundDecoderTests extends ESTestCase {
         final ReleasableBytesReference releasable1;
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
             final BytesReference bytes = OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
                 action,
                 requestId,
                 false,
                 incompatibleVersion,
-                false,
                 Compression.Scheme.DEFLATE,
                 new TestRequest(randomAlphaOfLength(100)),
                 threadContext,

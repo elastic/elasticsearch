@@ -114,11 +114,11 @@ public class InboundPipelineTests extends ESTestCase {
                             if (rarely()) {
                                 messageData = new MessageData(version, requestId, true, compressionScheme, breakThisAction, null);
                                 message = OutboundHandler.serialize(
+                                    OutboundHandler.MessageDirection.REQUEST,
                                     breakThisAction,
                                     requestId,
                                     false,
                                     version,
-                                    false,
                                     compressionScheme,
                                     new TestRequest(value),
                                     threadContext,
@@ -128,11 +128,11 @@ public class InboundPipelineTests extends ESTestCase {
                             } else {
                                 messageData = new MessageData(version, requestId, true, compressionScheme, actionName, value);
                                 message = OutboundHandler.serialize(
+                                    OutboundHandler.MessageDirection.REQUEST,
                                     actionName,
                                     requestId,
                                     false,
                                     version,
-                                    false,
                                     compressionScheme,
                                     new TestRequest(value),
                                     threadContext,
@@ -142,11 +142,11 @@ public class InboundPipelineTests extends ESTestCase {
                         } else {
                             messageData = new MessageData(version, requestId, false, compressionScheme, null, value);
                             message = OutboundHandler.serialize(
-                                null,
+                                OutboundHandler.MessageDirection.RESPONSE,
+                                actionName,
                                 requestId,
                                 false,
                                 version,
-                                false,
                                 compressionScheme,
                                 new TestResponse(value),
                                 threadContext,
@@ -219,32 +219,17 @@ public class InboundPipelineTests extends ESTestCase {
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
 
-            BytesReference message;
-            if (isRequest) {
-                message = OutboundHandler.serialize(
-                    actionName,
-                    requestId,
-                    false,
-                    invalidVersion,
-                    false,
-                    null,
-                    new TestRequest(value),
-                    threadContext,
-                    streamOutput
-                );
-            } else {
-                message = OutboundHandler.serialize(
-                    null,
-                    requestId,
-                    false,
-                    invalidVersion,
-                    false,
-                    null,
-                    new TestResponse(value),
-                    threadContext,
-                    streamOutput
-                );
-            }
+            final BytesReference message = OutboundHandler.serialize(
+                isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
+                actionName,
+                requestId,
+                false,
+                invalidVersion,
+                null,
+                isRequest ? new TestRequest(value) : new TestResponse(value),
+                threadContext,
+                streamOutput
+            );
 
             try (ReleasableBytesReference releasable = ReleasableBytesReference.wrap(message)) {
                 expectThrows(IllegalStateException.class, () -> pipeline.handleBytes(new FakeTcpChannel(), releasable));
@@ -275,32 +260,17 @@ public class InboundPipelineTests extends ESTestCase {
             final boolean isRequest = randomBoolean();
             final long requestId = randomNonNegativeLong();
 
-            final BytesReference reference;
-            if (isRequest) {
-                reference = OutboundHandler.serialize(
-                    actionName,
-                    requestId,
-                    false,
-                    version,
-                    false,
-                    null,
-                    new TestRequest(value),
-                    threadContext,
-                    streamOutput
-                );
-            } else {
-                reference = OutboundHandler.serialize(
-                    null,
-                    requestId,
-                    false,
-                    version,
-                    false,
-                    null,
-                    new TestResponse(value),
-                    threadContext,
-                    streamOutput
-                );
-            }
+            final BytesReference reference = OutboundHandler.serialize(
+                isRequest ? OutboundHandler.MessageDirection.REQUEST : OutboundHandler.MessageDirection.RESPONSE,
+                actionName,
+                requestId,
+                false,
+                version,
+                null,
+                isRequest ? new TestRequest(value) : new TestResponse(value),
+                threadContext,
+                streamOutput
+            );
 
             final int variableHeaderSize = reference.getInt(TcpHeader.HEADER_SIZE - 4);
             final int totalHeaderSize = TcpHeader.HEADER_SIZE + variableHeaderSize;

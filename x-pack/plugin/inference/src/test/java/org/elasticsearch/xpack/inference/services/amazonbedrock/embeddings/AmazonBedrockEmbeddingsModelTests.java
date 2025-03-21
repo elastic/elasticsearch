@@ -16,8 +16,8 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
@@ -116,7 +116,7 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
             ),
             new EmptyTaskSettings(),
             chunkingSettings,
-            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
+            new AwsSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
         );
     }
 
@@ -149,7 +149,7 @@ public class AmazonBedrockEmbeddingsModelTests extends ESTestCase {
             ),
             new EmptyTaskSettings(),
             null,
-            new AmazonBedrockSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
+            new AwsSecretSettings(new SecureString(accessKey), new SecureString(secretKey))
         );
     }
 }

@@ -428,7 +428,9 @@ public class ModelRegistry implements ClusterStateListener {
             }
         });
 
-        storeModel(preconfigured, ActionListener.runAfter(responseListener, runAfter), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        // Store the model in the index without adding it to the cluster state,
+        // as default models are already managed under defaultConfigIds.
+        storeModel(preconfigured, false, ActionListener.runAfter(responseListener, runAfter), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
     }
 
     private ArrayList<ModelConfigMap> parseHitsAsModels(SearchHits hits) {
@@ -618,9 +620,15 @@ public class ModelRegistry implements ClusterStateListener {
 
     /**
      * Note: storeModel does not overwrite existing models and thus does not need to check the lock
+     *
+     * <p><b>WARNING:</b> This function must always be called on a master node. Failure to do so will result in an error.
      */
     public void storeModel(Model model, ActionListener<Boolean> listener, TimeValue timeout) {
-        ActionListener<BulkResponse> bulkResponseActionListener = getStoreIndexListener(model, listener, timeout);
+        storeModel(model, true, listener, timeout);
+    }
+
+    private void storeModel(Model model, boolean addToClusterState, ActionListener<Boolean> listener, TimeValue timeout) {
+        ActionListener<BulkResponse> bulkResponseActionListener = getStoreIndexListener(model, addToClusterState, listener, timeout);
 
         IndexRequest configRequest = createIndexRequest(
             Model.documentId(model.getConfigurations().getInferenceEntityId()),
@@ -643,7 +651,12 @@ public class ModelRegistry implements ClusterStateListener {
             .execute(bulkResponseActionListener);
     }
 
-    private ActionListener<BulkResponse> getStoreIndexListener(Model model, ActionListener<Boolean> listener, TimeValue timeout) {
+    private ActionListener<BulkResponse> getStoreIndexListener(
+        Model model,
+        boolean addToClusterState,
+        ActionListener<Boolean> listener,
+        TimeValue timeout
+    ) {
         return ActionListener.wrap(bulkItemResponses -> {
             var inferenceEntityId = model.getConfigurations().getInferenceEntityId();
 
@@ -667,16 +680,20 @@ public class ModelRegistry implements ClusterStateListener {
             BulkItemResponse.Failure failure = getFirstBulkFailure(bulkItemResponses);
 
             if (failure == null) {
-                var storeListener = getStoreMetadataListener(inferenceEntityId, listener);
-                try {
-                    var projectId = clusterService.state().projectState().projectId();
-                    metadataTaskQueue.submitTask(
-                        "add model [" + inferenceEntityId + "]",
-                        new AddModelMetadataTask(projectId, inferenceEntityId, new MinimalServiceSettings(model), storeListener),
-                        timeout
-                    );
-                } catch (Exception exc) {
-                    storeListener.onFailure(exc);
+                if (addToClusterState) {
+                    var storeListener = getStoreMetadataListener(inferenceEntityId, listener);
+                    try {
+                        var projectId = clusterService.state().projectState().projectId();
+                        metadataTaskQueue.submitTask(
+                            "add model [" + inferenceEntityId + "]",
+                            new AddModelMetadataTask(projectId, inferenceEntityId, new MinimalServiceSettings(model), storeListener),
+                            timeout
+                        );
+                    } catch (Exception exc) {
+                        storeListener.onFailure(exc);
+                    }
+                } else {
+                    listener.onResponse(Boolean.TRUE);
                 }
                 return;
             }
@@ -711,6 +728,10 @@ public class ModelRegistry implements ClusterStateListener {
 
             @Override
             public void onFailure(Exception exc) {
+                logger.warn(
+                    format("Failed to add inference endpoint [%s] minimal service settings to cluster state", inferenceEntityId),
+                    exc
+                );
                 deleteModel(inferenceEntityId, ActionListener.running(() -> {
                     listener.onFailure(
                         new ElasticsearchStatusException(
@@ -719,7 +740,8 @@ public class ModelRegistry implements ClusterStateListener {
                                     + "inconsistent state. Please try deleting and re-adding the endpoint.",
                                 inferenceEntityId
                             ),
-                            RestStatus.INTERNAL_SERVER_ERROR
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            exc
                         )
                     );
                 }));
@@ -810,7 +832,8 @@ public class ModelRegistry implements ClusterStateListener {
                                         + "inconsistent state. Please try deleting the endpoint again.",
                                     inferenceEntityIds
                                 ),
-                                RestStatus.INTERNAL_SERVER_ERROR
+                                RestStatus.INTERNAL_SERVER_ERROR,
+                                exc
                             )
                         );
                     }
@@ -924,16 +947,19 @@ public class ModelRegistry implements ClusterStateListener {
                 public void onResponse(GetInferenceModelAction.Response response) {
                     Map<String, MinimalServiceSettings> map = new HashMap<>();
                     for (var model : response.getEndpoints()) {
-                        map.put(
-                            model.getInferenceEntityId(),
-                            new MinimalServiceSettings(
-                                model.getService(),
-                                model.getTaskType(),
-                                model.getServiceSettings().dimensions(),
-                                model.getServiceSettings().similarity(),
-                                model.getServiceSettings().elementType()
-                            )
-                        );
+                        // ignore default models
+                        if (defaultConfigIds.containsKey(model.getInferenceEntityId()) == false) {
+                            map.put(
+                                model.getInferenceEntityId(),
+                                new MinimalServiceSettings(
+                                    model.getService(),
+                                    model.getTaskType(),
+                                    model.getServiceSettings().dimensions(),
+                                    model.getServiceSettings().similarity(),
+                                    model.getServiceSettings().elementType()
+                                )
+                            );
+                        }
                     }
                     metadataTaskQueue.submitTask(
                         "model registry auto upgrade",

@@ -7,16 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-plugins {
-  id "com.gradle.develocity" version "3.19.2"
-}
+package org.elasticsearch.entitlement.qa.test;
 
-rootProject.name = 'build-conventions'
+import java.io.IOException;
+import java.util.List;
 
-dependencyResolutionManagement {
-    versionCatalogs {
-        buildLibs {
-            from(files("../gradle/build.versions.toml"))
-        }
+@SuppressWarnings({ "unused" /* called via reflection */ })
+class OperatingSystemActions {
+
+    static void processBuilder_start() throws IOException {
+        new ProcessBuilder("").start();
     }
+
+    static void processBuilder_startPipeline() throws IOException {
+        ProcessBuilder.startPipeline(List.of());
+    }
+
+    private OperatingSystemActions() {}
 }

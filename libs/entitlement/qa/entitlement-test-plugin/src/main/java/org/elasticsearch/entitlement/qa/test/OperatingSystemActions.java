@@ -7,8 +7,21 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.instrumentation;
+package org.elasticsearch.entitlement.qa.test;
 
-public interface Instrumenter {
-    byte[] instrumentClass(String className, byte[] classfileBuffer, boolean verify);
+import java.io.IOException;
+import java.util.List;
+
+@SuppressWarnings({ "unused" /* called via reflection */ })
+class OperatingSystemActions {
+
+    static void processBuilder_start() throws IOException {
+        new ProcessBuilder("").start();
+    }
+
+    static void processBuilder_startPipeline() throws IOException {
+        ProcessBuilder.startPipeline(List.of());
+    }
+
+    private OperatingSystemActions() {}
 }

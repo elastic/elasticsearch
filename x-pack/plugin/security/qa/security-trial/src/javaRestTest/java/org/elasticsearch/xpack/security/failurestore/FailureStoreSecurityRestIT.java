@@ -324,6 +324,74 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 "application": {}
             }
             """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["indices:data/read/*"]
+                },
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                },
+                {
+                  "names": ["test2"],
+                  "privileges": ["all"]
+                }
+              ]
+            }
+            """, "role");
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["all", "indices:data/read/*", "read", "read_failure_store", "write"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["all", "indices:data/read/*", "read", "read_failure_store", "write"]
+                    },
+                    {
+                        "names": ["test3"],
+                        "privileges": ["all", "indices:data/read/*", "read", "read_failure_store", "write"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "all": false,
+                        "indices:data/read/*": true,
+                        "read": false,
+                        "read_failure_store": true,
+                        "write": false
+                    },
+                    "test2": {
+                        "all": true,
+                        "indices:data/read/*": true,
+                        "read": true,
+                        "read_failure_store": true,
+                        "write": true
+                    },
+                    "test3": {
+                        "all": false,
+                        "indices:data/read/*": true,
+                        "read": false,
+                        "read_failure_store": true,
+                        "write": false
+                    }
+                },
+                "application": {}
+            }
+            """);
     }
 
     public void testRoleWithSelectorInIndexPattern() throws Exception {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -203,7 +204,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         ProjectMetadata metadata = metadataBuilder.build();
         CreateIndexRequest req = new CreateIndexRequest();
 
-        IllegalArgumentException exception = expectThrows(
+        Exception exception = expectThrows(
             IllegalArgumentException.class,
             () -> MetadataRolloverService.validate(metadata, aliasWithNoWriteIndex, randomAlphaOfLength(5), req)
         );
@@ -215,7 +216,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("rollover target is a [concrete index] but one of [alias,data_stream] was expected"));
         final String aliasName = randomAlphaOfLength(5);
         exception = expectThrows(
-            IllegalArgumentException.class,
+            ResourceNotFoundException.class,
             () -> MetadataRolloverService.validate(metadata, aliasName, randomAlphaOfLength(5), req)
         );
         assertThat(exception.getMessage(), equalTo("rollover target [" + aliasName + "] does not exist"));

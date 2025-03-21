@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -39,6 +41,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
@@ -48,6 +51,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackField;
@@ -78,7 +82,7 @@ import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInference
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.getIndexRequestOrNull;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbeddingSparse;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomChunkedInferenceEmbedding;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.semanticTextFieldFromChunkedInferenceResults;
@@ -87,11 +91,14 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ShardBulkInferenceActionFilterTests extends ESTestCase {
@@ -229,7 +236,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testItemFailures() throws Exception {
-        StaticModel model = StaticModel.createRandomInstance();
+        StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
 
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -238,7 +245,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             true
         );
         model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
-        model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));
+        model.putResult("I am a success", randomChunkedInferenceEmbedding(model, List.of("I am a success")));
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -297,9 +304,9 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testExplicitNull() throws Exception {
-        StaticModel model = StaticModel.createRandomInstance();
+        StaticModel model = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
         model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
-        model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));
+        model.putResult("I am a success", randomChunkedInferenceEmbedding(model, List.of("I am a success")));
 
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
@@ -476,6 +483,70 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testCircuitBreaker() throws Exception {
+        final CircuitBreaker circuitBreaker = spy(newLimitedBreaker(ByteSizeValue.ofMb(1)));
+        final StaticModel sparseModel = StaticModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        final StaticModel denseModel = StaticModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+        final int denseModelEmbeddingBytes = denseModel.getServiceSettings()
+            .elementType()
+            .getNumBytes(denseModel.getServiceSettings().dimensions());
+        final ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            Map.of(sparseModel.getInferenceEntityId(), sparseModel, denseModel.getInferenceEntityId(), denseModel),
+            useLegacyFormat,
+            true
+        );
+        filter.setInferenceBytesCircuitBreaker(circuitBreaker);
+
+        XContentBuilder doc0Source = IndexRequest.getXContentBuilder(XContentType.JSON, "sparse_field", "a test value");
+        XContentBuilder doc1Source = IndexRequest.getXContentBuilder(XContentType.JSON, "dense_field", "another test value");
+
+        CountDownLatch chainExecuted = new CountDownLatch(1);
+        ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
+            try {
+                BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
+                assertNull(bulkShardRequest.getInferenceFieldMap());
+                assertThat(bulkShardRequest.items().length, equalTo(3));
+
+                for (BulkItemRequest item : bulkShardRequest.items()) {
+                    assertNull(item.getPrimaryResponse());
+                }
+
+                assertThat(circuitBreaker.getUsed(), equalTo(0L));
+                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(128 + BytesReference.bytes(doc0Source).ramBytesUsed(), "doc_0");
+                verify(circuitBreaker).addEstimateBytesAndMaybeBreak(
+                    denseModelEmbeddingBytes + BytesReference.bytes(doc1Source).ramBytesUsed(),
+                    "doc_1"
+                );
+
+                // Verify that the only times that addEstimateBytesAndMaybeBreak is called is the two times verified above
+                verify(circuitBreaker, times(2)).addEstimateBytesAndMaybeBreak(anyLong(), anyString());
+            } finally {
+                chainExecuted.countDown();
+            }
+        };
+        ActionListener actionListener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "sparse_field",
+            new InferenceFieldMetadata("sparse_field", sparseModel.getInferenceEntityId(), new String[] { "sparse_field" }),
+            "dense_field",
+            new InferenceFieldMetadata("dense_field", denseModel.getInferenceEntityId(), new String[] { "dense_field" })
+        );
+
+        BulkItemRequest[] items = new BulkItemRequest[3];
+        items[0] = new BulkItemRequest(0, new IndexRequest("index").id("doc_0").source(doc0Source));
+        items[1] = new BulkItemRequest(1, new IndexRequest("index").id("doc_1").source(doc1Source));
+        items[2] = new BulkItemRequest(2, new IndexRequest("index").id("doc_2").source("non_inference_field", "yet another test value"));
+
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
+    }
+
     @SuppressWarnings("unchecked")
     private static ShardBulkInferenceActionFilter createFilter(
         ThreadPool threadPool,
@@ -504,6 +575,17 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             return null;
         };
         doAnswer(unparsedModelAnswer).when(modelRegistry).getModelWithSecrets(any(), any());
+
+        Answer<MinimalServiceSettings> minimalServiceSettingsAnswer = invocationOnMock -> {
+            String inferenceId = (String) invocationOnMock.getArguments()[0];
+            var model = modelMap.get(inferenceId);
+            if (model == null) {
+                throw new ResourceNotFoundException("model id [{}] not found", inferenceId);
+            }
+
+            return new MinimalServiceSettings(model);
+        };
+        doAnswer(minimalServiceSettingsAnswer).when(modelRegistry).getMinimalServiceSettings(any());
 
         InferenceService inferenceService = mock(InferenceService.class);
         Answer<?> chunkedInferAnswer = invocationOnMock -> {
@@ -697,7 +779,11 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         }
 
         public static StaticModel createRandomInstance() {
-            TestModel testModel = TestModel.createRandomInstance();
+            return createRandomInstance(randomFrom(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING));
+        }
+
+        public static StaticModel createRandomInstance(TaskType taskType) {
+            TestModel testModel = TestModel.createRandomInstance(taskType);
             return new StaticModel(
                 testModel.getInferenceEntityId(),
                 testModel.getTaskType(),

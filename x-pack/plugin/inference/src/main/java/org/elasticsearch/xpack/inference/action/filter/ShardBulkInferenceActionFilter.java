@@ -822,6 +822,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     estimatedInferenceRequestMemoryUsageInBytes = 0;
                     actualMemoryUsageInBytes += bytesOverEstimate;
 
+                    // TODO: When is the request's ID calculated if not provided? Is it safe to use it as a label?
                     circuitBreaker.addEstimateBytesAndMaybeBreak(bytesOverEstimate, indexRequest.id());
                 }
             } catch (CircuitBreakingException e) {

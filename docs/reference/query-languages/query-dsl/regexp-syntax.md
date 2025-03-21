@@ -142,7 +142,7 @@ A `^` before a character in the brackets negates the character or range. For exa
 Character range classes such as `[a-c]` do not behave as expected when using `case_insensitive: true` — they remain case sensitive. For example, `[a-c]+` with `case_insensitive: true` will match strings containing only the characters 'a', 'b', and 'c', but not 'A', 'B', or 'C'. Use `[a-zA-Z]` to match both uppercase and lowercase characters.
 
 This is due to a known limitation in Lucene's regular expression engine.
-See https://github.com/apache/lucene/issues/14378[Lucene issue #14378] for details.
+See [Lucene issue #14378](https://github.com/apache/lucene/issues/14378) for details.
 :::
 
 

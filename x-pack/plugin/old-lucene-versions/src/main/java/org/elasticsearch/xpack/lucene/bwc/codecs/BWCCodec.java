@@ -173,7 +173,6 @@ public abstract class BWCCodec extends Codec {
                     false,
                     fieldInfo.getIndexOptions(),
                     fieldInfo.getDocValuesType(),
-                    fieldInfo.docValuesSkipIndexType(),
                     fieldInfo.getDocValuesGen(),
                     fieldInfo.attributes(),
                     fieldInfo.getPointDimensionCount(),

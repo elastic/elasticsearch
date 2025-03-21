@@ -392,6 +392,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 "application": {}
             }
             """);
+        // TODO restricted indices
+        // TODO API keys
     }
 
     public void testRoleWithSelectorInIndexPattern() throws Exception {

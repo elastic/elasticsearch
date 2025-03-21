@@ -50,15 +50,19 @@ import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
 
 public abstract class EsqlBinaryComparison extends BinaryComparison
@@ -382,7 +386,11 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
             DateFormatter formatter;
             if (value instanceof ZonedDateTime) {
-                formatter = DEFAULT_DATE_TIME_FORMATTER;
+                formatter = switch (attribute.dataType()) {
+                    case DATETIME -> DEFAULT_DATE_TIME_FORMATTER;
+                    case DATE_NANOS -> DEFAULT_DATE_NANOS_FORMATTER;
+                    default -> throw new EsqlIllegalArgumentException("Found date value in non-date type comparison");
+                };
                 // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime instance
                 // which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
                 // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format as well.
@@ -408,10 +416,14 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         }
 
         ZoneId zoneId = null;
-        if (DataType.isDateTime(attribute.dataType())) {
+        if (attribute.dataType() == DATETIME) {
             zoneId = zoneId();
             value = dateTimeToString((Long) value);
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
+        } else if (attribute.dataType() == DATE_NANOS) {
+            zoneId = zoneId();
+            value = nanoTimeToString((Long) value);
+            format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
         if (this instanceof GreaterThan) {
             return new RangeQuery(source(), name, value, false, null, false, format, zoneId);

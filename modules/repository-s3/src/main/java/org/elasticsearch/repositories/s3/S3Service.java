@@ -30,7 +30,6 @@ import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 
-import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -44,6 +43,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -115,8 +115,8 @@ class S3Service implements Closeable {
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
-     * existing clients. New clients will be build using these new settings. Old
-     * clients are usable until released. On release they will be destroyed instead
+     * existing clients. New clients will be built using these new settings. Old
+     * clients are usable until released. On release, they will be destroyed instead
      * of being returned to the cache.
      */
     public synchronized void refreshAndClearCache(Map<String, S3ClientSettings> clientsSettings) {
@@ -126,7 +126,7 @@ class S3Service implements Closeable {
         this.staticClientSettings = Maps.ofEntries(clientsSettings.entrySet());
         derivedClientSettings = emptyMap();
         assert this.staticClientSettings.containsKey("default") : "always at least have 'default'";
-        // clients are built lazily by {@link client}
+        /* clients are built lazily by {@link #client} */
     }
 
     /**
@@ -341,7 +341,8 @@ class S3Service implements Closeable {
      * <ul>
      * <li>Reads the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
      * in the plugin directory, so we don't need to create a hardcoded read file permission for the plugin.</li>
-     * <li>Supports customization of the STS endpoint via a system property, so we can test it against a test fixture.</li>
+     * <li>Supports customization of the STS (Security Token Service) endpoint via a system property, so we can
+     * test it against a test fixture.</li>
      * <li>Supports gracefully shutting down the provider and the STS client.</li>
      * </ul>
      */
@@ -384,7 +385,7 @@ class S3Service implements Closeable {
             if (roleArn == null) {
                 LOGGER.warn(
                     "Unable to use a web identity token for authentication. The AWS_WEB_IDENTITY_TOKEN_FILE environment "
-                        + "variable is set, but either AWS_ROLE_ARN is missing"
+                        + "variable is set, but AWS_ROLE_ARN is missing"
                 );
                 return;
             }
@@ -528,7 +529,7 @@ class S3Service implements Closeable {
                 return true;
             }
             if (exception instanceof AmazonServiceException ase) {
-                return ase.getStatusCode() == HttpStatus.SC_FORBIDDEN && "InvalidAccessKeyId".equals(ase.getErrorCode());
+                return ase.getStatusCode() == RestStatus.FORBIDDEN.getStatus() && "InvalidAccessKeyId".equals(ase.getErrorCode());
             }
             return false;
         })

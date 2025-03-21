@@ -72,6 +72,9 @@ import static java.net.HttpURLConnection.HTTP_GONE;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.OPERATION;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.OPERATION_EXCEPTION;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.INSERT_OBJECT;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
 
@@ -745,6 +748,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BaseServiceException finalException = null;
         while (true) {
             try {
+                tracker.inc(purpose, INSERT_OBJECT, OPERATION);
                 SocketAccess.doPrivilegedVoidIOException(
                     () -> client(purpose).create(
                         blobInfo,
@@ -756,6 +760,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 );
                 return OptionalBytesReference.of(expected);
             } catch (Exception e) {
+                tracker.inc(purpose, INSERT_OBJECT, OPERATION_EXCEPTION);
                 final var serviceException = unwrapServiceException(e);
                 if (serviceException == null) {
                     throw e;

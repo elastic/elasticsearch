@@ -86,8 +86,8 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     // operation is billed.
     private void trackInsertObject(OperationPurpose purpose, CheckedRunnable<IOException> r) throws IOException {
         try {
-            r.run();
             tracker.inc(purpose, INSERT_OBJECT, OPERATION);
+            r.run();
         } catch (Exception e) {
             tracker.inc(purpose, INSERT_OBJECT, OPERATION_EXCEPTION);
             throw e;

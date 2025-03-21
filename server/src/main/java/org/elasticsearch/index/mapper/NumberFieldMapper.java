@@ -440,6 +440,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public long toSortableLong(Number value) {
+                return HalfFloatPoint.halfFloatToSortableShort(value.floatValue());
+            }
+
+            @Override
             public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
                 return new SortedDoublesIndexFieldData.Builder(
                     ft.name(),
@@ -624,6 +629,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public long toSortableLong(Number value) {
+                return NumericUtils.floatToSortableInt(value.floatValue());
+            }
+
+            @Override
             public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
                 return new SortedDoublesIndexFieldData.Builder(
                     ft.name(),
@@ -774,6 +784,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public long toSortableLong(Number value) {
+                return NumericUtils.doubleToSortableLong(value.doubleValue());
+            }
+
+            @Override
             public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
                 return new SortedDoublesIndexFieldData.Builder(
                     ft.name(),
@@ -893,6 +908,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public long toSortableLong(Number value) {
+                return INTEGER.toSortableLong(value);
+            }
+
+            @Override
             Number valueForSearch(Number value) {
                 return value.byteValue();
             }
@@ -1008,6 +1028,11 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 INTEGER.addFields(document, name, value, indexed, docValued, stored);
+            }
+
+            @Override
+            public long toSortableLong(Number value) {
+                return INTEGER.toSortableLong(value);
             }
 
             @Override
@@ -1208,6 +1233,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public long toSortableLong(Number value) {
+                return value.intValue();
+            }
+
+            @Override
             public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
                 return new SortedNumericIndexFieldData.Builder(
                     ft.name(),
@@ -1360,6 +1390,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public long toSortableLong(Number value) {
+                return value.longValue();
+            }
+
+            @Override
             public IndexFieldData.Builder getFieldDataBuilder(MappedFieldType ft, ValuesSourceType valuesSourceType) {
                 return new SortedNumericIndexFieldData.Builder(
                     ft.name(),
@@ -1507,6 +1542,13 @@ public class NumberFieldMapper extends FieldMapper {
             boolean docValued,
             boolean stored
         );
+
+        /**
+         * For a given {@code Number}, returns the sortable long representation that will be stored in the doc values.
+         * @param value number to convert
+         * @return sortable long representation
+         */
+        public abstract long toSortableLong(Number value);
 
         public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
             // only implemented for long and double fields
@@ -2141,7 +2183,10 @@ public class NumberFieldMapper extends FieldMapper {
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (value != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, (Comparable<?>) value);
+                // We cannot simply cast value to Comparable<> because we need to also capture the potential loss of precision that occurs
+                // when the value is stored into the doc values.
+                long sortableLongValue = type.toSortableLong(value);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue);
             } else {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }

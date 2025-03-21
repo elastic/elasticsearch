@@ -215,7 +215,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     protected Query translate(TranslatorHandler handler) {
         Map<String, Float> fieldsWithBoost = new HashMap<>();
         for (Expression field : fields) {
-            fieldsWithBoost.put((String) ((Literal) field).value(), 1.0f);
+            fieldsWithBoost.put(unpackLiteralValue((Literal) field), 1.0f);
         }
         return new MultiMatchQuery(source(), Objects.toString(queryAsObject()), fieldsWithBoost, getOptions());
     }
@@ -242,10 +242,8 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
             if (resolution.unresolved()) {
                 throw new InvalidArgumentException(resolution.message());
             }
-            Object optionExprLiteral = ((Literal) optionExpr).value();
-            Object valueExprLiteral = ((Literal) valueExpr).value();
-            String optionName = optionExprLiteral instanceof BytesRef br ? br.utf8ToString() : optionExprLiteral.toString();
-            String optionValue = valueExprLiteral instanceof BytesRef br ? br.utf8ToString() : valueExprLiteral.toString();
+            String optionName = unpackLiteralValue((Literal) optionExpr);
+            String optionValue = unpackLiteralValue((Literal) valueExpr);
             // validate the optionExpr is supported
             DataType dataType = OPTIONS.get(optionName);
             if (dataType == null) {
@@ -317,5 +315,9 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
     @Override
     protected TypeResolution resolveParams() {
         return resolveQuery().and(resolveFields()).and(resolveOptions());
+    }
+
+    private static String unpackLiteralValue(Literal literal) {
+        return literal.value() instanceof BytesRef br ? br.utf8ToString() : literal.value().toString();
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -28,6 +29,9 @@ import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
@@ -60,7 +64,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     private final boolean hasCustomMessage; // TODO remove me and just use message != null?
 
     private static String errorMessage(String name, UnsupportedEsField field) {
-        return "Cannot use field [" + name + "] with unsupported type [" + field.getOriginalType() + "]";
+        return "Cannot use field [" + name + "] with unsupported type [" + String.join(",", field.getOriginalTypes()) + "]";
     }
 
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field) {
@@ -173,5 +177,16 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
             return Objects.equals(hasCustomMessage, ua.hasCustomMessage) && Objects.equals(message, ua.message);
         }
         return false;
+    }
+
+    @Override
+    public ColumnInfoImpl columnInfo() {
+        List<String> originalTypes = field().getOriginalTypes();
+        if (originalTypes != null) {
+            // Sort the original types so they are easier to test against and prettier.
+            originalTypes = new ArrayList<>(originalTypes);
+            Collections.sort(originalTypes);
+        }
+        return new ColumnInfoImpl(name(), dataType().outputType(), originalTypes);
     }
 }

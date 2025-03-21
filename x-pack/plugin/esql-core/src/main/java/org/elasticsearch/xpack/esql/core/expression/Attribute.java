@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -137,4 +138,11 @@ public abstract class Attribute extends NamedExpression {
     }
 
     protected abstract String label();
+
+    /**
+     * The description of this column in the HTTP response.
+     */
+    public ColumnInfoImpl columnInfo() {
+        return new ColumnInfoImpl(name(), dataType().outputType(), null);
+    }
 }

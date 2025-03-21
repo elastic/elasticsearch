@@ -497,6 +497,147 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 "application": {}
             }
             """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1"],
+                  "privileges": ["read", "read_failure_store"]
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["test1"],
+                      "privileges": ["read", "read_failure_store"]
+                    }
+                  ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["all"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "all": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1"],
+                  "privileges": ["all"]
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["test1"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["all"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "all": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read_failure_store"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read_failure_store": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+
         // TODO restricted indices
     }
 
@@ -560,7 +701,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectSearch("user", new Search("*::failures"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws Exception {
         List<String> docIds = setupDataStream();
         assertThat(docIds.size(), equalTo(2));

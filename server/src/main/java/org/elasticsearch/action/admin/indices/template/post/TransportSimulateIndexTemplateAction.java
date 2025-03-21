@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -342,16 +343,18 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         );
 
         Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
-        DataStreamLifecycle.Template lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
+        DataStreamLifecycle.Builder lifecycleBuilder = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
+        DataStreamLifecycle.Template lifecycle = lifecycleBuilder == null ? null : lifecycleBuilder.buildTemplate();
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
             lifecycle = DataStreamLifecycle.Template.DEFAULT;
         }
+        DataStreamOptions.Builder optionsBuilder = resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate);
         return new Template(
             settings,
             mergedMapping,
             aliasesByName,
             lifecycle,
-            resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate)
+            optionsBuilder == null ? null : optionsBuilder.buildTemplate()
         );
     }
 

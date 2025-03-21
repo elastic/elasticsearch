@@ -213,7 +213,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             2,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(0).build(),
+            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build(),
             now
         );
         builder.put(dataStream);
@@ -309,7 +309,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             dataStream.copy()
                 .setName(dataStreamName)
                 .setGeneration(dataStream.getGeneration() + 1)
-                .setLifecycle(DataStreamLifecycle.builder().dataRetention(0L).build())
+                .setLifecycle(DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build())
                 .build()
         );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
@@ -458,7 +458,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             Settings.builder()
                 .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                 .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(0).build(),
+            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build(),
             now
         );
         builder.put(dataStream);
@@ -1526,7 +1526,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             numBackingIndices,
             2,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(0).build(),
+            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build(),
             now
         ).copy().setDataStreamOptions(DataStreamOptions.FAILURE_STORE_DISABLED).build(); // failure store is managed even when disabled
         builder.put(dataStream);

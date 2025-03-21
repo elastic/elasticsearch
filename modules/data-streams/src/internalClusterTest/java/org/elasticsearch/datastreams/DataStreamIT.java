@@ -1372,7 +1372,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder().dataRetention(randomPositiveTimeValue()).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).buildTemplate();
         putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle, false);
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);

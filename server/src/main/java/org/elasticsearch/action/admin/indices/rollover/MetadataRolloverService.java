@@ -656,12 +656,7 @@ public class MetadataRolloverService {
         }
     }
 
-    static void validate(
-        ProjectMetadata project,
-        String rolloverTarget,
-        String newIndexName,
-        CreateIndexRequest request
-    ) {
+    static void validate(ProjectMetadata project, String rolloverTarget, String newIndexName, CreateIndexRequest request) {
         final IndexAbstraction indexAbstraction = project.getIndicesLookup().get(rolloverTarget);
         if (indexAbstraction == null) {
             throw new ResourceNotFoundException("rollover target [" + rolloverTarget + "] does not exist");

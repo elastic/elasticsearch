@@ -603,7 +603,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeQueryPhase(ShardSearchRequest request, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
-        final IndexShard shard = getShard(request);
+        final IndexShard shard;
+        try {
+            shard = getShard(request);
+        } catch (RuntimeException e) {
+            listener.onFailure(e);
+            return;
+        }
         rewriteAndFetchShardRequest(
             shard,
             request,

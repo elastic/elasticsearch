@@ -22,6 +22,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -47,8 +48,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.BiFunction;
 
+import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
 import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.mergeSortedNumericValues;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
@@ -126,9 +127,9 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
         long numValues = 0;
 
         SortedNumericDocValues values;
-        if (valuesProducer instanceof TsdbDocValuesProducer tsdbDocValuesProducer) {
-            numDocsWithValue = tsdbDocValuesProducer.mergeStats.sumNumDocsWithField;
-            numValues = tsdbDocValuesProducer.mergeStats.sumNumValues;
+        if (valuesProducer instanceof DocValuesConsumerUtil.TsdbDocValuesProducer tsdbDocValuesProducer) {
+            numDocsWithValue = tsdbDocValuesProducer.mergeStats.sumNumDocsWithField();
+            numValues = tsdbDocValuesProducer.mergeStats.sumNumValues();
         } else {
             values = valuesProducer.getSortedNumeric(field);
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
@@ -226,13 +227,13 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     public void mergeNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
         var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeFieldInfo, mergeState, (es87TSDBDocValuesProducer, s) -> {
             var entry = es87TSDBDocValuesProducer.numerics.get(s);
-            return new FieldEntry(entry.docsWithFieldOffset, entry.numValues, -1);
+            return new DocValuesConsumerUtil.FieldEntry(entry.docsWithFieldOffset, entry.numValues, -1);
         });
         if (result.supported() == false) {
             super.mergeNumericField(mergeFieldInfo, mergeState);
             return;
         }
-        addNumericField(mergeFieldInfo, new TsdbDocValuesProducer(result) {
+        addNumericField(mergeFieldInfo, new DocValuesConsumerUtil.TsdbDocValuesProducer(result) {
 
             @Override
             public NumericDocValues getNumeric(FieldInfo field) throws IOException {
@@ -337,18 +338,21 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     public void mergeSortedField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
         var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeFieldInfo, mergeState, (es87TSDBDocValuesProducer, s) -> {
             var entry = es87TSDBDocValuesProducer.sorted.get(s);
-            return new FieldEntry(entry.ordsEntry.docsWithFieldOffset, entry.ordsEntry.numValues, -1);
+            return new DocValuesConsumerUtil.FieldEntry(entry.ordsEntry.docsWithFieldOffset, entry.ordsEntry.numValues, -1);
         });
         if (result.supported() == false) {
             super.mergeSortedField(mergeFieldInfo, mergeState);
             return;
         }
-        doAddSortedField(mergeFieldInfo, new TsdbDocValuesProducer(result) {
+        addSortedField(mergeFieldInfo, new DocValuesConsumerUtil.TsdbDocValuesProducer(result) {
 
             @Override
             public SortedDocValues getSorted(FieldInfo field) throws IOException {
                 List<DocValuesConsumerUtil.SortedDocValuesSub> subs = new ArrayList<>();
                 assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
+
+                TermsEnum[] liveTerms = new TermsEnum[subs.size()];
+                long[] weights = new long[liveTerms.length];
                 for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
                     SortedDocValues values = null;
                     DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
@@ -363,10 +367,14 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                     }
                 }
 
-                return DocValuesConsumerUtil.mergeSortedValues(subs, mergeState.needsIndexSort);
+                final OrdinalMap map = OrdinalMap.build(null, liveTerms, weights, PackedInts.COMPACT);
+                for (int i = 0; i < subs.size(); i++) {
+                    subs.get(i).map = map.getGlobalOrds(i);
+                }
+                return DocValuesConsumerUtil.mergeSortedValues(subs, mergeState.needsIndexSort, map);
             }
 
-        }, false);
+        });
     }
 
     private void doAddSortedField(FieldInfo field, DocValuesProducer valuesProducer, boolean addTypeByte) throws IOException {
@@ -608,13 +616,13 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
     public void mergeSortedNumericField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
         var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeFieldInfo, mergeState, (es87TSDBDocValuesProducer, s) -> {
             var entry = es87TSDBDocValuesProducer.sortedNumerics.get(s);
-            return new FieldEntry(entry.docsWithFieldOffset, entry.numValues, entry.numDocsWithField);
+            return new DocValuesConsumerUtil.FieldEntry(entry.docsWithFieldOffset, entry.numValues, entry.numDocsWithField);
         });
         if (result.supported() == false) {
             super.mergeSortedNumericField(mergeFieldInfo, mergeState);
             return;
         }
-        addSortedNumericField(mergeFieldInfo, new TsdbDocValuesProducer(result) {
+        addSortedNumericField(mergeFieldInfo, new DocValuesConsumerUtil.TsdbDocValuesProducer(result) {
 
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
@@ -654,6 +662,56 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             }
         }
         return true;
+    }
+
+    @Override
+    public void mergeSortedSetField(FieldInfo mergeFieldInfo, MergeState mergeState) throws IOException {
+        var result = compatibleWithOptimizedMerge(enableOptimizedMerge, mergeFieldInfo, mergeState, (es87TSDBDocValuesProducer, s) -> {
+            var entry = es87TSDBDocValuesProducer.sortedSets.get(s);
+            return new DocValuesConsumerUtil.FieldEntry(
+                entry.ordsEntry.docsWithFieldOffset,
+                entry.ordsEntry.numValues,
+                entry.ordsEntry.numDocsWithField
+            );
+        });
+        if (result.supported() == false) {
+            super.mergeSortedSetField(mergeFieldInfo, mergeState);
+            return;
+        }
+        addSortedSetField(mergeFieldInfo, new DocValuesConsumerUtil.TsdbDocValuesProducer(result) {
+
+            @Override
+            public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
+                List<DocValuesConsumerUtil.SortedSetDocValuesSub> subs = new ArrayList<>();
+                assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
+
+                TermsEnum[] liveTerms = new TermsEnum[subs.size()];
+                long[] weights = new long[liveTerms.length];
+                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+                    SortedSetDocValues values = null;
+                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+                    if (docValuesProducer != null) {
+                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
+                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.SORTED_SET) {
+                            values = docValuesProducer.getSortedSet(readerFieldInfo);
+                        }
+                        liveTerms[i] = values.termsEnum();
+                        weights[i] = values.getValueCount();
+                    }
+                    if (values != null) {
+                        subs.add(new DocValuesConsumerUtil.SortedSetDocValuesSub(mergeState.docMaps[i], values));
+                    }
+                }
+
+                final OrdinalMap map = OrdinalMap.build(null, liveTerms, weights, PackedInts.COMPACT);
+                for (int i = 0; i < subs.size(); i++) {
+                    subs.get(i).map = map.getGlobalOrds(i);
+                }
+
+                return DocValuesConsumerUtil.mergeSortedSetValues(subs, mergeState.needsIndexSort, map);
+            }
+
+        });
     }
 
     @Override
@@ -904,67 +962,6 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
             }
         }
         return 1;
-    }
-
-    abstract static class TsdbDocValuesProducer extends EmptyDocValuesProducer {
-
-        private final MergeStats mergeStats;
-
-        TsdbDocValuesProducer(MergeStats mergeStats) {
-            this.mergeStats = mergeStats;
-        }
-
-    }
-
-    record MergeStats(boolean supported, long sumNumValues, int sumNumDocsWithField) {}
-
-    record FieldEntry(long docsWithFieldOffset, long numValues, int numDocsWithField) {}
-
-    static MergeStats compatibleWithOptimizedMerge(
-        boolean optimizedMergeEnabled,
-        FieldInfo mergeFieldInfo,
-        MergeState mergeState,
-        BiFunction<ES87TSDBDocValuesProducer, String, FieldEntry> function
-    ) {
-        if (optimizedMergeEnabled == false
-            || mergeState.needsIndexSort == false
-            || mergeFieldInfo.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
-            return new MergeStats(false, -1, -1);
-        }
-
-        long sumNumValues = 0;
-        int sumNumDocsWithField = 0;
-
-        for (DocValuesProducer docValuesProducer : mergeState.docValuesProducers) {
-            if (docValuesProducer instanceof ES87TSDBDocValuesProducer tsdbProducer) {
-                if (tsdbProducer.version != ES87TSDBDocValuesFormat.VERSION_CURRENT) {
-                    return new MergeStats(false, -1, -1);
-                }
-
-                var entry = function.apply(tsdbProducer, mergeFieldInfo.name);
-                assert entry != null;
-                // TODO: support also fields with offsets
-                if (entry.docsWithFieldOffset != -1) {
-                    return new MergeStats(false, -1, -1);
-                }
-                sumNumValues += entry.numValues;
-                sumNumDocsWithField += entry.numDocsWithField;
-            } else {
-                return new MergeStats(false, -1, -1);
-            }
-        }
-
-        if (Math.toIntExact(sumNumValues) != sumNumDocsWithField) {
-            return new MergeStats(false, -1, -1);
-        }
-        // Documents marked as deleted should be rare. Maybe in the case of noop operation?
-        for (int i = 0; i < mergeState.liveDocs.length; i++) {
-            if (mergeState.liveDocs[i] != null) {
-                return new MergeStats(false, -1, -1);
-            }
-        }
-
-        return new MergeStats(true, sumNumValues, sumNumDocsWithField);
     }
 
 }

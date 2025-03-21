@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -27,6 +28,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
@@ -59,6 +63,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         try (Directory directory = newDirectory()) {
             Analyzer analyzer = new MockAnalyzer(random());
             IndexWriterConfig conf = newIndexWriterConfig(analyzer);
+            conf.setCodec(getCodec());
             conf.setMergePolicy(newLogMergePolicy());
             try (RandomIndexWriter iwriter = new RandomIndexWriter(random(), directory, conf)) {
                 for (int i = 0; i < NUM_DOCS; i++) {
@@ -95,6 +100,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         try (Directory directory = newDirectory()) {
             Analyzer analyzer = new MockAnalyzer(random());
             IndexWriterConfig conf = newIndexWriterConfig(analyzer);
+            conf.setCodec(getCodec());
             conf.setMergePolicy(newLogMergePolicy());
             try (RandomIndexWriter iwriter = new RandomIndexWriter(random(), directory, conf)) {
                 for (int i = 0; i < NUM_DOCS; i++) {
@@ -132,6 +138,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     public void testOneDocManyValues() throws Exception {
         IndexWriterConfig config = new IndexWriterConfig();
+        config.setCodec(getCodec());
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
             int numValues = 128 + random().nextInt(1024); // > 2^7 to require two blocks
             Document d = new Document();
@@ -159,6 +166,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         final Map<String, long[]> sortedNumbers = new HashMap<>(); // key -> numbers
         try (Directory directory = newDirectory()) {
             IndexWriterConfig conf = newIndexWriterConfig();
+            conf.setCodec(getCodec());
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory, conf)) {
                 for (int i = 0; i < numDocs; i++) {
                     Document doc = new Document();
@@ -238,6 +246,59 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                             doc += random().nextInt(3);
                         }
                     }
+                }
+            }
+        }
+    }
+
+    public void testForceMerge() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+
+        IndexWriterConfig config = new IndexWriterConfig();
+        config.setIndexSort(
+            new Sort(
+                new SortField(hostnameField, SortField.Type.STRING, false),
+                new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
+            )
+        );
+        config.setCodec(getCodec());
+        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, config)) {
+            long counter1 = 0;
+            long counter2 = 10_000_000;
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
+            int numHosts = 1000;
+
+            int numDocs = 256 + random().nextInt(1024);
+            for (int i = 0; i < numDocs; i++) {
+                Document d = new Document();
+
+                final int batchIndex = i / numHosts;
+                final String hostName = "host-" + batchIndex;
+                final long timestamp = baseTimestamp + (1000L * i);
+
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
+                d.add(new NumericDocValuesField(timestampField, timestamp));
+                d.add(new SortedNumericDocValuesField("counter_1", counter1++));
+                d.add(new SortedNumericDocValuesField("counter_2", counter2++));
+                d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
+                d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[i % gauge1Values.length]));
+
+                iw.addDocument(d);
+            }
+
+            iw.forceMerge(1);
+
+            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var numericDocValues = leaf.getNumericDocValues(timestampField);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(i, numericDocValues.nextDoc());
+                    assertEquals(baseTimestamp + (1000L * i), numericDocValues.longValue());
                 }
             }
         }

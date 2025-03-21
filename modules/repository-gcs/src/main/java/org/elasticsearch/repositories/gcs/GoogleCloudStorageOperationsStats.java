@@ -70,10 +70,16 @@ final class GoogleCloudStorageOperationsStats {
                 telemetry.exceptionCounter().incrementBy(1, attr);
                 telemetry.exceptionHistogram().record(1, attr);
             }
-            case RANGE_NOT_SATISFIED -> telemetry.requestRangeNotSatisfiedExceptionCounter().incrementBy(1, attr);
+            case RANGE_NOT_SATISFIED -> {
+                telemetry.requestRangeNotSatisfiedExceptionCounter().incrementBy(1, attr);
+                telemetry.exceptionCounter().incrementBy(1, attr);
+                telemetry.exceptionHistogram().record(1, attr);
+            }
             case THROTTLE -> {
                 telemetry.throttleCounter().incrementBy(1, attr);
                 telemetry.throttleHistogram().record(1, attr);
+                telemetry.exceptionCounter().incrementBy(1, attr);
+                telemetry.exceptionHistogram().record(1, attr);
             }
             case OPERATION -> {
                 telemetry.operationCounter().incrementBy(1, attr);

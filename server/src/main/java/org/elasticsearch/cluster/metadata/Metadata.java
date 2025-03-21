@@ -1304,10 +1304,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
         } else {
-            final boolean beforeRepositoriesMetadataMigration = in.getTransportVersion()
-                .before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM);
             List<ProjectCustom> projectCustoms = List.of();
-            if (beforeRepositoriesMetadataMigration) {
+            if (in.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
                 projectCustoms = new ArrayList<>();
                 readBwcCustoms(in, builder, projectCustoms::add);
                 assert projectCustoms.size() <= 1
@@ -1422,9 +1420,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             combinedMetadata.addAll(singleProject.reservedStateMetadata().values());
             out.writeCollection(combinedMetadata);
         } else {
-            final boolean beforeRepositoriesMetadataMigration = out.getTransportVersion()
-                .before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM);
-            if (beforeRepositoriesMetadataMigration) {
+            if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
                 if (isSingleProject() || noRepositoryExceptForDefaultProject(projects().values())) {
                     final List<VersionedNamedWriteable> combinedCustoms = new ArrayList<>(customs.size() + 1);
                     combinedCustoms.addAll(customs.values());
@@ -1693,6 +1689,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         public Builder putCustom(String type, ProjectCustom custom) {
             return putProjectCustom(type, custom);
+        }
+
+        @Deprecated(forRemoval = true)
+        public Builder putDefaultProjectCustom(String type, ProjectCustom custom) {
+            assert projectMetadata.containsKey(ProjectId.DEFAULT) : projectMetadata.keySet();
+            getProject(ProjectId.DEFAULT).putCustom(type, custom);
+            return this;
         }
 
         public ClusterCustom getCustom(String type) {

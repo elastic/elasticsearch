@@ -110,6 +110,7 @@ class NetworkAccessCheckActions {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void serverSocketChannelBind() throws IOException {
         try (var serverSocketChannel = ServerSocketChannel.open()) {
             serverSocketChannel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0));
@@ -306,85 +307,86 @@ class NetworkAccessCheckActions {
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void setDefaultResponseCache() {
+    static void setDefaultResponseCache() {
         ResponseCache.setDefault(null);
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void setDefaultProxySelector() {
+    static void setDefaultProxySelector() {
         ProxySelector.setDefault(null);
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void setDefaultSSLContext() throws NoSuchAlgorithmException {
+    static void setDefaultSSLContext() throws NoSuchAlgorithmException {
         SSLContext.setDefault(SSLContext.getDefault());
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void setDefaultHostnameVerifier() {
+    static void setDefaultHostnameVerifier() {
         HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> false);
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void setDefaultSSLSocketFactory() {
+    static void setDefaultSSLSocketFactory() {
         HttpsURLConnection.setDefaultSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
-    private static void setHttpsConnectionProperties() {
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void setHttpsConnectionProperties() {
         new DummyImplementations.DummyHttpsURLConnection().setSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void datagramSocket$$setDatagramSocketImplFactory() throws IOException {
+    static void datagramSocket$$setDatagramSocketImplFactory() throws IOException {
         DatagramSocket.setDatagramSocketImplFactory(() -> { throw new IllegalStateException(); });
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void httpURLConnection$$setFollowRedirects() {
+    static void httpURLConnection$$setFollowRedirects() {
         HttpURLConnection.setFollowRedirects(HttpURLConnection.getFollowRedirects());
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void serverSocket$$setSocketFactory() throws IOException {
+    static void serverSocket$$setSocketFactory() throws IOException {
         ServerSocket.setSocketFactory(() -> { throw new IllegalStateException(); });
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void socket$$setSocketImplFactory() throws IOException {
+    static void socket$$setSocketImplFactory() throws IOException {
         Socket.setSocketImplFactory(() -> { throw new IllegalStateException(); });
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void url$$setURLStreamHandlerFactory() {
+    static void url$$setURLStreamHandlerFactory() {
         URL.setURLStreamHandlerFactory(__ -> { throw new IllegalStateException(); });
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void urlConnection$$setFileNameMap() {
+    static void urlConnection$$setFileNameMap() {
         URLConnection.setFileNameMap(__ -> { throw new IllegalStateException(); });
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    private static void urlConnection$$setContentHandlerFactory() {
+    static void urlConnection$$setContentHandlerFactory() {
         URLConnection.setContentHandlerFactory(__ -> { throw new IllegalStateException(); });
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    private static void bindDatagramSocket() throws SocketException {
+    static void bindDatagramSocket() throws SocketException {
         try (var socket = new DatagramSocket(null)) {
             socket.bind(null);
         }
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    private static void connectDatagramSocket() throws SocketException {
+    static void connectDatagramSocket() throws SocketException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.connect(new InetSocketAddress(1234));
         }
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    private static void joinGroupDatagramSocket() throws IOException {
+    static void joinGroupDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.joinGroup(
                 new InetSocketAddress(InetAddress.getByAddress(new byte[] { (byte) 230, 0, 0, 1 }), 1234),
@@ -394,7 +396,7 @@ class NetworkAccessCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    private static void leaveGroupDatagramSocket() throws IOException {
+    static void leaveGroupDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.leaveGroup(
                 new InetSocketAddress(InetAddress.getByAddress(new byte[] { (byte) 230, 0, 0, 1 }), 1234),
@@ -404,14 +406,14 @@ class NetworkAccessCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    private static void sendDatagramSocket() throws IOException {
+    static void sendDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.send(new DatagramPacket(new byte[] { 0 }, 1, InetAddress.getLocalHost(), 1234));
         }
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    private static void receiveDatagramSocket() throws IOException {
+    static void receiveDatagramSocket() throws IOException {
         try (var socket = new DummyImplementations.DummyDatagramSocket()) {
             socket.receive(new DatagramPacket(new byte[1], 1, InetAddress.getLocalHost(), 1234));
         }

@@ -141,7 +141,7 @@ It is possible to specify 3 different types of file entitlement:
 
 Each of the 3 types has some additional fields:
 - `mode` (required): can be either `read` or `read_write`
-- `platform` (optional): indicates the entitlement groups be granted on only one platform, which can be one of `linux`, `macos` or `windows`. On other platforms, the entitlement is ignored. If this field is not specified, the entitlement is granted on all platforms.
+- `platform` (optional): indicates this item applies only to one platform, which can be one of `linux`, `macos` or `windows`. On other platforms, the item is ignored. If this field is not specified, the item applies to all platforms.
 - `exclusive`: access to this path is exclusive for this plugin; this means that other plugins will not be able to access to it, not even if they have an entitlement that would normally grant access to that path.
 
 Example:

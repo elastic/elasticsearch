@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -88,10 +88,7 @@ public class IndexResolver {
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames, requestFilter),
-            listener.delegateFailureAndWrap((l, response) -> {
-
-                l.onResponse(mergedMappings(indexWildcard, response));
-            })
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
         );
     }
 
@@ -156,11 +153,10 @@ public class IndexResolver {
             fieldCapsResponse.getFailures()
         );
 
-        FieldCapabilitiesFailure localResolutionFailure = null;
+        Set<NoShardAvailableActionException> unavailableShards = new HashSet<>();
         for (FieldCapabilitiesFailure failure : fieldCapsResponse.getFailures()) {
-            if (ExceptionsHelper.isRemoteUnavailableException(failure.getException()) == false) {
-                localResolutionFailure = failure;
-                break;
+            if (failure.getException() instanceof NoShardAvailableActionException e) {
+                unavailableShards.add(e);
             }
         }
 
@@ -175,7 +171,7 @@ public class IndexResolver {
         }
         // If all the mappings are empty we return an empty set of resolved indices to line up with QL
         var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
-        return IndexResolution.valid(index, concreteIndices.keySet(), localResolutionFailure, unavailableRemotes);
+        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableShards, unavailableRemotes);
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {

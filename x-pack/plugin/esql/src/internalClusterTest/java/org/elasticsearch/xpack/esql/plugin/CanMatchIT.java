@@ -265,6 +265,9 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             containsString("index [logs] has no active shard copy"),
             () -> run("from * | KEEP timestamp,message")
         );
+        try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message", null, null, true)) {
+            assertThat(getValuesList(resp), hasSize(3));
+        }
     }
 
     public void testSkipOnIndexName() {

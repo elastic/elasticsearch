@@ -626,7 +626,7 @@ score = ln(score), if score < 0
 `min_score`
 :   (Optional, `float`)
 
-    Sets a minimum threshold score for including documents in the re-ranked results. Documents with similarity scores below this threshold will be excluded. Note that score calculations vary depending on the model used.
+    Sets a minimum threshold score for including documents in the re-ranked results. Documents with similarity scores below this threshold will be excluded. Note that score calculations vary depending on the model used and can result in negative values.
 
 
 `filter`
@@ -670,6 +670,10 @@ Follow these steps:
 
 2. Define a `text_similarity_rerank` retriever:
 
+    ::::{note}
+    The relevance scores produced during reranking depend on the text similarity model used and can include negative values.
+    ::::
+
     ```console
     POST _search
     {
@@ -692,8 +696,6 @@ Follow these steps:
       }
     }
     ```
-
-
 
 ### Example: Cohere Rerank [text-similarity-reranker-retriever-example-cohere]
 

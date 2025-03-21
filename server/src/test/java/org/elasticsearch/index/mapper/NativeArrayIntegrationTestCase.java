@@ -83,10 +83,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             var expectedDocument = jsonBuilder().startObject();
             var inputDocument = jsonBuilder().startObject();
 
-            boolean expectedContainsArray = values.length > 0 || malformed.length > 1;
-            if (expectedContainsArray) {
+            boolean expectedIsArray = values.length != 0 || malformed.length != 1;
+            if (expectedIsArray) {
                 expectedDocument.startArray("field");
-            } else if (malformed.length > 0) {
+            } else {
                 expectedDocument.field("field");
             }
             inputDocument.startArray("field");
@@ -113,7 +113,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 }
             }
 
-            if (expectedContainsArray) {
+            if (expectedIsArray) {
                 expectedDocument.endArray();
             }
             expectedDocument.endObject();

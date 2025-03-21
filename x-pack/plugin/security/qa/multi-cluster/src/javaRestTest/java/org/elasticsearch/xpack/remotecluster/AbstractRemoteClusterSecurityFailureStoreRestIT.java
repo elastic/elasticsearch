@@ -110,6 +110,11 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
         return client().performRequest(request);
     }
 
+    protected Response performRequestWithUser(final String user, final Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", headerFromRandomAuthMethod(user, PASS)));
+        return client().performRequest(request);
+    }
+
     @SuppressWarnings("unchecked")
     protected Tuple<List<String>, List<String>> getDataAndFailureIndices(String dataStreamName) throws IOException {
         Request dataStream = new Request("GET", "/_data_stream/" + dataStreamName);

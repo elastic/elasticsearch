@@ -76,6 +76,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
         // configure remote cluster using API Key-based authentication
         configureRemoteCluster();
         final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
+        final boolean ccsMinimizeRoundtrips = randomBoolean();
 
         // fulfilling cluster setup
         setupTestDataStreamOnFulfillingCluster();
@@ -98,7 +99,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                     alsoSearchLocally ? "local_index," : "",
                     randomFrom("my_remote_cluster", "*", "my_remote_*"),
                     randomFrom("test1::data", "test1", "test*", "test*::data", "*", "*::data", backingDataIndexName),
-                    randomBoolean()
+                    ccsMinimizeRoundtrips
                 )
             );
             final String[] expectedIndices = alsoSearchLocally
@@ -117,7 +118,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                             Locale.ROOT,
                             "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
                             randomFrom("test1::failures", "test*::failures", "*::failures"),
-                            randomBoolean()
+                            ccsMinimizeRoundtrips
                         )
                     )
                 )
@@ -133,7 +134,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                     Locale.ROOT,
                     "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
                     backingFailureIndexName,
-                    randomBoolean()
+                    ccsMinimizeRoundtrips
                 )
             );
             final ResponseException exception = expectThrows(
@@ -144,7 +145,9 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
             assertThat(
                 exception.getMessage(),
                 containsString(
-                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
+                    "action ["
+                        + (ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards")
+                        + "] towards remote cluster is unauthorized for user [remote_search_user] "
                         + "with assigned roles [remote_search] authenticated by API key id ["
                         + crossClusterAccessApiKeyId
                         + "] of user [test_user] on indices ["

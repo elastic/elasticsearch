@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
@@ -48,6 +51,10 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
+    private static final String ALL_ACCESS = "all_access";
+    private static final String DATA_ACCESS = "data_access";
+    private static final String FAILURE_STORE_ACCESS = "failure_store_access";
+
     public void testRCS1CrossClusterSearch() throws Exception {
         final boolean rcs1Security = true;
         final boolean isProxyMode = randomBoolean();
@@ -67,7 +74,9 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
         final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
         final String backingDataIndexName = backingIndices.v1();
         final String backingFailureIndexName = backingIndices.v2();
-        {
+
+        final String[] users = { FAILURE_STORE_ACCESS, DATA_ACCESS, ALL_ACCESS };
+        for (String user : users) {
             // query remote cluster using ::data selector should succeed
             final boolean alsoSearchLocally = randomBoolean();
             final Request dataSearchRequest = new Request(
@@ -84,13 +93,14 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             final String[] expectedIndices = alsoSearchLocally
                 ? new String[] { "local_index", backingDataIndexName }
                 : new String[] { backingDataIndexName };
-            assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(dataSearchRequest), expectedIndices);
+            assertSearchResponseContainsIndices(performRequestWithUser(user, dataSearchRequest), expectedIndices);
         }
-        {
-            // query remote cluster using ::failures selector should fail
+        for (String user : users) {
+            // query remote cluster using ::failures selector should fail (regardless of the user's permissions)
             final ResponseException exception = expectThrows(
                 ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(
+                () -> performRequestWithUser(
+                    user,
                     new Request(
                         "GET",
                         String.format(
@@ -123,7 +133,10 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                 // which grants access to backing failure store indices (granted by read_failure_store privilege)
                 // from a security perspective, this is a valid use case and there is no way to prevent this with RCS1 security model
                 // since from the fulfilling cluster perspective this request is no different from any other local search request
-                assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(failureIndexSearchRequest), backingFailureIndexName);
+                assertSearchResponseContainsIndices(
+                    performRequestWithUser(FAILURE_STORE_ACCESS, failureIndexSearchRequest),
+                    backingFailureIndexName
+                );
             } else {
                 // in this case, the user does not have the necessary permissions to search the backing failure index
                 // the request to failure store backing index is authorized based on the datastream
@@ -132,7 +145,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                 // not supporting the failure backing indices (only data backing indices)
                 final ResponseException exception = expectThrows(
                     ResponseException.class,
-                    () -> performRequestWithRemoteSearchUser(failureIndexSearchRequest)
+                    () -> performRequestWithUser(FAILURE_STORE_ACCESS, failureIndexSearchRequest)
                 );
                 assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
                 assertThat(
@@ -156,8 +169,19 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
     }
 
     private static void setupUserAndRoleOnQueryCluster() throws IOException {
-        final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-        putRoleRequest.setJsonEntity("""
+        createRole(adminClient(), ALL_ACCESS, """
+            {
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["all"]
+                }
+              ]
+            }""");
+        createUser(adminClient(), ALL_ACCESS, PASS, ALL_ACCESS);
+        // the role must simply exist on query cluster, the access is irrelevant,
+        // but we here grant the access to local_index only to test mixed search
+        createRole(adminClient(), FAILURE_STORE_ACCESS, """
             {
               "indices": [
                 {
@@ -166,19 +190,48 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                 }
               ]
             }""");
-        assertOK(adminClient().performRequest(putRoleRequest));
-        final var putUserRequest = new Request("PUT", "/_security/user/" + REMOTE_SEARCH_USER);
-        putUserRequest.setJsonEntity("""
+        createUser(adminClient(), FAILURE_STORE_ACCESS, PASS, FAILURE_STORE_ACCESS);
+        createRole(adminClient(), DATA_ACCESS, """
             {
-              "password": "x-pack-test-password",
-              "roles" : ["remote_search"]
+              "indices": [
+                {
+                  "names": ["local_index"],
+                  "privileges": ["read"]
+                }
+              ]
             }""");
-        assertOK(adminClient().performRequest(putUserRequest));
+        createUser(adminClient(), DATA_ACCESS, PASS, DATA_ACCESS);
+    }
+
+    private static void createRole(RestClient client, String role, String roleDescriptor) throws IOException {
+        final Request putRoleRequest = new Request("PUT", "/_security/role/" + role);
+        putRoleRequest.setJsonEntity(roleDescriptor);
+        assertOK(client.performRequest(putRoleRequest));
+    }
+
+    private static void createUser(RestClient client, String user, SecureString password, String role) throws IOException {
+        final Request putUserRequest = new Request("PUT", "/_security/user/" + user);
+        putUserRequest.setJsonEntity(Strings.format("""
+            {
+              "password": "%s",
+              "roles" : ["%s"]
+            }""", password.toString(), role));
+        assertOK(client.performRequest(putUserRequest));
     }
 
     private static void setupRoleAndUserOnFulfillingCluster() throws IOException {
-        var putRoleOnFulfillingClusterRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-        putRoleOnFulfillingClusterRequest.setJsonEntity("""
+        putRoleOnFulfillingCluster(DATA_ACCESS, """
+            {
+              "indices": [
+                {
+                  "names": ["test*"],
+                  "privileges": ["read", "read_cross_cluster"]
+                }
+              ]
+            }""");
+        putUserOnFulfillingCluster(DATA_ACCESS, DATA_ACCESS);
+
+        putRoleOnFulfillingCluster(FAILURE_STORE_ACCESS, """
             {
               "indices": [
                 {
@@ -187,15 +240,34 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                 }
               ]
             }""");
-        assertOK(performRequestAgainstFulfillingCluster(putRoleOnFulfillingClusterRequest));
+        putUserOnFulfillingCluster(FAILURE_STORE_ACCESS, FAILURE_STORE_ACCESS);
 
-        var putUserOnFulfillingClusterRequest = new Request("PUT", "/_security/user/" + REMOTE_SEARCH_USER);
-        putUserOnFulfillingClusterRequest.setJsonEntity("""
+        putRoleOnFulfillingCluster(ALL_ACCESS, """
             {
-              "password": "x-pack-test-password",
-              "roles" : ["remote_search"]
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["all"]
+                }
+              ]
             }""");
-        assertOK(performRequestAgainstFulfillingCluster(putUserOnFulfillingClusterRequest));
+        putUserOnFulfillingCluster(ALL_ACCESS, ALL_ACCESS);
+    }
+
+    private static void putRoleOnFulfillingCluster(String roleName, String roleDescriptor) throws IOException {
+        Request request = new Request("PUT", "/_security/role/" + roleName);
+        request.setJsonEntity(roleDescriptor);
+        assertOK(performRequestAgainstFulfillingCluster(request));
+    }
+
+    private static void putUserOnFulfillingCluster(String user, String role) throws IOException {
+        Request request = new Request("PUT", "/_security/user/" + user);
+        request.setJsonEntity(Strings.format("""
+            {
+              "password": "%s",
+              "roles" : ["%s"]
+            }""", PASS.toString(), role));
+        assertOK(performRequestAgainstFulfillingCluster(request));
     }
 
 }

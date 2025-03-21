@@ -28,7 +28,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.BWCLucene70Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene80.BWCLucene80Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene84.BWCLucene84Codec;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.BWCLucene86Codec;

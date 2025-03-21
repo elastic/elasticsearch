@@ -157,7 +157,7 @@ GET my-index-000001/_search
 Nested documents can be:
 
 * queried with the [`nested`](/reference/query-languages/query-dsl/query-dsl-nested-query.md) query.
-* analyzed with the [`nested`](/reference/data-analysis/aggregations/search-aggregations-bucket-nested-aggregation.md) and [`reverse_nested`](/reference/data-analysis/aggregations/search-aggregations-bucket-reverse-nested-aggregation.md) aggregations.
+* analyzed with the [`nested`](/reference/aggregations/search-aggregations-bucket-nested-aggregation.md) and [`reverse_nested`](/reference/aggregations/search-aggregations-bucket-reverse-nested-aggregation.md) aggregations.
 * sorted with [nested sorting](/reference/elasticsearch/rest-apis/sort-search-results.md#nested-sorting).
 * retrieved and highlighted with [nested inner hits](/reference/elasticsearch/rest-apis/retrieve-inner-hits.md#nested-inner-hits).
 

@@ -171,6 +171,13 @@ cause idle connections to be closed, or by setting `transport.ping_schedule` if
 keepalives cannot be configured. Devices which drop connections when they reach
 a certain age are a common source of problems to Elasticsearch clusters, and
 must not be used.
+For instance your keep_alive settings could look like
+[source,text]
+----
+vi /etc/sysctl.conf
+Update "net.ipv4.tcp_keepalive_probes=9" and save the file.
+sysctl -p , to reflect the updated change.
+----
 
 [[request-compression]]
 ===== Request compression

@@ -18,57 +18,77 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.OPERATION;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.OPERATION_EXCEPTION;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.RANGE_NOT_SATISFIED;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.REQUEST;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.REQUEST_EXCEPTION;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.THROTTLE;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
-import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.StatsTracker;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.GET_OBJECT;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.INSERT_OBJECT;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.LIST_OBJECTS;
 
 final class GoogleCloudStorageHttpStatsCollector implements HttpResponseInterceptor {
 
     private static final Logger logger = LogManager.getLogger("GcpHttpStats");
 
-    private final StatsTracker stats;
+    private final GoogleCloudStorageOperationsStats stats;
     private final OperationPurpose purpose;
     private final Pattern getObjPattern;
     private final Pattern insertObjPattern;
     private final Pattern listObjPattern;
 
     GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats stats, OperationPurpose purpose) {
-        this.stats = stats.tracker();
         this.purpose = purpose;
-        var bucket = stats.bucketName();
-
+        this.stats = stats;
         // The specification for the current API (v1) endpoints can be found at:
         // https://cloud.google.com/storage/docs/json_api/v1
+        var bucket = stats.bucket();
         this.getObjPattern = Pattern.compile("(/download)?/storage/v1/b/" + bucket + "/o/.+");
         this.insertObjPattern = Pattern.compile("(/upload)?/storage/v1/b/" + bucket + "/o");
         this.listObjPattern = Pattern.compile("/storage/v1/b/" + bucket + "/o");
     }
 
-    private void trackRequest(Operation operation) {
-        stats.trackRequest(purpose, operation);
+    private void inc(Operation op, GoogleCloudStorageOperationsStats.Counter counter) {
+        stats.inc(purpose, op, counter);
     }
 
-    private void trackRequestAndOperation(Operation operation) {
-        stats.trackOperationAndRequest(purpose, operation);
+    private boolean isSuccessCode(int code) {
+        return (code >= 200 && code < 300) || code == 308;
     }
 
     @Override
     public void interceptResponse(final HttpResponse response) {
-        var respCode = response.getStatusCode();
-        // Some of the intermediate and error codes are still counted as "good" requests
-        if (((respCode >= 200 && respCode < 300) || respCode == 308 || respCode == 404) == false) {
-            return;
-        }
         var request = response.getRequest();
-
+        var code = response.getStatusCode();
         var path = request.getUrl().getRawPath();
         var ignored = false;
         switch (request.getRequestMethod()) {
             case "GET" -> {
                 // https://cloud.google.com/storage/docs/json_api/v1/objects/get
                 if (getObjPattern.matcher(path).matches()) {
-                    trackRequestAndOperation(Operation.GET_OBJECT);
+                    inc(GET_OBJECT, REQUEST);
+                    inc(GET_OBJECT, OPERATION);
+                    if (isSuccessCode(code) == false) {
+                        inc(GET_OBJECT, REQUEST_EXCEPTION);
+                        inc(GET_OBJECT, OPERATION_EXCEPTION);
+                        if (code == 429) {
+                            inc(GET_OBJECT, THROTTLE);
+                        } else if (code == 416) {
+                            inc(GET_OBJECT, RANGE_NOT_SATISFIED);
+                        }
+                    }
                 } else if (listObjPattern.matcher(path).matches()) {
-                    trackRequestAndOperation(Operation.LIST_OBJECTS);
+                    inc(LIST_OBJECTS, REQUEST);
+                    inc(LIST_OBJECTS, OPERATION);
+                    if (isSuccessCode(code) == false) {
+                        inc(LIST_OBJECTS, REQUEST_EXCEPTION);
+                        inc(LIST_OBJECTS, OPERATION_EXCEPTION);
+                        if (code == 429) {
+                            inc(LIST_OBJECTS, THROTTLE);
+                        }
+                    }
                 } else {
                     ignored = true;
                 }
@@ -76,7 +96,13 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
             case "POST", "PUT" -> {
                 // https://cloud.google.com/storage/docs/json_api/v1/objects/insert
                 if (insertObjPattern.matcher(path).matches()) {
-                    trackRequest(Operation.INSERT_OBJECT);
+                    inc(INSERT_OBJECT, REQUEST);
+                    if (isSuccessCode(code) == false) {
+                        inc(INSERT_OBJECT, REQUEST_EXCEPTION);
+                        if (code == 429) {
+                            inc(INSERT_OBJECT, THROTTLE);
+                        }
+                    }
                 } else {
                     ignored = true;
                 }

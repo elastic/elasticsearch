@@ -24,6 +24,7 @@ import com.google.cloud.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -44,7 +45,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
@@ -71,6 +72,9 @@ import static java.net.HttpURLConnection.HTTP_GONE;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.net.HttpURLConnection.HTTP_PRECON_FAILED;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.OPERATION;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.OPERATION_EXCEPTION;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.INSERT_OBJECT;
 
 class GoogleCloudStorageBlobStore implements BlobStore {
 
@@ -111,7 +115,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final String clientName;
     private final String repositoryName;
     private final GoogleCloudStorageService storageService;
-    private final GoogleCloudStorageOperationsStats stats;
+    private final GoogleCloudStorageOperationsStats tracker;
     private final int bufferSize;
     private final BigArrays bigArrays;
     private final BackoffPolicy casBackoffPolicy;
@@ -123,20 +127,22 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         GoogleCloudStorageService storageService,
         BigArrays bigArrays,
         int bufferSize,
-        BackoffPolicy casBackoffPolicy
+        BackoffPolicy casBackoffPolicy,
+        RepositoryMetadata metadata,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         this.bucketName = bucketName;
         this.clientName = clientName;
         this.repositoryName = repositoryName;
         this.storageService = storageService;
         this.bigArrays = bigArrays;
-        this.stats = new GoogleCloudStorageOperationsStats(bucketName, storageService.isStateless());
+        this.tracker = new GoogleCloudStorageOperationsStats(bucketName, metadata, repositoriesMetrics);
         this.bufferSize = bufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
     }
 
     private Storage client(OperationPurpose purpose) throws IOException {
-        return storageService.client(clientName, repositoryName, purpose, stats);
+        return storageService.client(clientName, repositoryName, purpose, tracker);
     }
 
     @Override
@@ -147,6 +153,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     @Override
     public void close() {
         storageService.closeRepositoryClients(repositoryName);
+    }
+
+    GoogleCloudStorageOperationsStats tracker() {
+        return tracker;
     }
 
     /**
@@ -266,7 +276,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param bytes       content of the blob to be written
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+    void writeFullBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         if (bytes.length() > getLargeBlobThresholdInBytes()) {
             // Compute md5 here so #writeBlobResumable forces the integrity check on the resumable upload.
             // This is needed since we rely on atomic write behavior when writing BytesReferences in BlobStoreRepository which is not
@@ -284,7 +294,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             if (bytes.hasArray()) {
                 writeBlobMultipart(purpose, blobInfo, bytes.array(), bytes.arrayOffset(), bytes.length(), failIfAlreadyExists);
             } else {
-                writeBlob(purpose, bytes.streamInput(), bytes.length(), failIfAlreadyExists, blobInfo);
+                writeStreamBlobWithInfo(purpose, bytes.streamInput(), bytes.length(), failIfAlreadyExists, blobInfo);
             }
         }
     }
@@ -296,13 +306,18 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      * @param blobSize    expected size of the blob to be written
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
-    void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
+    void writeStreamBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
-        writeBlob(purpose, inputStream, blobSize, failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
+        writeStreamBlobWithInfo(purpose, inputStream, blobSize, failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
     }
 
-    private void writeBlob(OperationPurpose purpose, InputStream inputStream, long blobSize, boolean failIfAlreadyExists, BlobInfo blobInfo)
-        throws IOException {
+    private void writeStreamBlobWithInfo(
+        OperationPurpose purpose,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        BlobInfo blobInfo
+    ) throws IOException {
         if (blobSize > getLargeBlobThresholdInBytes()) {
             writeBlobResumable(purpose, blobInfo, inputStream, blobSize, failIfAlreadyExists);
         } else {
@@ -325,7 +340,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         Storage.BlobWriteOption.md5Match() };
     private static final Storage.BlobWriteOption[] OVERWRITE_CHECK_MD5 = { Storage.BlobWriteOption.md5Match() };
 
-    void writeBlob(
+    void writeMetadata(
         OperationPurpose purpose,
         String blobName,
         boolean failIfAlreadyExists,
@@ -335,7 +350,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_MD5 : OVERWRITE_NO_MD5;
 
         StorageException storageException = null;
-
         for (int retry = 0; retry < 3; ++retry) {
             // we start out by buffering the write to a buffer, if it exceeds the large blob threshold we start a resumable upload, flush
             // the buffer to it and keep writing to the resumable upload. If we never exceed the large blob threshold we just write the
@@ -397,9 +411,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 final WritableByteChannel writeChannel = channelRef.get();
                 if (writeChannel != null) {
                     SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                    stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
                 } else {
-                    writeBlob(purpose, blobName, buffer.bytes(), failIfAlreadyExists);
+                    writeFullBlob(purpose, blobName, buffer.bytes(), failIfAlreadyExists);
                 }
                 return;
             } catch (final StorageException se) {
@@ -463,11 +476,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  */
                 org.elasticsearch.core.Streams.copy(inputStream, Channels.newOutputStream(new WritableBlobChannel(writeChannel)), buffer);
                 SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                // We don't track this operation on the http layer as
-                // we do with the GET/LIST operations since this operations
-                // can trigger multiple underlying http requests but only one
-                // operation is billed.
-                stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
+
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
@@ -519,7 +528,6 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // we do with the GET/LIST operations since this operations
             // can trigger multiple underlying http requests but only one
             // operation is billed.
-            stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
@@ -638,7 +646,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public Map<String, BlobStoreActionStats> stats() {
-        return stats.tracker().toMap();
+        return tracker.toMap();
     }
 
     private static final class WritableBlobChannel implements WritableByteChannel {
@@ -740,6 +748,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         BaseServiceException finalException = null;
         while (true) {
             try {
+                tracker.inc(purpose, INSERT_OBJECT, OPERATION);
                 SocketAccess.doPrivilegedVoidIOException(
                     () -> client(purpose).create(
                         blobInfo,
@@ -749,9 +758,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                         Storage.BlobTargetOption.generationMatch()
                     )
                 );
-                stats.tracker().trackOperation(purpose, Operation.INSERT_OBJECT);
                 return OptionalBytesReference.of(expected);
             } catch (Exception e) {
+                tracker.inc(purpose, INSERT_OBJECT, OPERATION_EXCEPTION);
                 final var serviceException = unwrapServiceException(e);
                 if (serviceException == null) {
                     throw e;

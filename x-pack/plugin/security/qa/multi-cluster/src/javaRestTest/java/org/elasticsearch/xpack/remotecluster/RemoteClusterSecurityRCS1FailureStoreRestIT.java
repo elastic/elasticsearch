@@ -151,8 +151,12 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                 assertThat(
                     exception.getMessage(),
                     containsString(
-                        "action [indices:admin/search/search_shards] is unauthorized for user [remote_search_user] "
-                            + "with effective roles [remote_search] on indices ["
+                        "action [indices:admin/search/search_shards] is unauthorized for user ["
+                            + FAILURE_STORE_ACCESS
+                            + "] "
+                            + "with effective roles ["
+                            + FAILURE_STORE_ACCESS
+                            + "] on indices ["
                             + backingFailureIndexName
                             + "], this action is granted by the index privileges [view_index_metadata,manage,read_cross_cluster,all]"
                     )

@@ -122,7 +122,8 @@ public enum ElementType {
      * Read element type from an input stream
      */
     static ElementType readFrom(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_BLOCK_TYPE_CODE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_BLOCK_TYPE_CODE)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SERIALIZE_BLOCK_TYPE_CODE_8_19)) {
             byte b = in.readByte();
             return values()[b];
         } else {
@@ -136,7 +137,8 @@ public enum ElementType {
     }
 
     void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_BLOCK_TYPE_CODE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SERIALIZE_BLOCK_TYPE_CODE)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_SERIALIZE_BLOCK_TYPE_CODE_8_19)) {
             out.writeByte(writableCode);
         } else {
             out.writeString(legacyWritableName);

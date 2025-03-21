@@ -130,7 +130,7 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         @Param(
             name = "query",
             type = { "keyword", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
-            description = "Value to find in the provided field."
+            description = "Value to find in the provided fields."
         ) Expression query,
         List<Expression> fields,
         @MapParam(

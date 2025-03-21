@@ -137,8 +137,8 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
     }
 
     public static AttributeSet computeReferences(List<Alias> fields) {
-        AttributeSet generated = new AttributeSet(asAttributes(fields));
-        return Expressions.references(fields).subtract(generated);
+        AttributeSet rerankFields = new AttributeSet(asAttributes(fields));
+        return Expressions.references(fields).subtract(rerankFields);
     }
 
     @Override
@@ -185,6 +185,6 @@ public class Rerank extends InferencePlan implements SortAgnostic, SurrogateLogi
     }
 
     public static boolean planHasAttribute(QueryPlan<?> plan, Attribute attribute) {
-        return plan.output().stream().anyMatch(attr -> attr.equals(attribute));
+        return plan.outputSet().stream().anyMatch(attr -> attr.equals(attribute));
     }
 }

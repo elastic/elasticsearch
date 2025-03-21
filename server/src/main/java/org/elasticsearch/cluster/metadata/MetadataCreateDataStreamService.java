@@ -478,26 +478,26 @@ public class MetadataCreateDataStreamService {
     }
 
     private static DataStreamOptions resolveDataStreamOptions(
-        Metadata project,
+        Metadata metadata,
         SystemDataStreamDescriptor systemDataStreamDescriptor,
         ComposableIndexTemplate template,
         boolean isSystem
     ) {
         DataStreamOptions.Builder builder = isSystem
             ? MetadataIndexTemplateService.resolveDataStreamOptions(template, systemDataStreamDescriptor.getComponentTemplates())
-            : MetadataIndexTemplateService.resolveDataStreamOptions(template, project.componentTemplates());
+            : MetadataIndexTemplateService.resolveDataStreamOptions(template, metadata.componentTemplates());
         return builder == null ? null : builder.build();
     }
 
     private static DataStreamLifecycle resolveDataStreamLifecycle(
-        Metadata project,
+        Metadata metadata,
         SystemDataStreamDescriptor systemDataStreamDescriptor,
         ComposableIndexTemplate template,
         boolean isSystem
     ) {
         DataStreamLifecycle.Builder builder = isSystem
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
-            : MetadataIndexTemplateService.resolveLifecycle(template, project.componentTemplates());
+            : MetadataIndexTemplateService.resolveLifecycle(template, metadata.componentTemplates());
         return builder == null ? null : builder.build();
     }
 }

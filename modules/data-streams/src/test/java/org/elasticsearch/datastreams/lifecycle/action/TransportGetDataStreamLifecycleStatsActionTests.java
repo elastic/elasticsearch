@@ -52,7 +52,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
         mock(ThreadPool.class),
         mock(ActionFilters.class),
         dataStreamLifecycleService,
-        TestProjectResolvers.singleProjectOnly()
+        TestProjectResolvers.alwaysThrow()
     );
     private Long lastRunDuration;
     private Long timeBetweenStarts;

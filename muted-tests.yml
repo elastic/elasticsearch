@@ -393,9 +393,6 @@ tests:
 - class: org.elasticsearch.reservedstate.service.ReservedClusterStateServiceTests
   method: testProcessMultipleChunks
   issue: https://github.com/elastic/elasticsearch/issues/125305
-- class: org.elasticsearch.index.mapper.NativeArrayIntegrationTestCase
-  method: testSynthesizeArrayRandomIgnoresMalformed
-  issue: https://github.com/elastic/elasticsearch/issues/125319
 
 # Examples:
 #

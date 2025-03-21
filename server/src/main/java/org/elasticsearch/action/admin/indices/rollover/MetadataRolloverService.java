@@ -152,7 +152,7 @@ public class MetadataRolloverService {
         @Nullable AutoShardingResult autoShardingResult,
         boolean isFailureStoreRollover
     ) throws Exception {
-        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
+        validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> rolloverAlias(
@@ -194,7 +194,7 @@ public class MetadataRolloverService {
         CreateIndexRequest createIndexRequest,
         boolean isFailureStoreRollover
     ) {
-        validate(project, rolloverTarget, newIndexName, createIndexRequest, isFailureStoreRollover);
+        validate(project, rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = project.getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(project, indexAbstraction, newIndexName);
@@ -660,8 +660,7 @@ public class MetadataRolloverService {
         ProjectMetadata project,
         String rolloverTarget,
         String newIndexName,
-        CreateIndexRequest request,
-        boolean isFailureStoreRollover
+        CreateIndexRequest request
     ) {
         final IndexAbstraction indexAbstraction = project.getIndicesLookup().get(rolloverTarget);
         if (indexAbstraction == null) {

@@ -237,7 +237,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
 
-        private long estimatedMemoryUsageInBytes = 0;
+        private long noInferenceRequestMemoryUsageInBytes = 0;  // Memory used by requests that update source but don't perform inference
+        private long estimatedInferenceRequestMemoryUsageInBytes = 0;  // Estimated memory used by requests that perform inference
         private long actualMemoryUsageInBytes = 0;
 
         private AsyncBulkShardInferenceAction(
@@ -275,10 +276,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             for (BulkItemRequest item : bulkShardRequest.items()) {
+                boolean isUpdateRequest = false;
                 final IndexRequest indexRequest;
                 if (item.request() instanceof IndexRequest ir) {
                     indexRequest = ir;
                 } else if (item.request() instanceof UpdateRequest updateRequest) {
+                    isUpdateRequest = true;
                     indexRequest = updateRequest.doc();
                 } else {
                     // Ignore delete requests
@@ -288,6 +291,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 // TODO: Don't know how to avoid getting the doc map here, we need it to determine if the doc has any inference fields in it
                 // and if so, what they are
                 long estimatedEmbeddingBytes = 0;
+                boolean noInferenceSourceUpdate = false;
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
                 for (InferenceFieldMetadata inferenceFieldMetadata : fieldInferenceMap.values()) {
                     String inferenceId = inferenceFieldMetadata.getInferenceId();
@@ -301,11 +305,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
 
                     for (String sourceField : inferenceFieldMetadata.getSourceFields()) {
-                        // TODO: Improve this check. Still need to generate a second copy of source when clearing inference results in an
-                        // update request.
-                        // Need to track source size for such cases separately, since inference will not be run and therefore the actual
-                        // memory usage calculation will not pick up on the empty chunks.
-                        var valueObj = XContentMapValues.extractValue(sourceField, docMap);
+                        var valueObj = XContentMapValues.extractValue(sourceField, docMap, EXPLICIT_NULL);
+                        if (useLegacyFormat == false && isUpdateRequest && valueObj == EXPLICIT_NULL) {
+                            // This is an update request that will clear inference results, which means that a copy of the request source
+                            // will be generated
+                            noInferenceSourceUpdate = true;
+                        }
                         if (valueObj == null) {
                             continue;
                         }
@@ -319,40 +324,51 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
 
                         for (String v : values) {
-                            // TODO: Estimate chunk count based on string length
-                            // TODO: Handle empty input here. No embeddings will be generated for such input.
-                            // Need to track source size for such cases separately, since inference will not be run and therefore the actual
-                            // memory usage calculation will not pick up on the empty chunks.
-                            estimatedEmbeddingBytes += switch (minimalServiceSettings.taskType()) {
-                                case SPARSE_EMBEDDING -> 128; // TODO: Estimate sparse embedding size
-                                case TEXT_EMBEDDING -> minimalServiceSettings.elementType()
-                                    .getNumBytes(minimalServiceSettings.dimensions());
-                                default -> throw new IllegalStateException(
-                                    "Inference ID ["
-                                        + inferenceId
-                                        + "] uses unsupported task type ["
-                                        + minimalServiceSettings.taskType()
-                                        + "]"
-                                );
-                            };
+                            if (v.isBlank()) {
+                                // We update source to insert an empty chunk list on blank input
+                                noInferenceSourceUpdate = true;
+                            } else {
+                                // TODO: Estimate chunk count based on string length
+                                estimatedEmbeddingBytes += switch (minimalServiceSettings.taskType()) {
+                                    case SPARSE_EMBEDDING -> 128; // TODO: Estimate sparse embedding size
+                                    case TEXT_EMBEDDING -> minimalServiceSettings.elementType()
+                                        .getNumBytes(minimalServiceSettings.dimensions());
+                                    default -> throw new IllegalStateException(
+                                        "Inference ID ["
+                                            + inferenceId
+                                            + "] uses unsupported task type ["
+                                            + minimalServiceSettings.taskType()
+                                            + "]"
+                                    );
+                                };
+                            }
                         }
                     }
                 }
 
+                // TODO: Verify that ramBytesUsed is what to use here
+                long estimatedMemoryUsage = 0;
                 if (estimatedEmbeddingBytes > 0) {
-                    // TODO: Verify that ramBytesUsed is what to use here
-                    estimatedMemoryUsageInBytes += estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
+                    estimatedMemoryUsage = estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
+                    estimatedInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
+                } else if (noInferenceSourceUpdate) {
+                    estimatedMemoryUsage = indexRequest.source().ramBytesUsed();
+                    noInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
+                }
 
+                if (estimatedMemoryUsage > 0) {
                     try {
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedMemoryUsageInBytes, indexRequest.id());
+                        circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedMemoryUsage, indexRequest.id());
                     } catch (CircuitBreakingException e) {
-                        circuitBreaker.addWithoutBreaking(-estimatedMemoryUsageInBytes);
+                        circuitBreaker.addWithoutBreaking(
+                            -(estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes)
+                        );
                         throw e;
                     }
-
-                    actualMemoryUsageInBytes = estimatedMemoryUsageInBytes;
                 }
             }
+
+            actualMemoryUsageInBytes = estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes;
         }
 
         private void executeNext(int itemOffset) {
@@ -779,11 +795,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 // This doesn't count the bytes used for the inference metadata field structure (in the new format) or the field structure
                 // around the embeddings (in the legacy format), but it's a close approximation.
                 long bytesUsed = chunkBytes + indexRequest.source().ramBytesUsed();
-                if (bytesUsed <= estimatedMemoryUsageInBytes) {
-                    estimatedMemoryUsageInBytes -= bytesUsed;
+                if (bytesUsed <= estimatedInferenceRequestMemoryUsageInBytes) {
+                    estimatedInferenceRequestMemoryUsageInBytes -= bytesUsed;
                 } else {
-                    long bytesOverEstimate = bytesUsed - estimatedMemoryUsageInBytes;
-                    estimatedMemoryUsageInBytes = 0;
+                    long bytesOverEstimate = bytesUsed - estimatedInferenceRequestMemoryUsageInBytes;
+                    estimatedInferenceRequestMemoryUsageInBytes = 0;
                     actualMemoryUsageInBytes += bytesOverEstimate;
 
                     circuitBreaker.addEstimateBytesAndMaybeBreak(bytesOverEstimate, indexRequest.id());

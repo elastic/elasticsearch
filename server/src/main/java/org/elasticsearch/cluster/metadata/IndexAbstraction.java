@@ -101,6 +101,13 @@ public interface IndexAbstraction {
     }
 
     /**
+     * @return whether this index abstraction is a failure index of a data stream
+     */
+    default boolean isFailureIndexOfDataStream() {
+        return false;
+    }
+
+    /**
      * An index abstraction type.
      */
     enum Type {
@@ -181,6 +188,11 @@ public interface IndexAbstraction {
         @Override
         public DataStream getParentDataStream() {
             return dataStream;
+        }
+
+        @Override
+        public boolean isFailureIndexOfDataStream() {
+            return getParentDataStream() != null && getParentDataStream().isFailureStoreIndex(getName());
         }
 
         @Override

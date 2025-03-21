@@ -1303,11 +1303,11 @@ public class TransportService extends AbstractLifecycleComponent
 
     /** called by the {@link Transport} implementation once a response was sent to calling node */
     @Override
-    public void onResponseSent(long requestId, String action, TransportResponse response) {
+    public void onResponseSent(long requestId, String action) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
             tracerLog.trace("[{}][{}] sent response", requestId, action);
         }
-        messageListener.onResponseSent(requestId, action, response);
+        messageListener.onResponseSent(requestId, action);
     }
 
     /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
@@ -1555,7 +1555,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void sendResponse(TransportResponse response) {
-            service.onResponseSent(requestId, action, response);
+            service.onResponseSent(requestId, action);
             try (var shutdownBlock = service.pendingDirectHandlers.withRef()) {
                 if (shutdownBlock == null) {
                     // already shutting down, the handler will be completed by sendRequestInternal or doStop
@@ -1679,9 +1679,9 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public void onResponseSent(long requestId, String action, TransportResponse response) {
+        public void onResponseSent(long requestId, String action) {
             for (TransportMessageListener listener : listeners) {
-                listener.onResponseSent(requestId, action, response);
+                listener.onResponseSent(requestId, action);
             }
         }
 

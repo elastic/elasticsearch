@@ -47,8 +47,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.BiPredicate;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -322,7 +321,8 @@ class IndicesAndAliasesResolver {
                     );
                 }
                 if (indicesOptions.expandWildcardExpressions()) {
-                    for (String authorizedIndex : authorizedIndices.all().get()) {
+                    IndexComponentSelector selector = IndexComponentSelector.getByKeyOrThrow(allIndicesPatternSelector);
+                    for (String authorizedIndex : authorizedIndices.all(selector)) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
                             allIndicesPatternSelector,
@@ -351,7 +351,7 @@ class IndicesAndAliasesResolver {
                     split.getLocal(),
                     indicesOptions,
                     metadata,
-                    authorizedIndices.all(),
+                    authorizedIndices::all,
                     authorizedIndices::check,
                     indicesRequest.includeDataStreams()
                 );
@@ -388,7 +388,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(
                     aliasesRequest.aliases(),
-                    loadAuthorizedAliases(authorizedIndices.all(), metadata)
+                    loadAuthorizedAliases(authorizedIndices, metadata)
                 );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
@@ -430,8 +430,13 @@ class IndicesAndAliasesResolver {
      * request's concrete index is not in the list of authorized indices, then we need to look to
      * see if this can be authorized against an alias
      */
-    static String getPutMappingIndexOrAlias(PutMappingRequest request, Predicate<String> isAuthorized, Metadata metadata) {
+    static String getPutMappingIndexOrAlias(
+        PutMappingRequest request,
+        BiPredicate<String, IndexComponentSelector> isAuthorized,
+        Metadata metadata
+    ) {
         final String concreteIndexName = request.getConcreteIndex().getName();
+        assert IndexNameExpressionResolver.hasSelectorSuffix(concreteIndexName) == false : "selectors are not allowed in this context";
 
         // validate that the concrete index exists, otherwise there is no remapping that we could do
         final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(concreteIndexName);
@@ -446,7 +451,8 @@ class IndicesAndAliasesResolver {
                     + indexAbstraction.getType().getDisplayName()
                     + "], but a concrete index is expected"
             );
-        } else if (isAuthorized.test(concreteIndexName)) {
+            // we know this is implicit data access (as opposed to another selector) so the default selector check is correct
+        } else if (isAuthorized.test(concreteIndexName, IndexComponentSelector.DATA)) {
             // user is authorized to put mappings for this index
             resolvedAliasOrIndex = concreteIndexName;
         } else {
@@ -455,7 +461,12 @@ class IndicesAndAliasesResolver {
             Map<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[] { concreteIndexName });
             List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
             if (aliasMetadata != null) {
-                Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(isAuthorized).filter(aliasName -> {
+                Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(aliasName -> {
+                    // we know this is implicit data access (as opposed to another selector) so the default selector check is correct
+                    assert IndexNameExpressionResolver.hasSelectorSuffix(aliasName) == false : "selectors are not allowed in this context";
+                    if (false == isAuthorized.test(aliasName, IndexComponentSelector.DATA)) {
+                        return false;
+                    }
                     IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
                     List<Index> indices = alias.getIndices();
                     if (indices.size() == 1) {
@@ -475,10 +486,10 @@ class IndicesAndAliasesResolver {
         return resolvedAliasOrIndex;
     }
 
-    private static List<String> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, Metadata metadata) {
+    private static List<String> loadAuthorizedAliases(AuthorizationEngine.AuthorizedIndices authorizedIndices, Metadata metadata) {
         List<String> authorizedAliases = new ArrayList<>();
         SortedMap<String, IndexAbstraction> existingAliases = metadata.getIndicesLookup();
-        for (String authorizedIndex : authorizedIndices.get()) {
+        for (String authorizedIndex : authorizedIndices.all(IndexComponentSelector.DATA)) {
             IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                 authorizedAliases.add(authorizedIndex);
@@ -497,6 +508,7 @@ class IndicesAndAliasesResolver {
         }
 
         for (String aliasExpression : aliases) {
+            IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(aliasExpression);
             boolean include = true;
             if (aliasExpression.charAt(0) == '-') {
                 include = false;

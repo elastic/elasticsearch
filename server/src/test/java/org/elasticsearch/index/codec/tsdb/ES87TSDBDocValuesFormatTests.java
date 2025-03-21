@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -23,6 +22,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -256,7 +256,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
 
-        IndexWriterConfig config = new IndexWriterConfig();
+        var config = new IndexWriterConfig();
         config.setIndexSort(
             new Sort(
                 new SortField(hostnameField, SortField.Type.STRING, false),
@@ -264,41 +264,49 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             )
         );
         config.setCodec(getCodec());
-        try (Directory dir = newDirectory(); IndexWriter iw = new IndexWriter(dir, config)) {
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             long counter1 = 0;
             long counter2 = 10_000_000;
             long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
             long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
-            int numHosts = 1000;
+            int numHosts = 10;
 
             int numDocs = 256 + random().nextInt(1024);
             for (int i = 0; i < numDocs; i++) {
-                Document d = new Document();
+                var d = new Document();
 
-                final int batchIndex = i / numHosts;
-                final String hostName = "host-" + batchIndex;
-                final long timestamp = baseTimestamp + (1000L * i);
+                int batchIndex = i / numHosts;
+                String hostName = String.format("host-%03d", batchIndex);
+                long timestamp = baseTimestamp + (1000L * i);
 
                 d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
-                d.add(new NumericDocValuesField(timestampField, timestamp));
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
                 d.add(new SortedNumericDocValuesField("counter_1", counter1++));
                 d.add(new SortedNumericDocValuesField("counter_2", counter2++));
                 d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
                 d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[i % gauge1Values.length]));
 
                 iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
             }
+            iw.commit();
 
             iw.forceMerge(1);
 
-            try (DirectoryReader reader = DirectoryReader.open(iw)) {
+            try (var reader = DirectoryReader.open(iw)) {
                 assertEquals(1, reader.leaves().size());
                 assertEquals(numDocs, reader.maxDoc());
                 var leaf = reader.leaves().get(0).reader();
-                var numericDocValues = leaf.getNumericDocValues(timestampField);
+                var sortedDocValues = leaf.getSortedDocValues(hostnameField);
+                assertNotNull(sortedDocValues);
                 for (int i = 0; i < numDocs; i++) {
-                    assertEquals(i, numericDocValues.nextDoc());
-                    assertEquals(baseTimestamp + (1000L * i), numericDocValues.longValue());
+                    assertEquals(i, sortedDocValues.nextDoc());
+                    int batchIndex = i / numHosts;
+                    assertEquals(batchIndex, sortedDocValues.ordValue());
+                    String expectedHostName = String.format("host-%03d", batchIndex);
+                    assertEquals(expectedHostName, sortedDocValues.lookupOrd(sortedDocValues.ordValue()).utf8ToString());
                 }
             }
         }

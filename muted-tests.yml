@@ -372,8 +372,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/20_operator_privileges_disabled/Operator only settings can be set and restored by non-operator user when operator privileges is disabled}
   issue: https://github.com/elastic/elasticsearch/issues/120973
-- class: org.elasticsearch.packaging.test.DockerTests
-  issue: https://github.com/elastic/elasticsearch/issues/120978
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/120902

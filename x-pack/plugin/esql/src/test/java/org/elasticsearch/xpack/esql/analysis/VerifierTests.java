@@ -1005,6 +1005,17 @@ public class VerifierTests extends ESTestCase {
             line 1:23: Unknown column [avg]""", error("from test | stats c = avg by missing + 1, not_found"));
     }
 
+    public void testMultipleAggsOutsideStats() {
+        assertEquals(
+            """
+                1:71: aggregate function [avg(salary)] not allowed outside STATS command
+                line 1:96: aggregate function [median(emp_no)] not allowed outside STATS command
+                line 1:22: aggregate function [sum(salary)] not allowed outside STATS command
+                line 1:39: aggregate function [avg(languages)] not allowed outside STATS command""",
+            error("from test | eval s = sum(salary), l = avg(languages) | where salary > avg(salary) and emp_no > median(emp_no)")
+        );
+    }
+
     public void testSpatialSort() {
         String prefix = "ROW wkt = [\"POINT(42.9711 -14.7553)\", \"POINT(75.8093 22.7277)\"] | MV_EXPAND wkt ";
         assertEquals("1:130: cannot sort on geo_point", error(prefix + "| EVAL shape = TO_GEOPOINT(wkt) | limit 5 | sort shape"));
@@ -2032,10 +2043,53 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testSortByAggregate() {
-        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT count(*)"));
-        assertEquals("1:28: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT to_string(count(*))"));
-        assertEquals("1:22: Aggregate functions are not allowed in SORT [MAX]", error("ROW a = 1 | SORT 1 + max(a)"));
-        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("FROM test | SORT count(*)"));
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | SORT count(*)"));
+        assertEquals(
+            "1:28: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | SORT to_string(count(*))")
+        );
+        assertEquals("1:22: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | SORT 1 + max(a)"));
+        assertEquals("1:18: aggregate function [count(*)] not allowed outside STATS command", error("FROM test | SORT count(*)"));
+    }
+
+    public void testFilterByAggregate() {
+        assertEquals("1:19: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 | WHERE count(*) > 0"));
+        assertEquals(
+            "1:29: aggregate function [count(*)] not allowed outside STATS command",
+            error("ROW a = 1 | WHERE to_string(count(*)) IS NOT NULL")
+        );
+        assertEquals("1:23: aggregate function [max(a)] not allowed outside STATS command", error("ROW a = 1 | WHERE 1 + max(a) > 0"));
+        assertEquals(
+            "1:24: aggregate function [min(languages)] not allowed outside STATS command",
+            error("FROM employees | WHERE min(languages) > 2")
+        );
+    }
+
+    public void testDissectByAggregate() {
+        assertEquals(
+            "1:21: aggregate function [min(first_name)] not allowed outside STATS command",
+            error("from test | dissect min(first_name) \"%{foo}\"")
+        );
+        assertEquals(
+            "1:21: aggregate function [avg(salary)] not allowed outside STATS command",
+            error("from test | dissect avg(salary) \"%{foo}\"")
+        );
+    }
+
+    public void testGrokByAggregate() {
+        assertEquals(
+            "1:18: aggregate function [max(last_name)] not allowed outside STATS command",
+            error("from test | grok max(last_name) \"%{WORD:foo}\"")
+        );
+        assertEquals(
+            "1:18: aggregate function [sum(salary)] not allowed outside STATS command",
+            error("from test | grok sum(salary) \"%{WORD:foo}\"")
+        );
+    }
+
+    public void testAggregateInRow() {
+        assertEquals("1:13: aggregate function [count(*)] not allowed outside STATS command", error("ROW a = 1 + count(*)"));
+        assertEquals("1:9: aggregate function [avg(2)] not allowed outside STATS command", error("ROW a = avg(2)"));
     }
 
     public void testLookupJoinDataTypeMismatch() {

@@ -311,7 +311,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                 "application": {}
             }
             """);
-
         expectHasPrivileges("user", """
             {
                 "index": [
@@ -337,6 +336,72 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
                     "test2": {
                         "indices:admin/*": false,
                         "indices:data/write/*": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["indices:data/write/*"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "indices:data/write/*": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read_failure_store"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read_failure_store": true
                     }
                 },
                 "application": {}

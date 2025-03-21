@@ -68,7 +68,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             // When using the MockScriptPlugin we can map File scripts to inline scripts:
             // the name of the file script is used in test method while the source of the file script
             // must match a predefined script from CustomScriptPlugin.pluginScripts() method
-            Files.write(scripts.resolve("my-script.mockscript"), "['key3' : ctx.payload.key1 + ctx.payload.key2]".getBytes("UTF-8"));
+            Files.writeString(scripts.resolve("my-script.mockscript"), "['key3' : ctx.payload.key1 + ctx.payload.key2]");
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }

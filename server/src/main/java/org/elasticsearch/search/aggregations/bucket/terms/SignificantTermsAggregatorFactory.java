@@ -253,12 +253,14 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             bucketCountThresholds.getMinDocCount(),
             metadata
         );
-        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
-            @Override
-            public InternalAggregation buildEmptyAggregation() {
-                return aggregation;
-            }
-        };
+        return NonCollectingAggregator.withEmptyAggregation(
+            name,
+            context,
+            parent,
+            factories,
+            metadata,
+            new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), metadata)
+        );
     }
 
     @Override

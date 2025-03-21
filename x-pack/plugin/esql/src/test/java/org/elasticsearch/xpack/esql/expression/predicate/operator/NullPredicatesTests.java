@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToStringT
 import org.junit.AfterClass;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,7 +49,14 @@ public class NullPredicatesTests extends ESTestCase {
     }
 
     public static Map<List<DataType>, DataType> signatures() {
-        return AbstractFunctionTestCase.signatures(ToStringTests.class);
+        // TODO: Verify the correct datatypes for this
+        Map<List<DataType>, DataType> toString = AbstractFunctionTestCase.signatures(ToStringTests.class);
+        Map<List<DataType>, DataType> results = new LinkedHashMap<>();
+        for (var entry : toString.entrySet()) {
+            DataType dataType = entry.getKey().getFirst();
+            results.put(List.of(dataType), DataType.BOOLEAN);
+        }
+        return results;
     }
 
     /**

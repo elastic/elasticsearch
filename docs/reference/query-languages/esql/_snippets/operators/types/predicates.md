@@ -4,19 +4,19 @@
 
 | field | result |
 | --- | --- |
-| boolean | keyword |
-| cartesian_point | keyword |
-| cartesian_shape | keyword |
-| date | keyword |
-| date_nanos | keyword |
-| double | keyword |
-| geo_point | keyword |
-| geo_shape | keyword |
-| integer | keyword |
-| ip | keyword |
-| keyword | keyword |
-| long | keyword |
-| text | keyword |
-| unsigned_long | keyword |
-| version | keyword |
+| boolean | boolean |
+| cartesian_point | boolean |
+| cartesian_shape | boolean |
+| date | boolean |
+| date_nanos | boolean |
+| double | boolean |
+| geo_point | boolean |
+| geo_shape | boolean |
+| integer | boolean |
+| ip | boolean |
+| keyword | boolean |
+| long | boolean |
+| text | boolean |
+| unsigned_long | boolean |
+| version | boolean |
 

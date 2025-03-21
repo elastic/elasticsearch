@@ -2,9 +2,7 @@
 
 ## `VALUES` [esql-values]
 :::{warning}
-```
-PREVIEW 
-```
+###### PREVIEW 
 
 Do not use on production environments. This functionality is in technical preview and
 may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview

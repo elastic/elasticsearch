@@ -2,9 +2,7 @@
 
 ## `TO_UPPER` [esql-to_upper]
 :::{note}
-```
-COMING 9.1.0
-```
+###### COMING 9.1.0
 
 Support for multivalued parameters is only available from 9.1.0
 :::

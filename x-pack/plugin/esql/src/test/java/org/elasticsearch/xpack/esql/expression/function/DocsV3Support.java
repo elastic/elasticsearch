@@ -461,7 +461,14 @@ public abstract class DocsV3Support {
 
         private String makePreviewText(boolean preview, FunctionAppliesTo[] functionAppliesTos) {
             StringBuilder previewDescription = new StringBuilder();
-            String appliesToText = appliesToText(preview, functionAppliesTos, previewDescription, false);
+            for (FunctionAppliesTo appliesTo : functionAppliesTos) {
+                if (appliesTo.description().isEmpty() == false) {
+                    previewDescription.append(appliesTo.description()).append("\n");
+                }
+                preview = preview || appliesTo.lifeCycle() == FunctionAppliesToLifecycle.PREVIEW;
+            }
+            String appliesToTextWithAT = appliesToText(functionAppliesTos);
+            String appliesToText = appliesToTextWithoutAppliesTo(functionAppliesTos);
             StringBuilder previewText = new StringBuilder();
             if (preview) {
                 // We have a preview flag, use the WARNING callout
@@ -469,33 +476,37 @@ public abstract class DocsV3Support {
             } else if (previewDescription.isEmpty() == false) {
                 // We have extra descriptive text, nest inside a NOTE for emphasis
                 previewText.append(makeCallout("note", appliesToText + "\n" + previewDescription));
-            } else if (appliesToText.isEmpty() == false) {
+            } else if (appliesToTextWithAT.isEmpty() == false) {
                 // No additional text, just use the plan applies_to syntax
-                previewText.append(appliesToText);
+                previewText.append(appliesToTextWithAT);
             }
             return previewText.toString();
         }
 
-        private String appliesToText(
-            boolean preview,
-            FunctionAppliesTo[] functionAppliesTos,
-            StringBuilder previewDescription,
-            boolean useAppliesTo
-        ) {
+        private String appliesToText(FunctionAppliesTo[] functionAppliesTos) {
             StringBuilder appliesToText = new StringBuilder();
             if (functionAppliesTos.length > 0) {
-                appliesToText.append(useAppliesTo ? "```{applies_to}\n" : "```\n");
+                appliesToText.append("```{applies_to}\n");
                 for (FunctionAppliesTo appliesTo : functionAppliesTos) {
-                    if (useAppliesTo) {
-                        appliesToText.append("product: ");
-                    }
-                    appliesToText.append(appliesTo.lifeCycle().name()).append(" ").append(appliesTo.version()).append("\n");
-                    if (appliesTo.description().isEmpty() == false) {
-                        previewDescription.append(appliesTo.description()).append("\n");
-                    }
-                    preview = preview || appliesTo.lifeCycle() == FunctionAppliesToLifecycle.PREVIEW;
+                    appliesToText.append("product: ")
+                        .append(appliesTo.lifeCycle().name())
+                        .append(" ")
+                        .append(appliesTo.version())
+                        .append("\n");
                 }
                 appliesToText.append("```\n");
+            }
+            return appliesToText.toString();
+        }
+
+        private String appliesToTextWithoutAppliesTo(FunctionAppliesTo[] functionAppliesTos) {
+            StringBuilder appliesToText = new StringBuilder();
+            if (functionAppliesTos.length > 0) {
+                appliesToText.append("\n");
+                for (FunctionAppliesTo appliesTo : functionAppliesTos) {
+                    appliesToText.append("###### ");
+                    appliesToText.append(appliesTo.lifeCycle().name()).append(" ").append(appliesTo.version()).append("\n");
+                }
             }
             return appliesToText.toString();
         }

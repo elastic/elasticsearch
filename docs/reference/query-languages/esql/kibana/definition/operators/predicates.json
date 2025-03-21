@@ -15,7 +15,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -27,7 +27,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -39,7 +39,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -51,7 +51,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -63,7 +63,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -75,7 +75,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -87,7 +87,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -99,7 +99,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -111,7 +111,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -123,7 +123,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -135,7 +135,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -147,7 +147,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -159,7 +159,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -171,7 +171,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     },
     {
       "params" : [
@@ -183,7 +183,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "keyword"
+      "returnType" : "boolean"
     }
   ],
   "examples" : [

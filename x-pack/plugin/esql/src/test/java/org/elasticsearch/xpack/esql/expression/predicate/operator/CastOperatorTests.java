@@ -10,12 +10,10 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToStringTests;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -45,8 +43,8 @@ public class CastOperatorTests extends ESTestCase {
     }
 
     public static Map<List<DataType>, DataType> signatures() {
-        // TODO: Make this match reality (not urgent since this list is not yet used in the docs)
-        return AbstractFunctionTestCase.signatures(ToStringTests.class);
+        // The cast operator cannot produce sensible signatures unless we consider the type as an extra parameter
+        return Map.of();
     }
 
     /**

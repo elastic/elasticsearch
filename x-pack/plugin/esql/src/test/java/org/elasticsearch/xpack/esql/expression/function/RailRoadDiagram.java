@@ -57,19 +57,21 @@ public class RailRoadDiagram {
             expressions.add(new Repetition(new Literal("elseValue"), 0, 1));
         } else {
             boolean first = true;
-            List<String> args = EsqlFunctionRegistry.description(definition).argNames();
-            for (String arg : args) {
-                if (arg.endsWith("...")) {
-                    expressions.add(
-                        new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null)
-                    );
+            List<EsqlFunctionRegistry.ArgSignature> args = EsqlFunctionRegistry.description(definition).args();
+            for (EsqlFunctionRegistry.ArgSignature arg : args) {
+                String argName = arg.name();
+                if (arg.variadic) {
+                    if (argName.endsWith("...")) {
+                        argName = argName.substring(0, argName.length() - 3);
+                    }
+                    expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(argName)), arg.optional ? 0 : 1, null));
                 } else {
                     if (first) {
                         first = false;
                     } else {
                         expressions.add(new Syntax(","));
                     }
-                    expressions.add(new Literal(arg));
+                    expressions.add(new Literal(argName));
                 }
             }
         }

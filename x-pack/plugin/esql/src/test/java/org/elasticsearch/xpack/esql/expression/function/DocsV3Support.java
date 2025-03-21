@@ -406,6 +406,7 @@ public abstract class DocsV3Support {
                     "elseValue",
                     trueValue.type(),
                     "The value that’s returned when no condition evaluates to `true`.",
+                    true,
                     true
                 );
                 description = new EsqlFunctionRegistry.FunctionDescription(
@@ -662,7 +663,7 @@ public abstract class DocsV3Support {
                         args.add(mapParam(mapParamInfo));
                     } else {
                         Param paramInfo = params[i].getAnnotation(Param.class);
-                        args.add(paramInfo != null ? param(paramInfo) : paramWithoutAnnotation(params[i].getName()));
+                        args.add(paramInfo != null ? param(paramInfo, false) : paramWithoutAnnotation(params[i].getName()));
                     }
                 }
             }

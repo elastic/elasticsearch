@@ -237,16 +237,14 @@ public class RerankOperatorTests extends OperatorTestCase {
         doAnswer(factoryInvocation -> {
             DriverContext driverContext = factoryInvocation.getArgument(0, DriverContext.class);
             XContentRowEncoder rowEncoder = mock(XContentRowEncoder.class);
-            doAnswer(
-                encoderInvocation -> {
-                    Page inputPage = encoderInvocation.getArgument(0, Page.class);
-                    return driverContext.blockFactory().newConstantBytesRefBlockWith(new BytesRef(randomRealisticUnicodeOfCodepointLength(4)), inputPage.getPositionCount());
-                }
-            ).when(rowEncoder).eval(any(Page.class));
+            doAnswer(encoderInvocation -> {
+                Page inputPage = encoderInvocation.getArgument(0, Page.class);
+                return driverContext.blockFactory()
+                    .newConstantBytesRefBlockWith(new BytesRef(randomRealisticUnicodeOfCodepointLength(4)), inputPage.getPositionCount());
+            }).when(rowEncoder).eval(any(Page.class));
 
             return rowEncoder;
         }).when(factory).get(any(DriverContext.class));
-
 
         return factory;
     }

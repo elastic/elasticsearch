@@ -14,7 +14,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xcontent.ToXContent;
@@ -30,7 +29,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
 
 /**
  * Encodes rows into an XContent format (JSON,YAML,...) for further processing.
@@ -141,10 +139,7 @@ public class XContentRowEncoder implements ExpressionEvaluator {
         }
 
         private ExpressionEvaluator[] fieldsValueEvaluators(DriverContext context) {
-            return fieldsEvaluatorFactories.values()
-                .stream()
-                .map(factory -> factory.get(context))
-                .toArray(ExpressionEvaluator[]::new);
+            return fieldsEvaluatorFactories.values().stream().map(factory -> factory.get(context)).toArray(ExpressionEvaluator[]::new);
         }
     }
 }

@@ -1912,7 +1912,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IndexShardNotRecoveringException(shardId, state);
         }
         recoveryState.setStage(RecoveryState.Stage.INDEX);
-        assert this.currentEngine == null;
+        assert getEngineOrNull() == null;
     }
 
     /**
@@ -2329,7 +2329,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetRecoveryStage() {
         assert routingEntry().recoverySource().getType() == RecoverySource.Type.PEER : "not a peer recovery [" + routingEntry() + "]";
-        assert this.currentEngine == null;
+        assert getEngineOrNull() == null;
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }

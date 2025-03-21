@@ -5110,10 +5110,15 @@ public class IndexShardTests extends IndexShardTestCase {
             });
             holdEngineThread.start();
 
+            final var secondReaderExecuting = new CountDownLatch(1);
             final var closed = new CountDownLatch(1);
             final var closeEngineThread = new Thread(() -> {
                 try {
                     safeGet(hold);
+                    // Unfair ReentrantReadWriteLock would prioritize writers over readers to avoid starving writers,
+                    // hence we need to wait to close the engine until the second reader has acquired the read lock before
+                    // closing, otherwise the test would deadlock.
+                    safeAwait(secondReaderExecuting);
                     closeShardNoCheck(primary);
                     assertThat(primary.state(), equalTo(IndexShardState.CLOSED));
                     closed.countDown();
@@ -5127,6 +5132,7 @@ public class IndexShardTests extends IndexShardTestCase {
             assertSame(retainedInstance, primary.getEngineOrNull());
             assertThat(primary.state(), equalTo(IndexShardState.STARTED));
             primary.withEngineOrNull(engine -> {
+                secondReaderExecuting.countDown();
                 assertSame(retainedInstance, engine);
                 EngineTestCase.ensureOpen(engine);
                 return null;

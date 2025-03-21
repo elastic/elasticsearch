@@ -71,6 +71,20 @@ public class SemanticInferenceMetadataFieldsMapperTests extends MapperServiceTes
             )
             .build();
         assertTrue(InferenceMetadataFieldsMapper.isEnabled(settings));
+
+        // Test upgrades from 8.x
+        settings = Settings.builder()
+            .put(
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                IndexVersionUtils.getPreviousVersion(IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
+            )
+            .build();
+        assertFalse(InferenceMetadataFieldsMapper.isEnabled(settings));
+
+        settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT)
+            .build();
+        assertTrue(InferenceMetadataFieldsMapper.isEnabled(settings));
     }
 
     @Override

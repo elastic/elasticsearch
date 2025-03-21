@@ -54,7 +54,6 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -1591,7 +1590,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      *
      * @see SearchRequest#validate()
      */
-    @UpdateForV9
     private static void validateSearchSource(SearchSourceBuilder source, boolean hasScroll) {
         if (source.trackTotalHitsUpTo() != null && source.trackTotalHitsUpTo() != SearchContext.TRACK_TOTAL_HITS_ACCURATE && hasScroll) {
             throw new IllegalArgumentException("disabling [track_total_hits] is not allowed in a scroll context");

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
@@ -26,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-@UpdateForV9 // no need to round-trip these objects over the wire any more, we only need a checkEqualsAndHashCode test
 public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
 
     @Override

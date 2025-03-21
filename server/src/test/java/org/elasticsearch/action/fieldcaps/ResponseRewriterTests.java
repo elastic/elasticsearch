@@ -13,7 +13,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.Map;
 
 public class ResponseRewriterTests extends ESTestCase {
@@ -147,7 +146,7 @@ public class ResponseRewriterTests extends ESTestCase {
     }
 
     private static IndexFieldCapabilities fieldCaps(String name, String type, boolean isMetadata) {
-        return new IndexFieldCapabilities(name, type, isMetadata, true, true, false, null, Collections.emptyMap());
+        return new IndexFieldCapabilitiesBuilder(name, type).isMetadataField(isMetadata).build();
     }
 
 }

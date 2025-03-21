@@ -48,11 +48,13 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -86,6 +88,7 @@ public final class IndexPrivilege extends Privilege {
         ResolveIndexAction.NAME,
         TransportResolveClusterAction.NAME
     );
+    private static final Automaton READ_FAILURE_STORE_AUTOMATON = patterns("indices:data/read/*", ResolveIndexAction.NAME);
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns(
         "internal:transport/proxy/indices:data/read/*",
         TransportClusterSearchShardsAction.TYPE.name(),
@@ -183,12 +186,6 @@ public final class IndexPrivilege extends Privilege {
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
-    public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
-        "read_failure_store",
-        // TODO use READ_AUTOMATON here in authorization follow-up
-        Automatons.EMPTY,
-        IndexComponentSelectorPredicate.FAILURES
-    );
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
     public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
@@ -219,37 +216,70 @@ public final class IndexPrivilege extends Privilege {
         CROSS_CLUSTER_REPLICATION_INTERNAL_AUTOMATON
     );
 
+    public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
+        "read_failure_store",
+        READ_FAILURE_STORE_AUTOMATON,
+        IndexComponentSelectorPredicate.FAILURES
+    );
+    public static final IndexPrivilege MANAGE_FAILURE_STORE = new IndexPrivilege(
+        "manage_failure_store",
+        MANAGE_AUTOMATON,
+        IndexComponentSelectorPredicate.FAILURES
+    );
+
     /**
      * If you are adding a new named index privilege, also add it to the
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-indices">docs</a>.
      */
-    private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(
-        Stream.of(
-            entry("none", NONE),
-            entry("all", ALL),
-            entry("manage", MANAGE),
-            entry("create_index", CREATE_INDEX),
-            entry("monitor", MONITOR),
-            entry("read", READ),
-            entry("index", INDEX),
-            entry("delete", DELETE),
-            entry("write", WRITE),
-            entry("create", CREATE),
-            entry("create_doc", CREATE_DOC),
-            entry("delete_index", DELETE_INDEX),
-            entry("view_index_metadata", VIEW_METADATA),
-            entry("read_cross_cluster", READ_CROSS_CLUSTER),
-            entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
-            entry("manage_leader_index", MANAGE_LEADER_INDEX),
-            entry("manage_ilm", MANAGE_ILM),
-            entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE),
-            entry("maintenance", MAINTENANCE),
-            entry("auto_configure", AUTO_CONFIGURE),
-            entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
-            entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
-            DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null
-        ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+    private static final Map<String, IndexPrivilege> VALUES = combineSortedInOrder(
+        sortByAccessLevel(
+            Stream.of(
+                DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null,
+                DataStream.isFailureStoreFeatureFlagEnabled() ? entry("manage_failure_store", MANAGE_FAILURE_STORE) : null
+            ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+        ),
+        sortByAccessLevel(
+            Stream.of(
+                entry("none", NONE),
+                entry("all", ALL),
+                entry("manage", MANAGE),
+                entry("create_index", CREATE_INDEX),
+                entry("monitor", MONITOR),
+                entry("read", READ),
+                entry("index", INDEX),
+                entry("delete", DELETE),
+                entry("write", WRITE),
+                entry("create", CREATE),
+                entry("create_doc", CREATE_DOC),
+                entry("delete_index", DELETE_INDEX),
+                entry("view_index_metadata", VIEW_METADATA),
+                entry("read_cross_cluster", READ_CROSS_CLUSTER),
+                entry("manage_follow_index", MANAGE_FOLLOW_INDEX),
+                entry("manage_leader_index", MANAGE_LEADER_INDEX),
+                entry("manage_ilm", MANAGE_ILM),
+                entry("manage_data_stream_lifecycle", MANAGE_DATA_STREAM_LIFECYCLE),
+                entry("maintenance", MAINTENANCE),
+                entry("auto_configure", AUTO_CONFIGURE),
+                entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
+                entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL)
+            ).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
+        )
     );
+
+    private static Map<String, IndexPrivilege> combineSortedInOrder(
+        SortedMap<String, IndexPrivilege> first,
+        SortedMap<String, IndexPrivilege> second
+    ) {
+        if (first.isEmpty()) {
+            return second;
+        }
+        if (second.isEmpty()) {
+            return first;
+        }
+        final Map<String, IndexPrivilege> combined = new LinkedHashMap<>(first);
+        combined.putAll(second);
+        return Collections.unmodifiableMap(combined);
+    }
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();

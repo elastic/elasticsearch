@@ -286,11 +286,9 @@ public final class OutboundHandler {
 
         final int variableHeaderLength = Math.toIntExact(byteStreamOutput.position() - TcpHeader.HEADER_SIZE);
         BytesReference message = serializeMessageBody(writeable, compressionScheme, version, byteStreamOutput);
-        byte status;
-        if (requestAction != null) {
-            status = 0;
-        } else {
-            status = TransportStatus.setResponse((byte) 0);
+        byte status = 0;
+        if (requestAction == null) {
+            status = TransportStatus.setResponse(status);
         }
         if (isHandshake) {
             status = TransportStatus.setHandshake(status);

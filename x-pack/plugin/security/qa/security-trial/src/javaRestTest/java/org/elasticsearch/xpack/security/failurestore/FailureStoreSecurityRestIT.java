@@ -238,6 +238,24 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               ]
             }
             """, "role");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [
+                  {
+                    "names": ["*"],
+                    "privileges": ["read", "read_failure_store"]
+                  },
+                  {
+                    "names": ["test2"],
+                    "privileges": ["manage_failure_store", "write"]
+                  }
+                ]
+              }
+            }
+            """);
+
         expectHasPrivileges("user", """
             {
                 "index": [
@@ -344,6 +362,28 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
               ]
             }
             """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["*"],
+                      "privileges": ["indices:data/read/*"]
+                    },
+                    {
+                      "names": ["test*"],
+                      "privileges": ["read_failure_store"]
+                    },
+                    {
+                      "names": ["test2"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+            }
+            """);
         expectHasPrivileges("user", """
             {
                 "index": [
@@ -393,7 +433,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }
             """);
         // TODO restricted indices
-        // TODO API keys
     }
 
     public void testRoleWithSelectorInIndexPattern() throws Exception {
@@ -2007,7 +2046,7 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
     private void expectHasPrivileges(String user, String requestBody, String expectedResponse) throws IOException {
         Request req = new Request("POST", "/_security/user/_has_privileges");
         req.setJsonEntity(requestBody);
-        Response response = performRequest(user, req);
+        Response response = performRequestMaybeUsingApiKey(user, req);
         assertThat(responseAsMap(response), equalTo(mapFromJson(expectedResponse)));
     }
 }

@@ -728,6 +728,10 @@ public class ModelRegistry implements ClusterStateListener {
 
             @Override
             public void onFailure(Exception exc) {
+                logger.warn(
+                    format("Failed to add inference endpoint [%s] minimal service settings to cluster state", inferenceEntityId),
+                    exc
+                );
                 deleteModel(inferenceEntityId, ActionListener.running(() -> {
                     listener.onFailure(
                         new ElasticsearchStatusException(

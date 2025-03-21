@@ -144,11 +144,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
             // so allowing aggregate functions for dedup explicitly is just an internal implementation detail
             if ((p instanceof Aggregate) == false && (p instanceof Dedup) == false) {
                 p.expressions().forEach(x -> x.forEachDown(AggregateFunction.class, af -> {
-                    if (af instanceof Rate) {
-                        failures.add(fail(af, "aggregate function [{}] not allowed outside METRICS command", af.sourceText()));
-                    } else {
-                        failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
-                    }
+                    failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                 }));
             }
         };

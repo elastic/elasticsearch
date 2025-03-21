@@ -2399,7 +2399,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return ClusterState.builder(currentState)
             .metadata(
                 Metadata.builder(currentState.getMetadata())
-                    .putCustom(
+                    .putDefaultProjectCustom(
                         RepositoriesMetadata.TYPE,
                         RepositoriesMetadata.get(currentState)
                             .withUpdatedGeneration(repoMetadata.name(), repoData.getGenId(), repoData.getGenId())

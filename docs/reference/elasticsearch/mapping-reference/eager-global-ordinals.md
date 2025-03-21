@@ -64,7 +64,7 @@ Usually, global ordinals do not present a large overhead in terms of their loadi
 
 In some cases it is possible to avoid global ordinal loading altogether:
 
-* The `terms`, `sampler`, and `significant_terms` aggregations support a parameter [`execution_hint`](/reference/data-analysis/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-execution-hint) that helps control how buckets are collected. It defaults to `global_ordinals`, but can be set to `map` to instead use the term values directly.
+* The `terms`, `sampler`, and `significant_terms` aggregations support a parameter [`execution_hint`](/reference/aggregations/search-aggregations-bucket-terms-aggregation.md#search-aggregations-bucket-terms-aggregation-execution-hint) that helps control how buckets are collected. It defaults to `global_ordinals`, but can be set to `map` to instead use the term values directly.
 * If a shard has been [force-merged](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-forcemerge) down to a single segment, then its segment ordinals are already *global* to the shard. In this case, Elasticsearch does not need to build a global ordinal mapping and there is no additional overhead from using global ordinals. Note that for performance reasons you should only force-merge an index to which you will never write to again.
 
 

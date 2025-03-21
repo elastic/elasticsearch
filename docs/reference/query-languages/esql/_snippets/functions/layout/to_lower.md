@@ -2,8 +2,8 @@
 
 ## `TO_LOWER` [esql-to_lower]
 :::{note}
-```{applies_to}
-product: COMING 9.1.0
+```
+COMING 9.1.0
 ```
 
 Support for multivalued parameters is only available from 9.1.0

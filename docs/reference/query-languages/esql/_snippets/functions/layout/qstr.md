@@ -2,8 +2,8 @@
 
 ## `QSTR` [esql-qstr]
 :::{warning}
-```{applies_to}
-product: COMING 9.1.0
+```
+COMING 9.1.0
 ```
 
 Do not use on production environments. This functionality is in technical preview and

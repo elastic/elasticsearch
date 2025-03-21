@@ -2,8 +2,8 @@
 
 ## `VALUES` [esql-values]
 :::{warning}
-```{applies_to}
-product: PREVIEW 
+```
+PREVIEW 
 ```
 
 Do not use on production environments. This functionality is in technical preview and

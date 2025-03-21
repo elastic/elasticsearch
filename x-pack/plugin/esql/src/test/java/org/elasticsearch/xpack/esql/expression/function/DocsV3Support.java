@@ -460,23 +460,8 @@ public abstract class DocsV3Support {
         }
 
         private String makePreviewText(boolean preview, FunctionAppliesTo[] functionAppliesTos) {
-            StringBuilder appliesToText = new StringBuilder();
             StringBuilder previewDescription = new StringBuilder();
-            if (functionAppliesTos.length > 0) {
-                appliesToText.append("```{applies_to}\n");
-                for (FunctionAppliesTo appliesTo : functionAppliesTos) {
-                    appliesToText.append("product: ")
-                        .append(appliesTo.lifeCycle().name())
-                        .append(" ")
-                        .append(appliesTo.version())
-                        .append("\n");
-                    if (appliesTo.description().isEmpty() == false) {
-                        previewDescription.append(appliesTo.description()).append("\n");
-                    }
-                    preview = preview || appliesTo.lifeCycle() == FunctionAppliesToLifecycle.PREVIEW;
-                }
-                appliesToText.append("```\n");
-            }
+            String appliesToText = appliesToText(preview, functionAppliesTos, previewDescription, false);
             StringBuilder previewText = new StringBuilder();
             if (preview) {
                 // We have a preview flag, use the WARNING callout
@@ -489,6 +474,30 @@ public abstract class DocsV3Support {
                 previewText.append(appliesToText);
             }
             return previewText.toString();
+        }
+
+        private String appliesToText(
+            boolean preview,
+            FunctionAppliesTo[] functionAppliesTos,
+            StringBuilder previewDescription,
+            boolean useAppliesTo
+        ) {
+            StringBuilder appliesToText = new StringBuilder();
+            if (functionAppliesTos.length > 0) {
+                appliesToText.append(useAppliesTo ? "```{applies_to}\n" : "```\n");
+                for (FunctionAppliesTo appliesTo : functionAppliesTos) {
+                    if (useAppliesTo) {
+                        appliesToText.append("product: ");
+                    }
+                    appliesToText.append(appliesTo.lifeCycle().name()).append(" ").append(appliesTo.version()).append("\n");
+                    if (appliesTo.description().isEmpty() == false) {
+                        previewDescription.append(appliesTo.description()).append("\n");
+                    }
+                    preview = preview || appliesTo.lifeCycle() == FunctionAppliesToLifecycle.PREVIEW;
+                }
+                appliesToText.append("```\n");
+            }
+            return appliesToText.toString();
         }
 
         private void renderFullLayout(

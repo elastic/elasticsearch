@@ -57,7 +57,7 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
         suppliers.add(randomSecond());
 
         // arbitrary period of months and years
-        suppliers.addAll(ofDatePeriod(Period.ofMonths(10), ts, "2022-07-01T00:00:00.00Z"));
+        suppliers.addAll(ofDatePeriod(Period.ofMonths(7), ts, "2022-11-01T00:00:00.00Z"));
         suppliers.addAll(ofDatePeriod(Period.ofYears(5), ts, "2021-01-01T00:00:00.00Z"));
 
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);

@@ -321,52 +321,61 @@ public final class IndicesPermission {
             combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
             IndexComponentSelector.DATA
         );
-        Map<Automaton, Automaton> indexGroupAutomatonsForFailuresAccess = indexGroupAutomatons(
-            combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
-            IndexComponentSelector.FAILURES
-        );
+        // optimization: if there are no failures access privileges in the set of privileges to check, we can skip building the automaton
+        final boolean containsFailuresAccessPrivileges = containsFailuresAccessPrivileges(checkForPrivileges);
+        Map<Automaton, Automaton> indexGroupAutomatonsForFailuresAccess = false == containsFailuresAccessPrivileges
+            ? Map.of()
+            : indexGroupAutomatons(
+                combineIndexGroups && checkForIndexPatterns.stream().anyMatch(Automatons::isLuceneRegex),
+                IndexComponentSelector.FAILURES
+            );
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
                 checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedIndices.getAutomaton());
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
-                Automaton allowedIndexPrivilegesAutomatonForDataAccess = getIndexPrivilegesAutomaton(
+                Automaton allowedPrivilegesAutomatonForDataAccess = getIndexPrivilegesAutomaton(
                     indexGroupAutomatonsForDataAccess,
                     checkIndexAutomaton
                 );
-                Automaton allowedIndexPrivilegesAutomatonForFailuresAccess = getIndexPrivilegesAutomaton(
+                Automaton allowedPrivilegesAutomatonForFailuresAccess = getIndexPrivilegesAutomaton(
                     indexGroupAutomatonsForFailuresAccess,
                     checkIndexAutomaton
                 );
                 for (String privilege : checkForPrivileges) {
-                    IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
-                    boolean checkDataAccess = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.DATA);
-                    boolean checkFailuresAccess = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES);
+                    final IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
+                    final boolean checkDataAccess = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.DATA);
+                    final boolean checkFailuresAccess = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES);
                     assert checkDataAccess || checkFailuresAccess
                         : "index privilege must map to at least one of [data, failures] selectors";
-                    Automaton automatonToCheck = indexPrivilege.getAutomaton();
+                    assert containsFailuresAccessPrivileges
+                        || indexPrivilege.getSelectorPredicate() != IndexComponentSelectorPredicate.FAILURES
+                        : "no failures access privileges should be present in the set of privileges to check";
+                    final Automaton automatonToCheck = indexPrivilege.getAutomaton();
                     if (checkDataAccess
-                        && allowedIndexPrivilegesAutomatonForDataAccess != null
-                        && Automatons.subsetOf(automatonToCheck, allowedIndexPrivilegesAutomatonForDataAccess)) {
+                        && allowedPrivilegesAutomatonForDataAccess != null
+                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForDataAccess)) {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
                     } else if (checkFailuresAccess
-                        && allowedIndexPrivilegesAutomatonForFailuresAccess != null
-                        && Automatons.subsetOf(automatonToCheck, allowedIndexPrivilegesAutomatonForFailuresAccess)) {
+                        && allowedPrivilegesAutomatonForFailuresAccess != null
+                        && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForFailuresAccess)) {
                             if (resourcePrivilegesMapBuilder != null) {
                                 resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                             }
-                        } else {
-                            if (resourcePrivilegesMapBuilder != null) {
-                                resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
-                                allMatch = false;
-                            } else {
-                                // return early on first privilege not granted
-                                return false;
-                            }
                         }
+                    // comment to force correct else-block indent
+                    else {
+                        if (resourcePrivilegesMapBuilder != null) {
+                            resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.FALSE);
+                            allMatch = false;
+                        } else {
+                            // return early on first privilege not granted
+                            return false;
+                        }
+                    }
                 }
             } else {
                 // the index pattern produced the empty automaton, presumably because the requested pattern expands exclusively inside the
@@ -386,27 +395,6 @@ public final class IndicesPermission {
             }
         }
         return allMatch;
-    }
-
-    private static Automaton getIndexPrivilegesAutomaton(
-        Map<Automaton, Automaton> indexGroupAutomatonsForDataAccess,
-        Automaton checkIndexAutomaton
-    ) {
-        Automaton allowedIndexPrivilegesAutomatonForDataAccess = null;
-        for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatonsForDataAccess.entrySet()) {
-            Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
-            if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
-                Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
-                if (allowedIndexPrivilegesAutomatonForDataAccess != null) {
-                    allowedIndexPrivilegesAutomatonForDataAccess = Automatons.unionAndMinimize(
-                        Arrays.asList(allowedIndexPrivilegesAutomatonForDataAccess, privilegesAutomaton)
-                    );
-                } else {
-                    allowedIndexPrivilegesAutomatonForDataAccess = privilegesAutomaton;
-                }
-            }
-        }
-        return allowedIndexPrivilegesAutomatonForDataAccess;
     }
 
     public Automaton allowedActionsMatcher(String index) {
@@ -874,6 +862,34 @@ public final class IndicesPermission {
             }
         }
         return allAutomatons;
+    }
+
+    private static boolean containsFailuresAccessPrivileges(Set<String> checkForPrivileges) {
+        for (String privilege : checkForPrivileges) {
+            IndexPrivilege named = IndexPrivilege.getNamedOrNull(privilege);
+            if (named != null && named.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Automaton getIndexPrivilegesAutomaton(Map<Automaton, Automaton> indexGroupAutomatons, Automaton checkIndexAutomaton) {
+        Automaton allowedPrivilegesAutomaton = null;
+        for (Map.Entry<Automaton, Automaton> indexAndPrivilegeAutomaton : indexGroupAutomatons.entrySet()) {
+            Automaton indexNameAutomaton = indexAndPrivilegeAutomaton.getValue();
+            if (Automatons.subsetOf(checkIndexAutomaton, indexNameAutomaton)) {
+                Automaton privilegesAutomaton = indexAndPrivilegeAutomaton.getKey();
+                if (allowedPrivilegesAutomaton != null) {
+                    allowedPrivilegesAutomaton = Automatons.unionAndMinimize(
+                        Arrays.asList(allowedPrivilegesAutomaton, privilegesAutomaton)
+                    );
+                } else {
+                    allowedPrivilegesAutomaton = privilegesAutomaton;
+                }
+            }
+        }
+        return allowedPrivilegesAutomaton;
     }
 
     public static class Group {

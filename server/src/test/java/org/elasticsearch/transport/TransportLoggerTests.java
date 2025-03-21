@@ -71,11 +71,11 @@ public class TransportLoggerTests extends ESTestCase {
         Compression.Scheme compress = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
         try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
             return OutboundHandler.serialize(
+                OutboundHandler.MessageDirection.REQUEST,
                 "internal:test",
                 randomInt(30),
                 false,
                 TransportVersion.current(),
-                false,
                 compress,
                 new EmptyRequest(),
                 new ThreadContext(Settings.EMPTY),

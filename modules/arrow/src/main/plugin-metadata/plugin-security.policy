@@ -1,0 +1,24 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+// Arrow uses Unsafe to access memory and accesses a private field in java.nio.Buffer
+// See also additional global permissions below
+grant codebase "${codebase.arrow-memory-core}" {
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+};
+
+//// Everything else:
+grant {
+  // This should be covered by arrow-memory-core above, but field access to java.nio.Buffer.address
+  // from org.apache.arrow.memory.util.MemoryUtil isn't in a privileged section.
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};

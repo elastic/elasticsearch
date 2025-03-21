@@ -73,22 +73,10 @@ grant codeBase "${codebase.elasticsearch-simdvec}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-// Arrow uses Unsafe to access memory and accesses a private field in java.nio.Buffer
-// See also additional global permissions below
-grant codebase "${codebase.arrow-memory-core}" {
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
-};
 
 //// Everything else:
 
 grant {
-  // This should be covered by arrow-memory-core above, but field access to java.nio.Buffer.address
-  // from org.apache.arrow.memory.util.MemoryUtil isn't in a privileged section.
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
   // needed by vendored Guice
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";
 

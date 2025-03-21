@@ -2373,7 +2373,6 @@ public class IndexNameExpressionResolver {
                 }
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);
-                ensureNoCrossClusterExpressionWithFailuresSelector(expressionBase, selector, expression);
                 return bindFunction.apply(expressionBase, suffix);
             }
             // Otherwise accept the default
@@ -2406,29 +2405,6 @@ public class IndexNameExpressionResolver {
                     originalExpression,
                     "Invalid usage of :: separator, only one :: separator is allowed per expression"
                 );
-            }
-        }
-
-        /**
-         * Checks the expression for cross-cluster syntax and throws an exception if it is combined with ::failures selector.
-         * @throws IllegalArgumentException if cross-cluster syntax is detected after parsing the selector expression
-         */
-        private static void ensureNoCrossClusterExpressionWithFailuresSelector(
-            String expressionWithoutSelector,
-            IndexComponentSelector selector,
-            String originalExpression
-        ) {
-            if (selector == IndexComponentSelector.FAILURES) {
-                if (RemoteClusterAware.isRemoteIndexName(expressionWithoutSelector)) {
-                    throw new IllegalArgumentException(
-                        "Invalid usage of ["
-                            + SELECTOR_SEPARATOR
-                            + selector.getKey()
-                            + "] selector in ["
-                            + originalExpression
-                            + "], failures selector is not supported with cross-cluster expressions"
-                    );
-                }
             }
         }
     }

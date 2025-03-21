@@ -21,7 +21,6 @@ import static org.elasticsearch.action.support.IndexComponentSelector.DATA;
 import static org.elasticsearch.action.support.IndexComponentSelector.FAILURES;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.Context;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -88,21 +87,17 @@ public class SelectorResolverTests extends ESTestCase {
         // Suffix case is not supported because there is no component named with the empty string
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "index::"));
 
-        // remote cluster syntax is not allowed with ::failures selector
-        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster:index::failures");
-        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(noSelectors, "cluster:index::failures");
-        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster-*:index::failures");
-        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster-*:index-*::failures");
-        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster-*:*::failures");
-        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "*:index-*::failures");
-        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "*:*::failures");
-        // even with an empty index name
-        assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(selectorsAllowed, "cluster:::failures");
-    }
-
-    public void assertFailuresSelectorNotSupportedWithRemoteClusterExpressions(Context context, String expression) {
-        var e = expectThrows(IllegalArgumentException.class, () -> resolve(context, expression));
-        assertThat(e.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
+        assertThat(resolve(selectorsAllowed, "cluster:index::failures"), equalTo(new ResolvedExpression("cluster:index", FAILURES)));
+        expectThrows(IllegalArgumentException.class, () -> resolve(noSelectors, "cluster:index::failures"));
+        assertThat(resolve(selectorsAllowed, "cluster-*:index::failures"), equalTo(new ResolvedExpression("cluster-*:index", FAILURES)));
+        assertThat(
+            resolve(selectorsAllowed, "cluster-*:index-*::failures"),
+            equalTo(new ResolvedExpression("cluster-*:index-*", FAILURES))
+        );
+        assertThat(resolve(selectorsAllowed, "cluster-*:*::failures"), equalTo(new ResolvedExpression("cluster-*:*", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "*:index-*::failures"), equalTo(new ResolvedExpression("*:index-*", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "*:*::failures"), equalTo(new ResolvedExpression("*:*", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "cluster:::failures"), equalTo(new ResolvedExpression("cluster:", FAILURES)));
     }
 
     public void testResolveMatchAllToSelectors() {

@@ -95,11 +95,10 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                 : new String[] { backingDataIndexName };
             assertSearchResponseContainsIndices(performRequestWithUser(user, dataSearchRequest), expectedIndices);
         }
-        for (String user : users) {
+        for (String user : new String[] { FAILURE_STORE_ACCESS, ALL_ACCESS }) {
             // query remote cluster using ::failures selector should fail (regardless of the user's permissions)
-            final ResponseException exception = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithUser(
+            assertSearchResponseContainsIndices(
+                performRequestWithUser(
                     user,
                     new Request(
                         "GET",
@@ -110,10 +109,9 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                             ccsMinimizeRoundtrips
                         )
                     )
-                )
+                ),
+                backingFailureIndexName
             );
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(exception.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
         }
         {
             // direct access to backing failure index is subject to the user's permissions
@@ -155,43 +153,10 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                     )
                 );
             }
-
-            // for user with access to failure store, it depends on the underlying action that is being sent to the remote cluster
-            if (ccsMinimizeRoundtrips) {
-                // this is a special case where indices:data/read/search will be sent to a remote cluster
-                // and the request to backing failure store index will be authorized based on the datastream
-                // which grants access to backing failure store indices (granted by read_failure_store privilege)
-                // from a security perspective, this is a valid use case and there is no way to prevent this with RCS1 security model
-                // since from the fulfilling cluster perspective this request is no different from any other local search request
-                assertSearchResponseContainsIndices(
-                    performRequestWithUser(FAILURE_STORE_ACCESS, failureIndexSearchRequest),
-                    backingFailureIndexName
-                );
-            } else {
-                // in this case, the user does not have the necessary permissions to search the backing failure index
-                // the request to failure store backing index is authorized based on the datastream
-                // which does not grant access to the indices:admin/search/search_shards action
-                // this action is granted by read_cross_cluster privilege which is currently
-                // not supporting the failure backing indices (only data backing indices)
-                final ResponseException exception = expectThrows(
-                    ResponseException.class,
-                    () -> performRequestWithUser(FAILURE_STORE_ACCESS, failureIndexSearchRequest)
-                );
-                assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-                assertThat(
-                    exception.getMessage(),
-                    containsString(
-                        "action [indices:admin/search/search_shards] is unauthorized for user ["
-                            + FAILURE_STORE_ACCESS
-                            + "] "
-                            + "with effective roles ["
-                            + FAILURE_STORE_ACCESS
-                            + "] on indices ["
-                            + backingFailureIndexName
-                            + "], this action is granted by the index privileges [view_index_metadata,manage,read_cross_cluster,all]"
-                    )
-                );
-            }
+            assertSearchResponseContainsIndices(
+                performRequestWithUser(FAILURE_STORE_ACCESS, failureIndexSearchRequest),
+                backingFailureIndexName
+            );
         }
     }
 

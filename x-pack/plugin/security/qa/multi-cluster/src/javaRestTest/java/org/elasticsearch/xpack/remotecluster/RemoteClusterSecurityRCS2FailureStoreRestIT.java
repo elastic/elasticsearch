@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.remotecluster;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
@@ -22,9 +21,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 
 public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteClusterSecurityFailureStoreRestIT {
 
@@ -108,10 +104,9 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
             assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(dataSearchRequest), expectedIndices);
         }
         {
-            // query remote cluster using ::failures selector should fail
-            final ResponseException exception = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(
+            // query remote cluster using ::failures selector should succeed
+            assertSearchResponseContainsIndices(
+                performRequestWithRemoteSearchUser(
                     new Request(
                         "GET",
                         String.format(
@@ -121,13 +116,11 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                             ccsMinimizeRoundtrips
                         )
                     )
-                )
+                ),
+                backingFailureIndexName
             );
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(exception.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
         }
         {
-            // direct access to backing failure index is not allowed - no explicit read privileges over .fs-* indices
             Request failureIndexSearchRequest = new Request(
                 "GET",
                 String.format(
@@ -137,26 +130,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                     ccsMinimizeRoundtrips
                 )
             );
-            final ResponseException exception = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(failureIndexSearchRequest)
-            );
-            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
-            assertThat(
-                exception.getMessage(),
-                containsString(
-                    "action ["
-                        + (ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards")
-                        + "] towards remote cluster is unauthorized for user [remote_search_user] "
-                        + "with assigned roles [remote_search] authenticated by API key id ["
-                        + crossClusterAccessApiKeyId
-                        + "] of user [test_user] on indices ["
-                        + backingFailureIndexName
-                        + "], this action is granted by the index privileges ["
-                        + (ccsMinimizeRoundtrips ? "read,all" : "view_index_metadata,manage,read_cross_cluster,all")
-                        + "]"
-                )
-            );
+            assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(failureIndexSearchRequest), backingFailureIndexName);
         }
     }
 
@@ -181,7 +155,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
               "remote_indices": [
                 {
                   "names": ["test*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read", "read_cross_cluster", "read_failure_store"],
                   "clusters": ["my_remote_cluster"]
                 }
               ]

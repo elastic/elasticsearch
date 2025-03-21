@@ -17,6 +17,9 @@ import java.net.http.HttpResponse;
 import java.net.spi.InetAddressResolver;
 import java.net.spi.InetAddressResolverProvider;
 
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
+
 class VersionSpecificNetworkChecks {
     @EntitlementTest(expectedAccess = SERVER_ONLY, fromJavaVersion = 18)
     static void createInetAddressResolverProvider() {

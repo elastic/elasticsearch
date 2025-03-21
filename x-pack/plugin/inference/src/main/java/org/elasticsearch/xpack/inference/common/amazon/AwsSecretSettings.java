@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.amazonbedrock;
+package org.elasticsearch.xpack.inference.common.amazon;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -33,13 +33,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractReq
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.SECRET_KEY_FIELD;
 
-public class AmazonBedrockSecretSettings implements SecretSettings {
-    public static final String NAME = "amazon_bedrock_secret_settings";
+public class AwsSecretSettings implements SecretSettings {
+    public static final String NAME = "aws_secret_settings";
 
-    public final SecureString accessKey;
-    public final SecureString secretKey;
+    private final SecureString accessKey;
+    private final SecureString secretKey;
 
-    public static AmazonBedrockSecretSettings fromMap(@Nullable Map<String, Object> map) {
+    public static AwsSecretSettings fromMap(@Nullable Map<String, Object> map) {
         if (map == null) {
             return null;
         }
@@ -62,15 +62,15 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
             throw validationException;
         }
 
-        return new AmazonBedrockSecretSettings(secureAccessKey, secureSecretKey);
+        return new AwsSecretSettings(secureAccessKey, secureSecretKey);
     }
 
-    public AmazonBedrockSecretSettings(SecureString accessKey, SecureString secretKey) {
+    public AwsSecretSettings(SecureString accessKey, SecureString secretKey) {
         this.accessKey = Objects.requireNonNull(accessKey);
         this.secretKey = Objects.requireNonNull(secretKey);
     }
 
-    public AmazonBedrockSecretSettings(StreamInput in) throws IOException {
+    public AwsSecretSettings(StreamInput in) throws IOException {
         this.accessKey = in.readSecureString();
         this.secretKey = in.readSecureString();
     }
@@ -106,7 +106,7 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
     public boolean equals(Object object) {
         if (this == object) return true;
         if (object == null || getClass() != object.getClass()) return false;
-        AmazonBedrockSecretSettings that = (AmazonBedrockSecretSettings) object;
+        AwsSecretSettings that = (AwsSecretSettings) object;
         return Objects.equals(accessKey, that.accessKey) && Objects.equals(secretKey, that.secretKey);
     }
 
@@ -118,6 +118,14 @@ public class AmazonBedrockSecretSettings implements SecretSettings {
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         return fromMap(new HashMap<>(newSecrets));
+    }
+
+    public SecureString accessKey() {
+        return accessKey;
+    }
+
+    public SecureString secretKey() {
+        return secretKey;
     }
 
     public static class Configuration {

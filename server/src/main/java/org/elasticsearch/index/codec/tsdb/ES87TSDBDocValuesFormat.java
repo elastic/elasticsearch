@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.common.util.FeatureFlag;
 
 import java.io.IOException;
 
@@ -75,25 +76,47 @@ public class ES87TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         }
     }
 
+    // Default for escape hatch:
+    static final boolean OPTIMIZED_MERGE_ENABLE_DEFAULT;
+    static final FeatureFlag TSDB_DOC_VALUES_OPTIMIZED_MERGE = new FeatureFlag("tsdb_doc_values_optimized_merge");
+    static final String OPTIMIZED_MERGE_ENABLED_NAME = ES87TSDBDocValuesConsumer.class.getName() + ".enableOptimizedMerge";
+
+    static {
+        boolean optimizedMergeDefault = TSDB_DOC_VALUES_OPTIMIZED_MERGE.isEnabled();
+        OPTIMIZED_MERGE_ENABLE_DEFAULT = Boolean.parseBoolean(
+            System.getProperty(OPTIMIZED_MERGE_ENABLED_NAME, Boolean.toString(optimizedMergeDefault))
+        );
+    }
+
     private final int skipIndexIntervalSize;
+    private final boolean enableOptimizedMerge;
 
     /** Default constructor. */
     public ES87TSDBDocValuesFormat() {
-        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE);
+        this(DEFAULT_SKIP_INDEX_INTERVAL_SIZE, OPTIMIZED_MERGE_ENABLE_DEFAULT);
     }
 
     /** Doc values fields format with specified skipIndexIntervalSize. */
-    public ES87TSDBDocValuesFormat(int skipIndexIntervalSize) {
+    public ES87TSDBDocValuesFormat(int skipIndexIntervalSize, boolean enableOptimizedMerge) {
         super(CODEC_NAME);
         if (skipIndexIntervalSize < 2) {
             throw new IllegalArgumentException("skipIndexIntervalSize must be > 1, got [" + skipIndexIntervalSize + "]");
         }
         this.skipIndexIntervalSize = skipIndexIntervalSize;
+        this.enableOptimizedMerge = enableOptimizedMerge;
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-        return new ES87TSDBDocValuesConsumer(state, skipIndexIntervalSize, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        return new ES87TSDBDocValuesConsumer(
+            state,
+            enableOptimizedMerge,
+            skipIndexIntervalSize,
+            DATA_CODEC,
+            DATA_EXTENSION,
+            META_CODEC,
+            META_EXTENSION
+        );
     }
 
     @Override

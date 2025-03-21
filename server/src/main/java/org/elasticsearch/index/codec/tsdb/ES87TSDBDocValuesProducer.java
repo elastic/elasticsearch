@@ -51,15 +51,15 @@ import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_IN
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
 public class ES87TSDBDocValuesProducer extends DocValuesProducer {
-    private final Map<String, NumericEntry> numerics;
+    final Map<String, NumericEntry> numerics;
     private final Map<String, BinaryEntry> binaries;
-    private final Map<String, SortedEntry> sorted;
-    private final Map<String, SortedSetEntry> sortedSets;
-    private final Map<String, SortedNumericEntry> sortedNumerics;
+    final Map<String, SortedEntry> sorted;
+    final Map<String, SortedSetEntry> sortedSets;
+    final Map<String, SortedNumericEntry> sortedNumerics;
     private final Map<String, DocValuesSkipperEntry> skippers;
     private final IndexInput data;
     private final int maxDoc;
-    private final int version;
+    final int version;
     private final boolean merging;
 
     ES87TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
@@ -1416,7 +1416,7 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
 
     private record DocValuesSkipperEntry(long offset, long length, long minValue, long maxValue, int docCount, int maxDocId) {}
 
-    private static class NumericEntry {
+    static class NumericEntry {
         long docsWithFieldOffset;
         long docsWithFieldLength;
         short jumpTableEntryCount;
@@ -1444,19 +1444,19 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
         DirectMonotonicReader.Meta addressesMeta;
     }
 
-    private static class SortedNumericEntry extends NumericEntry {
+    static class SortedNumericEntry extends NumericEntry {
         int numDocsWithField;
         DirectMonotonicReader.Meta addressesMeta;
         long addressesOffset;
         long addressesLength;
     }
 
-    private static class SortedEntry {
+    static class SortedEntry {
         NumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;
     }
 
-    private static class SortedSetEntry {
+    static class SortedSetEntry {
         SortedEntry singleValueEntry;
         SortedNumericEntry ordsEntry;
         TermsDictEntry termsDictEntry;

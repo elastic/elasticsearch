@@ -226,7 +226,6 @@ public abstract class BWCCodec extends Codec {
         if (codec == null) return null;
 
         return switch (codec.getClass().getSimpleName()) {
-            case "Lucene70Codec" -> new BWCLucene70Codec();
             case "Lucene80Codec" -> new BWCLucene80Codec();
             case "Lucene84Codec" -> new BWCLucene84Codec();
             case "Lucene86Codec" -> new BWCLucene86Codec();

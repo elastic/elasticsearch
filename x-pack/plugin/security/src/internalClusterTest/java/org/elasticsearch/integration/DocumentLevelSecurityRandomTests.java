@@ -101,7 +101,7 @@ public class DocumentLevelSecurityRandomTests extends SecurityIntegTestCase {
         assertAcked(indicesAdmin().prepareCreate("test").setMapping("field1", "type=text", "field2", "type=text"));
 
         List<IndexRequestBuilder> requests = new ArrayList<>(numberOfRoles);
-        IndicesAliasesRequestBuilder builder = indicesAdmin().prepareAliases();
+        IndicesAliasesRequestBuilder builder = indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         for (int i = 1; i <= numberOfRoles; i++) {
             String value = "value" + i;
             requests.add(prepareIndex("test").setId(value).setSource("field1", value));

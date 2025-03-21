@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.redact;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.GrokCaptureExtracter;
@@ -294,9 +295,13 @@ public class RedactProcessor extends AbstractProcessor {
          */
         String redactMatches(byte[] utf8Bytes, String redactStartToken, String redactEndToken) {
             var merged = mergeOverlappingReplacements(replacementPositions);
-            int longestPatternName = merged.stream().mapToInt(r -> r.patternName.getBytes(StandardCharsets.UTF_8).length).max().getAsInt();
+            int maxPatternNameLength = merged.stream()
+                .mapToInt(r -> r.patternName.getBytes(StandardCharsets.UTF_8).length)
+                .max()
+                .getAsInt();
 
-            int maxPossibleLength = longestPatternName * merged.size() + utf8Bytes.length;
+            int maxPossibleLength = (redactStartToken.length() + maxPatternNameLength + redactEndToken.length()) * merged.size()
+                + utf8Bytes.length;
             byte[] redact = new byte[maxPossibleLength];
 
             int readOffset = 0;
@@ -406,7 +411,8 @@ public class RedactProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");

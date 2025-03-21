@@ -36,6 +36,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamAction;
 import org.elasticsearch.xpack.migrate.action.CancelReindexDataStreamTransportAction;
+import org.elasticsearch.xpack.migrate.action.CopyLifecycleIndexMetadataAction;
+import org.elasticsearch.xpack.migrate.action.CopyLifecycleIndexMetadataTransportAction;
 import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceAction;
 import org.elasticsearch.xpack.migrate.action.CreateIndexFromSourceTransportAction;
 import org.elasticsearch.xpack.migrate.action.GetMigrationReindexStatusAction;
@@ -106,6 +108,7 @@ public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTas
         actions.add(new ActionHandler<>(CancelReindexDataStreamAction.INSTANCE, CancelReindexDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(ReindexDataStreamIndexAction.INSTANCE, ReindexDataStreamIndexTransportAction.class));
         actions.add(new ActionHandler<>(CreateIndexFromSourceAction.INSTANCE, CreateIndexFromSourceTransportAction.class));
+        actions.add(new ActionHandler<>(CopyLifecycleIndexMetadataAction.INSTANCE, CopyLifecycleIndexMetadataTransportAction.class));
         return actions;
     }
 

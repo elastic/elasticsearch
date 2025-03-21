@@ -27,12 +27,14 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneUnusedIndexMode;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineOrderBy;
@@ -138,14 +140,17 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SubstituteSurrogates(),
             // translate metric aggregates after surrogate substitution and replace nested expressions with eval (again)
             new TranslateMetricsAggregate(),
+            new PruneUnusedIndexMode(),
             new ReplaceAggregateNestedExpressionWithEval(),
+            // this one needs to be placed before ReplaceAliasingEvalWithProject, so that any potential aliasing eval (eval x = y)
+            // is not replaced with a Project before the eval to be copied on the left hand side of an InlineJoin
+            new PropagateInlineEvals(),
             new ReplaceRegexMatch(),
             new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSpatialSurrogates(),
-            new ReplaceOrderByExpressionWithEval(),
-            new PropagateInlineEvals()
+            new ReplaceOrderByExpressionWithEval()
             // new NormalizeAggregate(), - waits on https://github.com/elastic/elasticsearch/issues/100634
         );
     }
@@ -193,6 +198,6 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
     }
 
     protected static Batch<LogicalPlan> cleanup() {
-        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation());
+        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation(), new PropgateUnmappedFields());
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -30,6 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleBlockToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
@@ -132,7 +134,8 @@ public final class ResponseValueUtils {
             case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> spatialToString(
                 ((BytesRefBlock) block).getBytesRef(offset, scratch)
             );
-            case UNSUPPORTED, AGGREGATE_METRIC_DOUBLE -> (String) null;
+            case AGGREGATE_METRIC_DOUBLE -> aggregateMetricDoubleBlockToString((CompositeBlock) block, offset);
+            case UNSUPPORTED -> (String) null;
             case SOURCE -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
                 try {

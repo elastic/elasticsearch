@@ -61,7 +61,7 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
             .prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState();
-        final int numShards = state.metadata().index(indexName).getNumberOfShards();
+        final int numShards = state.metadata().getProject().index(indexName).getNumberOfShards();
         final ShardRouting primaryShard = state.routingTable().index(indexName).shard(randomIntBetween(0, numShards - 1)).primaryShard();
         final DiscoveryNode randomNode = state.nodes().resolveNode(primaryShard.currentNodeId());
 

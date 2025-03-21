@@ -15,7 +15,6 @@ import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.test.ESTestCase;
 import org.objectweb.asm.Type;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -90,7 +89,9 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         void checkInstanceMethodManual(Class<?> clazz, TestTargetBaseClass that, int x, String y);
     }
 
-    public void testInstrumentationTargetLookup() throws IOException {
+    interface TestCheckerDerived3 extends TestCheckerMixed {}
+
+    public void testInstrumentationTargetLookup() throws ClassNotFoundException {
         Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestChecker.class);
 
         assertThat(checkMethods, aMapWithSize(3));
@@ -143,7 +144,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testInstrumentationTargetLookupWithOverloads() throws IOException {
+    public void testInstrumentationTargetLookupWithOverloads() throws ClassNotFoundException {
         Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerOverloads.class);
 
         assertThat(checkMethods, aMapWithSize(2));
@@ -175,7 +176,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testInstrumentationTargetLookupWithDerivedClass() throws IOException {
+    public void testInstrumentationTargetLookupWithDerivedClass() throws ClassNotFoundException {
         Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerDerived2.class);
 
         assertThat(checkMethods, aMapWithSize(4));
@@ -244,7 +245,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testInstrumentationTargetLookupWithCtors() throws IOException {
+    public void testInstrumentationTargetLookupWithCtors() throws ClassNotFoundException {
         Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerCtors.class);
 
         assertThat(checkMethods, aMapWithSize(2));
@@ -276,7 +277,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testInstrumentationTargetLookupWithExtraMethods() throws IOException {
+    public void testInstrumentationTargetLookupWithExtraMethods() throws ClassNotFoundException {
         Map<MethodKey, CheckMethod> checkMethods = instrumentationService.lookupMethods(TestCheckerMixed.class);
 
         assertThat(checkMethods, aMapWithSize(1));
@@ -371,12 +372,50 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
-    public void testLookupImplementationMethodWithInheritance() throws ClassNotFoundException, NoSuchMethodException {
+    public void testLookupImplementationMethodWithInheritanceOnTarget() throws ClassNotFoundException, NoSuchMethodException {
         var info = instrumentationService.lookupImplementationMethod(
             TestTargetBaseClass.class,
             "instanceMethod2",
             TestTargetImplementationClass.class,
             TestCheckerMixed.class,
+            "checkInstanceMethodManual",
+            int.class,
+            String.class
+        );
+
+        assertThat(
+            info.targetMethod(),
+            equalTo(
+                new MethodKey(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetIntermediateClass",
+                    "instanceMethod2",
+                    List.of("I", "java/lang/String")
+                )
+            )
+        );
+        assertThat(
+            info.checkMethod(),
+            equalTo(
+                new CheckMethod(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerMixed",
+                    "checkInstanceMethodManual",
+                    List.of(
+                        "Ljava/lang/Class;",
+                        "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetBaseClass;",
+                        "I",
+                        "Ljava/lang/String;"
+                    )
+                )
+            )
+        );
+    }
+
+    public void testLookupImplementationMethodWithInheritanceOnChecker() throws ClassNotFoundException, NoSuchMethodException {
+        var info = instrumentationService.lookupImplementationMethod(
+            TestTargetBaseClass.class,
+            "instanceMethod2",
+            TestTargetImplementationClass.class,
+            TestCheckerDerived3.class,
             "checkInstanceMethodManual",
             int.class,
             String.class

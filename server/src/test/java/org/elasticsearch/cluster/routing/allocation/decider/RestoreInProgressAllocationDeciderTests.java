@@ -67,7 +67,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
     public void testCannotAllocatePrimaryMissingInRestoreInProgress() {
         ClusterState clusterState = createInitialClusterState();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.getRoutingTable())
-            .addAsRestore(clusterState.getMetadata().index("test"), createSnapshotRecoverySource("_missing"))
+            .addAsRestore(clusterState.getMetadata().getProject().index("test"), createSnapshotRecoverySource("_missing"))
             .build();
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -93,7 +93,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
         ClusterState clusterState = createInitialClusterState();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, clusterState.getRoutingTable())
-            .addAsRestore(clusterState.getMetadata().index("test"), recoverySource)
+            .addAsRestore(clusterState.getMetadata().getProject().index("test"), recoverySource)
             .build();
 
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -186,7 +186,7 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()

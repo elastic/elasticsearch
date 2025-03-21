@@ -92,7 +92,8 @@ public class IndexResolver {
     }
 
     // public for testing only
-    public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+    public static IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+        var numberOfIndices = fieldCapsResponse.getIndexResponses().size();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             return IndexResolution.notFound(indexPattern);
@@ -105,6 +106,7 @@ public class IndexResolver {
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
         Map<String, EsField> rootFields = new HashMap<>();
+        Set<String> partiallyUnmappedFields = new HashSet<>();
         for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
@@ -129,8 +131,9 @@ public class IndexResolver {
             }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
 
+            List<IndexFieldCapabilities> fcs = fieldsCaps.get(fullName);
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fullName, fieldsCaps.get(fullName), isAlias)
+                ? createField(fieldCapsResponse, name, fullName, fcs, isAlias)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalType(),
@@ -138,6 +141,11 @@ public class IndexResolver {
                     new HashMap<>()
                 );
             fields.put(name, field);
+
+            var isPartiallyUnmapped = fcs.size() < numberOfIndices;
+            if (isPartiallyUnmapped) {
+                partiallyUnmappedFields.add(fullName);
+            }
         }
 
         Map<String, FieldCapabilitiesFailure> unavailableRemotes = EsqlCCSUtils.determineUnavailableRemoteClusters(
@@ -153,11 +161,9 @@ public class IndexResolver {
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             allEmpty &= ir.get().isEmpty();
         }
-        if (allEmpty) {
-            // If all the mappings are empty we return an empty set of resolved indices to line up with QL
-            return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()), concreteIndices.keySet(), unavailableRemotes);
-        }
-        return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), concreteIndices.keySet(), unavailableRemotes);
+        // If all the mappings are empty we return an empty set of resolved indices to line up with QL
+        var index = new EsIndex(indexPattern, rootFields, allEmpty ? Map.of() : concreteIndices, partiallyUnmappedFields);
+        return IndexResolution.valid(index, concreteIndices.keySet(), unavailableRemotes);
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
@@ -179,7 +185,7 @@ public class IndexResolver {
         return fieldsCaps;
     }
 
-    private EsField createField(
+    private static EsField createField(
         FieldCapabilitiesResponse fieldCapsResponse,
         String name,
         String fullName,
@@ -227,12 +233,12 @@ public class IndexResolver {
         return new EsField(name, type, new HashMap<>(), aggregatable, isAlias);
     }
 
-    private UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
+    private static UnsupportedEsField unsupported(String name, IndexFieldCapabilities fc) {
         String originalType = fc.metricType() == TimeSeriesParams.MetricType.COUNTER ? "counter" : fc.type();
         return new UnsupportedEsField(name, originalType);
     }
 
-    private EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
+    private static EsField conflictingTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
         Map<String, Set<String>> typesToIndices = new TreeMap<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);
@@ -247,7 +253,7 @@ public class IndexResolver {
         return new InvalidMappedField(name, typesToIndices);
     }
 
-    private EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
+    private static EsField conflictingMetricTypes(String name, String fullName, FieldCapabilitiesResponse fieldCapsResponse) {
         TreeSet<String> indices = new TreeSet<>();
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             IndexFieldCapabilities fc = ir.get().get(fullName);

@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -100,6 +101,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -141,6 +143,8 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -388,7 +392,8 @@ public final class EsqlTestUtils {
             query,
             false,
             TABLES,
-            System.nanoTime()
+            System.nanoTime(),
+            false
         );
     }
 
@@ -784,6 +789,12 @@ public final class EsqlTestUtils {
             case CARTESIAN_POINT -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint());
             case GEO_SHAPE -> GEO.asWkb(GeometryTestUtils.randomGeometry(randomBoolean()));
             case CARTESIAN_SHAPE -> CARTESIAN.asWkb(ShapeTestUtils.randomGeometry(randomBoolean()));
+            case AGGREGATE_METRIC_DOUBLE -> new AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral(
+                randomDouble(),
+                randomDouble(),
+                randomDouble(),
+                randomInt()
+            );
             case NULL -> null;
             case SOURCE -> {
                 try {
@@ -794,8 +805,9 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
-            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG, AGGREGATE_METRIC_DOUBLE ->
-                throw new IllegalArgumentException("can't make random values for [" + type.typeName() + "]");
+            case UNSUPPORTED, OBJECT, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new IllegalArgumentException(
+                "can't make random values for [" + type.typeName() + "]"
+            );
         }, type);
     }
 
@@ -840,5 +852,10 @@ public final class EsqlTestUtils {
         assertNull("cancellation exceptions must be ignored", cancellationFailure);
         ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof RemoteTransportException)
             .ifPresent(transportFailure -> assertNull("remote transport exception must be unwrapped", transportFailure.getCause()));
+    }
+
+    public static <T> T singleValue(Collection<T> collection) {
+        assertThat(collection, hasSize(1));
+        return collection.iterator().next();
     }
 }

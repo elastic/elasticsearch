@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.instrumentation;
 
-import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -23,7 +22,7 @@ public interface InstrumentationService {
 
     Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, CheckMethod> methods);
 
-    Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws IOException;
+    Map<MethodKey, CheckMethod> lookupMethods(Class<?> clazz) throws ClassNotFoundException;
 
     InstrumentationInfo lookupImplementationMethod(
         Class<?> targetSuperclass,

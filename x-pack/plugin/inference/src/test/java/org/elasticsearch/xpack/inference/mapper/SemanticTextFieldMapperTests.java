@@ -137,11 +137,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        return "cannot have nested fields when index is in [index.mode=time_series]";
-    }
-
-    @Override
     protected void metaMapping(XContentBuilder b) throws IOException {
         super.metaMapping(b);
         b.field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID);
@@ -420,7 +415,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             MapperService mapperService = mapperServiceForFieldWithModelSettings(
                 fieldName,
                 inferenceId,
-                new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
+                new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
             assertSemanticTextField(mapperService, fieldName, true);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
@@ -431,7 +426,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 fieldName,
                 inferenceId,
                 searchInferenceId,
-                new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
+                new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
             assertSemanticTextField(mapperService, fieldName, true);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId);
@@ -509,8 +504,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     exc.getMessage(),
                     containsString(
                         "Cannot update parameter [model_settings] "
-                            + "from [task_type=sparse_embedding] "
-                            + "to [task_type=text_embedding, dimensions=10, similarity=cosine, element_type=float]"
+                            + "from [service=null, task_type=sparse_embedding] "
+                            + "to [service=null, task_type=text_embedding, dimensions=10, similarity=cosine, element_type=float]"
                     )
                 );
             }
@@ -551,7 +546,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             mapperService = mapperServiceForFieldWithModelSettings(
                 fieldName,
                 inferenceId,
-                new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
+                new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
             assertSemanticTextField(mapperService, fieldName, true);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
@@ -770,7 +765,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         useLegacyFormat,
                         b -> b.startObject("field")
                             .startObject(INFERENCE_FIELD)
-                            .field(MODEL_SETTINGS_FIELD, new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, null))
+                            .field(
+                                MODEL_SETTINGS_FIELD,
+                                new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
+                            )
                             .field(CHUNKS_FIELD, useLegacyFormat ? List.of() : Map.of())
                             .endObject()
                             .endObject()
@@ -832,14 +830,26 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService floatMapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new MinimalServiceSettings(TaskType.TEXT_EMBEDDING, 1024, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            new MinimalServiceSettings(
+                "my-service",
+                TaskType.TEXT_EMBEDDING,
+                1024,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            )
         );
         assertMapperService.accept(floatMapperService, DenseVectorFieldMapper.ElementType.FLOAT);
 
         MapperService byteMapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new MinimalServiceSettings(TaskType.TEXT_EMBEDDING, 1024, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.BYTE)
+            new MinimalServiceSettings(
+                "my-service",
+                TaskType.TEXT_EMBEDDING,
+                1024,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.BYTE
+            )
         );
         assertMapperService.accept(byteMapperService, DenseVectorFieldMapper.ElementType.BYTE);
     }
@@ -929,7 +939,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
+            new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
         );
 
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
@@ -946,7 +956,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new MinimalServiceSettings(TaskType.TEXT_EMBEDDING, 1024, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            new MinimalServiceSettings(
+                "my-service",
+                TaskType.TEXT_EMBEDDING,
+                1024,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            )
         );
 
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);

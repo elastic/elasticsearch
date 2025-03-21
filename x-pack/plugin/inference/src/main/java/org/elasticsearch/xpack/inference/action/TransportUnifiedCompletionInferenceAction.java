@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -103,7 +102,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
      * as {@link UnifiedChatCompletionException}.
      */
     @Override
-    protected Flow.Publisher<ChunkedToXContent> streamErrorHandler(Flow.Processor<ChunkedToXContent, ChunkedToXContent> upstream) {
+    protected <T> Flow.Publisher<T> streamErrorHandler(Flow.Processor<T, T> upstream) {
         return downstream -> {
             upstream.subscribe(new Flow.Subscriber<>() {
                 @Override
@@ -112,7 +111,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
                 }
 
                 @Override
-                public void onNext(ChunkedToXContent item) {
+                public void onNext(T item) {
                     downstream.onNext(item);
                 }
 

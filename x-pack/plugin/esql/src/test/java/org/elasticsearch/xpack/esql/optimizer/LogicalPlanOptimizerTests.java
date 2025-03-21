@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -135,6 +136,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -157,6 +159,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.localSource;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
@@ -192,26 +195,27 @@ import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class LogicalPlanOptimizerTests extends ESTestCase {
-
     private static EsqlParser parser;
-    private static Analyzer analyzer;
     private static LogicalOptimizerContext logicalOptimizerCtx;
     private static LogicalPlanOptimizer logicalOptimizer;
+
     private static Map<String, EsField> mapping;
+    private static Analyzer analyzer;
     private static Map<String, EsField> mappingAirports;
-    private static Map<String, EsField> mappingTypes;
     private static Analyzer analyzerAirports;
+    private static Map<String, EsField> mappingTypes;
     private static Analyzer analyzerTypes;
     private static Map<String, EsField> mappingExtra;
     private static Analyzer analyzerExtra;
+    private static Map<String, EsField> metricMapping;
+    private static Analyzer metricsAnalyzer;
+    private static Analyzer multiIndexAnalyzer;
+
     private static EnrichResolution enrichResolution;
     private static final LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new LiteralsOnTheRight();
 
-    private static Map<String, EsField> metricMapping;
-    private static Analyzer metricsAnalyzer;
-
-    private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
-        static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
+    public static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
+        public static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(unboundLogicalOptimizerContext());
 
         SubstitutionOnlyOptimizer(LogicalOptimizerContext optimizerContext) {
             super(optimizerContext);
@@ -277,6 +281,21 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var metricsIndex = IndexResolution.valid(new EsIndex("k8s", metricMapping, Map.of("k8s", IndexMode.TIME_SERIES)));
         metricsAnalyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), metricsIndex, enrichResolution),
+            TEST_VERIFIER
+        );
+
+        var multiIndexMapping = loadMapping("mapping-basic.json");
+        multiIndexMapping.put("partial_type_keyword", new EsField("partial_type_keyword", KEYWORD, emptyMap(), true));
+        var multiIndex = IndexResolution.valid(
+            new EsIndex(
+                "multi_index",
+                multiIndexMapping,
+                Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
+                Set.of("partial_type_keyword")
+            )
+        );
+        multiIndexAnalyzer = new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), multiIndex, enrichResolution),
             TEST_VERIFIER
         );
     }
@@ -2898,6 +2917,45 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    public void testInsist_fieldDoesNotExist_createsUnmappedFieldInRelation() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        LogicalPlan plan = optimizedPlan("FROM test | INSIST_🐔 foo");
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        assertPartialTypeKeyword(relation, "foo");
+    }
+
+    public void testInsist_multiIndexFieldPartiallyExistsAndIsKeyword_castsAreNotSupported() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword");
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+
+        assertPartialTypeKeyword(relation, "partial_type_keyword");
+    }
+
+    public void testInsist_multipleInsistClauses_insistsAreFolded() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        var plan = planMultiIndex("FROM multi_index | INSIST_🐔 partial_type_keyword | INSIST_🐔 foo");
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+
+        assertPartialTypeKeyword(relation, "partial_type_keyword");
+        assertPartialTypeKeyword(relation, "foo");
+    }
+
+    private static void assertPartialTypeKeyword(EsRelation relation, String name) {
+        var attribute = (FieldAttribute) singleValue(relation.output().stream().filter(attr -> attr.name().equals(name)).toList());
+        assertThat(attribute.field(), instanceOf(PotentiallyUnmappedKeywordEsField.class));
     }
 
     public void testSimplifyLikeNoWildcard() {
@@ -5888,6 +5946,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         return logicalOptimizer.optimize(analyzerTypes.analyze(parser.createStatement(query)));
     }
 
+    private LogicalPlan planMultiIndex(String query) {
+        return logicalOptimizer.optimize(multiIndexAnalyzer.analyze(parser.createStatement(query)));
+    }
+
     private EsqlBinaryComparison extractPlannedBinaryComparison(String expression) {
         LogicalPlan plan = planTypes("FROM types | WHERE " + expression);
 
@@ -6014,10 +6076,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testSimplifyComparisonArithmeticWithFloatsAndDirectionChange() {
         doTestSimplifyComparisonArithmetics("float / -2 < 4", "float", GT, -8d);
         doTestSimplifyComparisonArithmetics("float * -2 < 4", "float", GT, -2d);
-    }
-
-    private void assertNullLiteral(Expression expression) {
-        assertNull(as(expression, Literal.class).value());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108519")
@@ -6652,7 +6710,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s max(rate(network.total_bytes_in))";
+        var query = "METRICS k8s | STATS max(rate(network.total_bytes_in))";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
@@ -6673,7 +6731,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMixedAggsWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost)";
+        var query = "METRICS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAggs = as(limit.child(), Aggregate.class);
@@ -6698,7 +6756,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMixedAggsWithMathWithoutGrouping() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
+        var query = "METRICS k8s | STATS max(rate(network.total_bytes_in)), max(network.cost + 0.2) * 1.1";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Project project = as(plan, Project.class);
         Eval mulEval = as(project.child(), Eval.class);
@@ -6735,7 +6793,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsGroupedByOneDimension() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
+        var query = "METRICS k8s | STATS sum(rate(network.total_bytes_in)) BY cluster | SORT cluster | LIMIT 10";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         TopN topN = as(plan, TopN.class);
         Aggregate aggsByCluster = as(topN.child(), Aggregate.class);
@@ -6759,7 +6817,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsGroupedByTwoDimension() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s avg(rate(network.total_bytes_in)) BY cluster, pod";
+        var query = "METRICS k8s | STATS avg(rate(network.total_bytes_in)) BY cluster, pod";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Project project = as(plan, Project.class);
         Eval eval = as(project.child(), Eval.class);
@@ -6798,7 +6856,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testTranslateMetricsGroupedByTimeBucket() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = "METRICS k8s sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
+        var query = "METRICS k8s | STATS sum(rate(network.total_bytes_in)) BY bucket(@timestamp, 1h)";
         var plan = logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)));
         Limit limit = as(plan, Limit.class);
         Aggregate finalAgg = as(limit.child(), Aggregate.class);
@@ -6826,7 +6884,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testTranslateMetricsGroupedByTimeBucketAndDimensions() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """
-            METRICS k8s avg(rate(network.total_bytes_in)) BY pod, bucket(@timestamp, 5 minute), cluster
+            METRICS k8s
+            | STATS avg(rate(network.total_bytes_in)) BY pod, bucket(@timestamp, 5 minute), cluster
             | SORT cluster
             | LIMIT 10
             """;
@@ -6865,7 +6924,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testTranslateMixedAggsGroupedByTimeBucketAndDimensions() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """
-            METRICS k8s avg(rate(network.total_bytes_in)), avg(network.cost) BY bucket(@timestamp, 5 minute), cluster
+            METRICS k8s
+            | STATS avg(rate(network.total_bytes_in)), avg(network.cost) BY bucket(@timestamp, 5 minute), cluster
             | SORT cluster
             | LIMIT 10
             """;
@@ -6914,7 +6974,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testAdjustMetricsRateBeforeFinalAgg() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         var query = """
-            METRICS k8s avg(round(1.05 * rate(network.total_bytes_in))) BY bucket(@timestamp, 1 minute), cluster
+            METRICS k8s
+            | STATS avg(round(1.05 * rate(network.total_bytes_in))) BY bucket(@timestamp, 1 minute), cluster
             | SORT cluster
             | LIMIT 10
             """;
@@ -6970,9 +7031,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     public void testMetricsWithoutRate() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
         List<String> queries = List.of("""
-            METRICS k8s count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """, """
             METRICS k8s | STATS count(to_long(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
             | LIMIT 10
             """, """
@@ -6997,26 +7055,9 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             EsRelation relation = as(eval.child(), EsRelation.class);
             assertThat(relation.indexMode(), equalTo(IndexMode.STANDARD));
         }
-        // TODO: Unmute this part
-        // https://github.com/elastic/elasticsearch/issues/110827
-        // for (int i = 1; i < plans.size(); i++) {
-        // assertThat(plans.get(i), equalTo(plans.get(0)));
-        // }
-    }
-
-    public void testRateInStats() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        var query = """
-            METRICS k8s | STATS max(rate(network.total_bytes_in)) BY bucket(@timestamp, 1 minute)
-            | LIMIT 10
-            """;
-        VerificationException error = expectThrows(
-            VerificationException.class,
-            () -> logicalOptimizer.optimize(metricsAnalyzer.analyze(parser.createStatement(query)))
-        );
-        assertThat(error.getMessage(), equalTo("""
-            Found 1 problem
-            line 1:25: the rate aggregate[rate(network.total_bytes_in)] can only be used within the metrics command"""));
+        for (int i = 1; i < plans.size(); i++) {
+            assertThat(plans.get(i), equalTo(plans.get(0)));
+        }
     }
 
     public void testMvSortInvalidOrder() {

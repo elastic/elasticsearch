@@ -105,6 +105,10 @@ public final class Source implements Writeable {
         return text + location;
     }
 
+    /**
+     * @deprecated Sources created by this can't be correctly deserialized. For use in tests only.
+     */
+    @Deprecated
     public static Source synthetic(String text) {
         return new Source(Location.EMPTY, text);
     }

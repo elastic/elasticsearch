@@ -213,7 +213,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
         ClusterState clusterState = clusterService.state();
         List<ShardIterator> shardIterators = clusterService.operationRouting()
-            .searchShards(clusterState, new String[] { request.index }, Map.of(), "_local");
+            .searchShards(clusterState.projectState(), new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
             outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
             return;
@@ -333,6 +333,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             Driver driver = new Driver(
                 "enrich-lookup:" + request.sessionId,
                 "enrich",
+                clusterService.getClusterName().value(),
+                clusterService.getNodeName(),
                 System.currentTimeMillis(),
                 System.nanoTime(),
                 driverContext,

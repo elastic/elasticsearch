@@ -27,6 +27,12 @@ public class InferenceFeatures implements FeatureSpecification {
 
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER = new NodeFeature("semantic_text.highlighter");
     private static final NodeFeature SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT = new NodeFeature("semantic_text.highlighter.default");
+    private static final NodeFeature TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE = new NodeFeature(
+        "test_reranking_service.parse_text_as_score"
+    );
+    private static final NodeFeature TEST_RULE_RETRIEVER_WITH_INDICES_THAT_DONT_RETURN_RANK_DOCS = new NodeFeature(
+        "test_rule_retriever.with_indices_that_dont_return_rank_docs"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -45,7 +51,11 @@ public class InferenceFeatures implements FeatureSpecification {
             TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_ALIAS_HANDLING_FIX,
             SemanticInferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_ENABLED_BY_DEFAULT,
             SEMANTIC_TEXT_HIGHLIGHTER_DEFAULT,
-            SEMANTIC_KNN_FILTER_FIX
+            SEMANTIC_KNN_FILTER_FIX,
+            TEST_RERANKING_SERVICE_PARSE_TEXT_AS_SCORE,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_BIT_VECTOR_SUPPORT,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_HANDLE_EMPTY_INPUT,
+            TEST_RULE_RETRIEVER_WITH_INDICES_THAT_DONT_RETURN_RANK_DOCS
         );
     }
 }

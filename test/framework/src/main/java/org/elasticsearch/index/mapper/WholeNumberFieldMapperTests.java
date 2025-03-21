@@ -123,4 +123,9 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new NumberSyntheticSourceSupport(Number::longValue, ignoreMalformed);
     }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupportForKeepTests(Number::longValue, ignoreMalformed, sourceKeepMode);
+    }
 }

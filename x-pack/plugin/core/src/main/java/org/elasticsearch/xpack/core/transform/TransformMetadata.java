@@ -27,7 +27,7 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class TransformMetadata implements Metadata.Custom {
+public class TransformMetadata implements Metadata.ProjectCustom {
     public static final String TYPE = "transform";
     public static final ParseField RESET_MODE = new ParseField("reset_mode");
     public static final ParseField UPGRADE_MODE = new ParseField("upgrade_mode");
@@ -77,7 +77,7 @@ public class TransformMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new TransformMetadata.TransformMetadataDiff((TransformMetadata) previousState, this);
     }
 
@@ -106,7 +106,7 @@ public class TransformMetadata implements Metadata.Custom {
         );
     }
 
-    public static class TransformMetadataDiff implements NamedDiff<Metadata.Custom> {
+    public static class TransformMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final boolean resetMode;
         final boolean upgradeMode;
@@ -131,7 +131,7 @@ public class TransformMetadata implements Metadata.Custom {
          * @return The new transform metadata.
          */
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new TransformMetadata(resetMode, upgradeMode);
         }
 
@@ -209,8 +209,9 @@ public class TransformMetadata implements Metadata.Custom {
         }
     }
 
+    @Deprecated(forRemoval = true)
     public static TransformMetadata getTransformMetadata(ClusterState state) {
-        TransformMetadata TransformMetadata = (state == null) ? null : state.getMetadata().custom(TYPE);
+        TransformMetadata TransformMetadata = (state == null) ? null : state.metadata().getSingleProjectCustom(TYPE);
         if (TransformMetadata == null) {
             return EMPTY_METADATA;
         }

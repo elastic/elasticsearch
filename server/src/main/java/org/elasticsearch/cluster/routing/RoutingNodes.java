@@ -11,7 +11,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
@@ -54,8 +54,8 @@ import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAlloc
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable allowing or disallowing changes to its elements.
- * (see {@link RoutingNodes#mutable(RoutingTable, DiscoveryNodes)}, {@link RoutingNodes#immutable(RoutingTable, DiscoveryNodes)},
- * and {@link #mutableCopy()})
+ * (see {@link RoutingNodes#mutable(GlobalRoutingTable, DiscoveryNodes)},
+ *      {@link RoutingNodes#immutable(GlobalRoutingTable, DiscoveryNodes)}, and {@link #mutableCopy()})
  *
  * The main methods used to update routing entries are:
  * <ul>
@@ -98,11 +98,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * the routing nodes in {@link ClusterState#getRoutingNodes()}. This method should not be used directly, use
      * {@link ClusterState#getRoutingNodes()} instead.
      */
-    public static RoutingNodes immutable(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
+    public static RoutingNodes immutable(GlobalRoutingTable routingTable, DiscoveryNodes discoveryNodes) {
         return new RoutingNodes(routingTable, discoveryNodes, true);
     }
 
-    public static RoutingNodes mutable(RoutingTable routingTable, DiscoveryNodes discoveryNodes) {
+    public static RoutingNodes mutable(GlobalRoutingTable routingTable, DiscoveryNodes discoveryNodes) {
         return new RoutingNodes(routingTable, discoveryNodes, false);
     }
 
@@ -114,10 +114,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return balanceWeightStatsPerNode;
     }
 
-    private RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
+    private RoutingNodes(GlobalRoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
-        final int indexCount = routingTable.indicesRouting().size();
+        final int indexCount = routingTable.totalIndexCount();
         this.assignedShards = Maps.newMapWithExpectedSize(indexCount);
         this.unassignedShards = new UnassignedShards(this);
         this.attributeValuesByAttribute = Collections.synchronizedMap(new HashMap<>());
@@ -135,38 +135,40 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
         final Function<String, RoutingNode> createRoutingNode = k -> new RoutingNode(k, discoveryNodes.get(k), sizeGuess);
-        for (IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
-                IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
-                assert indexShard.primary != null;
-                for (int copy = 0; copy < indexShard.size(); copy++) {
-                    final ShardRouting shard = indexShard.shard(copy);
-                    // to get all the shards belonging to an index, including the replicas,
-                    // we define a replica set and keep track of it. A replica set is identified
-                    // by the ShardId, as this is common for primary and replicas.
-                    // A replica Set might have one (and not more) replicas with the state of RELOCATING.
-                    if (shard.assignedToNode()) {
-                        // LinkedHashMap to preserve order
-                        nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).addWithoutValidation(shard);
-                        assignedShardsAdd(shard);
-                        if (shard.relocating()) {
-                            relocatingShards++;
-                            ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
-                            addInitialRecovery(targetShardRouting, indexShard.primary);
-                            // LinkedHashMap to preserve order.
-                            // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
-                            nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode)
-                                .addWithoutValidation(targetShardRouting);
-                            assignedShardsAdd(targetShardRouting);
-                        } else if (shard.initializing()) {
-                            if (shard.primary()) {
-                                inactivePrimaryCount++;
+        for (RoutingTable projectRouting : routingTable) {
+            for (IndexRoutingTable indexRoutingTable : projectRouting.indicesRouting().values()) {
+                for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                    IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
+                    assert indexShard.primary != null;
+                    for (int copy = 0; copy < indexShard.size(); copy++) {
+                        final ShardRouting shard = indexShard.shard(copy);
+                        // to get all the shards belonging to an index, including the replicas,
+                        // we define a replica set and keep track of it. A replica set is identified
+                        // by the ShardId, as this is common for primary and replicas.
+                        // A replica Set might have one (and not more) replicas with the state of RELOCATING.
+                        if (shard.assignedToNode()) {
+                            // LinkedHashMap to preserve order
+                            nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).addWithoutValidation(shard);
+                            assignedShardsAdd(shard);
+                            if (shard.relocating()) {
+                                relocatingShards++;
+                                ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
+                                addInitialRecovery(targetShardRouting, indexShard.primary);
+                                // LinkedHashMap to preserve order.
+                                // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
+                                nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode)
+                                    .addWithoutValidation(targetShardRouting);
+                                assignedShardsAdd(targetShardRouting);
+                            } else if (shard.initializing()) {
+                                if (shard.primary()) {
+                                    inactivePrimaryCount++;
+                                }
+                                inactiveShardCount++;
+                                addInitialRecovery(shard, indexShard.primary);
                             }
-                            inactiveShardCount++;
-                            addInitialRecovery(shard, indexShard.primary);
+                        } else {
+                            unassignedShards.add(shard);
                         }
-                    } else {
-                        unassignedShards.add(shard);
                     }
                 }
             }
@@ -405,9 +407,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Returns <code>true</code> iff all replicas are active for the given shard routing. Otherwise <code>false</code>
      */
-    public boolean allShardsActive(ShardId shardId, Metadata metadata) {
+    public boolean allShardsActive(ShardId shardId, ProjectMetadata project) {
         final List<ShardRouting> shards = assignedShards(shardId);
-        final int shardCopies = metadata.getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
+        final int shardCopies = project.getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
         if (shards.size() < shardCopies) {
             return false; // if we are empty nothing is active if we have less than total at least one is unassigned
         }
@@ -1338,7 +1340,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             if (failedAllocations > 0) {
                 try {
                     final var maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(
-                        allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+                        allocation.metadata().indexMetadata(shardRouting.index()).getSettings()
                     );
                     if (failedAllocations >= maxRetry) {
                         shardsWithMaxFailedAllocations++;
@@ -1376,7 +1378,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     try {
                         int failedRelocations = shardRouting.relocationFailureInfo().failedRelocations();
                         final var maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(
-                            allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+                            allocation.metadata().indexMetadata(shardRouting.index()).getSettings()
                         );
                         if (failedRelocations >= maxRetry) {
                             shardsWithMaxFailedRelocations++;

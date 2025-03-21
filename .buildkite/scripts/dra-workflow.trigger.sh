@@ -8,7 +8,7 @@ source .buildkite/scripts/branches.sh
 
 for BRANCH in "${BRANCHES[@]}"; do
   if [[ "$BRANCH" == "9.0" ]]; then
-    export VERSION_QUALIFIER="beta1"
+    export VERSION_QUALIFIER="rc1"
   fi
 
   INTAKE_PIPELINE_SLUG="elasticsearch-intake"

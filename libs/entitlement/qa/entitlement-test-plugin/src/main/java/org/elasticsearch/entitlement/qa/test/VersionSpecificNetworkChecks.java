@@ -19,7 +19,7 @@ import java.net.spi.InetAddressResolverProvider;
 
 class VersionSpecificNetworkChecks {
     static void createInetAddressResolverProvider() {
-        var x = new InetAddressResolverProvider() {
+        new InetAddressResolverProvider() {
             @Override
             public InetAddressResolver get(Configuration configuration) {
                 return null;

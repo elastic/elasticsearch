@@ -1,0 +1,5 @@
+pr: 122999
+summary: Store arrays offsets for ip fields natively with synthetic source
+area: Mapping
+type: enhancement
+issues: []

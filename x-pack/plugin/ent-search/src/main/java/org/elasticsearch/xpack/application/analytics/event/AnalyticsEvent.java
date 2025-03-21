@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,7 +32,10 @@ import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.E
 
 /**
  * This class represents Analytics events object meant to be emitted to the event queue.
+ * @deprecated in 9.0
  */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class AnalyticsEvent implements Writeable, ToXContentObject {
 
     public static final ParseField TIMESTAMP_FIELD = new ParseField("@timestamp");

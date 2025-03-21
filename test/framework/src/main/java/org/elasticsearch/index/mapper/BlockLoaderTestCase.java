@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
@@ -18,7 +20,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
-import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.Mapping;
 import org.elasticsearch.logsdb.datageneration.MappingGenerator;
 import org.elasticsearch.logsdb.datageneration.Template;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
@@ -32,6 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,13 +42,37 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
-    private final FieldType fieldType;
+    private static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
+        MappedFieldType.FieldExtractPreference.NONE,
+        MappedFieldType.FieldExtractPreference.STORED };
+
+    @ParametersFactory(argumentFormatting = "preference=%s")
+    public static List<Object[]> args() {
+        List<Object[]> args = new ArrayList<>();
+        for (boolean syntheticSource : new boolean[] { false, true }) {
+            for (MappedFieldType.FieldExtractPreference preference : PREFERENCES) {
+                args.add(new Object[] { new Params(syntheticSource, preference) });
+            }
+        }
+        return args;
+    }
+
+    public record Params(boolean syntheticSource, MappedFieldType.FieldExtractPreference preference) {}
+
+    private final String fieldType;
+    protected final Params params;
+
     private final String fieldName;
     private final MappingGenerator mappingGenerator;
     private final DocumentGenerator documentGenerator;
 
-    protected BlockLoaderTestCase(FieldType fieldType) {
+    protected BlockLoaderTestCase(String fieldType, Params params) {
+        this(fieldType, List.of(), params);
+    }
+
+    protected BlockLoaderTestCase(String fieldType, Collection<DataSourceHandler> customHandlers, Params params) {
         this.fieldType = fieldType;
+        this.params = params;
         this.fieldName = randomAlphaOfLengthBetween(5, 10);
 
         var specification = DataGeneratorSpecification.builder()
@@ -64,17 +91,31 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                     return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new); // just defaults
                 }
             }))
+            .withDataSourceHandlers(customHandlers)
             .build();
 
         this.mappingGenerator = new MappingGenerator(specification);
         this.documentGenerator = new DocumentGenerator(specification);
     }
 
-    public void testBlockLoader() throws IOException {
-        var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
-        runTest(template, fieldName);
+    @Override
+    public void testFieldHasValue() {
+        assumeTrue("random test inherited from MapperServiceTestCase", false);
     }
 
+    @Override
+    public void testFieldHasValueWithEmptyFieldInfos() {
+        assumeTrue("random test inherited from MapperServiceTestCase", false);
+    }
+
+    public void testBlockLoader() throws IOException {
+        var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
+        var mapping = mappingGenerator.generate(template);
+
+        runTest(template, mapping, fieldName);
+    }
+
+    @SuppressWarnings("unchecked")
     public void testBlockLoaderForFieldInObject() throws IOException {
         int depth = randomIntBetween(0, 3);
 
@@ -94,25 +135,35 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         fullFieldName.append('.').append(fieldName);
         currentLevel.put(fieldName, new Template.Leaf(fieldName, fieldType));
         var template = new Template(top);
-        runTest(template, fullFieldName.toString());
+
+        var mapping = mappingGenerator.generate(template);
+
+        if (params.syntheticSource && randomBoolean()) {
+            // force fallback synthetic source in the hierarchy
+            var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
+            var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
+            topLevelMapping.put("synthetic_source_keep", "all");
+        }
+
+        runTest(template, mapping, fullFieldName.toString());
     }
 
-    private void runTest(Template template, String fieldName) throws IOException {
-        var mapping = mappingGenerator.generate(template);
+    private void runTest(Template template, Mapping mapping, String fieldName) throws IOException {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
-        var syntheticSource = randomBoolean();
-        var mapperService = syntheticSource ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
+        var mapperService = params.syntheticSource
+            ? createSytheticSourceMapperService(mappingXContent)
+            : createMapperService(mappingXContent);
 
         var document = documentGenerator.generate(template, mapping);
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
 
         Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, fieldName);
-        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), syntheticSource);
+        Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName));
         assertEquals(expected, blockLoaderResult);
     }
 
-    protected abstract Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource);
+    protected abstract Object expected(Map<String, Object> fieldMapping, Object value);
 
     private Object getFieldValue(Map<String, Object> document, String fieldName) {
         var rawValues = new ArrayList<>();
@@ -233,8 +284,7 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
             @Override
             public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                // TODO randomize when adding support for fields that care about this
-                return MappedFieldType.FieldExtractPreference.NONE;
+                return params.preference;
             }
 
             @Override
@@ -257,5 +307,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
             }
         });
+    }
+
+    protected static boolean hasDocValues(Map<String, Object> fieldMapping, boolean defaultValue) {
+        return (boolean) fieldMapping.getOrDefault("doc_values", defaultValue);
     }
 }

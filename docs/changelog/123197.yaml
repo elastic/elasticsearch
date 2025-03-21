@@ -1,0 +1,5 @@
+pr: 123197
+summary: Fix early termination in `LuceneSourceOperator`
+area: ES|QL
+type: bug
+issues: []

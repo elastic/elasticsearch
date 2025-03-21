@@ -72,7 +72,7 @@ public class RescorePhase {
                 assert topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
                 ctx.setCancellationChecker(null);
             }
-            /**
+            /*
              * Since rescorers are building top docs with score only, we must reconstruct the {@link TopFieldGroups}
              * or {@link TopFieldDocs} using their original version before rescoring.
              */
@@ -86,12 +86,13 @@ public class RescorePhase {
                 .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
-        } catch (ContextIndexSearcher.TimeExceededException e) {
+        } catch (ContextIndexSearcher.TimeExceededException timeExceededException) {
             SearchTimeoutException.handleTimeout(
                 context.request().allowPartialSearchResults(),
                 context.shardTarget(),
                 context.queryResult()
             );
+            // if the rescore phase times out and partial results are allowed, the returned top docs from this shard won't be rescored
         }
     }
 

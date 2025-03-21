@@ -8,12 +8,14 @@
  */
 
 module org.elasticsearch.entitlement {
+    requires org.elasticsearch.base;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
     requires java.instrument;
-    requires org.elasticsearch.base;
-    requires jdk.attach;
+    requires java.logging;
     requires java.net.http;
+    requires jdk.attach;
+    requires jdk.net;
 
     requires static org.elasticsearch.entitlement.bridge; // At runtime, this will be in java.base
 

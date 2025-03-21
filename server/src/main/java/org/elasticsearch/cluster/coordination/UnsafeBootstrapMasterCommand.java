@@ -104,7 +104,7 @@ public class UnsafeBootstrapMasterCommand extends ElasticsearchNodeCommand {
             .clusterUUIDCommitted(true)
             .persistentSettings(persistentSettings)
             .coordinationMetadata(newCoordinationMetadata);
-        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+        for (IndexMetadata indexMetadata : metadata.getProject().indices().values()) {
             newMetadata.put(
                 IndexMetadata.builder(indexMetadata)
                     .settings(

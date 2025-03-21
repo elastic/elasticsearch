@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -97,7 +96,6 @@ public class ClusterUpdateSettingsRequestTests extends ESTestCase {
             mock(RerouteService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             clusterSettings
         );
 

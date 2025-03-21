@@ -1,6 +1,7 @@
 {
   "template": {
     "settings": {
+      "mode": "logsdb",
       "index": {
         "number_of_shards": 4,
         "auto_expand_replicas": "0-1",
@@ -11,15 +12,22 @@
             "profiling.project.id",
             "k8s.namespace.name",
             "orchestrator.resource.name",
+            "service.name",
             "host.name",
             "container.name",
-            "process.thread.name"
+            "process.thread.name",
+            "@timestamp"
+          ],
+          "order": [
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "asc",
+            "desc"
           ]
-        },
-        "mapping": {
-          "source": {
-            "mode": "synthetic"
-          }
         }
       },
       "codec": "best_compression"

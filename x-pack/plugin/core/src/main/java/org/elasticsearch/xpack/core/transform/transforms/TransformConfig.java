@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -25,7 +23,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
-import org.elasticsearch.xpack.core.common.validation.SourceDestValidator;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
@@ -63,8 +60,6 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
     public static final TransformConfigVersion CONFIG_VERSION_LAST_DEFAULTS_CHANGED = TransformConfigVersion.V_7_15_0;
     public static final String NAME = "data_frame_transform_config";
     public static final ParseField HEADERS = new ParseField("headers");
-    /** Version in which {@code FieldCapabilitiesRequest.runtime_fields} field was introduced. */
-    private static final TransportVersion FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION = TransportVersions.V_7_12_0;
 
     /** Specifies all the possible transform functions. */
     public enum Function {
@@ -341,15 +336,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
      * @return version
      */
     public List<SourceDestValidation> getAdditionalSourceDestValidations() {
-        if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
-            SourceDestValidation validation = new SourceDestValidator.RemoteClusterMinimumVersionValidation(
-                FIELD_CAPS_RUNTIME_MAPPINGS_INTRODUCED_TRANSPORT_VERSION,
-                "source.runtime_mappings field was set"
-            );
-            return Collections.singletonList(validation);
-        } else {
-            return Collections.emptyList();
-        }
+        return List.of();
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {

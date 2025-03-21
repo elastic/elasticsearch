@@ -12,6 +12,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -368,6 +369,31 @@ public abstract class SearchContext implements Releasable {
      * Return a handle over the profilers for the current search request, or {@code null} if profiling is not enabled.
      */
     public abstract Profilers getProfilers();
+
+    /**
+     * The circuit breaker used to account for the search operation.
+     */
+    public abstract CircuitBreaker circuitBreaker();
+
+    /**
+     * Return the amount of memory to buffer locally before accounting for it in the breaker.
+     */
+    public abstract long memAccountingBufferSize();
+
+    /**
+     * Checks if the accumulated bytes are greater than the buffer size and if so, checks the available memory in the parent breaker
+     * (the real memory breaker).
+     * @param locallyAccumulatedBytes the number of bytes accumulated locally
+     * @param label the label to use in the breaker
+     * @return true if the real memory breaker is called and false otherwise
+     */
+    public final boolean checkRealMemoryCB(int locallyAccumulatedBytes, String label) {
+        if (locallyAccumulatedBytes >= memAccountingBufferSize()) {
+            circuitBreaker().addEstimateBytesAndMaybeBreak(0, label);
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Adds a releasable that will be freed when this context is closed.

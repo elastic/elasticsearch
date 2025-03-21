@@ -45,10 +45,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         private final boolean persistDefaultConfig;
 
         public Request(String inferenceEntityId, TaskType taskType) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-            this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
-            this.taskType = Objects.requireNonNull(taskType);
-            this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
+            this(inferenceEntityId, taskType, PERSIST_DEFAULT_CONFIGS);
         }
 
         public Request(String inferenceEntityId, TaskType taskType, boolean persistDefaultConfig) {
@@ -62,13 +59,11 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             super(in);
             this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_16_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 this.persistDefaultConfig = in.readBoolean();
             } else {
                 this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
             }
-
         }
 
         public String getInferenceEntityId() {
@@ -88,8 +83,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             super.writeTo(out);
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_DONT_PERSIST_ON_READ)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_16_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
                 out.writeBoolean(this.persistDefaultConfig);
             }
         }
@@ -119,7 +113,6 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 endpoints = in.readCollectionAsList(ModelConfigurations::new);
             } else {

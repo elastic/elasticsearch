@@ -58,7 +58,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         // the task really was a mapping update
         assertThat(
             indexService.mapperService().documentMapper().mappingSource(),
-            not(equalTo(resultingState.metadata().index("test").mapping().source()))
+            not(equalTo(resultingState.metadata().getProject().index("test").mapping().source()))
         );
         // since we never committed the cluster state update, the in-memory state is unchanged
         assertThat(indexService.mapperService().documentMapper().mappingSource(), equalTo(currentMapping));
@@ -110,8 +110,8 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        assertThat(resultingState.metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
-        assertThat(resultingState.metadata().index("test").getMappingsUpdatedVersion(), equalTo(IndexVersion.current()));
+        assertThat(resultingState.metadata().getProject().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+        assertThat(resultingState.metadata().getProject().index("test").getMappingsUpdatedVersion(), equalTo(IndexVersion.current()));
     }
 
     public void testMappingVersionUnchanged() throws Exception {
@@ -132,7 +132,7 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
             putMappingExecutor,
             singleTask(request)
         );
-        assertThat(resultingState.metadata().index("test").getMappingVersion(), equalTo(previousVersion));
+        assertThat(resultingState.metadata().getProject().index("test").getMappingVersion(), equalTo(previousVersion));
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

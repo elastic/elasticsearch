@@ -23,17 +23,21 @@ import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "jinaai_embeddings_service_settings";
+
+    static final String EMBEDDING_TYPE = "embedding_type";
 
     public static JinaAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -42,28 +46,47 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
+        JinaAIEmbeddingType embeddingTypes = parseEmbeddingType(map, validationException);
+
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new JinaAIEmbeddingsServiceSettings(commonServiceSettings, similarity, dims, maxInputTokens);
+        return new JinaAIEmbeddingsServiceSettings(commonServiceSettings, similarity, dims, maxInputTokens, embeddingTypes);
+    }
+
+    static JinaAIEmbeddingType parseEmbeddingType(Map<String, Object> map, ValidationException validationException) {
+        return Objects.requireNonNullElse(
+            extractOptionalEnum(
+                map,
+                EMBEDDING_TYPE,
+                ModelConfigurations.SERVICE_SETTINGS,
+                JinaAIEmbeddingType::fromString,
+                EnumSet.allOf(JinaAIEmbeddingType.class),
+                validationException
+            ),
+            JinaAIEmbeddingType.FLOAT
+        );
     }
 
     private final JinaAIServiceSettings commonSettings;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
+    private final JinaAIEmbeddingType embeddingType;
 
     public JinaAIEmbeddingsServiceSettings(
         JinaAIServiceSettings commonSettings,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        @Nullable JinaAIEmbeddingType embeddingType
     ) {
         this.commonSettings = commonSettings;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
+        this.embeddingType = embeddingType != null ? embeddingType : JinaAIEmbeddingType.FLOAT;
     }
 
     public JinaAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -71,6 +94,11 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
+
+        this.embeddingType = (in.getTransportVersion().onOrAfter(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19))
+                ? Objects.requireNonNullElse(in.readOptionalEnum(JinaAIEmbeddingType.class), JinaAIEmbeddingType.FLOAT)
+                : JinaAIEmbeddingType.FLOAT;
     }
 
     public JinaAIServiceSettings getCommonSettings() {
@@ -96,9 +124,13 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         return commonSettings.modelId();
     }
 
+    public JinaAIEmbeddingType getEmbeddingType() {
+        return embeddingType;
+    }
+
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return DenseVectorFieldMapper.ElementType.FLOAT;
+        return embeddingType == null ? DenseVectorFieldMapper.ElementType.FLOAT : embeddingType.toElementType();
     }
 
     @Override
@@ -120,6 +152,10 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+        if (embeddingType != null) {
+            builder.field(EMBEDDING_TYPE, embeddingType);
+        }
+
         builder.endObject();
         return builder;
     }
@@ -127,7 +163,9 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         commonSettings.toXContentFragmentOfExposedFields(builder, params);
-
+        if (embeddingType != null) {
+            builder.field(EMBEDDING_TYPE, embeddingType);
+        }
         return builder;
     }
 
@@ -142,6 +180,11 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19)) {
+            out.writeOptionalEnum(JinaAIEmbeddingType.translateToVersion(embeddingType, out.getTransportVersion()));
+        }
     }
 
     @Override
@@ -152,11 +195,12 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         return Objects.equals(commonSettings, that.commonSettings)
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
-            && Objects.equals(maxInputTokens, that.maxInputTokens);
+            && Objects.equals(maxInputTokens, that.maxInputTokens)
+            && Objects.equals(embeddingType, that.embeddingType);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(commonSettings, similarity, dimensions, maxInputTokens);
+        return Objects.hash(commonSettings, similarity, dimensions, maxInputTokens, embeddingType);
     }
 }

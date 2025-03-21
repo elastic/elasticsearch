@@ -14,7 +14,7 @@ restResources {
 
 // REST API specifications are published under the Apache 2.0 License
 ext.projectLicenses.set(['The Apache Software License, Version 2.0': providers.provider(() -> 'http://www.apache.org/licenses/LICENSE-2.0')])
-licenseFile.set(rootProject.file('licenses/APACHE-LICENSE-2.0.txt'))
+licenseFile.set(layout.settingsDirectory.file('licenses/APACHE-LICENSE-2.0.txt').asFile)
 
 configurations {
   // configuration to make use by external yaml rest test plugin in our examples
@@ -82,4 +82,10 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
     "cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning",
     "node_version warning is removed in 9.0"
   )
+  task.skipTest("tsdb/20_mapping/nested fields", "nested field support in tsdb indices is now supported")
+  task.skipTest("logsdb/10_settings/routing path allowed in logs mode with routing on sort fields", "Unknown feature routing.logsb_route_on_sort_fields")
+  task.skipTest("indices.create/21_synthetic_source_stored/index param - field ordering", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("indices.create/21_synthetic_source_stored/field param - keep nested array", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("indices.create/21_synthetic_source_stored/field param - keep root array", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("cluster.info/30_info_thread_pool/Cluster HTTP Info", "The search_throttled thread pool has been removed")
 })

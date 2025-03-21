@@ -102,7 +102,7 @@ public class IngestUserAgentPlugin extends Plugin implements IngestPlugin {
     }
 
     @Override
-    public Map<String, UnaryOperator<Metadata.Custom>> getCustomMetadataUpgraders() {
+    public Map<String, UnaryOperator<Metadata.ProjectCustom>> getProjectCustomMetadataUpgraders() {
         return Map.of(
             IngestMetadata.TYPE,
             ingestMetadata -> ((IngestMetadata) ingestMetadata).maybeUpgradeProcessors(

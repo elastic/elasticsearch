@@ -198,6 +198,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_FAILURE_FROM_REMOTE = def(8_841_0_11);
     public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL = def(8_841_0_12);
     public static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA_8_19 = def(8_841_0_13);
+    public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE_8_19 = def(8_841_0_14);
 
     /*
      * STOP! READ THIS FIRST! No, really,

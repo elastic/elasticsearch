@@ -15,6 +15,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
+import org.elasticsearch.xpack.esql.core.ColumnInfoImpl;
 
 import java.io.IOException;
 import java.util.Map;

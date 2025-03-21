@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.esql.core.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;

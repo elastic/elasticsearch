@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
@@ -139,12 +140,9 @@ public abstract class Attribute extends NamedExpression {
     protected abstract String label();
 
     /**
-     * If this field is unsupported this contains the underlying ES types. If there
-     * is a type conflict this will have many elements, some or all of which may
-     * be actually supported types.
+     * The description of this column in the HTTP response.
      */
-    @Nullable
-    public List<String> originalTypes() {
-        return null;
+    public ColumnInfoImpl columnInfo() {
+        return new ColumnInfoImpl(name(), dataType().outputType(), null);
     }
 }

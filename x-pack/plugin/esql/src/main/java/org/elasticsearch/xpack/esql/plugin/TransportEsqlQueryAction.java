@@ -36,13 +36,14 @@ import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlQueryTask;
+import org.elasticsearch.xpack.esql.core.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.enrich.AbstractLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
@@ -55,8 +56,6 @@ import org.elasticsearch.xpack.esql.session.Result;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -316,17 +315,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private EsqlQueryResponse toResponse(Task task, EsqlQueryRequest request, Configuration configuration, Result result) {
-        List<ColumnInfoImpl> columns = result.schema().stream().map(c -> {
-            List<String> originalTypes;
-            if (c.originalTypes() == null) {
-                originalTypes = null;
-            } else {
-                // Sort the original types so they are easier to test against and prettier.
-                originalTypes = new ArrayList<>(c.originalTypes());
-                Collections.sort(originalTypes);
-            }
-            return new ColumnInfoImpl(c.name(), c.dataType().outputType(), originalTypes);
-        }).toList();
+        List<ColumnInfoImpl> columns = result.schema().stream().map(Attribute::columnInfo).toList();
         EsqlQueryResponse.Profile profile = configuration.profile() ? new EsqlQueryResponse.Profile(result.profiles()) : null;
         threadPool.getThreadContext().addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, "?0");
         if (task instanceof EsqlQueryTask asyncTask && request.keepOnCompletion()) {

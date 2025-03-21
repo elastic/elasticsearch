@@ -825,7 +825,7 @@ public abstract class DocsV3Support {
 
         if (info.examples().length > 0) {
             Example example = info.examples()[0];
-            builder.append("```\n");
+            builder.append("```esql\n");
             builder.append(loadExample(example.file(), example.tag()));
             builder.append("\n```\n");
         }

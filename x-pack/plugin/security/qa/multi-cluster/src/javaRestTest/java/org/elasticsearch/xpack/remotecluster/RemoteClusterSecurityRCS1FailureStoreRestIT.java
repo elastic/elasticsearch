@@ -150,7 +150,9 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                             + DATA_ACCESS
                             + "] on indices ["
                             + backingFailureIndexName
-                            + "], this action is granted by the index privileges [view_index_metadata,manage,read_cross_cluster,all]"
+                            + "], this action is granted by the index privileges ["
+                            + (ccsMinimizeRoundtrips ? "read,all" : "view_index_metadata,manage,read_cross_cluster,all")
+                            + "]"
 
                     )
                 );

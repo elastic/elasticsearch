@@ -187,7 +187,7 @@
 ---
 "Rolling over an unknown target should return 404":
   - do:
-      catch: bad_request
+      catch: missing
       indices.rollover:
         alias: "non_existent"
   - match: {error.reason: "rollover target [non_existent] does not exist"}

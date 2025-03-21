@@ -375,8 +375,10 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("2.2.2.2"));
         assertThat(ingestDocument.getFieldValue("http.request.method", String.class), equalTo("POST"));
         assertThat(ingestDocument.getFieldValue("url.original", String.class), equalTo("'https://foo.example.com/bar/bingo/1'"));
-        assertThat(ingestDocument.getFieldValue("user_agent.original", String.class),
-            equalTo("'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='"));
+        assertThat(
+            ingestDocument.getFieldValue("user_agent.original", String.class),
+            equalTo("'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='")
+        );
 
         assertThat(cef.get("extensions.cat"), equalTo("Access Log"));
         assertThat(cef.get("extensions.cs1Label"), equalTo("Foo Bar"));
@@ -536,8 +538,10 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("10"));
 
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
-        assertThat(ingestDocument.getFieldValue("message", String.class),
-            equalTo("Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."));
+        assertThat(
+            ingestDocument.getFieldValue("message", String.class),
+            equalTo("Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=.")
+        );
         assertThat(ingestDocument.getFieldValue("destination.port", Long.class), equalTo(4432L));
 
     }
@@ -567,8 +571,10 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("extensions.notificationScope"), equalTo("ACCOUNT"));
 
         // Incomplete Header yields an error message too
-        assertThat(ingestDocument.getFieldValue("error.message", ArrayList.class),
-            equalTo(Collections.singletonList("incomplete CEF header")));
+        assertThat(
+            ingestDocument.getFieldValue("error.message", ArrayList.class),
+            equalTo(Collections.singletonList("incomplete CEF header"))
+        );
     }
 
     @Test
@@ -592,7 +598,7 @@ public class CefProcessorTests extends ESTestCase {
 
         assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
 
-        //Empty src fields are not mapped into the ingestDocument
+        // Empty src fields are not mapped into the ingestDocument
         assertThat(ingestDocument.hasField("source.port"), equalTo(false));
         assertThat(ingestDocument.hasField("source.ip"), equalTo(false));
 

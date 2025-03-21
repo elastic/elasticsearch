@@ -12,10 +12,8 @@ import org.elasticsearch.ingest.IngestDocument;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -180,15 +178,13 @@ final class CefParser {
             event.setExtensions(extensions);
 
             // Translate possible ECS fields and remove them from extensions
-            Map<String, Object> translatedFields = extensions.entrySet().stream()
+            Map<String, Object> translatedFields = extensions.entrySet()
+                .stream()
                 .filter(entry -> FIELD_MAPPING.containsKey(entry.getKey()))
-                .collect(Collectors.toMap(
-                    entry -> FIELD_MAPPING.get(entry.getKey()),
-                    entry -> {
-                        Class<?> fieldType = ECSFieldWithType.getFieldType(FIELD_MAPPING.get(entry.getKey()));
-                        return convertValueToType(entry.getValue(), fieldType);
-                    }
-                ));
+                .collect(Collectors.toMap(entry -> FIELD_MAPPING.get(entry.getKey()), entry -> {
+                    Class<?> fieldType = ECSFieldWithType.getFieldType(FIELD_MAPPING.get(entry.getKey()));
+                    return convertValueToType(entry.getValue(), fieldType);
+                }));
 
             // Remove the translated entries from extensions
             event.removeMappedExtensions();

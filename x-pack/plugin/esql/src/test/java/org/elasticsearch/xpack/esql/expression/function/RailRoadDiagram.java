@@ -58,7 +58,8 @@ public class RailRoadDiagram {
         } else {
             boolean first = true;
             List<EsqlFunctionRegistry.ArgSignature> args = EsqlFunctionRegistry.description(definition).args();
-            for (EsqlFunctionRegistry.ArgSignature arg : args) {
+            for (int i = 0; i < args.size(); i++) {
+                EsqlFunctionRegistry.ArgSignature arg = args.get(i);
                 String argName = arg.name();
                 if (arg.variadic) {
                     if (argName.endsWith("...")) {
@@ -71,7 +72,19 @@ public class RailRoadDiagram {
                     } else {
                         expressions.add(new Syntax(","));
                     }
-                    expressions.add(new Literal(argName));
+                    if (arg.optional) {
+                        if (definition.name().equals("bucket")) {
+                            // BUCKET requires optional args to be optional together, so we need custom code to do that
+                            var nextArg = args.get(++i);
+                            assert nextArg.optional();
+                            Sequence seq = new Sequence(new Literal(argName), new Syntax(","), new Literal(nextArg.name));
+                            expressions.add(new Repetition(seq, 0, 1));
+                        } else {
+                            expressions.add(new Repetition(new Literal(argName), 0, 1));
+                        }
+                    } else {
+                        expressions.add(new Literal(argName));
+                    }
                 }
             }
         }

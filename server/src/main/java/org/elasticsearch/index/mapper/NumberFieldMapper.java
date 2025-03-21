@@ -1541,6 +1541,11 @@ public class NumberFieldMapper extends FieldMapper {
             boolean stored
         );
 
+        /**
+         * For a given {@code Number}, returns the sortable long representation that will be stored in the doc values.
+         * @param value number to convert
+         * @return sortable long representation
+         */
         public abstract long toSortableLong(Number value);
 
         public FieldValues<Number> compile(String fieldName, Script script, ScriptCompiler compiler) {
@@ -2177,7 +2182,10 @@ public class NumberFieldMapper extends FieldMapper {
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (value != null) {
-                context.getOffSetContext().recordOffset(offsetsFieldName, type.toSortableLong(value));
+                // We cannot simply cast value to Comparable<> because we need to also capture the potential loss of precision that occurs
+                // when the value is stored into the doc values.
+                long sortableLongValue = type.toSortableLong(value);
+                context.getOffSetContext().recordOffset(offsetsFieldName, sortableLongValue);
             } else {
                 context.getOffSetContext().recordNull(offsetsFieldName);
             }

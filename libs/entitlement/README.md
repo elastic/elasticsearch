@@ -110,7 +110,7 @@ The versioned policy needs to be base64 encoded. For example, to pass the above 
 ```shell
 ./gradlew run --debug-jvm -Dtests.jvm.argline="-Des.entitlements.policy.repository-gcs=dmVyc2lvbnM6CiAgLSA5LjEuMApwb2xpY3k6CiAgQUxMLVVOTkFNRUQ6CiAgICAtIHNldF9odHRwc19jb25uZWN0aW9uX3Byb3BlcnRpZXMKICAgIC0gb3V0Ym91bmRfbmV0d29yawogICAgLSBmaWxlczoKICAgICAgLSByZWxhdGl2ZV9wYXRoOiAiLmNvbmZpZy9nY2xvdWQiCiAgICAgICAgcmVsYXRpdmVfdG86IGhvbWUKICAgICAgICBtb2RlOiByZWFkCg=="
 ```
-The versions listed in the policy are string-matched against the Elasticsearch version as returned by `Build.version().current()`; this means that for Serverless this will be the build hash of the deployed version. It is possible to specify any number of versions. If the list is empty/there is no versions field, the policy is assumed to match any Elasticsearch versions.
+The versions listed in the policy are string-matched against the Elasticsearch version as returned by `Build.version().current()`. It is possible to specify any number of versions.
 
 The patch policy will be merged into the existing policy; in other words, entitlements specified in the patch policy will be **added** to the existing policy.
 
@@ -141,6 +141,29 @@ If you try to add an invalid policy (syntax error, wrong scope, etc.) the patch 
 java.lang.IllegalStateException: Invalid module name in policy: layer [server] does not have module [java.xml]; available modules [...]; policy path [<patch>]
 ```
 
+IMPORTANT: this patching mechanism is intended to be used **only** for emergencies; once a missing entitlement is identified, the fix needs to be applied to the codebase, by raising a PR or submitting a bug via Github so that the embedded policies can be fixed.
+
 ### How to migrate a from a Java Security Policy to an entitlement policy
 
-TODO
+Translating Java Security Permissions to Entitlements is usually not too difficult;
+- many permissions are not used anymore. The Entitlement system is targeting sensitive actions we identified as crucial to our code; any other permission is not checked anymore. Also, we do not have  any entitlement related to reflection or access checks: Elasticsearch runs modularized, and we leverage and trust the Java module mechanism to enforce access and visibility.
+Examples of permissions that do not have an Entitlement equivalent:
+  - `java.net.NetPermission "getProxySelector"`, `java.util.PropertyPermission "<name>", "read"` or `java.lang.RuntimePermission "getClassLoader"`: we do not care about anything that "reads" or "gets" something. We care about writing or setting (except network and files);
+  - `javax.security.auth.*Permission` or `java.security.SecurityPermission`: currently, we do not have any equivalent to authn/authz permissions. This could change in a future release.
+  - `java.lang.reflect.ReflectPermission "suppressAccessChecks";` or  `java.lang.RuntimePermission "accessDeclaredMembers"`: we rely on Java module encapsulation to protect sensitive classes and methods.
+  - `java.net.SocketPermission "*", "resolve"`
+- some permissions have a 1-1 translation. Examples:
+  - `java.net.SocketPermission "*", "connect"` translates to `outgoing_network`
+  - `java.net.SocketPermission "*", "accept"` or `listen` translates to `incoming_network`
+  - `java.lang.RuntimePermission "createClassLoader"` translates to `create_class_loader`
+  - `java.io.FilePermission` translates to `files`
+  - `java.util.PropertyPermission "<name>", "write"` translates to `write_system_properties` (`write_all_system_properties` in case `<name>` is `"*"`)
+  - `java.lang.RuntimePermission "setContextClassLoader"` translates to `manage_threads`
+  - `java.lang.RuntimePermission "loadLibrary*"` translates to `load_native_libraries`
+- some permissions need more investigation:
+  - `java.lang.RuntimePermission "setFactory"`: most of the methods that used to be guarded by this permission are always denied; some are always granted. The only equivalent in the entitlement system is `set_https_connection_properties`, for methods like `HttpsURLConnection.setSSLSocketFactory` that can be used to change a HTTPS connection properties after the connection object has been created.
+
+Note however that the key difference between Security Manager and Entitlements in the policy check model means that translating a Security Manager policy to an Entitlement policy may not be a 1-1 translation from Permissions to Entitlements: Security Manager used to do a full-stack check, interrupted by `doPrivileged` blocks; Entitlements does a "first untrusted frame" check. This means that some Permissions that needed to be granted with Security Manager may not need the equivalent entitlement; conversely, code that used `doPrivileged` under the Security Manager model might have not needed a Permission, but might need an Entitlement now to run correctly.
+
+Finally, a word on scopes: the Security Manager model used either general grants, or granted some permission to a specific codebase, e.g. `grant codeBase "${codebase.netty-transport}"`.
+In Entitlements, there is no option for a general grant: you must identify to which module a particular entitlement needs to be granted (except for non-modular plugins, for which everything falls under `ALL-UNNAMED`). If the Security Manager policy specified a codebase, it's usually easy to find the correct module, otherwise it might be tricky and require deeper investigation.

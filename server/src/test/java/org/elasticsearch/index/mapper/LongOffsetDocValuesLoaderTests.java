@@ -9,28 +9,26 @@
 
 package org.elasticsearch.index.mapper;
 
-public class KeywordOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCase {
+public class LongOffsetDocValuesLoaderTests extends OffsetDocValuesLoaderTestCase {
 
     public void testOffsetArray() throws Exception {
-        verifyOffsets("{\"field\":[\"z\",\"x\",\"y\",\"c\",\"b\",\"a\"]}");
-        verifyOffsets("{\"field\":[\"z\",null,\"y\",\"c\",null,\"a\"]}");
+        verifyOffsets("{\"field\":[26,24,25,3,2,1]}");
+        verifyOffsets("{\"field\":[26,null,25,3,null,1]}");
+        verifyOffsets("{\"field\":[5,5,6,-3,-9,-9,5,2,5,6,-3,-9]}");
     }
 
     public void testOffsetNestedArray() throws Exception {
-        verifyOffsets("{\"field\":[\"z\",[\"y\"],[\"c\"],null,\"a\"]}", "{\"field\":[\"z\",\"y\",\"c\",null,\"a\"]}");
-        verifyOffsets(
-            "{\"field\":[\"z\",[\"y\", [\"k\"]],[\"c\", [\"l\"]],null,\"a\"]}",
-            "{\"field\":[\"z\",\"y\",\"k\",\"c\",\"l\",null,\"a\"]}"
-        );
+        verifyOffsets("{\"field\":[\"26\",[\"24\"],[\"3\"],null,\"1\"]}", "{\"field\":[26,24,3,null,1]}");
+        verifyOffsets("{\"field\":[\"26\",[\"24\", [\"11\"]],[\"3\", [\"12\"]],null,\"1\"]}", "{\"field\":[26,24,11,3,12,null,1]}");
     }
 
     @Override
     protected String getFieldTypeName() {
-        return "keyword";
+        return "long";
     }
 
     @Override
     protected Object randomValue() {
-        return randomAlphanumericOfLength(2);
+        return randomLong();
     }
 }

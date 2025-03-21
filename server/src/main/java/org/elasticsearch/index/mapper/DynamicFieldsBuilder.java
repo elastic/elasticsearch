@@ -352,7 +352,8 @@ final class DynamicFieldsBuilder {
                     ScriptCompiler.NONE,
                     context.indexSettings().getSettings(),
                     context.indexSettings().getIndexVersionCreated(),
-                    context.indexSettings().getMode()
+                    context.indexSettings().getMode(),
+                    context.indexSettings().sourceKeepMode()
                 ),
                 context
             );
@@ -370,7 +371,8 @@ final class DynamicFieldsBuilder {
                     ScriptCompiler.NONE,
                     context.indexSettings().getSettings(),
                     context.indexSettings().getIndexVersionCreated(),
-                    context.indexSettings().getMode()
+                    context.indexSettings().getMode(),
+                    context.indexSettings().sourceKeepMode()
                 ),
                 context
             );

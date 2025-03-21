@@ -153,7 +153,7 @@ final class OutboundHandler {
         try {
             sendMessage(channel, message, responseStatsConsumer, () -> {
                 try {
-                    messageListener.onResponseSent(requestId, action, response);
+                    messageListener.onResponseSent(requestId, action);
                 } finally {
                     response.decRef();
                 }

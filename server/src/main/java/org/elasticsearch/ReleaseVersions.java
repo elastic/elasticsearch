@@ -110,12 +110,7 @@ public class ReleaseVersions {
                 } else {
                     // a really old version we don't have a record for
                     // assume it's an old version id - we can just return it directly
-                    // this will no longer be the case with ES 10 (which won't know about ES v8.x where we introduced separated versions)
-                    // maybe keep the release mapping around in the csv file?
-                    // SEP for now
-                    // @UpdateForV10
-                    Version oldVersion = Version.fromId(id);
-                    return oldVersion.toString();
+                    return Version.fromId(id).toString();
                 }
 
                 var upperRange = versions.higherEntry(id);

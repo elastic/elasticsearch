@@ -687,8 +687,7 @@ Follow these steps:
           "field": "text",
           "inference_id": "my-elastic-rerank",
           "inference_text": "How often does the moon hide the sun?",
-          "rank_window_size": 100,
-          "min_score": 0.5
+          "rank_window_size": 100
         }
       }
     }

@@ -248,13 +248,13 @@ public abstract class Engine implements Closeable {
     /**
      * @throws AlreadyClosedException if the shard is closed
      */
-    public ShardFieldStats getShardFieldStats() {
+    public ShardFieldStats shardFieldStats() {
         try (var searcher = acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
-            return getShardFieldStats(searcher.getLeafContexts());
+            return shardFieldStats(searcher.getLeafContexts());
         }
     }
 
-    protected ShardFieldStats getShardFieldStats(List<LeafReaderContext> leaves) {
+    protected ShardFieldStats shardFieldStats(List<LeafReaderContext> leaves) {
         int numSegments = 0;
         int totalFields = 0;
         long usages = 0;

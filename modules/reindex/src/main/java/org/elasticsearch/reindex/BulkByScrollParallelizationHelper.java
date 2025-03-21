@@ -48,7 +48,11 @@ import java.util.stream.Collectors;
 class BulkByScrollParallelizationHelper {
 
     static final int AUTO_SLICE_CEILING = 20;
-    private static final AtomicInteger ingestNodeOffsetGenerator = new AtomicInteger(Randomness.get().nextInt());
+    /*
+     * The following is incremented in order to keep track of the current round-robin position for ingest nodes that we send sliced requests
+     * to. We randomize where it starts so that all nodes don't begin by sending data to the same node.
+     */
+    private static final AtomicInteger ingestNodeOffsetGenerator = new AtomicInteger(Randomness.get().nextInt(2048));
     private static final Logger logger = LogManager.getLogger(BulkByScrollParallelizationHelper.class);
 
     private BulkByScrollParallelizationHelper() {}

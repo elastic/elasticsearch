@@ -38,8 +38,6 @@ public class MultiMatchQuery extends Query {
     private static final Map<String, BiConsumer<MultiMatchQueryBuilder, Object>> BUILDER_APPLIERS;
 
     static {
-        // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
-        // TODO: update to "native" types like int, str.
         BUILDER_APPLIERS = Map.ofEntries(
             entry(SLOP_FIELD.getPreferredName(), (qb, obj) -> qb.slop((Integer) obj)),
             // TODO: add zero terms query support, I'm not sure the best way to parse it yet...

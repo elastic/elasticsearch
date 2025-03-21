@@ -1,5 +1,6 @@
 pr: 125389
-summary: "[8.x] Support 7x segments as archive in 8x / 9x"
+summary: Support indices created in ESv6 and updated in ESV7 using different LuceneCodecs as archive in current version.
 area: Search
 type: bug
-issues: []
+issues:
+  - 117042

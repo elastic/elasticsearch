@@ -48,8 +48,8 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
         this.listObjPattern = Pattern.compile("/storage/v1/b/" + bucket + "/o");
     }
 
-    private void incMetric(Operation op, GoogleCloudStorageOperationsStats.Counter metric) {
-        stats.incMetric(purpose, op, metric);
+    private void inc(Operation op, GoogleCloudStorageOperationsStats.Counter counter) {
+        stats.inc(purpose, op, counter);
     }
 
     private boolean isSuccessCode(int code) {
@@ -67,19 +67,19 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
                 // https://cloud.google.com/storage/docs/json_api/v1/objects/get
                 if (getObjPattern.matcher(path).matches()) {
                     if (isSuccessCode(code) || code == 404) {
-                        incMetric(GET_OBJECT, REQUEST);
-                        incMetric(GET_OBJECT, OPERATION);
+                        inc(GET_OBJECT, REQUEST);
+                        inc(GET_OBJECT, OPERATION);
                     } else {
-                        incMetric(GET_OBJECT, REQUEST_EXCEPTION);
-                        incMetric(GET_OBJECT, OPERATION_EXCEPTION);
+                        inc(GET_OBJECT, REQUEST_EXCEPTION);
+                        inc(GET_OBJECT, OPERATION_EXCEPTION);
                     }
                 } else if (listObjPattern.matcher(path).matches()) {
                     if (isSuccessCode(code)) {
-                        incMetric(LIST_OBJECTS, REQUEST);
-                        incMetric(LIST_OBJECTS, OPERATION);
+                        inc(LIST_OBJECTS, REQUEST);
+                        inc(LIST_OBJECTS, OPERATION);
                     } else {
-                        incMetric(LIST_OBJECTS, REQUEST_EXCEPTION);
-                        incMetric(LIST_OBJECTS, OPERATION_EXCEPTION);
+                        inc(LIST_OBJECTS, REQUEST_EXCEPTION);
+                        inc(LIST_OBJECTS, OPERATION_EXCEPTION);
                     }
                 } else {
                     ignored = true;
@@ -89,9 +89,9 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
                 // https://cloud.google.com/storage/docs/json_api/v1/objects/insert
                 if (insertObjPattern.matcher(path).matches()) {
                     if (isSuccessCode(code)) {
-                        incMetric(INSERT_OBJECT, REQUEST);
+                        inc(INSERT_OBJECT, REQUEST);
                     } else {
-                        incMetric(INSERT_OBJECT, REQUEST_EXCEPTION);
+                        inc(INSERT_OBJECT, REQUEST_EXCEPTION);
                     }
                 } else {
                     ignored = true;

@@ -20,6 +20,7 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,15 +28,21 @@ import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
 
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.OPERATION;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Counter.OPERATION_EXCEPTION;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation.INSERT_OBJECT;
+
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
     private final GoogleCloudStorageBlobStore blobStore;
+    private final GoogleCloudStorageOperationsStats tracker;
     private final String path;
 
     GoogleCloudStorageBlobContainer(BlobPath path, GoogleCloudStorageBlobStore blobStore) {
         super(path);
         this.blobStore = blobStore;
         this.path = path.buildAsString();
+        this.tracker = blobStore.tracker();
     }
 
     @Override
@@ -73,15 +80,32 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         return blobStore.readBlob(purpose, buildKey(blobName), position, length);
     }
 
+    // We don't track InsertObject operation on the http layer as
+    // we do with the GET/LIST operations since this operations
+    // can trigger multiple underlying http requests but only one
+    // operation is billed.
+    private void trackInsertObject(OperationPurpose purpose, CheckedRunnable<IOException> r) throws IOException {
+        try {
+            r.run();
+            tracker.inc(purpose, INSERT_OBJECT, OPERATION);
+        } catch (Exception e) {
+            tracker.inc(purpose, INSERT_OBJECT, OPERATION_EXCEPTION);
+            throw e;
+        }
+    }
+
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
         throws IOException {
-        blobStore.writeBlob(purpose, buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
+        trackInsertObject(
+            purpose,
+            () -> blobStore.writeStreamBlob(purpose, buildKey(blobName), inputStream, blobSize, failIfAlreadyExists)
+        );
     }
 
     @Override
     public void writeBlob(OperationPurpose purpose, String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
-        blobStore.writeBlob(purpose, buildKey(blobName), bytes, failIfAlreadyExists);
+        trackInsertObject(purpose, () -> blobStore.writeFullBlob(purpose, buildKey(blobName), bytes, failIfAlreadyExists));
     }
 
     @Override
@@ -92,7 +116,7 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
         boolean atomic,
         CheckedConsumer<OutputStream, IOException> writer
     ) throws IOException {
-        blobStore.writeBlob(purpose, buildKey(blobName), failIfAlreadyExists, writer);
+        trackInsertObject(purpose, () -> blobStore.writeMetadata(purpose, buildKey(blobName), failIfAlreadyExists, writer));
     }
 
     @Override

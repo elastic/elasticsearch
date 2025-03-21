@@ -96,7 +96,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
         final RepositoriesMetrics repositoriesMetrics
-        ) {
+    ) {
         super(
             metadata,
             namedXContentRegistry,
@@ -107,7 +107,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
             buildLocation(metadata)
         );
         this.storageService = storageService;
-        this.repositoriesMetrics =repositoriesMetrics;
+        this.repositoriesMetrics = repositoriesMetrics;
         this.chunkSize = getSetting(CHUNK_SIZE, metadata);
         this.bucket = getSetting(BUCKET, metadata);
         this.clientName = CLIENT_NAME.get(metadata.settings());

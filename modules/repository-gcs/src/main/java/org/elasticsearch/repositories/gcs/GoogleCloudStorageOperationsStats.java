@@ -56,9 +56,15 @@ final class GoogleCloudStorageOperationsStats {
         return bucket;
     }
 
-    void incMetric(OperationPurpose purpose, Operation operation, Counter metric) {
+    /**
+     * Increment counter by 1 for given:
+     * @param purpose {@link OperationPurpose}
+     * @param operation {@link Operation}
+     * @param counter {@link Counter}
+     */
+    void inc(OperationPurpose purpose, Operation operation, Counter counter) {
         var attr = telemetryAttributes.get(purpose).get(operation);
-        switch (metric) {
+        switch (counter) {
             case REQUEST -> telemetry.requestCounter().incrementBy(1, attr);
             case REQUEST_EXCEPTION -> {
                 telemetry.exceptionCounter().incrementBy(1, attr);

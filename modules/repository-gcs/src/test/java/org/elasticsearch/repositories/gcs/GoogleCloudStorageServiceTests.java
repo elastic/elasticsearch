@@ -169,30 +169,10 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
 
             final OperationPurpose operationPurpose = randomPurpose();
             final OperationPurpose differentOperationPurpose = randomValueOtherThan(operationPurpose, BlobStoreTestUtil::randomPurpose);
-            final Storage repo1Client = storageService.client(
-                "gcs1",
-                "repo1",
-                operationPurpose,
-                gcpStats("bucket")
-            );
-            final Storage repo1ClientOtherPurpose = storageService.client(
-                "gcs1",
-                "repo1",
-                differentOperationPurpose,
-                gcpStats("bucket")
-            );
-            final Storage repo2Client = storageService.client(
-                "gcs1",
-                "repo2",
-                operationPurpose,
-                gcpStats("bucket")
-            );
-            final Storage repo1ClientSecondInstance = storageService.client(
-                "gcs1",
-                "repo1",
-                operationPurpose,
-                gcpStats("bucket")
-            );
+            final Storage repo1Client = storageService.client("gcs1", "repo1", operationPurpose, gcpStats("bucket"));
+            final Storage repo1ClientOtherPurpose = storageService.client("gcs1", "repo1", differentOperationPurpose, gcpStats("bucket"));
+            final Storage repo2Client = storageService.client("gcs1", "repo2", operationPurpose, gcpStats("bucket"));
+            final Storage repo1ClientSecondInstance = storageService.client("gcs1", "repo1", operationPurpose, gcpStats("bucket"));
 
             assertNotSame(repo1Client, repo2Client);
             assertNotSame(repo1Client, repo1ClientOtherPurpose);

@@ -30,14 +30,14 @@ abstract class AbstractRemoteClusterSecurityFailureStoreRestIT extends AbstractR
 
     protected void assertSearchResponseContainsIndices(Response response, String... expectedIndices) throws IOException {
         assertOK(response);
-        final SearchResponse dataSearchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+        final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
         try {
-            final List<String> actualIndices = Arrays.stream(dataSearchResponse.getHits().getHits())
+            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
                 .map(SearchHit::getIndex)
                 .collect(Collectors.toList());
             assertThat(actualIndices, containsInAnyOrder(expectedIndices));
         } finally {
-            dataSearchResponse.decRef();
+            searchResponse.decRef();
         }
     }
 

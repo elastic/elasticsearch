@@ -48,9 +48,13 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testCrossClusterSearch() throws Exception {
-        // configure remote cluster using certificate-based authentication
-        configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, true, randomBoolean(), randomBoolean());
+    public void testRCS1CrossClusterSearch() throws Exception {
+        final boolean rcs1Security = true;
+        final boolean isProxyMode = randomBoolean();
+        final boolean skipUnavailable = false; // we want to get actual failures and not skip and get empty results
+        final boolean ccsMinimizeRoundtrips = randomBoolean();
+
+        configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, rcs1Security, isProxyMode, skipUnavailable);
 
         // fulfilling cluster setup
         setupRoleAndUserOnFulfillingCluster();
@@ -70,11 +74,11 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                 "GET",
                 String.format(
                     Locale.ROOT,
-                    "/%s%s:%s/_search?ccs_minimize_roundtrips=%s&ignore_unavailable=false",
+                    "/%s%s:%s/_search?ccs_minimize_roundtrips=%s",
                     alsoSearchLocally ? "local_index," : "",
                     randomFrom("my_remote_cluster", "*", "my_remote_*"),
                     randomFrom("test1::data", "test1", "test*", "test*::data", "*", "*::data", backingDataIndexName),
-                    randomBoolean()
+                    ccsMinimizeRoundtrips
                 )
             );
             final String[] expectedIndices = alsoSearchLocally
@@ -91,9 +95,9 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
                         "GET",
                         String.format(
                             Locale.ROOT,
-                            "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
+                            "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s&ignore_unavailable=true",
                             randomFrom("test1::failures", "test*::failures", "*::failures"),
-                            randomBoolean()
+                            ccsMinimizeRoundtrips
                         )
                     )
                 )
@@ -102,17 +106,45 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             assertThat(exception.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
         }
         {
-            // direct access to backing failure index is subject to the user's permissions and is allowed
+            // direct access to backing failure index is subject to the user's permissions
+            // it might fail in some cases and work in others
             Request failureIndexSearchRequest = new Request(
                 "GET",
                 String.format(
                     Locale.ROOT,
                     "/my_remote_cluster:%s/_search?ccs_minimize_roundtrips=%s",
                     backingFailureIndexName,
-                    randomBoolean()
+                    ccsMinimizeRoundtrips
                 )
             );
-            assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(failureIndexSearchRequest), backingFailureIndexName);
+            if (ccsMinimizeRoundtrips) {
+                // this is a special case where indices:data/read/search will be sent to a remote cluster
+                // and the request to backing failure store index will be authorized based on the datastream
+                // which grants access to backing failure store indices (granted by read_failure_store privilege)
+                // from a security perspective, this is a valid use case and there is no way to prevent this with RCS1 security model
+                // since from the fulfilling cluster perspective this request is no different from any other local search request
+                assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(failureIndexSearchRequest), backingFailureIndexName);
+            } else {
+                // in this case, the user does not have the necessary permissions to search the backing failure index
+                // the request to failure store backing index is authorized based on the datastream
+                // which does not grant access to the indices:admin/search/search_shards action
+                // this action is granted by read_cross_cluster privilege which is currently
+                // not supporting the failure backing indices (only data backing indices)
+                final ResponseException exception = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUser(failureIndexSearchRequest)
+                );
+                assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+                assertThat(
+                    exception.getMessage(),
+                    containsString(
+                        "action [indices:admin/search/search_shards] is unauthorized for user [remote_search_user] "
+                            + "with effective roles [remote_search] on indices ["
+                            + backingFailureIndexName
+                            + "], this action is granted by the index privileges [view_index_metadata,manage,read_cross_cluster,all]"
+                    )
+                );
+            }
         }
     }
 
@@ -124,11 +156,9 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
     }
 
     private static void setupUserAndRoleOnQueryCluster() throws IOException {
-        // Create user role with privileges for remote and local indices
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "description": "Role with privileges for remote and local indices.",
               "indices": [
                 {
                   "names": ["local_index"],

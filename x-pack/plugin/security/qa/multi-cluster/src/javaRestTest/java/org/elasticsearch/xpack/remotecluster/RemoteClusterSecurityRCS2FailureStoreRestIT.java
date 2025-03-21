@@ -72,9 +72,10 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
     // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
     public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
 
-    public void testCrossClusterSearch() throws Exception {
+    public void testRCS2CrossClusterSearch() throws Exception {
         // configure remote cluster using API Key-based authentication
         configureRemoteCluster();
+        final String crossClusterAccessApiKeyId = (String) API_KEY_MAP_REF.get().get("id");
 
         // fulfilling cluster setup
         setupTestDataStreamOnFulfillingCluster();
@@ -125,7 +126,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
             assertThat(exception.getMessage(), containsString("failures selector is not supported with cross-cluster expressions"));
         }
         {
-            // direct access to backing failure index is subject to the user's permissions and is allowed
+            // direct access to backing failure index is not allowed - no explicit read privileges over .fs-* indices
             Request failureIndexSearchRequest = new Request(
                 "GET",
                 String.format(
@@ -135,7 +136,22 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                     randomBoolean()
                 )
             );
-            assertSearchResponseContainsIndices(performRequestWithRemoteSearchUser(failureIndexSearchRequest), backingFailureIndexName);
+            final ResponseException exception = expectThrows(
+                ResponseException.class,
+                () -> performRequestWithRemoteSearchUser(failureIndexSearchRequest)
+            );
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    "action [indices:data/read/search] towards remote cluster is unauthorized for user [remote_search_user] "
+                        + "with assigned roles [remote_search] authenticated by API key id ["
+                        + crossClusterAccessApiKeyId
+                        + "] of user [test_user] on indices ["
+                        + backingFailureIndexName
+                        + "], this action is granted by the index privileges [read,all]"
+                )
+            );
         }
     }
 

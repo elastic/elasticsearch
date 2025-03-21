@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Iterators;
@@ -1124,29 +1123,18 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of("test_ds_patterns_*"))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
-                            .template(
-                                Template.builder()
-                                    .mappings(new CompressedXContent("""
-                                        {
-                                          "dynamic": false,
-                                          "properties": {
-                                            "@timestamp": {
-                                              "type": "date"
-                                            },
-                                            "count": {
-                                                "type": "long"
-                                            }
-                                          }
-                                        }"""))
-                                    .dataStreamOptions(
-                                        ResettableValue.create(
-                                            new DataStreamOptions.Template(
-                                                ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(true)))
-                                            )
-                                        )
-                                    )
-                                    .build()
-                            )
+                            .template(Template.builder().mappings(new CompressedXContent("""
+                                {
+                                  "dynamic": false,
+                                  "properties": {
+                                    "@timestamp": {
+                                      "type": "date"
+                                    },
+                                    "count": {
+                                        "type": "long"
+                                    }
+                                  }
+                                }""")).dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null))))
                             .build()
                     )
                 )

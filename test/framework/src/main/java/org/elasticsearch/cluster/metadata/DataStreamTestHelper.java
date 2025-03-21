@@ -801,12 +801,10 @@ public final class DataStreamTestHelper {
         return indicesService;
     }
 
-    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStore) {
-        if (failureStore == null) {
+    public static DataStreamOptions.Template createDataStreamOptionsTemplate(Boolean failureStoreEnabled) {
+        if (failureStoreEnabled == null) {
             return DataStreamOptions.Template.EMPTY;
         }
-        return new DataStreamOptions.Template(
-            ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
-        );
+        return new DataStreamOptions.Template(new DataStreamFailureStore.Template(failureStoreEnabled, null));
     }
 }

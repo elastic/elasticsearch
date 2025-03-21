@@ -169,6 +169,14 @@ public class DataStreamLifecycleTemplateTests extends AbstractXContentSerializin
         return new DataStreamLifecycle.Template(randomBoolean(), randomRetention(), randomDownsampling());
     }
 
+    /**
+     * Failure store lifecycle doesn't support downsampling, this random lifecycle generator never defines
+     * downsampling.
+     */
+    public static DataStreamLifecycle.Template randomFailureLifecycleTemplate() {
+        return new DataStreamLifecycle.Template(randomBoolean(), randomRetention(), ResettableValue.undefined());
+    }
+
     private static ResettableValue<TimeValue> randomRetention() {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> ResettableValue.undefined();

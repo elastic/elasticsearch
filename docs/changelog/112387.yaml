@@ -1,0 +1,5 @@
+pr: 112387
+summary: optimization of sorting byte short float int fields
+area: sorting
+type: enhancement
+issues: []

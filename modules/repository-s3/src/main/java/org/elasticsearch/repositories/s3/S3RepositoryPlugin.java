@@ -9,8 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.regions.RegionUtils;
-import com.amazonaws.util.json.Jackson;
+import software.amazon.awssdk.regions.Region;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
@@ -46,17 +45,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     static {
         SpecialPermission.check();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                // kick jackson to do some static caching of declared members info
-                Jackson.jsonNodeOf("{}");
-                // ClientConfiguration clinit has some classloader problems
-                // TODO: fix that
-                Class.forName("com.amazonaws.ClientConfiguration");
-                // Pre-load region metadata to avoid looking them up dynamically without privileges enabled
-                RegionUtils.initialize();
-            } catch (final ClassNotFoundException e) {
-                throw new RuntimeException(e);
-            }
+            // Pre-load region metadata to avoid looking them up dynamically without privileges enabled
+            // noinspection ResultOfMethodCallIgnored
+            Region.regions();
             return null;
         });
     }

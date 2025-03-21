@@ -9,21 +9,19 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
+import software.amazon.awssdk.services.s3.S3Client;
 
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Handles the shutdown of the wrapped {@link AmazonS3Client} using reference
- * counting.
+ * Handles the shutdown of the wrapped {@link S3Client} using reference counting.
  */
 public class AmazonS3Reference extends AbstractRefCounted implements Releasable {
 
-    private final AmazonS3 client;
+    private final S3Client client;
 
-    AmazonS3Reference(AmazonS3 client) {
+    AmazonS3Reference(S3Client client) {
         this.client = client;
     }
 
@@ -39,13 +37,13 @@ public class AmazonS3Reference extends AbstractRefCounted implements Releasable 
      * Returns the underlying `AmazonS3` client. All method calls are permitted BUT
      * NOT shutdown. Shutdown is called when reference count reaches 0.
      */
-    public AmazonS3 client() {
+    public S3Client client() {
         return client;
     }
 
     @Override
     protected void closeInternal() {
-        client.shutdown();
+        client.close();
     }
 
 }

@@ -1298,16 +1298,11 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         public void close() throws IOException {
             super.close();
             if (in instanceof final S3RetryingInputStream s3Stream) {
-                assertTrue(
-                    "Stream "
-                        + toString()
-                        + " should have reached EOF or should have been aborted but got [eof="
-                        + s3Stream.isEof()
-                        + ", aborted="
-                        + s3Stream.isAborted()
-                        + ']',
-                    s3Stream.isEof() || s3Stream.isAborted()
-                );
+                assertTrue("Stream " + toString() + " should have reached EOF or should have been aborted but got [eof=" + s3Stream.isEof()
+                // TODO NOMERGE
+                // + ", aborted="
+                // + s3Stream.isAborted()
+                    + ']', s3Stream.isEof() || s3Stream.isAborted());
             } else {
                 assertThat(in, instanceOf(ByteArrayInputStream.class));
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));

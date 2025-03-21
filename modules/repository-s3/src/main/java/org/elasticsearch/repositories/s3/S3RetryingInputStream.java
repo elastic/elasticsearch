@@ -8,12 +8,11 @@
  */
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.exception.SdkServiceException;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -55,7 +54,7 @@ class S3RetryingInputStream extends InputStream {
     private final long end;
     private final List<Exception> failures;
 
-    private S3ObjectInputStream currentStream;
+    private ResponseInputStream<GetObjectResponse> currentStream;
     private long currentStreamFirstOffset;
     private long currentStreamLastOffset;
     private int attempt = 1;
@@ -90,32 +89,33 @@ class S3RetryingInputStream extends InputStream {
     private void openStreamWithRetry() throws IOException {
         while (true) {
             try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-                configureRequestForMetrics(getObjectRequest, blobStore, Operation.GET_OBJECT, purpose);
+                final var getObjectRequestBuilder = GetObjectRequest.builder().bucket(blobStore.bucket()).key(blobKey);
+                configureRequestForMetrics(getObjectRequestBuilder, blobStore, Operation.GET_OBJECT, purpose);
                 if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
                     assert start + currentOffset <= end
                         : "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
-                    getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
+                    getObjectRequestBuilder.range(Math.addExact(start, currentOffset) + "-" + end);
                 }
                 this.currentStreamFirstOffset = Math.addExact(start, currentOffset);
-                final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
-                this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(s3Object));
-                this.currentStream = s3Object.getObjectContent();
+                final var getObjectRequest = getObjectRequestBuilder.build();
+                final var getObjectResponse = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
+                this.currentStreamLastOffset = Math.addExact(currentStreamFirstOffset, getStreamLength(getObjectResponse.response()));
+                this.currentStream = getObjectResponse;
                 return;
-            } catch (AmazonClientException e) {
-                if (e instanceof AmazonS3Exception amazonS3Exception) {
-                    if (amazonS3Exception.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+            } catch (SdkException e) {
+                if (e instanceof SdkServiceException sdkServiceException) {
+                    if (sdkServiceException.statusCode() == RestStatus.NOT_FOUND.getStatus()) {
                         throw addSuppressedExceptions(
-                            new NoSuchFileException("Blob object [" + blobKey + "] not found: " + amazonS3Exception.getMessage())
+                            new NoSuchFileException("Blob object [" + blobKey + "] not found: " + sdkServiceException.getMessage())
                         );
                     }
-                    if (amazonS3Exception.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
+                    if (sdkServiceException.statusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {
                         throw addSuppressedExceptions(
                             new RequestedRangeNotSatisfiedException(
                                 blobKey,
                                 currentStreamFirstOffset,
                                 (end < Long.MAX_VALUE - 1) ? end - currentStreamFirstOffset + 1 : end,
-                                amazonS3Exception
+                                sdkServiceException
                             )
                         );
                     }
@@ -130,19 +130,34 @@ class S3RetryingInputStream extends InputStream {
         }
     }
 
-    private long getStreamLength(final S3Object object) {
-        final ObjectMetadata metadata = object.getObjectMetadata();
+    private long getStreamLength(final GetObjectResponse getObjectResponse) {
         try {
             // Returns the content range of the object if response contains the Content-Range header.
-            final Long[] range = metadata.getContentRange();
-            if (range != null) {
-                assert range[1] >= range[0] : range[1] + " vs " + range[0];
-                assert range[0] == start + currentOffset
-                    : "Content-Range start value [" + range[0] + "] exceeds start [" + start + "] + current offset [" + currentOffset + ']';
-                assert range[1] <= end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
-                return range[1] - range[0] + 1L;
+            final var rangeString = getObjectResponse.contentRange();
+            if (rangeString != null) {
+                // TODO NOMERGE this went from Long[] to String, had to add parsing, needs some testing too
+                final var hyphenPos = rangeString.indexOf('-');
+                if (hyphenPos == -1) {
+                    throw new IllegalArgumentException("could not parse Content-range header [" + rangeString + "]");
+                }
+                final var rangeStart = Long.parseLong(rangeString, 0, hyphenPos - 1, 10);
+                final var rangeEnd = Long.parseLong(rangeString, hyphenPos + 1, rangeString.length(), 10);
+                if (rangeEnd < rangeStart) {
+                    throw new IllegalArgumentException("invalid Content-range header [" + rangeString + "]");
+                }
+                if (rangeStart != start + currentOffset) {
+                    throw new IllegalArgumentException(
+                        "unexpected Content-range header [" + rangeString + "], should have started at " + (start + currentOffset)
+                    );
+                }
+                if (rangeEnd > end) {
+                    throw new IllegalArgumentException(
+                        "unexpected Content-range header [" + rangeString + "], should have ended no later than " + end
+                    );
+                }
+                return rangeEnd - rangeStart + 1L;
             }
-            return metadata.getContentLength();
+            return getObjectResponse.contentLength();
         } catch (Exception e) {
             assert false : e;
             return Long.MAX_VALUE - 1L; // assume a large stream so that the underlying stream is aborted on closing, unless eof is reached
@@ -349,10 +364,10 @@ class S3RetryingInputStream extends InputStream {
     }
 
     /**
-     * Abort the {@link S3ObjectInputStream} if it wasn't read completely at the time this method is called,
+     * Abort the {@link ResponseInputStream} if it wasn't read completely at the time this method is called,
      * suppressing all thrown exceptions.
      */
-    private void maybeAbort(S3ObjectInputStream stream) {
+    private void maybeAbort(ResponseInputStream<?> stream) {
         if (isEof()) {
             return;
         }
@@ -391,9 +406,6 @@ class S3RetryingInputStream extends InputStream {
 
     // package-private for tests
     boolean isAborted() {
-        if (currentStream == null || currentStream.getHttpRequest() == null) {
-            return false;
-        }
-        return currentStream.getHttpRequest().isAborted();
+        throw new AssertionError("TODO NOMERGE doesn't seem to be a way to detect this any more");
     }
 }

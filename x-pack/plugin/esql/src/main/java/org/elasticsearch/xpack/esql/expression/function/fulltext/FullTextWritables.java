@@ -21,13 +21,11 @@ public class FullTextWritables {
 
         entries.add(QueryString.ENTRY);
         entries.add(Match.ENTRY);
+        entries.add(MultiMatch.ENTRY);
         entries.add(Kql.ENTRY);
 
         if (EsqlCapabilities.Cap.TERM_FUNCTION.isEnabled()) {
             entries.add(Term.ENTRY);
-        }
-        if (EsqlCapabilities.Cap.MULTI_MATCH_FUNCTION.isEnabled()) {
-            entries.add(MultiMatch.ENTRY);
         }
 
         return Collections.unmodifiableList(entries);

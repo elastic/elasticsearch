@@ -1003,7 +1003,6 @@ public class EsqlFunctionRegistry {
         T build(Source source, Expression exp, List<Expression> variadic, Expression options);
     };
 
-    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(
         Class<T> function,
         BinaryVariadicWithOptionsBuilder<T> ctorRef,

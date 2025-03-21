@@ -87,7 +87,18 @@ public class MultiMatch extends FullTextFunction implements OptionalArgument, Po
         MultiMatch::readFrom
     );
 
-    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(KEYWORD, TEXT, SEMANTIC_TEXT);
+    public static final Set<DataType> QUERY_DATA_TYPES = Set.of(
+        KEYWORD,
+        BOOLEAN,
+        DATETIME,
+        DATE_NANOS,
+        DOUBLE,
+        INTEGER,
+        IP,
+        LONG,
+        UNSIGNED_LONG,
+        VERSION
+    );
 
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
         KEYWORD,

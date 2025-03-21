@@ -103,6 +103,9 @@ The retriever syntax makes it simple to configure both the retrieval and re-rank
 [%collapsible]
 ==============
 The following example shows a search request that uses a semantic reranker to reorder the top-k documents based on their semantic similarity to the query.
+
+NOTE: The relevance scores produced during reranking depend on the text similarity model used and can include negative values.
+
 [source,console]
 ----
 POST _search
@@ -121,8 +124,7 @@ POST _search
       "field": "text",
       "inference_id": "elastic-rerank",
       "inference_text": "How often does the moon hide the sun?",
-      "rank_window_size": 100,
-      "min_score": 0.5
+      "rank_window_size": 100
     }
   }
 }

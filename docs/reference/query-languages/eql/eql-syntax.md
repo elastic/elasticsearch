@@ -16,7 +16,7 @@ EQL queries require an event category and a matching condition. The `where` keyw
 event_category where condition
 ```
 
-An event category is an indexed value of the [event category field](/reference/query-languages/eql.md#eql-required-fields). By default, the [EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) uses the `event.category` field from the [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://docs/reference/index.md)). You can specify another event category field using the API’s [`event_category_field`](/reference/query-languages/eql.md#specify-a-timestamp-or-event-category-field) parameter.
+An event category is an indexed value of the [event category field](/reference/query-languages/eql.md#eql-required-fields). By default, the [EQL search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-eql-search) uses the `event.category` field from the [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://reference/index.md)). You can specify another event category field using the API’s [`event_category_field`](/reference/query-languages/eql.md#specify-a-timestamp-or-event-category-field) parameter.
 
 For example, the following EQL query matches events with an event category of `process` and a `process.name` of `svchost.exe`:
 
@@ -681,7 +681,7 @@ file where endsWith(file.path,".exe") or endsWith(file.path,".dll")
 While this works, it can be repetitive to write and can slow search speeds. To speed up search, you can do the following instead:
 
 1. [Add a new field](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), `file.extension`, to the index. The `file.extension` field will contain only the file extension from the `file.path` field.
-2. Use an [ingest pipeline](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) containing the [`grok`](/reference/ingestion-tools/enrich-processor/grok-processor.md) processor or another preprocessor tool to extract the file extension from the `file.path` field before indexing.
+2. Use an [ingest pipeline](docs-content://manage-data/ingest/transform-enrich/ingest-pipelines.md) containing the [`grok`](/reference/enrich-processor/grok-processor.md) processor or another preprocessor tool to extract the file extension from the `file.path` field before indexing.
 3. Index the extracted file extension to the `file.extension` field.
 
 These changes may slow indexing but allow for faster searches. Users can use the `file.extension` field instead of multiple `endsWith` function calls:

@@ -567,7 +567,7 @@ You have the following options:
 * Use the the built-in [Elastic Rerank](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) cross-encoder model via the inference API’s {{es}} service.
 * Use the [Cohere Rerank inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
 * Use the [Google Vertex AI inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
-* Upload a model to {{es}} with [Eland](eland://docs/reference/machine-learning.md#ml-nlp-pytorch) using the `text_similarity` NLP task type.
+* Upload a model to {{es}} with [Eland](eland://reference/machine-learning.md#ml-nlp-pytorch) using the `text_similarity` NLP task type.
 
     * Then set up an [{{es}} service inference endpoint](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) with the `rerank` task type.
     * Refer to the [example](#text-similarity-reranker-retriever-example-eland) on this page for a step-by-step guide.
@@ -727,7 +727,7 @@ GET /index/_search
 
 ### Example: Semantic re-ranking with a Hugging Face model [text-similarity-reranker-retriever-example-eland]
 
-The following example uses the `cross-encoder/ms-marco-MiniLM-L-6-v2` model from Hugging Face to rerank search results based on semantic similarity. The model must be uploaded to {{es}} using [Eland](eland://docs/reference/machine-learning.md#ml-nlp-pytorch).
+The following example uses the `cross-encoder/ms-marco-MiniLM-L-6-v2` model from Hugging Face to rerank search results based on semantic similarity. The model must be uploaded to {{es}} using [Eland](eland://reference/machine-learning.md#ml-nlp-pytorch).
 
 ::::{tip}
 Refer to [the Elastic NLP model reference](docs-content://explore-analyze/machine-learning/nlp/ml-nlp-model-ref.md#ml-nlp-model-ref-text-similarity) for a list of third party text similarity models supported by {{es}}.
@@ -743,7 +743,7 @@ Follow these steps to load the model and create a semantic re-ranker.
     python -m pip install eland[pytorch]
     ```
 
-2. Upload the model to {{es}} using Eland. This example assumes you have an Elastic Cloud deployment and an API key. Refer to the [Eland documentation](eland://docs/reference/machine-learning.md#ml-nlp-pytorch-auth) for more authentication options.
+2. Upload the model to {{es}} using Eland. This example assumes you have an Elastic Cloud deployment and an API key. Refer to the [Eland documentation](eland://reference/machine-learning.md#ml-nlp-pytorch-auth) for more authentication options.
 
     ```sh
     eland_import_hub_model \
@@ -929,7 +929,7 @@ The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operati
 
 ### Using aggregations with a retriever tree [retriever-aggregations]
 
-[Aggregations](/reference/data-analysis/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
+[Aggregations](/reference/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
 
 
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]

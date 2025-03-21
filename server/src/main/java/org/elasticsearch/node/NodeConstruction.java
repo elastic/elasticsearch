@@ -1139,14 +1139,7 @@ class NodeConstruction {
 
         final ShutdownPrepareService shutdownPrepareService = new ShutdownPrepareService(settings, httpServerTransport, terminationHandler);
 
-        modules.add(
-            loadPersistentTasksService(
-                settingsModule,
-                clusterService,
-                threadPool,
-                clusterModule.getIndexNameExpressionResolver()
-            )
-        );
+        modules.add(loadPersistentTasksService(settingsModule, clusterService, threadPool, clusterModule.getIndexNameExpressionResolver()));
 
         modules.add(
             loadPluginShutdownService(clusterService),

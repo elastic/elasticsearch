@@ -10,8 +10,6 @@ package org.elasticsearch.system_indices.task;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -98,10 +96,7 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
             clusterTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getTaskName).toList(),
             containsInAnyOrder("health-node")
         );
-        assertThat(
-            metadata.getProject().customs().keySet(),
-            containsInAnyOrder("persistent_tasks", "index-graveyard")
-        );
+        assertThat(metadata.getProject().customs().keySet(), containsInAnyOrder("persistent_tasks", "index-graveyard"));
         final var projectTasks = PersistentTasksCustomMetadata.get(metadata.getProject());
         assertThat(
             projectTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getTaskName).toList(),
@@ -141,25 +136,28 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
 
     public void testMultiProjectXContent() throws IOException {
         final long lastAllocationId = randomNonNegativeLong();
-        final List<ProjectMetadata> projects = randomList(1, 5, () -> ProjectMetadata.builder(randomUniqueProjectId())
-                    .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
-                        new PersistentTasksCustomMetadata(
-                            lastAllocationId,
-                            Map.of(
+        final List<ProjectMetadata> projects = randomList(
+            1,
+            5,
+            () -> ProjectMetadata.builder(randomUniqueProjectId())
+                .putCustom(
+                    PersistentTasksCustomMetadata.TYPE,
+                    new PersistentTasksCustomMetadata(
+                        lastAllocationId,
+                        Map.of(
+                            SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                            new PersistentTasksCustomMetadata.PersistentTask<>(
                                 SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                new PersistentTasksCustomMetadata.PersistentTask<>(
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
-                                    new SystemIndexMigrationTaskParams(),
-                                    lastAllocationId,
-                                    PersistentTasks.INITIAL_ASSIGNMENT
-                                )
+                                SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                                new SystemIndexMigrationTaskParams(),
+                                lastAllocationId,
+                                PersistentTasks.INITIAL_ASSIGNMENT
                             )
                         )
                     )
-                    .build()
-            );
+                )
+                .build()
+        );
 
         Metadata.Builder metadataBuilder = Metadata.builder()
             .putCustom(
@@ -181,8 +179,7 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
         for (ProjectMetadata project : projects) {
             metadataBuilder.put(project);
         }
-        final Metadata originalMeta = metadataBuilder
-            .build();
+        final Metadata originalMeta = metadataBuilder.build();
 
         ToXContent.Params p = new ToXContent.MapParams(
             Map.of("multi-project", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)
@@ -198,12 +195,12 @@ public class SystemIndexMigrationMetadataTests extends ESTestCase {
         assertThat(objectPath.evaluate("meta-data.cluster_persistent_tasks.tasks.0.id"), equalTo(HealthNode.TASK_NAME));
         assertThat(objectPath.evaluate("meta-data.projects"), hasSize(projects.size()));
         assertThat(IntStream.range(0, projects.size()).mapToObj(i -> {
-                try {
-                    return (String) objectPath.evaluate("meta-data.projects." + i + ".id");
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }).collect(Collectors.toUnmodifiableSet()),
+            try {
+                return (String) objectPath.evaluate("meta-data.projects." + i + ".id");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }).collect(Collectors.toUnmodifiableSet()),
             equalTo(projects.stream().map(pp -> pp.id().id()).collect(Collectors.toUnmodifiableSet()))
         );
 

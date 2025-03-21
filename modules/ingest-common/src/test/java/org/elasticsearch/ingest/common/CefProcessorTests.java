@@ -14,12 +14,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collection;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CefProcessorTests extends ESTestCase {
@@ -54,19 +53,17 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("Web request"));
         assertThat(cef.get("severity"), equalTo("low"));
         // ECS fields
-        assertThat(cef.get("event.id"), equalTo("3457"));
-        assertThat(cef.get("source.ip"), equalTo("89.160.20.156"));
-        assertThat(cef.get("source.port"), equalTo("33876"));
-        assertThat(cef.get("destination.ip"), equalTo("192.168.10.1"));
-        assertThat(cef.get("destination.port"), equalTo("443"));
-        assertThat(cef.get("event.id"), equalTo("3457"));
-        assertThat(cef.get("http.request.method"), equalTo("POST"));
-        assertThat(cef.get("source.geo.location.lat"), equalTo("38.915"));
-        assertThat(cef.get("source.geo.location.lon"), equalTo("-77.511"));
-        assertThat(cef.get("network.transport"), equalTo("TCP"));
-        assertThat(cef.get("source.service.name"), equalTo("httpd"));
-        assertThat(cef.get("url.original"), equalTo("https://www.example.com/cart"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+        assertThat(ingestDocument.getFieldValue("event.id", String.class), equalTo("3457"));
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("89.160.20.156"));
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(33876L));
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("192.168.10.1"));
+        assertThat(ingestDocument.getFieldValue("destination.port", Long.class), equalTo(443L));
+        assertThat(ingestDocument.getFieldValue("http.request.method", String.class), equalTo("POST"));
+        assertThat(ingestDocument.getFieldValue("source.geo.location.lat", Double.class), equalTo(38.915));
+        assertThat(ingestDocument.getFieldValue("source.geo.location.lon", Double.class), equalTo(-77.511));
+        assertThat(ingestDocument.getFieldValue("network.transport", String.class), equalTo("TCP"));
+        assertThat(ingestDocument.getFieldValue("source.service.name", String.class), equalTo("httpd"));
+        assertThat(ingestDocument.getFieldValue("url.original", String.class), equalTo("https://www.example.com/cart"));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -99,13 +96,13 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
         // ECS fields
-        assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
-        assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat(cef.get("event.id"), equalTo("1"));
-        assertThat(cef.get("source.bytes"), equalTo("4294967296"));
-        assertThat(cef.get("destination.bytes"), equalTo("4294967296"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
+        assertThat(ingestDocument.getFieldValue("event.id", String.class), equalTo("1"));
+        assertThat(ingestDocument.getFieldValue("source.bytes", Long.class), equalTo(4294967296L));
+        assertThat(ingestDocument.getFieldValue("destination.bytes", Long.class), equalTo(4294967296L));
+
     }
 
     @Test
@@ -126,7 +123,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
     }
 
     @Test
@@ -140,11 +137,18 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         Map<String, Object> cef = ingestDocument.getFieldValue("cef", Map.class);
+        assertThat(cef.get("version"), equalTo("0"));
+        assertThat(cef.get("device.vendor"), equalTo(""));
+        assertThat(cef.get("device.product"), equalTo(""));
+        assertThat(cef.get("device.version"), equalTo("1.0"));
+        assertThat(cef.get("device.event_class_id"), equalTo("100"));
+        assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
+        assertThat(cef.get("severity"), equalTo("10"));
+        // ECS fields
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
 
-        assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
-        assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
     }
 
     @Test
@@ -166,10 +170,11 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
-        assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
+
     }
 
     @Test
@@ -190,10 +195,10 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
-        assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
     }
 
     @Test
@@ -215,9 +220,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
-        assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
     }
 
     @Test
@@ -239,10 +243,10 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
-        assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
-        assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
+
     }
 
     @Test
@@ -265,7 +269,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("10"));
 
         assertThat(cef.get("extensions.moo"), equalTo("this\\|has an escaped pipe"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
     }
 
     @Test
@@ -288,7 +292,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("10"));
 
         assertThat(cef.get("extensions.moo"), equalTo("this|has an pipe"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
     }
 
     @Test
@@ -311,11 +315,11 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
-        assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
 
         assertThat(cef.get("extensions.moo"), equalTo("this =has = equals="));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
     }
 
     @Test
@@ -337,10 +341,10 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
 
-        assertThat(cef.get("message"), equalTo("a+b=c"));
+        assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("a+b=c"));
 
         assertThat(cef.get("extensions.x"), equalTo("c\\d=z"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
     }
 
     @Test
@@ -364,18 +368,19 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("Success"));
         assertThat(cef.get("severity"), equalTo("2"));
 
-        assertThat(cef.get("@timestamp"), equalTo("Sep 07 2018 14:50:39"));
-        assertThat(cef.get("destination.ip"), equalTo("1.1.1.1"));
-        assertThat(cef.get("destination.domain"), equalTo("foo.example.com"));
-        assertThat(cef.get("source.user.name"), equalTo("redacted"));
-        assertThat(cef.get("source.ip"), equalTo("2.2.2.2"));
-        assertThat(cef.get("http.request.method"), equalTo("POST"));
-        assertThat(cef.get("url.original"), equalTo("'https://foo.example.com/bar/bingo/1'"));
-        assertThat(cef.get("user_agent.original"), equalTo("'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='"));
+        assertThat(ingestDocument.getFieldValue("@timestamp", String.class), equalTo("Sep 07 2018 14:50:39"));
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("1.1.1.1"));
+        assertThat(ingestDocument.getFieldValue("destination.domain", String.class), equalTo("foo.example.com"));
+        assertThat(ingestDocument.getFieldValue("source.user.name", String.class), equalTo("redacted"));
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("2.2.2.2"));
+        assertThat(ingestDocument.getFieldValue("http.request.method", String.class), equalTo("POST"));
+        assertThat(ingestDocument.getFieldValue("url.original", String.class), equalTo("'https://foo.example.com/bar/bingo/1'"));
+        assertThat(ingestDocument.getFieldValue("user_agent.original", String.class),
+            equalTo("'Foo-Bar/2018.1.7; =Email:user@example.com; Guid:test='"));
 
         assertThat(cef.get("extensions.cat"), equalTo("Access Log"));
         assertThat(cef.get("extensions.cs1Label"), equalTo("Foo Bar"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
     }
 
     @Test
@@ -398,13 +403,13 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("name"));
         assertThat(cef.get("severity"), equalTo("Very-High"));
 
-        assertThat(cef.get("message"), equalTo("Hello World"));
+        assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("Hello World"));
 
         assertThat(cef.get("extensions.error"), equalTo("Failed because"));
         assertThat(cef.get("extensions.id"), equalTo("=old_id"));
         assertThat(cef.get("extensions.user"), equalTo("root"));
         assertThat(cef.get("extensions.angle"), equalTo("106.7<=180"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
     }
 
     @Test
@@ -427,10 +432,10 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("name"), equalTo("message is padded"));
         assertThat(cef.get("severity"), equalTo("10"));
 
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat(cef.get("message"), equalTo("Trailing space in non-final extensions is  preserved"));
-        assertThat(cef.get("source.ip"), equalTo("10.0.0.192"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
+        assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("Trailing space in non-final extensions is  preserved"));
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
+
     }
 
     @Test
@@ -452,10 +457,11 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("message is padded"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat(cef.get("message"), equalTo("Trailing space in final extensions is not preserved"));
-        assertThat(cef.get("destination.port"), equalTo("1234"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
+        assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("Trailing space in final extensions is not preserved"));
+        assertThat(ingestDocument.getFieldValue("destination.port", Long.class), equalTo(1234L));
+
     }
 
     @Test
@@ -477,10 +483,11 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("message is padded"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat(cef.get("message"), equalTo("Tabs\tand\rcontrol\ncharacters are preserved"));
-        assertThat(cef.get("source.ip"), equalTo("127.0.0.1"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
+        assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("Tabs\tand\rcontrol\ncharacters are preserved"));
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("127.0.0.1"));
+
     }
 
     @Test
@@ -501,10 +508,11 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("message has tabs"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat(cef.get("message"), equalTo("Tab is not a separator"));
-        assertThat(cef.get("source.ip"), equalTo("127.0.0.1"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
+        assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("Tab is not a separator"));
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("127.0.0.1"));
+
     }
 
     @Test
@@ -526,10 +534,12 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("message contains escapes"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(cef.get("source.port"), equalTo("1232"));
-        assertThat(cef.get("message"), equalTo("Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."));
-        assertThat(cef.get("destination.port"), equalTo("4432"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
+        assertThat(ingestDocument.getFieldValue("message", String.class),
+            equalTo("Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=."));
+        assertThat(ingestDocument.getFieldValue("destination.port", Long.class), equalTo(4432L));
+
     }
 
     @Test
@@ -557,7 +567,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("extensions.notificationScope"), equalTo("ACCOUNT"));
 
         // Incomplete Header yields an error message too
-        assertThat((Collection<?>) cef.get("error.message"), equalTo(Collections.singleton("incomplete CEF header")));
+        assertThat(ingestDocument.getFieldValue("error.message", ArrayList.class),
+            equalTo(Collections.singletonList("incomplete CEF header")));
     }
 
     @Test
@@ -578,10 +589,13 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(cef.get("destination.ip"), equalTo("12.121.122.82"));
-        assertThat(cef.get("source.port"), equalTo(null));
-        assertThat(cef.get("source.ip"), equalTo(null));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
+
+        //Empty src fields are not mapped into the ingestDocument
+        assertThat(ingestDocument.hasField("source.port"), equalTo(false));
+        assertThat(ingestDocument.hasField("source.ip"), equalTo(false));
+
     }
 
     @Test
@@ -604,7 +618,7 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("10"));
 
         assertThat(cef.get("extensions.Some-Key"), equalTo("123456"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
     }
 
     @Test
@@ -619,7 +633,7 @@ public class CefProcessorTests extends ESTestCase {
             + "fileCreateTime=1622547800000 fileHash=abcd1234 fileId=5678 fileModificationTime=1622547900000 fname=file.txt "
             + "filePath=/path/to/file filePermission=rw-r--r-- fsize=1024 fileType=txt mrt=1622547800000 msg=message "
             + "reason=reason requestClientApplication=Mozilla requestContext=referrer requestMethod=GET request=url "
-            + "src=192.168.0.3 sourceDnsDomain=example.net slat=37.7749 slong=-122.4194 shost=source.com "
+            + "src=192.168.0.3 slat=37.7749 slong=-122.4194 shost=source.com "
             + "smac=00:0a:95:9d:68:16 sntdom=example.net spt=443 spid=1234 sproc=procname sourceServiceName=service "
             + "start=1622547800000 proto=TCP";
         Map<String, Object> source = new HashMap<>();
@@ -636,69 +650,68 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
-        assertThat(cef.get("network.protocol"), equalTo("HTTP"));
-        assertThat(cef.get("source.bytes"), equalTo("1234"));
-        assertThat(cef.get("destination.bytes"), equalTo("5678"));
-        assertThat(cef.get("destination.ip"), equalTo("192.168.0.1"));
-        assertThat(cef.get("destination.geo.location.lat"), equalTo("37.7749"));
-        assertThat(cef.get("destination.geo.location.lon"), equalTo("-122.4194"));
-        assertThat(cef.get("destination.domain"), equalTo("example.com"));
-        assertThat(cef.get("destination.mac"), equalTo("00:0a:95:9d:68:16"));
-        assertThat(cef.get("destination.registered_domain"), equalTo("example.org"));
-        assertThat(cef.get("destination.port"), equalTo("80"));
-        assertThat(cef.get("destination.process.pid"), equalTo("1234"));
-        assertThat(cef.get("destination.process.name"), equalTo("procname"));
-        assertThat(cef.get("destination.user.id"), equalTo("1001"));
-        assertThat(cef.get("destination.user.name"), equalTo("username"));
-        assertThat(cef.get("destination.user.group.name"), equalTo("admin"));
-        assertThat(cef.get("event.action"), equalTo("blocked"));
-        assertThat(cef.get("observer.ip"), equalTo("192.168.0.2"));
-        assertThat(cef.get("network.direction"), equalTo("inbound"));
-        assertThat(cef.get("observer.registered_domain"), equalTo("example.com"));
-        assertThat(cef.get("observer.name"), equalTo("ext123"));
-        assertThat(cef.get("log.syslog.facility.code"), equalTo("16"));
-        assertThat(cef.get("observer.hostname"), equalTo("host1"));
-        assertThat(cef.get("observer.ingress.interface.name"), equalTo("eth0"));
-        assertThat(cef.get("observer.mac"), equalTo("00:0a:95:9d:68:16"));
-        assertThat(cef.get("observer.egress.interface.name"), equalTo("eth1"));
-        assertThat(cef.get("process.pid"), equalTo("5678"));
-        assertThat(cef.get("process.name"), equalTo("procname"));
-        assertThat(cef.get("@timestamp"), equalTo("1622547800000"));
-        assertThat(cef.get("event.timezone"), equalTo("UTC"));
-        assertThat(cef.get("host.nat.ip"), equalTo("10.0.0.1"));
-        assertThat(cef.get("observer.version"), equalTo("1.0"));
-        assertThat(cef.get("event.end"), equalTo("1622547900000"));
-        assertThat(cef.get("event.id"), equalTo("evt123"));
-        assertThat(cef.get("event.outcome"), equalTo("success"));
-        assertThat(cef.get("file.created"), equalTo("1622547800000"));
-        assertThat(cef.get("file.hash"), equalTo("abcd1234"));
-        assertThat(cef.get("file.inode"), equalTo("5678"));
-        assertThat(cef.get("file.mtime"), equalTo("1622547900000"));
-        assertThat(cef.get("file.name"), equalTo("file.txt"));
-        assertThat(cef.get("file.path"), equalTo("/path/to/file"));
-        assertThat(cef.get("file.group"), equalTo("rw-r--r--"));
-        assertThat(cef.get("file.size"), equalTo("1024"));
-        assertThat(cef.get("file.extension"), equalTo("txt"));
-        assertThat(cef.get("event.ingested"), equalTo("1622547800000"));
-        assertThat(cef.get("message"), equalTo("message"));
-        assertThat(cef.get("event.reason"), equalTo("reason"));
-        assertThat(cef.get("user_agent.original"), equalTo("Mozilla"));
-        assertThat(cef.get("http.request.referrer"), equalTo("referrer"));
-        assertThat(cef.get("http.request.method"), equalTo("GET"));
-        assertThat(cef.get("url.original"), equalTo("url"));
-        assertThat(cef.get("source.ip"), equalTo("192.168.0.3"));
-        assertThat(cef.get("source.registered_domain"), equalTo("example.net"));
-        assertThat(cef.get("source.geo.location.lat"), equalTo("37.7749"));
-        assertThat(cef.get("source.geo.location.lon"), equalTo("-122.4194"));
-        assertThat(cef.get("source.domain"), equalTo("source.com"));
-        assertThat(cef.get("source.mac"), equalTo("00:0a:95:9d:68:16"));
-        assertThat(cef.get("source.registered_domain"), equalTo("example.net"));
-        assertThat(cef.get("source.port"), equalTo("443"));
-        assertThat(cef.get("source.process.pid"), equalTo("1234"));
-        assertThat(cef.get("source.process.name"), equalTo("procname"));
-        assertThat(cef.get("source.service.name"), equalTo("service"));
-        assertThat(cef.get("event.start"), equalTo("1622547800000"));
-        assertThat(cef.get("network.transport"), equalTo("TCP"));
-        assertThat((Collection<?>) cef.get("error.message"), empty());
+
+        assertThat(ingestDocument.getFieldValue("network.protocol", String.class), equalTo("HTTP"));
+        assertThat(ingestDocument.getFieldValue("source.bytes", Long.class), equalTo(1234L));
+        assertThat(ingestDocument.getFieldValue("destination.bytes", Long.class), equalTo(5678L));
+        assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("192.168.0.1"));
+        assertThat(ingestDocument.getFieldValue("destination.geo.location.lat", Double.class), equalTo(37.7749));
+        assertThat(ingestDocument.getFieldValue("destination.geo.location.lon", Double.class), equalTo(-122.4194));
+        assertThat(ingestDocument.getFieldValue("destination.domain", String.class), equalTo("example.com"));
+        assertThat(ingestDocument.getFieldValue("destination.mac", String.class), equalTo("00:0a:95:9d:68:16"));
+        assertThat(ingestDocument.getFieldValue("destination.registered_domain", String.class), equalTo("example.org"));
+        assertThat(ingestDocument.getFieldValue("destination.port", Long.class), equalTo(80L));
+        assertThat(ingestDocument.getFieldValue("destination.process.pid", Long.class), equalTo(1234L));
+        assertThat(ingestDocument.getFieldValue("destination.process.name", String.class), equalTo("procname"));
+        assertThat(ingestDocument.getFieldValue("destination.user.id", String.class), equalTo("1001"));
+        assertThat(ingestDocument.getFieldValue("destination.user.name", String.class), equalTo("username"));
+        assertThat(ingestDocument.getFieldValue("destination.user.group.name", String.class), equalTo("admin"));
+        assertThat(ingestDocument.getFieldValue("event.action", String.class), equalTo("blocked"));
+        assertThat(ingestDocument.getFieldValue("observer.ip", String.class), equalTo("192.168.0.2"));
+        assertThat(ingestDocument.getFieldValue("network.direction", String.class), equalTo("inbound"));
+        assertThat(ingestDocument.getFieldValue("observer.registered_domain", String.class), equalTo("example.com"));
+        assertThat(ingestDocument.getFieldValue("observer.name", String.class), equalTo("ext123"));
+        assertThat(ingestDocument.getFieldValue("log.syslog.facility.code", Long.class), equalTo(16L));
+        assertThat(ingestDocument.getFieldValue("observer.hostname", String.class), equalTo("host1"));
+        assertThat(ingestDocument.getFieldValue("observer.ingress.interface.name", String.class), equalTo("eth0"));
+        assertThat(ingestDocument.getFieldValue("observer.mac", String.class), equalTo("00:0a:95:9d:68:16"));
+        assertThat(ingestDocument.getFieldValue("observer.egress.interface.name", String.class), equalTo("eth1"));
+        assertThat(ingestDocument.getFieldValue("process.pid", Long.class), equalTo(5678L));
+        assertThat(ingestDocument.getFieldValue("process.name", String.class), equalTo("procname"));
+        assertThat(ingestDocument.getFieldValue("@timestamp", String.class), equalTo("1622547800000"));
+        assertThat(ingestDocument.getFieldValue("event.timezone", String.class), equalTo("UTC"));
+        assertThat(ingestDocument.getFieldValue("host.nat.ip", String.class), equalTo("10.0.0.1"));
+        assertThat(ingestDocument.getFieldValue("observer.version", String.class), equalTo("1.0"));
+        assertThat(ingestDocument.getFieldValue("event.end", String.class), equalTo("1622547900000"));
+        assertThat(ingestDocument.getFieldValue("event.id", String.class), equalTo("evt123"));
+        assertThat(ingestDocument.getFieldValue("event.outcome", String.class), equalTo("success"));
+        assertThat(ingestDocument.getFieldValue("file.created", String.class), equalTo("1622547800000"));
+        assertThat(ingestDocument.getFieldValue("file.hash", String.class), equalTo("abcd1234"));
+        assertThat(ingestDocument.getFieldValue("file.inode", String.class), equalTo("5678"));
+        assertThat(ingestDocument.getFieldValue("file.mtime", String.class), equalTo("1622547900000"));
+        assertThat(ingestDocument.getFieldValue("file.name", String.class), equalTo("file.txt"));
+        assertThat(ingestDocument.getFieldValue("file.path", String.class), equalTo("/path/to/file"));
+        assertThat(ingestDocument.getFieldValue("file.group", String.class), equalTo("rw-r--r--"));
+        assertThat(ingestDocument.getFieldValue("file.size", Long.class), equalTo(1024L));
+        assertThat(ingestDocument.getFieldValue("file.extension", String.class), equalTo("txt"));
+        assertThat(ingestDocument.getFieldValue("event.ingested", String.class), equalTo("1622547800000"));
+        assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("message"));
+        assertThat(ingestDocument.getFieldValue("event.reason", String.class), equalTo("reason"));
+        assertThat(ingestDocument.getFieldValue("user_agent.original", String.class), equalTo("Mozilla"));
+        assertThat(ingestDocument.getFieldValue("http.request.referrer", String.class), equalTo("referrer"));
+        assertThat(ingestDocument.getFieldValue("http.request.method", String.class), equalTo("GET"));
+        assertThat(ingestDocument.getFieldValue("url.original", String.class), equalTo("url"));
+        assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("192.168.0.3"));
+        assertThat(ingestDocument.getFieldValue("source.registered_domain", String.class), equalTo("example.net"));
+        assertThat(ingestDocument.getFieldValue("source.geo.location.lat", Double.class), equalTo(37.7749));
+        assertThat(ingestDocument.getFieldValue("source.geo.location.lon", Double.class), equalTo(-122.4194));
+        assertThat(ingestDocument.getFieldValue("source.domain", String.class), equalTo("source.com"));
+        assertThat(ingestDocument.getFieldValue("source.mac", String.class), equalTo("00:0a:95:9d:68:16"));
+        assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(443L));
+        assertThat(ingestDocument.getFieldValue("source.process.pid", Long.class), equalTo(1234L));
+        assertThat(ingestDocument.getFieldValue("source.process.name", String.class), equalTo("procname"));
+        assertThat(ingestDocument.getFieldValue("source.service.name", String.class), equalTo("service"));
+        assertThat(ingestDocument.getFieldValue("event.start", String.class), equalTo("1622547800000"));
+        assertThat(ingestDocument.getFieldValue("network.transport", String.class), equalTo("TCP"));
     }
 }

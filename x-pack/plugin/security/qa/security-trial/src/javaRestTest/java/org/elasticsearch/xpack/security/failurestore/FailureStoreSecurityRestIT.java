@@ -220,6 +220,112 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }""");
     }
 
+    public void testHasPrivileges() throws IOException {
+        createUser("user", PASSWORD, "role");
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["read", "read_failure_store"]
+                },
+                {
+                  "names": ["test2"],
+                  "privileges": ["manage_failure_store", "write"]
+                }
+              ]
+            }
+            """, "role");
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read", "read_failure_store"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["read"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["read_failure_store"]
+                    },
+                    {
+                        "names": ["test1"],
+                        "privileges": ["manage_failure_store"]
+                    },
+                    {
+                        "names": ["test1"],
+                        "privileges": ["manage"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["manage_failure_store"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["manage"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read": true,
+                        "read_failure_store": true,
+                        "manage_failure_store": false,
+                        "manage": false
+                    },
+                    "test2": {
+                        "read": true,
+                        "read_failure_store": true,
+                        "manage_failure_store": true,
+                        "manage": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["indices:data/write/*"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["indices:admin/*", "indices:data/write/*"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "indices:data/write/*": false
+                    },
+                    "test2": {
+                        "indices:admin/*": false,
+                        "indices:data/write/*": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+    }
+
     public void testRoleWithSelectorInIndexPattern() throws Exception {
         setupDataStream();
 
@@ -1826,5 +1932,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertThat(indices.v1().size(), equalTo(1));
         assertThat(indices.v2().size(), equalTo(1));
         return new Tuple<>(indices.v1().get(0), indices.v2().get(0));
+    }
+
+    private void expectHasPrivileges(String user, String requestBody, String expectedResponse) throws IOException {
+        Request req = new Request("POST", "/_security/user/_has_privileges");
+        req.setJsonEntity(requestBody);
+        Response response = performRequest(user, req);
+        assertThat(responseAsMap(response), equalTo(mapFromJson(expectedResponse)));
     }
 }

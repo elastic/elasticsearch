@@ -54,30 +54,34 @@ public class InboundDecoderTests extends ESTestCase {
         } else {
             threadContext.addResponseHeader(headerKey, headerValue);
         }
-        OutboundMessage message;
-        if (isRequest) {
-            message = new OutboundMessage.Request(
-                threadContext,
-                new TestRequest(randomAlphaOfLength(100)),
-                TransportVersion.current(),
-                action,
-                requestId,
-                false,
-                null
-            );
-        } else {
-            message = new OutboundMessage.Response(
-                threadContext,
-                new TestResponse(randomAlphaOfLength(100)),
-                TransportVersion.current(),
-                requestId,
-                false,
-                null
-            );
-        }
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes = message.serialize(os);
+            final BytesReference totalBytes;
+            if (isRequest) {
+                totalBytes = OutboundHandler.serialize(
+                    action,
+                    requestId,
+                    false,
+                    TransportVersion.current(),
+                    false,
+                    null,
+                    new TestRequest(randomAlphaOfLength(100)),
+                    threadContext,
+                    os
+                );
+            } else {
+                totalBytes = OutboundHandler.serialize(
+                    null,
+                    requestId,
+                    false,
+                    TransportVersion.current(),
+                    false,
+                    null,
+                    new TestResponse(randomAlphaOfLength(100)),
+                    threadContext,
+                    os
+                );
+            }
             int totalHeaderSize = TcpHeader.HEADER_SIZE + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
 
@@ -137,18 +141,19 @@ public class InboundDecoderTests extends ESTestCase {
         final String headerKey = randomAlphaOfLength(10);
         final String headerValue = randomAlphaOfLength(20);
         threadContext.putHeader(headerKey, headerValue);
-        OutboundMessage message = new OutboundMessage.Request(
-            threadContext,
-            new TestRequest(randomAlphaOfLength(100)),
-            transportVersion,
-            action,
-            requestId,
-            true,
-            compressionScheme
-        );
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+            final BytesReference bytes = OutboundHandler.serialize(
+                action,
+                requestId,
+                true,
+                transportVersion,
+                false,
+                compressionScheme,
+                new TestRequest(randomAlphaOfLength(100)),
+                threadContext,
+                os
+            );
 
             InboundDecoder decoder = new InboundDecoder(recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
@@ -187,18 +192,19 @@ public class InboundDecoderTests extends ESTestCase {
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
             : TransportVersionUtils.randomCompatibleVersion(random());
         logger.info("--> version = {}", version);
-        OutboundMessage message = new OutboundMessage.Request(
-            threadContext,
-            new TestRequest(randomAlphaOfLength(100)),
-            version,
-            action,
-            requestId,
-            isHandshake,
-            randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null)
-        );
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+            final BytesReference bytes = OutboundHandler.serialize(
+                action,
+                requestId,
+                isHandshake,
+                version,
+                false,
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
+                new TestRequest(randomAlphaOfLength(100)),
+                threadContext,
+                os
+            );
             try (InboundDecoder clientDecoder = new InboundDecoder(recycler, ChannelType.CLIENT)) {
                 IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
@@ -234,17 +240,19 @@ public class InboundDecoderTests extends ESTestCase {
         final var version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
             : TransportVersionUtils.randomCompatibleVersion(random());
-        OutboundMessage message = new OutboundMessage.Response(
-            threadContext,
-            new TestResponse(randomAlphaOfLength(100)),
-            version,
-            requestId,
-            isHandshake,
-            randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null)
-        );
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+            final BytesReference bytes = OutboundHandler.serialize(
+                null,
+                requestId,
+                isHandshake,
+                version,
+                false,
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null),
+                new TestRequest(randomAlphaOfLength(100)),
+                threadContext,
+                os
+            );
             try (InboundDecoder decoder = new InboundDecoder(recycler, ChannelType.SERVER)) {
                 final ReleasableBytesReference releasable1 = wrapAsReleasable(bytes);
                 IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> decoder.decode(releasable1, ignored -> {}));
@@ -273,27 +281,38 @@ public class InboundDecoderTests extends ESTestCase {
         } else {
             threadContext.addResponseHeader(headerKey, headerValue);
         }
-        OutboundMessage message;
+        final BytesReference totalBytes;
         TransportMessage transportMessage;
         Compression.Scheme scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
-        if (isRequest) {
-            transportMessage = new TestRequest(randomAlphaOfLength(100));
-            message = new OutboundMessage.Request(
-                threadContext,
-                transportMessage,
-                TransportVersion.current(),
-                action,
-                requestId,
-                false,
-                scheme
-            );
-        } else {
-            transportMessage = new TestResponse(randomAlphaOfLength(100));
-            message = new OutboundMessage.Response(threadContext, transportMessage, TransportVersion.current(), requestId, false, scheme);
-        }
 
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes = message.serialize(os);
+            if (isRequest) {
+                transportMessage = new TestRequest(randomAlphaOfLength(100));
+                totalBytes = OutboundHandler.serialize(
+                    action,
+                    requestId,
+                    false,
+                    TransportVersion.current(),
+                    false,
+                    scheme,
+                    transportMessage,
+                    threadContext,
+                    os
+                );
+            } else {
+                transportMessage = new TestResponse(randomAlphaOfLength(100));
+                totalBytes = OutboundHandler.serialize(
+                    null,
+                    requestId,
+                    false,
+                    TransportVersion.current(),
+                    false,
+                    scheme,
+                    transportMessage,
+                    threadContext,
+                    os
+                );
+            }
             final BytesStreamOutput out = new BytesStreamOutput();
             transportMessage.writeTo(out);
             final BytesReference uncompressedBytes = out.bytes();
@@ -351,19 +370,19 @@ public class InboundDecoderTests extends ESTestCase {
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         TransportVersion incompatibleVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE);
-        OutboundMessage message = new OutboundMessage.Request(
-            threadContext,
-            new TestRequest(randomAlphaOfLength(100)),
-            incompatibleVersion,
-            action,
-            requestId,
-            false,
-            Compression.Scheme.DEFLATE
-        );
-
         final ReleasableBytesReference releasable1;
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
+            final BytesReference bytes = OutboundHandler.serialize(
+                action,
+                requestId,
+                false,
+                incompatibleVersion,
+                false,
+                Compression.Scheme.DEFLATE,
+                new TestRequest(randomAlphaOfLength(100)),
+                threadContext,
+                os
+            );
 
             InboundDecoder decoder = new InboundDecoder(recycler);
             final ArrayList<Object> fragments = new ArrayList<>();

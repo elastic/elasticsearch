@@ -139,7 +139,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 9 -> lifecycle = randomBoolean() && lifecycle != null
                 ? null
-                : DataStreamLifecycle.builder().dataRetention(randomMillisUpToYear9999()).build();
+                : DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build();
             case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
             case 11 -> dataStreamOptions = dataStreamOptions.isEmpty() ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
                 : randomBoolean() ? DataStreamOptions.EMPTY
@@ -1472,7 +1472,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.builder().dataRetention(0).build()
+                DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
             );
             Metadata metadata = builder.build();
 
@@ -1511,7 +1511,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 Settings.builder()
                     .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
-                DataStreamLifecycle.builder().dataRetention(0).build()
+                DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
             );
             Metadata metadata = builder.build();
 
@@ -1763,7 +1763,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(0).build()
+            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
         );
         Metadata metadata = builder.build();
 

@@ -56,7 +56,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBuilder> {
     public static final String NAME = "knn";
-    private static final int NUM_CANDS_LIMIT = 10_000;
     private static final float NUM_CANDS_MULTIPLICATIVE_FACTOR = 1.5f;
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -182,9 +181,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     ) {
         if (k != null && k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
-        }
-        if (numCands != null && numCands > NUM_CANDS_LIMIT) {
-            throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
         }
         if (k != null && numCands != null && numCands < k) {
             throw new IllegalArgumentException(
@@ -486,7 +482,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        MappedFieldType fieldType = context.getFieldType(fieldName);
         int k;
         if (this.k != null) {
             k = this.k;
@@ -496,7 +491,15 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 k = Math.min(k, numCands);
             }
         }
-        int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k, NUM_CANDS_LIMIT)) : numCands;
+
+        int maxKnnNumCandidates = context.getIndexSettings().getMaxKnnNumCandidates();
+        if (numCands != null && numCands > maxKnnNumCandidates) {
+            throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + maxKnnNumCandidates + "]");
+        }
+
+        int adjustedNumCands = numCands == null ? Math.round(Math.min(NUM_CANDS_MULTIPLICATIVE_FACTOR * k, maxKnnNumCandidates)) : numCands;
+
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             return new MatchNoDocsQuery();
         }

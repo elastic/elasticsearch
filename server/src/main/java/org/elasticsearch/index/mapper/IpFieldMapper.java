@@ -201,7 +201,8 @@ public class IpFieldMapper extends FieldMapper {
                 stored.getValue(),
                 this,
                 indexCreatedVersion,
-                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_IP,
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD_BACKPORT_8_X
             );
             return new IpFieldMapper(
                 leafName(),

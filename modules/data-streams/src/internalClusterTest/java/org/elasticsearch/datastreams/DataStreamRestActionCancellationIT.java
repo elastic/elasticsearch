@@ -12,6 +12,7 @@ package org.elasticsearch.datastreams;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.support.CancellableActionTestPlugin;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
@@ -62,6 +63,13 @@ public class DataStreamRestActionCancellationIT extends ESIntegTestCase {
     public void testGetDataStreamCancellation() {
         runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_data_stream"), GetDataStreamAction.NAME);
         runRestActionCancellationTest(new Request(HttpGet.METHOD_NAME, "/_data_stream?verbose"), GetDataStreamAction.NAME);
+    }
+
+    public void testGetDataStreamLifecycleCancellation() {
+        runRestActionCancellationTest(
+            new Request(HttpGet.METHOD_NAME, "/_data_stream/test/_lifecycle"),
+            GetDataStreamLifecycleAction.INSTANCE.name()
+        );
     }
 
     private void runRestActionCancellationTest(Request request, String actionName) {

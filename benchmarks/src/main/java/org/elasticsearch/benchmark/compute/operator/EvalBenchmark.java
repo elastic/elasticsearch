@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -127,7 +128,9 @@ public class EvalBenchmark {
             "mv_min_ascending",
             "rlike",
             "to_lower",
-            "to_upper" }
+            "to_lower_ords",
+            "to_upper",
+            "to_upper_ords" }
     )
     public String operation;
 
@@ -235,12 +238,12 @@ public class EvalBenchmark {
                 RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern(".ar"));
                 yield EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
             }
-            case "to_lower" -> {
+            case "to_lower", "to_lower_ords" -> {
                 FieldAttribute keywordField = keywordField();
                 ToLower toLower = new ToLower(Source.EMPTY, keywordField, configuration());
                 yield EvalMapper.toEvaluator(FOLD_CONTEXT, toLower, layout(keywordField)).get(driverContext);
             }
-            case "to_upper" -> {
+            case "to_upper", "to_upper_ords" -> {
                 FieldAttribute keywordField = keywordField();
                 ToUpper toUpper = new ToUpper(Source.EMPTY, keywordField, configuration());
                 yield EvalMapper.toEvaluator(FOLD_CONTEXT, toUpper, layout(keywordField)).get(driverContext);
@@ -414,13 +417,15 @@ public class EvalBenchmark {
                     }
                 }
             }
-            case "to_lower" -> checkBytes(operation, actual, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
-            case "to_upper" -> checkBytes(operation, actual, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
+            case "to_lower" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
+            case "to_lower_ords" -> checkBytes(operation, actual, true, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
+            case "to_upper" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
+            case "to_upper_ords" -> checkBytes(operation, actual, true, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
             default -> throw new UnsupportedOperationException(operation);
         }
     }
 
-    private static void checkBytes(String operation, Page actual, BytesRef[] expectedVals) {
+    private static void checkBytes(String operation, Page actual, boolean expectOrds, BytesRef[] expectedVals) {
         BytesRef scratch = new BytesRef();
         BytesRefVector v = actual.<BytesRefBlock>getBlock(1).asVector();
         for (int i = 0; i < BLOCK_LENGTH; i++) {
@@ -428,6 +433,15 @@ public class EvalBenchmark {
             BytesRef b = v.getBytesRef(i, scratch);
             if (b.equals(expected) == false) {
                 throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + b + "]");
+            }
+        }
+        if (expectOrds) {
+            if (v.asOrdinals() == null) {
+                throw new IllegalArgumentException("expected ords but got " + v);
+            }
+        } else {
+            if (v.asOrdinals() != null) {
+                throw new IllegalArgumentException("expected non-ords but got " + v);
             }
         }
     }
@@ -509,6 +523,16 @@ public class EvalBenchmark {
                     builder.appendBytesRef(values[i % 2]);
                 }
                 yield new Page(builder.build().asBlock());
+            }
+            case "to_lower_ords", "to_upper_ords" -> {
+                var bytes = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                bytes.appendBytesRef(new BytesRef("foo"));
+                bytes.appendBytesRef(new BytesRef("bar"));
+                var ordinals = blockFactory.newIntVectorFixedBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    ordinals.appendInt(i % 2);
+                }
+                yield new Page(new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock());
             }
             default -> throw new UnsupportedOperationException();
         };

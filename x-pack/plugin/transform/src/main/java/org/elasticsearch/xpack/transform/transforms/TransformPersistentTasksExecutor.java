@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
+import org.elasticsearch.xpack.transform.telemetry.TransformTraceEvents;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -488,6 +489,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         Long previousCheckpoint,
         ActionListener<StartTransformAction.Response> listener
     ) {
+        indexerBuilder.setEventHook(
+            TransformTraceEvents.create(
+                transformServices.tracer(),
+                threadPool,
+                buildTask,
+                previousCheckpoint == null ? 0 : previousCheckpoint
+            )
+        );
         // switch the threadpool to generic, because the caller is on the system_read threadpool
         threadPool.generic().execute(() -> {
             buildTask.initializeIndexer(indexerBuilder);

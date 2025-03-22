@@ -111,6 +111,8 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
   task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
+  task.replaceValueInMatch("Size", 49, "Test flamegraph from profiling-events")
+  task.replaceValueInMatch("Size", 49, "Test flamegraph from test-events")
 })
 
 tasks.named('yamlRestCompatTest').configure {

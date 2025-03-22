@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -41,4 +42,6 @@ public interface ReloadablePlugin {
      *             if the offending call didn't happen.
      */
     void reload(Settings settings) throws Exception;
+
+    default void reload(ProjectId projectId, Settings settings) throws Exception {}
 }

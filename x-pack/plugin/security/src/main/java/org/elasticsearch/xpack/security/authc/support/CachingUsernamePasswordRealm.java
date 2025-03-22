@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -32,25 +33,62 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
-    private final Cache<String, ListenableFuture<CachedResult>> cache;
+    private final UserAuthenticationCache cache;
     private final ThreadPool threadPool;
     private final boolean authenticationEnabled;
-    final Hasher cacheHasher;
+    protected final Hasher cacheHasher;
 
     protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool) {
+        this(config, threadPool, buildDefaultCache(config));
+    }
+
+    protected CachingUsernamePasswordRealm(RealmConfig config, ThreadPool threadPool, UserAuthenticationCache cache) {
         super(config);
         cacheHasher = Hasher.resolve(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_HASH_ALGO_SETTING));
         this.threadPool = threadPool;
-        final TimeValue ttl = this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
-        if (ttl.getNanos() > 0) {
-            cache = CacheBuilder.<String, ListenableFuture<CachedResult>>builder()
-                .setExpireAfterWrite(ttl)
-                .setMaximumWeight(this.config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
-                .build();
-        } else {
-            cache = null;
-        }
         this.authenticationEnabled = config.getSetting(CachingUsernamePasswordRealmSettings.AUTHC_ENABLED_SETTING);
+        this.cache = cache;
+    }
+
+    private static UserAuthenticationCache buildDefaultCache(RealmConfig config) {
+        final TimeValue ttl = config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING);
+        if (ttl.getNanos() > 0) {
+            final Cache<String, ListenableFuture<CachedResult>> cache = CacheBuilder.<String, ListenableFuture<CachedResult>>builder()
+                .setExpireAfterWrite(ttl)
+                .setMaximumWeight(config.getSetting(CachingUsernamePasswordRealmSettings.CACHE_MAX_USERS_SETTING))
+                .build();
+            return new UserAuthenticationCache() {
+                @Override
+                public void invalidate(String key) {
+                    cache.invalidate(key);
+                }
+
+                @Override
+                public void invalidate(String key, ListenableFuture<CachedResult> value) {
+                    cache.invalidate(key, value);
+                }
+
+                @Override
+                public void invalidateAll() {
+                    cache.invalidateAll();
+                }
+
+                @Override
+                public int count() {
+                    return cache.count();
+                }
+
+                @Override
+                public ListenableFuture<CachedResult> computeIfAbsent(
+                    String key,
+                    CacheLoader<String, ListenableFuture<CachedResult>> loader
+                ) throws ExecutionException {
+                    return cache.computeIfAbsent(key, loader);
+                }
+            };
+        }
+
+        return null;
     }
 
     @Override
@@ -311,7 +349,20 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     protected abstract void doLookupUser(String username, ActionListener<User> listener);
 
-    private static class CachedResult {
+    protected interface UserAuthenticationCache {
+        void invalidate(String key);
+
+        void invalidate(String key, ListenableFuture<CachedResult> value);
+
+        void invalidateAll();
+
+        int count();
+
+        ListenableFuture<CachedResult> computeIfAbsent(String key, CacheLoader<String, ListenableFuture<CachedResult>> loader)
+            throws ExecutionException;
+    }
+
+    protected static class CachedResult {
         private final AuthenticationResult<User> authenticationResult;
         private final User user;
         private final char[] hash;

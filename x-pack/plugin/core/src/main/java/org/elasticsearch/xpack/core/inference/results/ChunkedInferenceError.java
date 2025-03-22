@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 
@@ -18,5 +20,10 @@ public record ChunkedInferenceError(Exception exception) implements ChunkedInfer
     @Override
     public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
         return Collections.emptyIterator();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return null;
     }
 }

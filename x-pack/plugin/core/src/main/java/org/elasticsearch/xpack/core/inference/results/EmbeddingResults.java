@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.core.inference.results;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +27,7 @@ public interface EmbeddingResults<E extends EmbeddingResults.Embedding<E>> exten
     /**
      * A resulting embedding for one of the input texts to the inference service.
      */
-    interface Embedding<E extends Embedding<E>> {
+    interface Embedding<E extends Embedding<E>> extends ToXContentObject {
         /**
          * Merges the existing embedding and provided embedding into a new embedding.
          */
@@ -45,5 +47,14 @@ public interface EmbeddingResults<E extends EmbeddingResults.Embedding<E>> exten
     /**
      * A resulting embedding together with the offset into the input text.
      */
-    record Chunk(Embedding<?> embedding, ChunkedInference.TextOffset offset) {}
+    record Chunk(Embedding<?> embedding, ChunkedInference.TextOffset offset) implements ToXContentObject {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("offset", offset);
+            builder.field("embedding", embedding);
+            builder.endObject();
+            return builder;
+        }
+    }
 }

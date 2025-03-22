@@ -545,7 +545,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
 
             @Override
-            public void onResponseSent(long requestId, String action, TransportResponse response) {
+            public void onResponseSent(long requestId, String action) {
                 if (action.equals(ACTION)) {
                     responseSent.incrementAndGet();
                 }

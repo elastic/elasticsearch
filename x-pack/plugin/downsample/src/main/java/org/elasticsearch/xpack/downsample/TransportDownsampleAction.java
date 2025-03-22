@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -209,7 +210,8 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
     ) {
         long startTime = client.threadPool().relativeTimeInMillis();
         String sourceIndexName = request.getSourceIndex();
-
+        IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(sourceIndexName);
+        IndexNameExpressionResolver.assertExpressionHasNullOrDataSelector(request.getTargetIndex());
         final IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl != null) {
             final IndicesAccessControl.IndexAccessControl indexPermissions = indicesAccessControl.getIndexPermissions(sourceIndexName);

@@ -120,7 +120,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
                 "--add-opens=java.base/java.time=ALL-UNNAMED",
                 "--add-opens=java.management/java.lang.management=ALL-UNNAMED",
-                "--add-opens=java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED",
+                // Arrow (may need to be replaced by org.apache.arrow.memory.core once modularized)
+                "--add-opens=java.base/java.nio=ALL-UNNAMED",
                 // Define the allocation manager type to avoid classpath scanning to locate one.
                 "-Darrow.allocation.manager.type=Unsafe",
                 "-XX:+HeapDumpOnOutOfMemoryError"

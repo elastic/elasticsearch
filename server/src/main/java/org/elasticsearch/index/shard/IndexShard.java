@@ -88,12 +88,14 @@ import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.GetResult;
+import org.elasticsearch.index.engine.EngineAwareRefreshListener;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
+import org.elasticsearch.index.engine.SafeEngineAccessThreadLocal;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
@@ -2257,11 +2259,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return true;
     }
 
-    private void onNewEngine(Engine newEngine) {
+    private void onNewEngine(Engine engine) {
         assert Thread.holdsLock(engineMutex);
-        refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
-        refreshListeners.setCurrentProcessedCheckpointSupplier(newEngine::getProcessedLocalCheckpoint);
-        refreshListeners.setMaxIssuedSeqNoSupplier(newEngine::getMaxSeqNo);
+        assert engine != null;
+
+        var engineConfig = engine.config();
+        if (engineConfig.getExternalRefreshListener() != null) {
+            for (var listener : engineConfig.getExternalRefreshListener()) {
+                if (listener instanceof EngineAwareRefreshListener engineListener) {
+                    engineListener.onNewEngine(engine);
+                }
+            }
+        }
+        if (engineConfig.getInternalRefreshListener() != null) {
+            for (var listener : engineConfig.getInternalRefreshListener()) {
+                if (listener instanceof EngineAwareRefreshListener engineListener) {
+                    engineListener.onNewEngine(engine);
+                }
+            }
+        }
     }
 
     /**
@@ -3013,8 +3029,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return;
         }
         assert assertPrimaryMode();
-        // only sync if there are no operations in flight, or when using async durability
         final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
+        doMaybeSyncGlobalCheckpoint(reason, stats);
+    }
+
+    public void maybeSyncGlobalCheckpoint(final String reason, final SeqNoStats stats) {
+        verifyNotClosed();
+        assert shardRouting.primary() : "only call maybeSyncGlobalCheckpoint on primary shard";
+        if (replicationTracker.isPrimaryMode() == false) {
+            return;
+        }
+        assert assertPrimaryMode();
+        doMaybeSyncGlobalCheckpoint(reason, stats);
+    }
+
+    private void doMaybeSyncGlobalCheckpoint(final String reason, final SeqNoStats stats) {
+        // only sync if there are no operations in flight, or when using async durability
         final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
             final var trackedGlobalCheckpointsNeedSync = replicationTracker.trackedGlobalCheckpointsNeedSync();
@@ -3315,6 +3345,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * closed.
      */
     public Engine getEngineOrNull() {
+        assert SafeEngineAccessThreadLocal.assertSafeAccess();
         return this.currentEngineReference.get();
     }
 
@@ -4100,13 +4131,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         });
     }
 
-    private class RefreshPendingLocationListener implements ReferenceManager.RefreshListener {
+    private class RefreshPendingLocationListener implements EngineAwareRefreshListener {
+
+        private Supplier<Translog.Location> lastWriteLocationSupplier;
         Translog.Location lastWriteLocation;
 
         @Override
+        public void onNewEngine(Engine engine) {
+            this.lastWriteLocationSupplier = () -> engine.getTranslogLastWriteLocation();
+        }
+
+        @Override
         public void beforeRefresh() {
+            assert lastWriteLocationSupplier != null;
             try {
-                lastWriteLocation = getEngine().getTranslogLastWriteLocation();
+                lastWriteLocation = lastWriteLocationSupplier.get();
             } catch (AlreadyClosedException exc) {
                 // shard is closed - no location is fine
                 lastWriteLocation = null;
@@ -4115,6 +4154,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
+            assert lastWriteLocationSupplier != null;
             if (didRefresh && lastWriteLocation != null) {
                 pendingRefreshLocation.updateAndGet(pendingLocation -> {
                     if (pendingLocation == null || pendingLocation.compareTo(lastWriteLocation) <= 0) {
@@ -4127,14 +4167,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private class RefreshFieldHasValueListener implements ReferenceManager.RefreshListener {
+    private class RefreshFieldHasValueListener implements EngineAwareRefreshListener {
+
+        private Supplier<Engine.Searcher> engineSearcherSupplier;
+
         @Override
-        public void beforeRefresh() {}
+        public void onNewEngine(Engine engine) {
+            this.engineSearcherSupplier = () -> engine.acquireSearcher("field_has_value");
+        }
+
+        @Override
+        public void beforeRefresh() {
+            assert engineSearcherSupplier != null;
+        }
 
         @Override
         public void afterRefresh(boolean didRefresh) {
+            assert engineSearcherSupplier != null;
             if (enableFieldHasValue && (didRefresh || fieldInfos == FieldInfos.EMPTY)) {
-                try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
+                try (Engine.Searcher hasValueSearcher = engineSearcherSupplier.get()) {
                     setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
                 } catch (AlreadyClosedException ignore) {
                     // engine is closed - no updated FieldInfos is fine
@@ -4151,16 +4202,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return shardFieldStats;
     }
 
-    private class RefreshShardFieldStatsListener implements ReferenceManager.RefreshListener {
+    private class RefreshShardFieldStatsListener implements EngineAwareRefreshListener {
+
+        private Supplier<Engine.Searcher> engineSearcherSupplier;
+
+        @Override
+        public void onNewEngine(Engine engine) {
+            this.engineSearcherSupplier = () -> engine.acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL);
+        }
+
         @Override
         public void beforeRefresh() {
-
+            assert engineSearcherSupplier != null;
         }
 
         @Override
         public void afterRefresh(boolean didRefresh) {
+            assert engineSearcherSupplier != null;
             if (shardFieldStats == null || didRefresh) {
-                try (var searcher = getEngine().acquireSearcher("shard_field_stats", Engine.SearcherScope.INTERNAL)) {
+                try (var searcher = engineSearcherSupplier.get()) {
                     int numSegments = 0;
                     int totalFields = 0;
                     long usages = 0;

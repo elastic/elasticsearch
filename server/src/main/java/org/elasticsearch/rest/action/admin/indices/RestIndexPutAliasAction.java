@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -30,7 +31,6 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndexPutAliasAction extends BaseRestHandler {
-
     @Override
     public List<Route> routes() {
         return List.of(
@@ -97,6 +97,8 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                         if ("filter".equals(currentFieldName)) {
                             filter = parser.mapOrdered();
                         }
+                    } else if (token != XContentParser.Token.END_OBJECT) {
+                        throw new ParsingException(parser.getTokenLocation(), "Unexpected token [" + token + "]");
                     }
                 }
             }

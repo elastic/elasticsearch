@@ -119,3 +119,11 @@
         body:
           is_write_index: true
           foo: "bar"
+
+  - do:
+      catch: / Unexpected token \[START_ARRAY\]/
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body:
+          routing: [ "routing" ]

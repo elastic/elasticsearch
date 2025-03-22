@@ -41,7 +41,14 @@ public class ToLongTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryBoolean(suppliers, evaluatorName("Boolean", "bool"), DataType.LONG, b -> b ? 1L : 0L, List.of());
 
         // datetimes
-        TestCaseSupplier.unary(suppliers, read, TestCaseSupplier.dateCases(), DataType.LONG, v -> ((Instant) v).toEpochMilli(), List.of());
+        TestCaseSupplier.unary(
+            suppliers,
+            read,
+            TestCaseSupplier.dateCases(),
+            DataType.LONG,
+            v -> DateUtils.toLongMillis((Instant) v),
+            List.of()
+        );
         TestCaseSupplier.unary(
             suppliers,
             read,

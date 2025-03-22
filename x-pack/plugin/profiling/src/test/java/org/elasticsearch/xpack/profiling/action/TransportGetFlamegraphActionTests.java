@@ -61,7 +61,7 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(List.of(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 1L), response.getCountExclusive());
         assertEquals(
             List.of(
-                Map.of("1218", 1),
+                Map.of("1220", 1),
                 Map.of("1219", 2),
                 Map.of("174640828", 3),
                 Map.of("181190529", 4),

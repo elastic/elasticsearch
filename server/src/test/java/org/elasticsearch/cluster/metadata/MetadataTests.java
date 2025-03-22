@@ -2937,8 +2937,6 @@ public class MetadataTests extends ESTestCase {
                 chunkCount += checkChunkSize(custom, params, 1);
             } else if (custom instanceof NodesShutdownMetadata nodesShutdownMetadata) {
                 chunkCount += checkChunkSize(custom, params, 2 + nodesShutdownMetadata.getAll().size());
-            } else if (custom instanceof RepositoriesMetadata repositoriesMetadata) {
-                chunkCount += checkChunkSize(custom, params, repositoriesMetadata.repositories().size());
             } else {
                 // could be anything, we have to just try it
                 chunkCount += count(custom.toXContentChunked(params));

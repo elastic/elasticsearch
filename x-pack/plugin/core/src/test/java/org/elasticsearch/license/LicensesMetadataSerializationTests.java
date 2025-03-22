@@ -8,8 +8,7 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -25,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -64,14 +64,14 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
     public void testLicenseMetadataParsingDoesNotSwallowOtherMetadata() throws Exception {
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
         LicensesMetadata licensesMetadata = new LicensesMetadata(license, TrialLicenseVersion.CURRENT);
-        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", "fs", Settings.EMPTY);
-        RepositoriesMetadata repositoriesMetadata = new RepositoriesMetadata(Collections.singletonList(repositoryMetadata));
+        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(Map.of());
+
         final Metadata.Builder metadataBuilder = Metadata.builder();
         if (randomBoolean()) { // random order of insertion
             metadataBuilder.putCustom(licensesMetadata.getWriteableName(), licensesMetadata);
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putCustom(nodesShutdownMetadata.getWriteableName(), nodesShutdownMetadata);
         } else {
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putCustom(nodesShutdownMetadata.getWriteableName(), nodesShutdownMetadata);
             metadataBuilder.putCustom(licensesMetadata.getWriteableName(), licensesMetadata);
         }
         // serialize metadata
@@ -84,7 +84,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
         assertThat(metadata.custom(licensesMetadata.getWriteableName()), notNullValue());
-        assertThat(metadata.custom(repositoriesMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.custom(nodesShutdownMetadata.getWriteableName()), notNullValue());
     }
 
     public void testXContentSerializationOneTrial() throws Exception {

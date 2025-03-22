@@ -317,7 +317,7 @@ public class InstallPluginActionTests extends ESTestCase {
             securityPolicyContent.append("\";");
         }
         securityPolicyContent.append("\n};\n");
-        Files.write(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString().getBytes(StandardCharsets.UTF_8));
+        Files.writeString(pluginDir.resolve("plugin-security.policy"), securityPolicyContent.toString());
     }
 
     static InstallablePlugin createStablePlugin(String name, Path structure, boolean hasNamedComponentFile, String... additionalProps)
@@ -787,10 +787,10 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testExistingConfig() throws Exception {
         Path envConfigDir = env.v2().configDir().resolve("fake");
         Files.createDirectories(envConfigDir);
-        Files.write(envConfigDir.resolve("custom.yml"), "existing config".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(envConfigDir.resolve("custom.yml"), "existing config");
         Path configDir = pluginDir.resolve("config");
         Files.createDirectory(configDir);
-        Files.write(configDir.resolve("custom.yml"), "new config".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(configDir.resolve("custom.yml"), "new config");
         Files.createFile(configDir.resolve("other.yml"));
         InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
@@ -1033,13 +1033,13 @@ public class InstallPluginActionTests extends ESTestCase {
                     Path shaFile = temp.apply("shas").resolve("downloaded.zip" + shaExtension);
                     byte[] zipbytes = Files.readAllBytes(pluginZipPath);
                     String checksum = shaCalculator.apply(zipbytes);
-                    Files.write(shaFile, checksum.getBytes(StandardCharsets.UTF_8));
+                    Files.writeString(shaFile, checksum);
                     return shaFile.toUri().toURL();
                 } else if ((url + ".asc").equals(urlString)) {
                     final Path ascFile = temp.apply("asc").resolve("downloaded.zip" + ".asc");
                     final byte[] zipBytes = Files.readAllBytes(pluginZipPath);
                     final String asc = signature.apply(zipBytes, secretKey);
-                    Files.write(ascFile, asc.getBytes(StandardCharsets.UTF_8));
+                    Files.writeString(ascFile, asc);
                     return ascFile.toUri().toURL();
                 }
                 return null;

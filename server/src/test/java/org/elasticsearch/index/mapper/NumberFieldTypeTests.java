@@ -848,7 +848,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         public void write(XContentBuilder b) throws IOException {
             if (value instanceof BigInteger) {
-                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes("UTF-8")), XContentType.JSON);
+                b.rawField("field", new ByteArrayInputStream(value.toString().getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
             } else {
                 b.field("field", value);
             }

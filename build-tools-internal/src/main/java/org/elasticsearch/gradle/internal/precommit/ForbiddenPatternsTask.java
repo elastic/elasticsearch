@@ -135,7 +135,7 @@ public abstract class ForbiddenPatternsTask extends DefaultTask {
 
         File outputMarker = getOutputMarker();
         outputMarker.getParentFile().mkdirs();
-        Files.write(outputMarker.toPath(), "done".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(outputMarker.toPath(), "done");
     }
 
     @OutputFile

@@ -83,7 +83,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                 }
                 try {
                     BytesStreamOutput os = new BytesStreamOutput();
-                    PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
+                    PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8);
                     CheckIndex.Status status = store.checkIndex(out);
                     out.flush();
                     if (status.clean == false) {

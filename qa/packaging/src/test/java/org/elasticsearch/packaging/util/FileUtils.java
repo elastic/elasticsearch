@@ -208,7 +208,7 @@ public class FileUtils {
     public static String slurpAllLogs(Path logPath, String activeLogFile, String rotatedLogFilesGlob) {
         StringJoiner logFileJoiner = new StringJoiner("\n");
         try {
-            logFileJoiner.add(new String(Files.readAllBytes(logPath.resolve(activeLogFile)), StandardCharsets.UTF_8));
+            logFileJoiner.add(Files.readString(logPath.resolve(activeLogFile)));
 
             for (Path rotatedLogFile : FileUtils.lsGlob(logPath, rotatedLogFilesGlob)) {
                 logFileJoiner.add(FileUtils.slurpTxtorGz(rotatedLogFile));

@@ -31,6 +31,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.mocksocket.MockHttpServer;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +48,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.node.DiscoveryNode.STATELESS_ENABLED_SETTING_NAME;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.APPLICATION_NAME_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CONNECT_TIMEOUT_SETTING;
@@ -65,11 +65,6 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
 
     private HttpServer httpServer;
     private ThreadPool threadPool;
-
-    // When isServerless is set to true, test suite will collect
-    // 2-dimensional metrics OperationPurpose/Operation.
-    // Otherwise only Operations.
-    private boolean isServerless;
 
     private GoogleCloudStorageService googleCloudStorageService;
     private GoogleCloudStorageHttpHandler googleCloudStorageHttpHandler;
@@ -111,14 +106,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestClass().getName());
         httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        isServerless = randomBoolean();
-        Settings settings;
-        if (isServerless) {
-            settings = Settings.builder().put(STATELESS_ENABLED_SETTING_NAME, true).build();
-        } else {
-            settings = Settings.EMPTY;
-        }
-        googleCloudStorageService = new GoogleCloudStorageService(settings);
+        googleCloudStorageService = new GoogleCloudStorageService();
         googleCloudStorageHttpHandler = new GoogleCloudStorageHttpHandler(BUCKET);
         httpServer.createContext("/", googleCloudStorageHttpHandler);
         httpServer.createContext("/token", new FakeOAuth2HttpHandler());
@@ -144,11 +132,11 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         container.writeBlob(purpose, blobName, blobContents, true);
 
         final StatsMap wantStats = new StatsMap(purpose);
-        assertStatsEquals(wantStats.add(INSERT_OBJECT, 1, 1), store.stats());
+        assertStatsEquals(wantStats.add(INSERT_OBJECT, 1), store.stats());
         try (InputStream is = container.readBlob(purpose, blobName)) {
             assertEquals(blobContents, Streams.readFully(is));
         }
-        assertStatsEquals(wantStats.add(GET_OBJECT, 1, 1), store.stats());
+        assertStatsEquals(wantStats.add(GET_OBJECT, 1), store.stats());
     }
 
     @Test
@@ -169,12 +157,12 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         // the +1 means a POST request with metadata without PAYLOAD
         final int totalRequests = parts + 1;
         final StatsMap wantStats = new StatsMap(purpose);
-        assertStatsEquals(wantStats.add(INSERT_OBJECT, 1, totalRequests), store.stats());
+        assertStatsEquals(wantStats.add(INSERT_OBJECT, 1), store.stats());
 
         try (InputStream is = container.readBlob(purpose, blobName)) {
             assertEquals(blobContents, Streams.readFully(is));
         }
-        assertStatsEquals(wantStats.add(GET_OBJECT, 1, 1), store.stats());
+        assertStatsEquals(wantStats.add(GET_OBJECT, 1), store.stats());
     }
 
     @Test
@@ -190,11 +178,11 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             container.writeBlob(purpose, String.format("%s/file_%d", directoryName, i), contents, true);
         }
         final StatsMap wantStats = new StatsMap(purpose);
-        assertStatsEquals(wantStats.add(INSERT_OBJECT, numberOfFiles, numberOfFiles), store.stats());
+        assertStatsEquals(wantStats.add(INSERT_OBJECT, numberOfFiles), store.stats());
 
         container.delete(purpose);
         // We only count the list because we can't track the bulk delete
-        assertStatsEquals(wantStats.add(LIST_OBJECTS, 1, 1), store.stats());
+        assertStatsEquals(wantStats.add(LIST_OBJECTS, 1), store.stats());
     }
 
     @Test
@@ -212,13 +200,13 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             container.writeBlob(purpose, String.format("file_%d", i), contents, true);
         }
         final StatsMap wantStats = new StatsMap(purpose);
-        assertStatsEquals(wantStats.add(INSERT_OBJECT, numberOfObjects, numberOfObjects), store.stats());
+        assertStatsEquals(wantStats.add(INSERT_OBJECT, numberOfObjects), store.stats());
 
         final Map<String, BlobMetadata> stringBlobMetadataMap = container.listBlobs(purpose);
         assertEquals(numberOfObjects, stringBlobMetadataMap.size());
 
         // There should be {numberOfPages} pages of blobs
-        assertStatsEquals(wantStats.add(LIST_OBJECTS, numberOfPages, numberOfPages), store.stats());
+        assertStatsEquals(wantStats.add(LIST_OBJECTS, numberOfPages), store.stats());
     }
 
     public void testCompareAndSetRegister() {
@@ -231,12 +219,12 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         final OperationPurpose purpose = randomPurpose();
         assertTrue(safeAwait(l -> container.compareAndSetRegister(purpose, registerName, BytesArray.EMPTY, contents, l)));
         final StatsMap wantStat = new StatsMap(purpose);
-        assertStatsEquals(wantStat.add(GET_OBJECT, 1, 1).add(INSERT_OBJECT, 1, 1), store.stats());
+        assertStatsEquals(wantStat.add(GET_OBJECT, 1).add(INSERT_OBJECT, 1), store.stats());
 
         // successful update from non-null (adds two gets, one insert)
         final BytesArray nextContents = new BytesArray(randomByteArrayOfLength(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
         assertTrue(safeAwait(l -> container.compareAndSetRegister(purpose, registerName, contents, nextContents, l)));
-        assertStatsEquals(wantStat.add(GET_OBJECT, 2, 2).add(INSERT_OBJECT, 1, 1), store.stats());
+        assertStatsEquals(wantStat.add(GET_OBJECT, 2).add(INSERT_OBJECT, 1), store.stats());
 
         // failed update (adds two gets, zero inserts)
         final BytesArray wrongContents = randomValueOtherThan(
@@ -244,7 +232,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             () -> new BytesArray(randomByteArrayOfLength(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH))
         );
         assertFalse(safeAwait(l -> container.compareAndSetRegister(purpose, registerName, wrongContents, contents, l)));
-        assertStatsEquals(wantStat.add(GET_OBJECT, 2, 2), store.stats());
+        assertStatsEquals(wantStat.add(GET_OBJECT, 2), store.stats());
     }
 
     private ContainerAndBlobStore createBlobContainer(final String repositoryName) throws Exception {
@@ -271,7 +259,8 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
             googleCloudStorageService,
             BigArrays.NON_RECYCLING_INSTANCE,
             Math.toIntExact(BUFFER_SIZE.getBytes()),
-            BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10)
+            BackoffPolicy.constantBackoff(TimeValue.timeValueMillis(10), 10),
+            RepositoriesMetrics.NOOP
         );
         final GoogleCloudStorageBlobContainer googleCloudStorageBlobContainer = new GoogleCloudStorageBlobContainer(
             BlobPath.EMPTY,
@@ -300,33 +289,17 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
 
         StatsMap(OperationPurpose purpose) {
             this.purpose = purpose;
-            if (isServerless) {
-                for (var p : OperationPurpose.values()) {
-                    for (var o : Operation.values()) {
-                        put(p.getKey() + "_" + o.key(), new BlobStoreActionStats(0, 0));
-                    }
-                }
-            } else {
-                for (var o : Operation.values()) {
-                    put(o.key(), new BlobStoreActionStats(0, 0));
-                }
+            for (var o : Operation.values()) {
+                put(o.key(), new BlobStoreActionStats(0, 0));
             }
         }
 
-        StatsMap add(Operation operation, long ops, long reqs) {
-            var key = isServerless ? purpose.getKey() + "_" + operation.key() : operation.key();
-            compute(key, (k, v) -> {
-                BlobStoreActionStats stats;
+        StatsMap add(Operation operation, long ops) {
+            compute(operation.key(), (k, v) -> {
                 assert v != null;
-                if (isServerless) {
-                    stats = new BlobStoreActionStats(v.operations() + ops, v.requests() + reqs);
-                } else {
-                    stats = new BlobStoreActionStats(v.operations() + ops, v.operations() + ops);
-                }
-                return stats;
+                return new BlobStoreActionStats(v.operations() + ops, v.operations() + ops);
             });
             return this;
         }
-
     }
 }

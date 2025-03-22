@@ -101,7 +101,7 @@ public class GetStackTracesResponse extends ActionResponse implements ChunkedToX
                     Iterators.map(v.entrySet().iterator(), e -> (b, p) -> b.field(e.getKey().stacktraceID(), e.getValue().count))
                 )
             ),
-            Iterators.single((b, p) -> b.field("sampling_rate", samplingRate).endObject()),
+            Iterators.single((b, p) -> b.field("sampling_rate", samplingRate).endObject())
             // the following fields are intentionally not written to the XContent representation (only needed on the transport layer):
             //
             // * start

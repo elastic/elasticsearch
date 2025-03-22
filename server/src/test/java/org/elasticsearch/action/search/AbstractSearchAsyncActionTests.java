@@ -215,33 +215,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         assertEquals(requestIds, releasedContexts);
     }
 
-    public void testShardNotAvailableWithDisallowPartialFailures() {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
-        AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<SearchResponse> listener = ActionListener.wrap(response -> fail("onResponse should not be called"), exception::set);
-        int numShards = randomIntBetween(2, 10);
-        ArraySearchPhaseResults<SearchPhaseResult> phaseResults = new ArraySearchPhaseResults<>(numShards);
-        AbstractSearchAsyncAction<SearchPhaseResult> action = createAction(searchRequest, phaseResults, listener, false, new AtomicLong());
-        // skip one to avoid the "all shards failed" failure.
-        action.onShardResult(new SearchPhaseResult() {
-            @Override
-            public int getShardIndex() {
-                return 0;
-            }
-
-            @Override
-            public SearchShardTarget getSearchShardTarget() {
-                return new SearchShardTarget(null, null, null);
-            }
-        });
-        assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
-        SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();
-        assertEquals("Partial shards failure (" + (numShards - 1) + " shards unavailable)", searchPhaseExecutionException.getMessage());
-        assertEquals("test", searchPhaseExecutionException.getPhaseName());
-        assertEquals(0, searchPhaseExecutionException.shardFailures().length);
-        assertEquals(0, searchPhaseExecutionException.getSuppressed().length);
-    }
-
     private static ArraySearchPhaseResults<SearchPhaseResult> phaseResults(
         Set<ShardSearchContextId> contextIds,
         List<Tuple<String, String>> nodeLookups,

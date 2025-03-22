@@ -18,7 +18,6 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.upgrades.FeatureMigrationResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -363,8 +362,6 @@ public class ProjectMetadataTests extends ESTestCase {
                     params,
                     4 + dataStreamMetadata.dataStreams().size() + dataStreamMetadata.getDataStreamAliases().size()
                 );
-            } else if (custom instanceof FeatureMigrationResults featureMigrationResults) {
-                chunkCount += checkChunkSize(custom, params, 2 + featureMigrationResults.getFeatureStatuses().size());
             } else if (custom instanceof IndexGraveyard indexGraveyard) {
                 chunkCount += checkChunkSize(custom, params, 2 + indexGraveyard.getTombstones().size());
             } else if (custom instanceof IngestMetadata ingestMetadata) {

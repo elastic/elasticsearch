@@ -13,7 +13,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
-import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -148,7 +147,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
     /**
      * An optional reindexing script to use when migrating an index created
-     * before {@link TransportGetFeatureUpgradeStatusAction#NO_UPGRADE_REQUIRED_INDEX_VERSION}.
+     * before {@link SystemIndices#NO_UPGRADE_REQUIRED_INDEX_VERSION}.
      * This script can be used to modify documents before they are added to the new index.
      * For example, it can be used to remove deprecated fields from the index.
      * <br>

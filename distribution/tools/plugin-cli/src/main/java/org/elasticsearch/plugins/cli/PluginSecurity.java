@@ -34,6 +34,9 @@ import java.util.stream.Collectors;
  */
 public class PluginSecurity {
 
+    public static final String ENTITLEMENTS_DESCRIPTION_URL =
+        "https://www.elastic.co/guide/en/elasticsearch/plugins/current/creating-classic-plugins.html";
+
     /**
      * prints/confirms policy exceptions with the user
      */

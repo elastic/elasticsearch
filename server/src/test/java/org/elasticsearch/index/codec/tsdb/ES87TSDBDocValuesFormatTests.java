@@ -27,6 +27,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
@@ -39,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -242,6 +246,72 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
                             doc += random().nextInt(3);
                         }
                     }
+                }
+            }
+        }
+    }
+
+    public void testForceMerge() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        long baseTimestamp = 1704067200000L;
+
+        var config = new IndexWriterConfig();
+        config.setIndexSort(
+            new Sort(
+                new SortField(hostnameField, SortField.Type.STRING, false),
+                new SortedNumericSortField(timestampField, SortField.Type.LONG, true)
+            )
+        );
+        config.setCodec(getCodec());
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            long counter1 = 0;
+            long counter2 = 10_000_000;
+            long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
+            long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
+            String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
+            int numHosts = 10;
+
+            int numDocs = 256 + random().nextInt(1024);
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+
+                int batchIndex = i / numHosts;
+                String hostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                long timestamp = baseTimestamp + (1000L * i);
+
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef(hostName)));
+                d.add(new SortedNumericDocValuesField(timestampField, timestamp));
+                d.add(new SortedNumericDocValuesField("counter_1", counter1++));
+                d.add(new SortedNumericDocValuesField("counter_2", counter2++));
+                d.add(new SortedNumericDocValuesField("gauge_1", gauge1Values[i % gauge1Values.length]));
+                d.add(new SortedNumericDocValuesField("gauge_2", gauge2Values[i % gauge1Values.length]));
+                int numTags = 3;
+                for (int j = 0; j < numTags; j++) {
+                    d.add(new SortedSetDocValuesField("tags", new BytesRef(tags[j])));
+                }
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                assertEquals(numDocs, reader.maxDoc());
+                var leaf = reader.leaves().get(0).reader();
+                var sortedDocValues = leaf.getSortedDocValues(hostnameField);
+                assertNotNull(sortedDocValues);
+                for (int i = 0; i < numDocs; i++) {
+                    assertEquals(i, sortedDocValues.nextDoc());
+                    int batchIndex = i / numHosts;
+                    assertEquals(batchIndex, sortedDocValues.ordValue());
+                    String expectedHostName = String.format(Locale.ROOT, "host-%03d", batchIndex);
+                    assertEquals(expectedHostName, sortedDocValues.lookupOrd(sortedDocValues.ordValue()).utf8ToString());
                 }
             }
         }

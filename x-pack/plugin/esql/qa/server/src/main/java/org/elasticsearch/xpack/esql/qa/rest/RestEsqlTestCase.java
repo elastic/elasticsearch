@@ -63,6 +63,7 @@ import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.ASYNC;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode.SYNC;
+import static org.elasticsearch.xpack.esql.session.IndexResolver.WIDE_INDEX_DEFAULT_FIELD_NUMBER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsString;
@@ -1158,6 +1159,70 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
     }
 
+    public void testWideIndexWithFieldsPruned() throws IOException {
+        createLoadIndexWithFieldAndDocumentCounts(10000, 1); // create an index with 10k fields and 1 document
+        var query = requestObjectBuilder().query(format(null, "from {}", testIndexName()));
+        Map<String, Object> result = runEsql(query);
+        var columns = as(result.get("columns"), List.class);
+        var values = as(result.get("values"), List.class);
+        assertEquals(WIDE_INDEX_DEFAULT_FIELD_NUMBER, columns.size());
+        assertEquals(1, values.size());
+        var column = as(columns.get(randomIntBetween(0, 99)), Map.class);
+        assertTrue(column.get("name").toString().startsWith("f1"));
+
+        // keep the limit 0 return all fields, kibana uses this trick to retrieve metadata
+        query = requestObjectBuilder().query(format(null, "from {} | limit 0", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(10000, columns.size());
+        assertEquals(0, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | limit 1", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(100, columns.size());
+        assertEquals(1, values.size());
+        column = as(columns.get(randomIntBetween(0, 99)), Map.class);
+        assertTrue(column.get("name").toString().startsWith("f1"));
+
+        query = requestObjectBuilder().query(format(null, "from {} | keep f1, f2", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(2, columns.size());
+        assertEquals(1, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | drop f1, f2", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(9998, columns.size());
+        assertEquals(1, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | where f1 > 0", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(10000, columns.size());
+        assertEquals(1, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | eval x = 0", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(10001, columns.size());
+        assertEquals(1, values.size());
+
+        query = requestObjectBuilder().query(format(null, "from {} | stats max(f1)", testIndexName()));
+        result = runEsql(query);
+        columns = as(result.get("columns"), List.class);
+        values = as(result.get("values"), List.class);
+        assertEquals(1, columns.size());
+        assertEquals(1, values.size());
+    }
+
     private static String queryWithComplexFieldNames(int field) {
         StringBuilder query = new StringBuilder();
         query.append(" | keep ").append(randomAlphaOfLength(10)).append(1);
@@ -1730,5 +1795,39 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         bulk.setJsonEntity(b.toString());
         response = client().performRequest(bulk);
         Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+    }
+
+    private static void createLoadIndexWithFieldAndDocumentCounts(int fieldCount, int documentCount) throws IOException {
+        StringBuilder schema = new StringBuilder();
+        schema.append(String.format(Locale.ROOT, "{\"settings\":{\"index.mapping.total_fields.limit\":%d},", fieldCount));
+        schema.append(String.format(Locale.ROOT, "\"mappings\":{\"properties\":{\"f%d\":{\"type\":\"integer\"}", 1));
+        for (int i = 2; i <= fieldCount; i++) {
+            schema.append(String.format(Locale.ROOT, ",\"f%d\":{\"type\":\"integer\"}", i));
+        }
+        schema.append("}}}");
+        Request request = new Request("PUT", "/" + testIndexName());
+        request.setJsonEntity(schema.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        if (documentCount > 0) {
+            request = new Request("POST", "/" + testIndexName() + "/_bulk");
+            request.addParameter("refresh", "true");
+
+            StringBuilder bulk = new StringBuilder();
+            for (int i = 1; i <= documentCount; i++) {
+                bulk.append("""
+                    {"index":{}}
+                    """);
+                bulk.append(String.format(Locale.ROOT, "{\"f%d\":%d", 1, 1));
+                for (int j = 2; j <= fieldCount; j++) {
+                    bulk.append(String.format(Locale.ROOT, ",\"f%d\":%d", j, j));
+                }
+                bulk.append("""
+                    }
+                    """);
+            }
+            request.setJsonEntity(bulk.toString());
+            assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        }
     }
 }

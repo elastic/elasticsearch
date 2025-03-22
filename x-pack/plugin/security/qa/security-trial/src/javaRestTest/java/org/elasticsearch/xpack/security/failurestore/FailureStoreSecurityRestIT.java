@@ -220,6 +220,427 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             }""");
     }
 
+    public void testHasPrivileges() throws IOException {
+        createUser("user", PASSWORD, "role");
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["read", "read_failure_store"]
+                },
+                {
+                  "names": ["test2"],
+                  "privileges": ["manage_failure_store", "write"]
+                }
+              ]
+            }
+            """, "role");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+              "role": {
+                "cluster": ["all"],
+                "indices": [
+                  {
+                    "names": ["*"],
+                    "privileges": ["read", "read_failure_store"]
+                  },
+                  {
+                    "names": ["test2"],
+                    "privileges": ["manage_failure_store", "write"]
+                  }
+                ]
+              }
+            }
+            """);
+
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read", "read_failure_store"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["read"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["read_failure_store"]
+                    },
+                    {
+                        "names": ["test1"],
+                        "privileges": ["manage_failure_store"]
+                    },
+                    {
+                        "names": ["test1"],
+                        "privileges": ["manage"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["manage_failure_store"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["manage"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read": true,
+                        "read_failure_store": true,
+                        "manage_failure_store": false,
+                        "manage": false
+                    },
+                    "test2": {
+                        "read": true,
+                        "read_failure_store": true,
+                        "manage_failure_store": true,
+                        "manage": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["indices:data/write/*"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["indices:admin/*", "indices:data/write/*"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "indices:data/write/*": false
+                    },
+                    "test2": {
+                        "indices:admin/*": false,
+                        "indices:data/write/*": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["indices:data/write/*"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "indices:data/write/*": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read_failure_store"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read_failure_store": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["indices:data/read/*"]
+                },
+                {
+                  "names": ["test*"],
+                  "privileges": ["read_failure_store"]
+                },
+                {
+                  "names": ["test2"],
+                  "privileges": ["all"]
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["*"],
+                      "privileges": ["indices:data/read/*"]
+                    },
+                    {
+                      "names": ["test*"],
+                      "privileges": ["read_failure_store"]
+                    },
+                    {
+                      "names": ["test2"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["all", "indices:data/read/*", "read", "read_failure_store", "write"]
+                    },
+                    {
+                        "names": ["test2"],
+                        "privileges": ["all", "indices:data/read/*", "read", "read_failure_store", "write"]
+                    },
+                    {
+                        "names": ["test3"],
+                        "privileges": ["all", "indices:data/read/*", "read", "read_failure_store", "write"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "all": false,
+                        "indices:data/read/*": true,
+                        "read": false,
+                        "read_failure_store": true,
+                        "write": false
+                    },
+                    "test2": {
+                        "all": true,
+                        "indices:data/read/*": true,
+                        "read": true,
+                        "read_failure_store": true,
+                        "write": true
+                    },
+                    "test3": {
+                        "all": false,
+                        "indices:data/read/*": true,
+                        "read": false,
+                        "read_failure_store": true,
+                        "write": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1"],
+                  "privileges": ["read", "read_failure_store"]
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["test1"],
+                      "privileges": ["read", "read_failure_store"]
+                    }
+                  ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["all"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": false,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "all": false
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        upsertRole("""
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": ["test1"],
+                  "privileges": ["all"]
+                }
+              ]
+            }
+            """, "role");
+        apiKeys.remove("user");
+        createAndStoreApiKey("user", randomBoolean() ? null : """
+            {
+                "role": {
+                  "cluster": ["all"],
+                  "indices": [
+                    {
+                      "names": ["test1"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["all"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "all": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+        expectHasPrivileges("user", """
+            {
+                "index": [
+                    {
+                        "names": ["test1"],
+                        "privileges": ["read_failure_store"]
+                    }
+                ]
+            }
+            """, """
+            {
+                "username": "user",
+                "has_all_requested": true,
+                "cluster": {},
+                "index": {
+                    "test1": {
+                        "read_failure_store": true
+                    }
+                },
+                "application": {}
+            }
+            """);
+
+        // TODO restricted indices
+    }
+
     public void testRoleWithSelectorInIndexPattern() throws Exception {
         setupDataStream();
 
@@ -280,7 +701,6 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         expectSearch("user", new Search("*::failures"));
     }
 
-    @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws Exception {
         List<String> docIds = setupDataStream();
         assertThat(docIds.size(), equalTo(2));
@@ -1826,5 +2246,12 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertThat(indices.v1().size(), equalTo(1));
         assertThat(indices.v2().size(), equalTo(1));
         return new Tuple<>(indices.v1().get(0), indices.v2().get(0));
+    }
+
+    private void expectHasPrivileges(String user, String requestBody, String expectedResponse) throws IOException {
+        Request req = new Request("POST", "/_security/user/_has_privileges");
+        req.setJsonEntity(requestBody);
+        Response response = performRequestMaybeUsingApiKey(user, req);
+        assertThat(responseAsMap(response), equalTo(mapFromJson(expectedResponse)));
     }
 }

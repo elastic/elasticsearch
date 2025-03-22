@@ -13,9 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -368,31 +366,6 @@ public interface AuthorizationEngine {
                 && application != null
                 && application.length == 0) {
                 validationException = addValidationError("must specify at least one privilege", validationException);
-            }
-            if (index != null) {
-                // no need to validate failure-store related constraints if it's not enabled
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (RoleDescriptor.IndicesPrivileges indexPrivilege : index) {
-                        if (indexPrivilege.getIndices() != null
-                            && Arrays.stream(indexPrivilege.getIndices())
-                                // best effort prevent users from attempting to check failure selectors
-                                .anyMatch(idx -> IndexNameExpressionResolver.hasSelector(idx, IndexComponentSelector.FAILURES))) {
-                            validationException = addValidationError(
-                                // TODO adjust message once HasPrivileges check supports checking failure store privileges
-                                "failures selector is not supported in index patterns",
-                                validationException
-                            );
-                        }
-                        if (indexPrivilege.getPrivileges() != null
-                            && Arrays.stream(indexPrivilege.getPrivileges())
-                                .anyMatch(p -> "read_failure_store".equals(p) || "manage_failure_store".equals(p))) {
-                            validationException = addValidationError(
-                                "checking failure store privileges is not supported",
-                                validationException
-                            );
-                        }
-                    }
-                }
             }
             return validationException;
         }

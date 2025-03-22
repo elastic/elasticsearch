@@ -77,32 +77,17 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 task.setDescription("Generates stub release notes e.g. after feature freeze");
             }
 
-            task.setReleaseNotesIndexTemplate(projectDirectory.file(RESOURCES + "templates/release-notes-index.asciidoc"));
-            task.setReleaseNotesIndexFile(projectDirectory.file("docs/reference/release-notes.asciidoc"));
-
-            task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
-            task.setReleaseNotesFile(
-                projectDirectory.file(
-                    String.format(
-                        "docs/reference/release-notes/%d.%d.%d.asciidoc",
-                        version.getMajor(),
-                        version.getMinor(),
-                        version.getRevision()
-                    )
-                )
-            );
+            task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/index.md"));
+            task.setReleaseNotesFile(projectDirectory.file("docs/release-notes/index.md"));
 
             task.setReleaseHighlightsTemplate(projectDirectory.file(RESOURCES + "templates/release-highlights.asciidoc"));
             task.setReleaseHighlightsFile(projectDirectory.file("docs/reference/release-notes/highlights.asciidoc"));
 
-            task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.asciidoc"));
-            task.setBreakingChangesMigrationFile(
-                projectDirectory.file(
-                    String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
-                )
-            );
-            task.setMigrationIndexTemplate(projectDirectory.file(RESOURCES + "templates/migration-index.asciidoc"));
-            task.setMigrationIndexFile(projectDirectory.file("docs/reference/migration/index.asciidoc"));
+            task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.md"));
+            task.setBreakingChangesFile(projectDirectory.file("docs/release-notes/breaking-changes.md"));
+
+            task.setDeprecationsTemplate(projectDirectory.file(RESOURCES + "templates/deprecations.md"));
+            task.setDeprecationsFile(projectDirectory.file("docs/release-notes/deprecations.md"));
 
             task.dependsOn(validateChangelogsTask);
         };

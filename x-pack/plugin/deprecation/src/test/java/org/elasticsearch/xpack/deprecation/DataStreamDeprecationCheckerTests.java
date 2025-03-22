@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -56,9 +57,9 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old data stream with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has backing indices that were created before Elasticsearch 9.0.0",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0",
+            "https://ela.st/es-deprecation-ds-reindex",
+            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + ".0",
             false,
             ofEntries(
                 entry("reindex_required", true),
@@ -125,9 +126,9 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old data stream with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has backing indices that were created before Elasticsearch 9.0.0",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0",
+            "https://ela.st/es-deprecation-ds-reindex",
+            "This data stream has backing indices that were created before Elasticsearch " + Version.CURRENT.major + ".0",
             false,
             ofEntries(
                 entry("reindex_required", true),
@@ -284,10 +285,11 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "Old data stream with a compatibility version < 9.0 Have Been Ignored",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This data stream has read only backing indices that were created before Elasticsearch 9.0.0 and have been marked as "
-                + "OK to remain read-only after upgrade",
+            "Old data stream with a compatibility version < " + Version.CURRENT.major + ".0 has Been Ignored",
+            "https://ela.st/es-deprecation-ds-reindex",
+            "This data stream has read only backing indices that were created before Elasticsearch "
+                + Version.CURRENT.major
+                + ".0 and have been marked as OK to remain read-only after upgrade",
             false,
             ofEntries(
                 entry("reindex_required", false),

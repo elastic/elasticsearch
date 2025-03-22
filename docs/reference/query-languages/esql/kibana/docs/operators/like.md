@@ -13,7 +13,7 @@ The following wildcard characters are supported:
 * `*` matches zero or more characters.
 * `?` matches one character.
 
-```
+```esql
 FROM employees
 | WHERE first_name LIKE """?b*"""
 | KEEP first_name, last_name

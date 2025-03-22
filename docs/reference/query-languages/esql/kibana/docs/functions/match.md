@@ -16,7 +16,7 @@ For a simplified syntax, you can use the [match operator](https://www.elastic.co
 
 `MATCH` returns true if the provided query matches the row.
 
-```
+```esql
 FROM books
 | WHERE MATCH(author, "Faulkner")
 | KEEP book_no, author

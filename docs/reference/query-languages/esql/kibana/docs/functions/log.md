@@ -7,7 +7,7 @@ Returns the logarithm of a value to a base. The input can be any numeric value, 
 
 Logs of zero, negative numbers, and base of one return `null` as well as a warning.
 
-```
+```esql
 ROW base = 2.0, value = 8.0
 | EVAL s = LOG(base, value)
 ```

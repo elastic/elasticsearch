@@ -30,6 +30,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -62,7 +64,11 @@ public class ToAggregateMetricDouble extends AbstractConvertFunction {
         ToAggregateMetricDouble::new
     );
 
-    @FunctionInfo(returnType = "aggregate_metric_double", description = "Encode a numeric to an aggregate_metric_double.")
+    @FunctionInfo(
+        returnType = "aggregate_metric_double",
+        description = "Encode a numeric to an aggregate_metric_double.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.COMING, version = "9.1") }
+    )
     public ToAggregateMetricDouble(
         Source source,
         @Param(

@@ -8,7 +8,7 @@ If the input parameter is of a date type, its value will be interpreted as milli
 since the [Unix epoch](https://en.wikipedia.org/wiki/Unix_time), converted to integer.
 Boolean `true` will be converted to integer `1`, `false` to `0`.
 
-```
+```esql
 ROW long = [5013792, 2147483647, 501379200000]
 | EVAL int = TO_INTEGER(long)
 ```

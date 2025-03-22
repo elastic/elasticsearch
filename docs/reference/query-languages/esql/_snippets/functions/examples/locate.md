@@ -3,8 +3,8 @@
 **Example**
 
 ```esql
-row a = "hello"
-| eval a_ll = locate(a, "ll")
+ROW a = "hello"
+| EVAL a_ll = LOCATE(a, "ll")
 ```
 
 | a:keyword | a_ll:integer |

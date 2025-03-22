@@ -72,16 +72,32 @@ public class SelectorResolverTests extends ESTestCase {
         // === Corner Cases
         // Empty index name is not necessarily disallowed, but will be filtered out in the next steps of resolution
         assertThat(resolve(selectorsAllowed, "::data"), equalTo(new ResolvedExpression("", DATA)));
+        assertThat(resolve(selectorsAllowed, "::failures"), equalTo(new ResolvedExpression("", FAILURES)));
         // Remote cluster syntax is respected, even if code higher up the call stack is likely to already have handled it already
         assertThat(resolve(selectorsAllowed, "cluster:index::data"), equalTo(new ResolvedExpression("cluster:index", DATA)));
         // CCS with an empty index name is not necessarily disallowed, though other code in the resolution logic will likely throw
         assertThat(resolve(selectorsAllowed, "cluster:::data"), equalTo(new ResolvedExpression("cluster:", DATA)));
         // Same for empty cluster and index names
         assertThat(resolve(selectorsAllowed, ":::data"), equalTo(new ResolvedExpression(":", DATA)));
+        assertThat(resolve(selectorsAllowed, ":::failures"), equalTo(new ResolvedExpression(":", FAILURES)));
         // Any more prefix colon characters will trigger the multiple separators error logic
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::data"));
+        expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "::::failures"));
+        expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, ":::::failures"));
         // Suffix case is not supported because there is no component named with the empty string
         expectThrows(InvalidIndexNameException.class, () -> resolve(selectorsAllowed, "index::"));
+
+        assertThat(resolve(selectorsAllowed, "cluster:index::failures"), equalTo(new ResolvedExpression("cluster:index", FAILURES)));
+        expectThrows(IllegalArgumentException.class, () -> resolve(noSelectors, "cluster:index::failures"));
+        assertThat(resolve(selectorsAllowed, "cluster-*:index::failures"), equalTo(new ResolvedExpression("cluster-*:index", FAILURES)));
+        assertThat(
+            resolve(selectorsAllowed, "cluster-*:index-*::failures"),
+            equalTo(new ResolvedExpression("cluster-*:index-*", FAILURES))
+        );
+        assertThat(resolve(selectorsAllowed, "cluster-*:*::failures"), equalTo(new ResolvedExpression("cluster-*:*", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "*:index-*::failures"), equalTo(new ResolvedExpression("*:index-*", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "*:*::failures"), equalTo(new ResolvedExpression("*:*", FAILURES)));
+        assertThat(resolve(selectorsAllowed, "cluster:::failures"), equalTo(new ResolvedExpression("cluster:", FAILURES)));
     }
 
     public void testResolveMatchAllToSelectors() {

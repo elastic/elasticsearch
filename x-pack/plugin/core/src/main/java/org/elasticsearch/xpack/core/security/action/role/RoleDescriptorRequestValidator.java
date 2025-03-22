@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -61,13 +60,7 @@ public class RoleDescriptorRequestValidator {
                 validationException = addValidationError("remote index cluster alias cannot be an empty string", validationException);
             }
             try {
-                Set<IndexPrivilege> privileges = IndexPrivilege.resolveBySelectorAccess(Set.of(ridp.indicesPrivileges().getPrivileges()));
-                if (privileges.stream().anyMatch(p -> p.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES)) {
-                    validationException = addValidationError(
-                        "remote index privileges cannot contain privileges that grant access to the failure store",
-                        validationException
-                    );
-                }
+                IndexPrivilege.resolveBySelectorAccess(Set.of(ridp.indicesPrivileges().getPrivileges()));
             } catch (IllegalArgumentException ile) {
                 validationException = addValidationError(ile.getMessage(), validationException);
             }

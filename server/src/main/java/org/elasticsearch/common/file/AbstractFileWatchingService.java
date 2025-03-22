@@ -16,8 +16,8 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.core.FixForMultiProject;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.ClosedWatchServiceException;
-import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -25,6 +25,7 @@ import java.nio.file.WatchEvent;
 import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -62,8 +63,9 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     private WatchKey settingsDirWatchKey;
     private WatchKey configDirWatchKey;
 
+    @SuppressWarnings("this-escape")
     public AbstractFileWatchingService(Path settingsDir) {
-        if (Files.exists(settingsDir) && Files.isDirectory(settingsDir) == false) {
+        if (filesExists(settingsDir) && filesIsDirectory(settingsDir) == false) {
             throw new IllegalArgumentException("settingsDir should be a directory");
         }
         this.settingsDir = settingsDir;
@@ -113,10 +115,10 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         return watcherThread != null;
     }
 
-    private static FileUpdateState readFileUpdateState(Path path) throws IOException {
+    private FileUpdateState readFileUpdateState(Path path) throws IOException {
         BasicFileAttributes attr;
         try {
-            attr = Files.readAttributes(path, BasicFileAttributes.class);
+            attr = filesReadAttributes(path, BasicFileAttributes.class);
         } catch (NoSuchFileException e) {
             // file doesn't exist anymore
             return null;
@@ -141,7 +143,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     }
 
     protected final synchronized void startWatcher() {
-        if (Files.exists(settingsDir.getParent()) == false) {
+        if (filesExists(settingsDir.getParent()) == false) {
             logger.warn("File watcher for [{}] cannot start because parent directory does not exist", settingsDir);
             return;
         }
@@ -155,7 +157,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
          */
         try {
             this.watchService = settingsDir.getParent().getFileSystem().newWatchService();
-            if (Files.exists(settingsDir)) {
+            if (filesExists(settingsDir)) {
                 settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDir);
             } else {
                 logger.debug("watched directory [{}] not found, will watch for its creation...", settingsDir);
@@ -188,8 +190,8 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
         try {
             logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
-            if (Files.exists(settingsDir)) {
-                try (Stream<Path> files = Files.list(settingsDir)) {
+            if (filesExists(settingsDir)) {
+                try (Stream<Path> files = filesList(settingsDir)) {
                     var f = files.iterator();
                     if (f.hasNext() == false) {
                         // no files in directory
@@ -248,7 +250,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                         }
                     }
                 } else if (key == configDirWatchKey) {
-                    if (Files.exists(settingsDir)) {
+                    if (filesExists(settingsDir)) {
                         // We re-register the settings directory watch key, because we don't know
                         // if the file name maps to the same native file system file id. Symlinks
                         // are one potential cause of inconsistency here, since their handling by
@@ -257,7 +259,7 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
                         settingsDirWatchKey = enableDirectoryWatcher(settingsDirWatchKey, settingsDir);
 
                         // re-read the settings directory, and ping for any changes
-                        try (Stream<Path> files = Files.list(settingsDir)) {
+                        try (Stream<Path> files = filesList(settingsDir)) {
                             for (var f = files.iterator(); f.hasNext();) {
                                 Path file = f.next();
                                 if (fileChanged(file)) {
@@ -370,4 +372,19 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
      * class to determine if a file has been changed.
      */
     private record FileUpdateState(long timestamp, String path, Object fileKey) {}
+
+    // the following methods are a workaround to ensure exclusive access for files
+    // required by child watchers; this is required because we only check the caller's module
+    // not the entire stack
+    protected abstract boolean filesExists(Path path);
+
+    protected abstract boolean filesIsDirectory(Path path);
+
+    protected abstract <A extends BasicFileAttributes> A filesReadAttributes(Path path, Class<A> clazz) throws IOException;
+
+    protected abstract Stream<Path> filesList(Path dir) throws IOException;
+
+    protected abstract Path filesSetLastModifiedTime(Path path, FileTime time) throws IOException;
+
+    protected abstract InputStream filesNewInputStream(Path path) throws IOException;
 }

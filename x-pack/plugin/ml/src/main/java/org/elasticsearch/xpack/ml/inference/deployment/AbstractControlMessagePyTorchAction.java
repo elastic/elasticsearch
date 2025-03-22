@@ -87,7 +87,7 @@ abstract class AbstractControlMessagePyTorchAction<T> extends AbstractPyTorchAct
 
     private void processResponse(PyTorchResult result) {
         if (result.isError()) {
-            onFailure(result.errorResult().error());
+            onFailure(result.errorResult());
             return;
         }
         onSuccess(getResult(result));

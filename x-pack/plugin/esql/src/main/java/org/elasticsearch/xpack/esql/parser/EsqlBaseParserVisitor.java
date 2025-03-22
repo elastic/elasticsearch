@@ -212,6 +212,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -382,6 +388,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

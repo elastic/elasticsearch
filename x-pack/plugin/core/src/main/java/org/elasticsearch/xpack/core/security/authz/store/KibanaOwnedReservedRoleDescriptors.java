@@ -120,6 +120,11 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".ml-annotations*", ".ml-notifications*")
                     .privileges("read", "write")
                     .build(),
+                // And the reindexed indices from v7
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".reindexed-v8-ml-annotations*", ".reindexed-v8-ml-notifications*")
+                    .privileges("read", "write")
+                    .build(),
 
                 // APM agent configuration - system index defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -224,6 +229,11 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices("metrics-fleet_server*").privileges("all").build(),
                 // Fleet reads output health from this index pattern
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-fleet_server*").privileges("read", "delete_index").build(),
+                // Fleet creates and writes this index for sync integrations feature
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("fleet-synced-integrations", "fleet-synced-integrations-ccr*")
+                    .privileges("create_index", "manage", "read", "write")
+                    .build(),
                 // Legacy "Alerts as data" used in Security Solution.
                 // Kibana user creates these indices; reads / writes to them.
                 RoleDescriptor.IndicesPrivileges.builder()
@@ -460,8 +470,10 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(
                         "logs-wiz.vulnerability-*",
                         "logs-wiz.cloud_configuration_finding-*",
+                        "logs-wiz.cloud_configuration_finding_full_posture-*",
                         "logs-google_scc.finding-*",
                         "logs-aws.securityhub_findings-*",
+                        "logs-aws.securityhub_findings_full_posture-*",
                         "logs-aws.inspector-*",
                         "logs-amazon_security_lake.findings-*",
                         "logs-qualys_vmdr.asset_host_detection-*",
@@ -495,6 +507,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .build(),
                 // security entity analytics indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("entity_analytics.*").privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".asset-criticality.asset-criticality-*")
                     .privileges("create_index", "manage", "read", "write")

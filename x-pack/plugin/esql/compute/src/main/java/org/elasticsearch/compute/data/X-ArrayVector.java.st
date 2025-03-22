@@ -36,7 +36,7 @@ $endif$
 $if(BytesRef)$
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
 $endif$
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayVector.java.st} instead.
  */
 final class $Type$ArrayVector extends AbstractVector implements $Type$Vector {
 

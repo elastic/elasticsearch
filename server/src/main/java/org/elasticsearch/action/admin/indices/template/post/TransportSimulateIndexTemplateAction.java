@@ -11,8 +11,9 @@ package org.elasticsearch.action.admin.indices.template.post;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -20,17 +21,18 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -42,7 +44,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -65,7 +66,7 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.re
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveLifecycle;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 
-public class TransportSimulateIndexTemplateAction extends TransportMasterNodeReadAction<
+public class TransportSimulateIndexTemplateAction extends TransportLocalProjectMetadataAction<
     SimulateIndexTemplateRequest,
     SimulateIndexTemplateResponse> {
 
@@ -77,29 +78,31 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final ClusterSettings clusterSettings;
     private final boolean isDslOnlyMode;
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportSimulateIndexTemplateAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders
+        IndexSettingProviders indexSettingProviders,
+        ProjectResolver projectResolver
     ) {
         super(
             SimulateIndexTemplateAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            SimulateIndexTemplateRequest::new,
-            indexNameExpressionResolver,
-            SimulateIndexTemplateResponse::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            transportService.getTaskManager(),
+            clusterService,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            projectResolver
         );
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
@@ -108,16 +111,25 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.clusterSettings = clusterService.getClusterSettings();
         this.isDslOnlyMode = isDataStreamsLifecycleOnlyMode(clusterService.getSettings());
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            SimulateIndexTemplateRequest::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         SimulateIndexTemplateRequest request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<SimulateIndexTemplateResponse> listener
     ) throws Exception {
-        final ClusterState stateWithTemplate;
+        ProjectMetadata projectWithTemplate;
         if (request.getIndexTemplateRequest() != null) {
             // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)
             String simulateTemplateToAdd = "simulate_index_template_" + UUIDs.randomBase64UUID().toLowerCase(Locale.ROOT);
@@ -127,9 +139,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
-            stateWithTemplate = removeExistingAbstractions(
+            projectWithTemplate = removeExistingAbstractions(
                 indexTemplateService.addIndexTemplateV2(
-                    state,
+                    state.metadata(),
                     request.getIndexTemplateRequest().create(),
                     simulateTemplateToAdd,
                     request.getIndexTemplateRequest().indexTemplate()
@@ -137,23 +149,23 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 request.getIndexName()
             );
         } else {
-            stateWithTemplate = removeExistingAbstractions(state, request.getIndexName());
+            projectWithTemplate = removeExistingAbstractions(state.metadata(), request.getIndexName());
         }
 
-        String matchingTemplate = findV2Template(stateWithTemplate.metadata(), request.getIndexName(), false);
+        String matchingTemplate = findV2Template(projectWithTemplate, request.getIndexName(), false);
         if (matchingTemplate == null) {
             listener.onResponse(new SimulateIndexTemplateResponse(null, null));
             return;
         }
 
-        final ClusterState tempClusterState = resolveTemporaryState(matchingTemplate, request.getIndexName(), stateWithTemplate);
-        ComposableIndexTemplate templateV2 = tempClusterState.metadata().templatesV2().get(matchingTemplate);
+        final ProjectMetadata tempProjectMetadata = resolveTemporaryState(matchingTemplate, request.getIndexName(), projectWithTemplate);
+        ComposableIndexTemplate templateV2 = tempProjectMetadata.templatesV2().get(matchingTemplate);
         assert templateV2 != null : "the matched template must exist";
 
         final Template template = resolveTemplate(
             matchingTemplate,
             request.getIndexName(),
-            stateWithTemplate,
+            projectWithTemplate,
             isDslOnlyMode,
             xContentRegistry,
             indicesService,
@@ -162,8 +174,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
-        overlapping.putAll(findConflictingV1Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
-        overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(findConflictingV1Templates(tempProjectMetadata, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(findConflictingV2Templates(tempProjectMetadata, matchingTemplate, templateV2.indexPatterns()));
 
         if (request.includeDefaults()) {
             listener.onResponse(
@@ -181,15 +193,12 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     /**
      * Removes the alias, data stream, or existing index from the cluster state if it matches the given index name
      */
-    private static ClusterState removeExistingAbstractions(ClusterState state, String indexName) {
-        Metadata metadata = state.metadata();
-        return ClusterState.builder(state)
-            .metadata(Metadata.builder(metadata).removeDataStream(indexName).removeAllIndices().build())
-            .build();
+    private static ProjectMetadata removeExistingAbstractions(ProjectMetadata project, String indexName) {
+        return ProjectMetadata.builder(project).removeDataStream(indexName).removeAllIndices().build();
     }
 
     @Override
-    protected ClusterBlockException checkBlock(SimulateIndexTemplateRequest request, ClusterState state) {
+    protected ClusterBlockException checkBlock(SimulateIndexTemplateRequest request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
@@ -197,12 +206,12 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
      * Return a temporary cluster state with an index that exists using the
      * matched template's settings
      */
-    public static ClusterState resolveTemporaryState(
+    public static ProjectMetadata resolveTemporaryState(
         final String matchingTemplate,
         final String indexName,
-        final ClusterState simulatedState
+        final ProjectMetadata simulatedProject
     ) {
-        Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
+        Settings settings = resolveSettings(simulatedProject, matchingTemplate);
 
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings dummySettings = Settings.builder()
@@ -214,12 +223,10 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             .build();
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState))
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedProject))
             .settings(dummySettings)
             .build();
-        return ClusterState.builder(simulatedState)
-            .metadata(Metadata.builder(simulatedState.metadata()).put(indexMetadata, true).build())
-            .build();
+        return ProjectMetadata.builder(simulatedProject).put(indexMetadata, true).build();
     }
 
     /**
@@ -229,22 +236,18 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     public static Template resolveTemplate(
         final String matchingTemplate,
         final String indexName,
-        final ClusterState simulatedState,
+        final ProjectMetadata simulatedProject,
         final boolean isDslOnlyMode,
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
         final SystemIndices systemIndices,
         Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
-        var metadata = simulatedState.getMetadata();
-        Settings templateSettings = resolveSettings(simulatedState.metadata(), matchingTemplate);
+        Settings templateSettings = resolveSettings(simulatedProject, matchingTemplate);
 
-        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(
-            simulatedState.metadata(),
-            matchingTemplate
-        );
+        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(simulatedProject, matchingTemplate);
 
-        ComposableIndexTemplate template = simulatedState.metadata().templatesV2().get(matchingTemplate);
+        ComposableIndexTemplate template = simulatedProject.templatesV2().get(matchingTemplate);
         // create the index with dummy settings in the cluster state so we can parse and validate the aliases
         Settings.Builder dummySettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
@@ -262,7 +265,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 : indexName;
         List<CompressedXContent> mappings = MetadataCreateIndexService.collectV2Mappings(
             null, // empty request mapping as the user can't specify any explicit mappings via the simulate api
-            simulatedState,
+            simulatedProject,
             matchingTemplate,
             xContentRegistry,
             simulatedIndexName
@@ -276,8 +279,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                metadata.retrieveIndexModeFromTemplate(template),
-                simulatedState.getMetadata(),
+                simulatedProject.retrieveIndexModeFromTemplate(template),
+                simulatedProject,
                 now,
                 templateSettings,
                 mappings
@@ -303,13 +306,11 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         dummySettings.put(templateSettings);
 
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .eventIngestedRange(getEventIngestedRange(indexName, simulatedState))
+            .eventIngestedRange(getEventIngestedRange(indexName, simulatedProject))
             .settings(dummySettings)
             .build();
 
-        final ClusterState tempClusterState = ClusterState.builder(simulatedState)
-            .metadata(Metadata.builder(simulatedState.metadata()).put(indexMetadata, true).build())
-            .build();
+        ProjectMetadata tempProjectMetadata = ProjectMetadata.builder(simulatedProject).put(indexMetadata, true).build();
 
         List<AliasMetadata> aliases = indicesService.withTempIndexService(
             indexMetadata,
@@ -317,7 +318,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 indexName,
                 Set.of(),
                 resolvedAliases,
-                tempClusterState.metadata(),
+                tempProjectMetadata,
                 xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
@@ -343,21 +344,21 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         );
 
         Settings settings = Settings.builder().put(additionalSettings.build()).put(templateSettings).build();
-        DataStreamLifecycle lifecycle = resolveLifecycle(simulatedState.metadata(), matchingTemplate);
+        DataStreamLifecycle.Template lifecycle = resolveLifecycle(simulatedProject, matchingTemplate);
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
-            lifecycle = DataStreamLifecycle.DEFAULT;
+            lifecycle = DataStreamLifecycle.Template.DEFAULT;
         }
         return new Template(
             settings,
             mergedMapping,
             aliasesByName,
             lifecycle,
-            resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate)
+            resolveDataStreamOptions(simulatedProject, matchingTemplate)
         );
     }
 
-    private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {
-        final IndexMetadata indexMetadata = simulatedState.metadata().index(indexName);
+    private static IndexLongFieldRange getEventIngestedRange(String indexName, ProjectMetadata simulatedProject) {
+        final IndexMetadata indexMetadata = simulatedProject.index(indexName);
         return indexMetadata == null ? IndexLongFieldRange.NO_SHARDS : indexMetadata.getEventIngestedRange();
     }
 }

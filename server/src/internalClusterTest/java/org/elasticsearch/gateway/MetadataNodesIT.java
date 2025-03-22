@@ -100,7 +100,10 @@ public class MetadataNodesIT extends ESIntegTestCase {
         indicesAdmin().prepareClose(index).get();
         // close the index
         ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
-        assertThat(clusterStateResponse.getState().getMetadata().index(index).getState().name(), equalTo(IndexMetadata.State.CLOSE.name()));
+        assertThat(
+            clusterStateResponse.getState().getMetadata().getProject().index(index).getState().name(),
+            equalTo(IndexMetadata.State.CLOSE.name())
+        );
 
         // update the mapping. this should cause the new meta data to be written although index is closed
         indicesAdmin().preparePutMapping(index)
@@ -115,7 +118,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
             )
             .get();
 
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(index).get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         assertNotNull(
             ((Map<String, ?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties"))).get("integer_field")
         );
@@ -146,7 +149,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
             )
             .get();
 
-        getMappingsResponse = indicesAdmin().prepareGetMappings(index).get();
+        getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         assertNotNull(
             ((Map<String, ?>) (getMappingsResponse.getMappings().get(index).getSourceAsMap().get("properties"))).get("float_field")
         );
@@ -208,6 +211,6 @@ public class MetadataNodesIT extends ESIntegTestCase {
 
     private Map<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {
         final Coordinator coordinator = internalCluster().getInstance(Coordinator.class, nodeName);
-        return coordinator.getApplierState().getMetadata().getIndices();
+        return coordinator.getApplierState().getMetadata().getProject().indices();
     }
 }

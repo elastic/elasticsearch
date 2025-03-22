@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
@@ -99,11 +98,13 @@ public class ILMMultiNodeWithCCRDisabledIT extends ESIntegTestCase {
         prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
-            ExplainLifecycleResponse explain = client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*"))
-                .get();
+            ExplainLifecycleResponse explain = client().execute(
+                ExplainLifecycleAction.INSTANCE,
+                new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT).indices("*")
+            ).get();
             logger.info("--> explain: {}", Strings.toString(explain));
 
-            String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);
+            String backingIndexName = getDataStreamBackingIndexNames(index).getFirst();
             IndexLifecycleExplainResponse indexResp = null;
             for (Map.Entry<String, IndexLifecycleExplainResponse> indexNameAndResp : explain.getIndexResponses().entrySet()) {
                 if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) && indexNameAndResp.getKey().contains(backingIndexName)) {

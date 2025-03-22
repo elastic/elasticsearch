@@ -19,6 +19,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -27,6 +28,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Objects;
 import java.util.function.Predicate;
 
 /**
@@ -57,16 +59,16 @@ public class PersistentTasksService {
         final String taskId,
         final String taskName,
         final Params taskParams,
-        final @Nullable TimeValue timeout,
+        final TimeValue timeout,
         final ActionListener<PersistentTask<Params>> listener
     ) {
         @SuppressWarnings("unchecked")
         final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
-        StartPersistentTaskAction.Request request = new StartPersistentTaskAction.Request(taskId, taskName, taskParams);
-        if (timeout != null) {
-            request.masterNodeTimeout(timeout);
-        }
-        execute(request, StartPersistentTaskAction.INSTANCE, wrappedListener);
+        execute(
+            new StartPersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId, taskName, taskParams),
+            StartPersistentTaskAction.INSTANCE,
+            wrappedListener
+        );
     }
 
     /**
@@ -85,33 +87,27 @@ public class PersistentTasksService {
         final @Nullable TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        CompletionPersistentTaskAction.Request request = new CompletionPersistentTaskAction.Request(
-            taskId,
-            taskAllocationId,
-            taskFailure,
-            localAbortReason
+        execute(
+            new CompletionPersistentTaskAction.Request(
+                Objects.requireNonNull(timeout),
+                taskId,
+                taskAllocationId,
+                taskFailure,
+                localAbortReason
+            ),
+            CompletionPersistentTaskAction.INSTANCE,
+            listener
         );
-        if (timeout != null) {
-            request.masterNodeTimeout(timeout);
-        }
-        execute(request, CompletionPersistentTaskAction.INSTANCE, listener);
     }
 
     /**
      * Cancels a locally running task using the Task Manager API. Accepts operation timeout as optional parameter
      */
-    void sendCancelRequest(
-        final long taskId,
-        final String reason,
-        final @Nullable TimeValue timeout,
-        final ActionListener<ListTasksResponse> listener
-    ) {
+    void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
         CancelTasksRequest request = new CancelTasksRequest();
         request.setTargetTaskId(new TaskId(clusterService.localNode().getId(), taskId));
         request.setReason(reason);
-        if (timeout != null) {
-            request.setTimeout(timeout);
-        }
+        // TODO set timeout?
         try {
             client.admin().cluster().cancelTasks(request, listener);
         } catch (Exception e) {
@@ -130,33 +126,25 @@ public class PersistentTasksService {
         final String taskId,
         final long taskAllocationID,
         final PersistentTaskState taskState,
-        final @Nullable TimeValue timeout,
+        final TimeValue timeout,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        UpdatePersistentTaskStatusAction.Request request = new UpdatePersistentTaskStatusAction.Request(
-            taskId,
-            taskAllocationID,
-            taskState
+        execute(
+            new UpdatePersistentTaskStatusAction.Request(Objects.requireNonNull(timeout), taskId, taskAllocationID, taskState),
+            UpdatePersistentTaskStatusAction.INSTANCE,
+            listener
         );
-        if (timeout != null) {
-            request.masterNodeTimeout(timeout);
-        }
-        execute(request, UpdatePersistentTaskStatusAction.INSTANCE, listener);
     }
 
     /**
      * Notifies the master node to remove a persistent task from the cluster state. Accepts operation timeout as optional parameter
      */
-    public void sendRemoveRequest(
-        final String taskId,
-        final @Nullable TimeValue timeout,
-        final ActionListener<PersistentTask<?>> listener
-    ) {
-        RemovePersistentTaskAction.Request request = new RemovePersistentTaskAction.Request(taskId);
-        if (timeout != null) {
-            request.masterNodeTimeout(timeout);
-        }
-        execute(request, RemovePersistentTaskAction.INSTANCE, listener);
+    public void sendRemoveRequest(final String taskId, final TimeValue timeout, final ActionListener<PersistentTask<?>> listener) {
+        execute(
+            new RemovePersistentTaskAction.Request(Objects.requireNonNull(timeout), taskId),
+            RemovePersistentTaskAction.INSTANCE,
+            listener
+        );
     }
 
     /**
@@ -184,7 +172,29 @@ public class PersistentTasksService {
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
+    @Deprecated(forRemoval = true)
     public void waitForPersistentTaskCondition(
+        final String taskId,
+        final Predicate<PersistentTask<?>> predicate,
+        final @Nullable TimeValue timeout,
+        final WaitForPersistentTaskListener<?> listener
+    ) {
+        final var projectId = clusterService.state().metadata().getProject().id();
+        waitForPersistentTaskCondition(projectId, taskId, predicate, timeout, listener);
+    }
+
+    /**
+     * Waits for a given persistent task to comply with a given predicate, then call back the listener accordingly.
+     *
+     * @param projectId the project ID
+     * @param taskId the persistent task id
+     * @param predicate the persistent task predicate to evaluate, must be able to handle {@code null} input which means either the project
+     *                  does not exist or persistent tasks for the project do not exist
+     * @param timeout a timeout for waiting
+     * @param listener the callback listener
+     */
+    public void waitForPersistentTaskCondition(
+        final ProjectId projectId,
         final String taskId,
         final Predicate<PersistentTask<?>> predicate,
         final @Nullable TimeValue timeout,
@@ -193,7 +203,8 @@ public class PersistentTasksService {
         ClusterStateObserver.waitForState(clusterService, threadPool.getThreadContext(), new ClusterStateObserver.Listener() {
             @Override
             public void onNewClusterState(ClusterState state) {
-                listener.onResponse(PersistentTasksCustomMetadata.getTaskWithId(state, taskId));
+                final var project = state.metadata().projects().get(projectId);
+                listener.onResponse(project == null ? null : PersistentTasksCustomMetadata.getTaskWithId(project, taskId));
             }
 
             @Override
@@ -205,17 +216,38 @@ public class PersistentTasksService {
             public void onTimeout(TimeValue timeout) {
                 listener.onTimeout(timeout);
             }
-        }, clusterState -> predicate.test(PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId)), timeout, logger);
+        }, clusterState -> {
+            final var project = clusterState.metadata().projects().get(projectId);
+            if (project == null) {
+                logger.debug("project [{}] not found while waiting for persistent task [{}] to pass predicate", projectId, taskId);
+                return predicate.test(null);
+            } else {
+                return predicate.test(PersistentTasksCustomMetadata.getTaskWithId(project, taskId));
+            }
+        }, timeout, logger);
+    }
+
+    // visible for testing
+    ClusterService getClusterService() {
+        return clusterService;
+    }
+
+    // visible for testing
+    ThreadPool getThreadPool() {
+        return threadPool;
     }
 
     /**
      * Waits for persistent tasks to comply with a given predicate, then call back the listener accordingly.
      *
-     * @param predicate the predicate to evaluate
+     * @param projectId the project that the persistent tasks are associated with
+     * @param predicate the predicate to evaluate, must be able to handle {@code null} input which means either the project
+     *                  does not exist or persistent tasks for the project do not exist
      * @param timeout a timeout for waiting
      * @param listener the callback listener
      */
     public void waitForPersistentTasksCondition(
+        final ProjectId projectId,
         final Predicate<PersistentTasksCustomMetadata> predicate,
         final @Nullable TimeValue timeout,
         final ActionListener<Boolean> listener
@@ -235,7 +267,15 @@ public class PersistentTasksService {
             public void onTimeout(TimeValue timeout) {
                 listener.onFailure(new IllegalStateException("Timed out when waiting for persistent tasks after " + timeout));
             }
-        }, clusterState -> predicate.test(clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE)), timeout, logger);
+        }, clusterState -> {
+            final var project = clusterState.metadata().projects().get(projectId);
+            if (project == null) {
+                logger.debug("project [{}] not found while waiting for persistent tasks condition", projectId);
+                return predicate.test(null);
+            } else {
+                return predicate.test(PersistentTasksCustomMetadata.get(project));
+            }
+        }, timeout, logger);
     }
 
     public interface WaitForPersistentTaskListener<P extends PersistentTaskParams> extends ActionListener<PersistentTask<P>> {

@@ -14,21 +14,25 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToString}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromDoubleEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator dbl;
+
+  public ToStringFromDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator dbl,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.dbl = dbl;
   }
 
   @Override
-  public String name() {
-    return "ToStringFromDouble";
+  public EvalOperator.ExpressionEvaluator next() {
+    return dbl;
   }
 
   @Override
@@ -46,7 +50,7 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
     }
   }
 
-  private static BytesRef evalValue(DoubleVector container, int index) {
+  private BytesRef evalValue(DoubleVector container, int index) {
     double value = container.getDouble(index);
     return ToString.fromDouble(value);
   }
@@ -81,29 +85,39 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
     }
   }
 
-  private static BytesRef evalValue(DoubleBlock container, int index) {
+  private BytesRef evalValue(DoubleBlock container, int index) {
     double value = container.getDouble(index);
     return ToString.fromDouble(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToStringFromDoubleEvaluator[" + "dbl=" + dbl + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(dbl);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory dbl;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory dbl) {
       this.source = source;
+      this.dbl = dbl;
     }
 
     @Override
     public ToStringFromDoubleEvaluator get(DriverContext context) {
-      return new ToStringFromDoubleEvaluator(field.get(context), source, context);
+      return new ToStringFromDoubleEvaluator(source, dbl.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromDoubleEvaluator[field=" + field + "]";
+      return "ToStringFromDoubleEvaluator[" + "dbl=" + dbl + "]";
     }
   }
 }

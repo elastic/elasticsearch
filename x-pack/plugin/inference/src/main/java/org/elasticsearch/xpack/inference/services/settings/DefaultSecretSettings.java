@@ -17,10 +17,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -51,11 +53,14 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         return new DefaultSecretSettings(secureApiToken);
     }
 
-    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(String description) {
+    public static Map<String, SettingsConfiguration> toSettingsConfigurationWithDescription(
+        String description,
+        EnumSet<TaskType> supportedTaskTypes
+    ) {
         var configurationMap = new HashMap<String, SettingsConfiguration>();
         configurationMap.put(
             API_KEY,
-            new SettingsConfiguration.Builder().setDescription(description)
+            new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(description)
                 .setLabel("API Key")
                 .setRequired(true)
                 .setSensitive(true)
@@ -66,8 +71,11 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
         return configurationMap;
     }
 
-    public static Map<String, SettingsConfiguration> toSettingsConfiguration() {
-        return DefaultSecretSettings.toSettingsConfigurationWithDescription("API Key for the provider you're connecting to.");
+    public static Map<String, SettingsConfiguration> toSettingsConfiguration(EnumSet<TaskType> supportedTaskTypes) {
+        return DefaultSecretSettings.toSettingsConfigurationWithDescription(
+            "API Key for the provider you're connecting to.",
+            supportedTaskTypes
+        );
     }
 
     public DefaultSecretSettings {

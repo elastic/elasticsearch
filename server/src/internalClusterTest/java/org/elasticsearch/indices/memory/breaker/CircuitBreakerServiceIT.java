@@ -332,7 +332,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
     }
 
     public void testLimitsRequestSize() {
-        ByteSizeValue inFlightRequestsLimit = new ByteSizeValue(8, ByteSizeUnit.KB);
+        ByteSizeValue inFlightRequestsLimit = ByteSizeValue.of(8, ByteSizeUnit.KB);
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
             return;

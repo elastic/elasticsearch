@@ -11,11 +11,9 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
@@ -31,6 +29,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -55,9 +55,9 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
     public static class TestInferenceService extends AbstractTestInferenceService {
         private static final String NAME = "streaming_completion_test_service";
-        private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION);
+        private static final Set<TaskType> supportedStreamingTasks = Set.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
-        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION);
+        private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -129,7 +129,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case COMPLETION -> listener.onResponse(makeUnifiedResults(request));
+                case CHAT_COMPLETION -> listener.onResponse(makeUnifiedResults(request));
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -158,16 +158,31 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             });
         }
 
-        private ChunkedToXContent completionChunk(String delta) {
-            return params -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.startArray(COMPLETION),
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("delta", delta),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.endArray(),
-                ChunkedToXContentHelper.endObject()
-            );
+        private InferenceServiceResults.Result completionChunk(String delta) {
+            return new InferenceServiceResults.Result() {
+                @Override
+                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                    return ChunkedToXContentHelper.chunk(
+                        (b, p) -> b.startObject()
+                            .startArray(COMPLETION)
+                            .startObject()
+                            .field("delta", delta)
+                            .endObject()
+                            .endArray()
+                            .endObject()
+                    );
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeString(delta);
+                }
+
+                @Override
+                public String getWriteableName() {
+                    return "test_completionChunk";
+                }
+            };
         }
 
         private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
@@ -205,22 +220,37 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
           "object": "chat.completion.chunk"
         }
          */
-        private ChunkedToXContent unifiedCompletionChunk(String delta) {
-            return params -> Iterators.concat(
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field("id", "id"),
-                ChunkedToXContentHelper.startArray("choices"),
-                ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.startObject("delta"),
-                ChunkedToXContentHelper.field("content", delta),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.field("index", 0),
-                ChunkedToXContentHelper.endObject(),
-                ChunkedToXContentHelper.endArray(),
-                ChunkedToXContentHelper.field("model", "gpt-4o-2024-08-06"),
-                ChunkedToXContentHelper.field("object", "chat.completion.chunk"),
-                ChunkedToXContentHelper.endObject()
-            );
+        private InferenceServiceResults.Result unifiedCompletionChunk(String delta) {
+            return new InferenceServiceResults.Result() {
+                @Override
+                public String getWriteableName() {
+                    return "test_unifiedCompletionChunk";
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeString(delta);
+                }
+
+                @Override
+                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                    return ChunkedToXContentHelper.chunk(
+                        (b, p) -> b.startObject()
+                            .field("id", "id")
+                            .startArray("choices")
+                            .startObject()
+                            .startObject("delta")
+                            .field("content", delta)
+                            .endObject()
+                            .field("index", 0)
+                            .endObject()
+                            .endArray()
+                            .field("model", "gpt-4o-2024-08-06")
+                            .field("object", "chat.completion.chunk")
+                            .endObject()
+                    );
+                }
+            };
         }
 
         @Override
@@ -257,7 +287,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
 
                     configurationMap.put(
                         "model_id",
-                        new SettingsConfiguration.Builder().setDescription("")
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.COMPLETION)).setDescription("")
                             .setLabel("Model ID")
                             .setRequired(true)
                             .setSensitive(true)

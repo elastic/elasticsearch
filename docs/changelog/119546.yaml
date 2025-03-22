@@ -1,0 +1,5 @@
+pr: 119546
+summary: Introduce `FallbackSyntheticSourceBlockLoader` and apply it to keyword fields
+area: Mapping
+type: enhancement
+issues: []

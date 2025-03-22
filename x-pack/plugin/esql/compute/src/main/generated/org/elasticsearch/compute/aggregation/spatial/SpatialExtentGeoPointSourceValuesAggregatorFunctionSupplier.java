@@ -9,28 +9,36 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentGeoPointSourceValuesAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier() {
   }
 
   @Override
-  public SpatialExtentGeoPointSourceValuesAggregatorFunction aggregator(
-      DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SpatialExtentGeoPointSourceValuesAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SpatialExtentGeoPointSourceValuesGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public SpatialExtentGeoPointSourceValuesAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return SpatialExtentGeoPointSourceValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
   public SpatialExtentGeoPointSourceValuesGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+      DriverContext driverContext, List<Integer> channels) {
     return SpatialExtentGeoPointSourceValuesGroupingAggregatorFunction.create(channels, driverContext);
   }
 

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockUtils;
-import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;

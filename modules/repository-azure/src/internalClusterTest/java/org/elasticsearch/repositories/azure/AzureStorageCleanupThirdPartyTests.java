@@ -115,7 +115,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
                 Settings.builder()
                     .put("container", System.getProperty("test.azure.container"))
                     .put("base_path", System.getProperty("test.azure.base") + randomAlphaOfLength(8))
-                    .put("max_single_part_upload_size", new ByteSizeValue(1, ByteSizeUnit.MB))
+                    .put("max_single_part_upload_size", ByteSizeValue.of(1, ByteSizeUnit.MB))
             )
             .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));

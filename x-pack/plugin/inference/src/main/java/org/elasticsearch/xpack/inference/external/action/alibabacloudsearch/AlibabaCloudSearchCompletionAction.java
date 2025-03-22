@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.external.http.sender.AlibabaCloudSearchCompletionRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -45,13 +45,13 @@ public class AlibabaCloudSearchCompletionAction implements ExecutableAction {
         this.model = Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         this.account = new AlibabaCloudSearchAccount(this.model.getSecretSettings().apiKey());
-        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(null, "AlibabaCloud Search completion");
+        this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("AlibabaCloud Search completion");
         this.requestCreator = AlibabaCloudSearchCompletionRequestManager.of(account, model, serviceComponents.threadPool());
     }
 
     @Override
     public void execute(InferenceInputs inferenceInputs, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
-        if (inferenceInputs instanceof DocumentsOnlyInput == false) {
+        if (inferenceInputs instanceof EmbeddingsInput == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     format("Invalid inference input type, task type [%s] do not support Field [query]", TaskType.COMPLETION),
@@ -61,7 +61,7 @@ public class AlibabaCloudSearchCompletionAction implements ExecutableAction {
             return;
         }
 
-        var docsOnlyInput = (DocumentsOnlyInput) inferenceInputs;
+        var docsOnlyInput = (EmbeddingsInput) inferenceInputs;
         if (docsOnlyInput.getInputs().size() % 2 == 0) {
             listener.onFailure(
                 new ElasticsearchStatusException(

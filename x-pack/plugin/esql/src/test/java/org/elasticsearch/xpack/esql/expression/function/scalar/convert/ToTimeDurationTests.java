@@ -70,7 +70,7 @@ public class ToTimeDurationTests extends AbstractScalarFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override
@@ -81,5 +81,11 @@ public class ToTimeDurationTests extends AbstractScalarFunctionTestCase {
     @Override
     public void testSerializationOfSimple() {
         assertTrue("Serialization test does not apply", true);
+    }
+
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        // Can't be serialized
+        return expression;
     }
 }

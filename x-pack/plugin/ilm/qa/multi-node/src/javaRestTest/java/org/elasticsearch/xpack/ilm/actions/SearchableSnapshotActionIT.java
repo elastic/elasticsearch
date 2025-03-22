@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.WarningFailureException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -38,6 +37,7 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.elasticsearch.xpack.core.ilm.WaitUntilReplicateForTimePassesStep;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -48,6 +48,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
@@ -55,7 +56,6 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPol
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createPolicy;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createSnapshotRepo;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.explainIndex;
-import static org.elasticsearch.xpack.TimeSeriesRestDriver.getBackingIndices;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfPrimarySegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
@@ -102,7 +102,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
@@ -133,7 +135,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             indexDocument(client(), dataStream, true);
         }
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        String backingIndexName = backingIndices.getFirst();
         Integer preLifecycleBackingIndexSegments = getNumberOfPrimarySegments(client(), backingIndexName);
         assertThat(preLifecycleBackingIndexSegments, greaterThanOrEqualTo(1));
 
@@ -207,7 +210,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
 
         // let's wait for ILM to finish
@@ -299,7 +304,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         indexDocument(client(), dataStream, true);
 
-        var backingIndices = getBackingIndices(client(), dataStream);
+        var backingIndices = getDataStreamBackingIndexNames(dataStream);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndices.get(0);
         assertTrue(waitUntil(() -> {
             try {
@@ -378,10 +383,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // indexing only one document as we want only one rollover to be triggered
         indexDocument(client(), dataStream, true);
 
-        String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + DataStream.getDefaultBackingIndexName(
-            dataStream,
-            1L
-        );
+        String backingIndexName = getDataStreamBackingIndexNames(dataStream).getFirst();
+        String searchableSnapMountedIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
                 return indexExists(searchableSnapMountedIndexName);
@@ -870,7 +873,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // Create the data stream.
         assertOK(client().performRequest(new Request("PUT", "_data_stream/" + dataStream)));
 
-        var backingIndices = getBackingIndices(client(), dataStream);
+        var backingIndices = getDataStreamBackingIndexNames(dataStream);
         String firstGenIndex = backingIndices.get(0);
         Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
         assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
@@ -921,7 +924,9 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.getFirst();
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
         assertTrue(waitUntil(() -> {
             try {
@@ -954,7 +959,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode))
+                Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, null))
             ),
             null
         );
@@ -990,6 +995,106 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             snapshotTotalShardsPerNode,
             totalShardsPerNode
         );
+    }
+
+    public void testSearchableSnapshotReplicateFor() throws Exception {
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+
+        final boolean forceMergeIndex = randomBoolean();
+        createPolicy(
+            client(),
+            policy,
+            null,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(
+                    SearchableSnapshotAction.NAME,
+                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueHours(2))
+                )
+            ),
+            new Phase("delete", TimeValue.timeValueDays(1), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+        );
+
+        createComposableTemplate(
+            client(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            dataStream,
+            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
+        );
+
+        indexDocument(client(), dataStream, true);
+
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        List<String> backingIndices = getDataStreamBackingIndexNames(dataStream);
+        assertThat(backingIndices.size(), equalTo(2));
+        String backingIndexName = backingIndices.getFirst();
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
+        assertTrue(waitUntil(() -> {
+            try {
+                return indexExists(restoredIndexName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        // check that the index is in the expected step and has the expected step_info.message
+        assertBusy(() -> {
+            triggerStateChange();
+            Map<String, Object> explainResponse = explainIndex(client(), restoredIndexName);
+            assertThat(explainResponse.get("step"), is(WaitUntilReplicateForTimePassesStep.NAME));
+            @SuppressWarnings("unchecked")
+            final var stepInfo = (Map<String, String>) explainResponse.get("step_info");
+            String message = stepInfo == null ? "" : stepInfo.get("message");
+            assertThat(message, containsString("Waiting [less than 1d] until the replicate_for time [2h] has elapsed"));
+            assertThat(message, containsString("for index [" + restoredIndexName + "] before removing replicas."));
+        }, 30, TimeUnit.SECONDS);
+
+        // check that it has the right number of replicas
+        {
+            Map<String, Object> indexSettings = getIndexSettingsAsMap(restoredIndexName);
+            assertNotNull("expected number_of_replicas to exist", indexSettings.get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
+            Integer numberOfReplicas = Integer.valueOf((String) indexSettings.get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
+            assertThat(numberOfReplicas, is(1));
+        }
+
+        // tweak the policy to replicate_for hardly any time at all
+        createPolicy(
+            client(),
+            policy,
+            null,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                Map.of(
+                    SearchableSnapshotAction.NAME,
+                    new SearchableSnapshotAction(snapshotRepo, forceMergeIndex, null, TimeValue.timeValueSeconds(10))
+                )
+            ),
+            new Phase("delete", TimeValue.timeValueDays(1), Map.of(DeleteAction.NAME, WITH_SNAPSHOT_DELETE))
+        );
+
+        // check that the index has progressed because enough time has passed now that the policy is different
+        assertBusy(() -> {
+            triggerStateChange();
+            Map<String, Object> explainResponse = explainIndex(client(), restoredIndexName);
+            assertThat(explainResponse.get("phase"), is("cold"));
+            assertThat(explainResponse.get("step"), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+
+        // check that it has the right number of replicas
+        {
+            Map<String, Object> indexSettings = getIndexSettingsAsMap(restoredIndexName);
+            assertNotNull("expected number_of_replicas to exist", indexSettings.get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
+            Integer numberOfReplicas = Integer.valueOf((String) indexSettings.get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
+            assertThat(numberOfReplicas, is(0));
+        }
     }
 
     /**

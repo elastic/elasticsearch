@@ -20,7 +20,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -62,8 +61,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             MonitoringMigrateAlertsAction.NAME,
@@ -72,7 +70,6 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             MonitoringMigrateAlertsRequest::new,
-            indexNameExpressionResolver,
             MonitoringMigrateAlertsResponse::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

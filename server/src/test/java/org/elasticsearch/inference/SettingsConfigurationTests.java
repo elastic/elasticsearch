@@ -34,7 +34,8 @@ public class SettingsConfigurationTests extends ESTestCase {
                "required": true,
                "sensitive": false,
                "updatable": true,
-               "type": "str"
+               "type": "str",
+               "supported_task_types": ["text_embedding", "completion", "sparse_embedding", "rerank"]
             }
             """);
 
@@ -56,7 +57,8 @@ public class SettingsConfigurationTests extends ESTestCase {
                "required": true,
                "sensitive": false,
                "updatable": true,
-               "type": "str"
+               "type": "str",
+               "supported_task_types": ["text_embedding"]
             }
             """);
 
@@ -74,7 +76,8 @@ public class SettingsConfigurationTests extends ESTestCase {
         String content = XContentHelper.stripWhitespace("""
             {
                "label": "nextSyncConfig",
-               "value": null
+               "value": null,
+               "supported_task_types": ["text_embedding", "completion", "sparse_embedding", "rerank"]
             }
             """);
 

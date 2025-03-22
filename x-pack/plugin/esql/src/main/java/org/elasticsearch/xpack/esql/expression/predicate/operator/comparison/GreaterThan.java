@@ -44,6 +44,7 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
     );
 
     @FunctionInfo(
+        operator = ">",
         returnType = { "boolean" },
         description = "Check if one field is greater than another. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",

@@ -349,7 +349,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                         + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
                         + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
                         + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true, "
-                        + "allow_selectors=true]] with exception [no such index [not_foo]]"
+                        + "allow_selectors=true, include_failure_indices=false]] with exception [no such index [not_foo]]"
                 )
             )
         );
@@ -383,7 +383,8 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                         + "indices given [not_foo] and indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, "
                         + "expand_wildcards_open=true, expand_wildcards_closed=false, expand_wildcards_hidden=false, "
                         + "allow_aliases_to_multiple_indices=true, forbid_closed_indices=true, ignore_aliases=false, "
-                        + "ignore_throttled=true, allow_selectors=true]] with exception [no such index [not_foo]]]"
+                        + "ignore_throttled=true, allow_selectors=true, include_failure_indices=false]] with exception "
+                        + "[no such index [not_foo]]]"
                 )
             )
         );
@@ -560,7 +561,7 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
                         + "indices_options [IndicesOptions[ignore_unavailable=false, allow_no_indices=true, expand_wildcards_open=true, "
                         + "expand_wildcards_closed=false, expand_wildcards_hidden=false, allow_aliases_to_multiple_indices=true, "
                         + "forbid_closed_indices=true, ignore_aliases=false, ignore_throttled=true, "
-                        + "allow_selectors=true]] with exception [no such index [not_foo]]]"
+                        + "allow_selectors=true, include_failure_indices=false]] with exception [no such index [not_foo]]]"
                 )
             )
         );

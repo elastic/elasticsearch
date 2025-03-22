@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -68,7 +69,7 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(field);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeNamedWriteable(filter);
@@ -92,7 +93,8 @@ public abstract class AggregateFunction extends Function implements PostAnalysis
     }
 
     public boolean hasFilter() {
-        return filter != null && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold()) == false);
+        return filter != null
+            && (filter.foldable() == false || Boolean.TRUE.equals(filter.fold(FoldContext.small() /* TODO remove me */)) == false);
     }
 
     public Expression filter() {

@@ -44,6 +44,7 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
     );
 
     @FunctionInfo(
+        operator = "<",
         returnType = { "boolean" },
         description = "Check if one field is less than another. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.",

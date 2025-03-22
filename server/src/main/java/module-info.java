@@ -7,7 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.internal.CompletionsPostingsFormatExtension;
 import org.elasticsearch.plugins.internal.RestExtension;
 
 /** The Elasticsearch Server Module. */
@@ -168,6 +167,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.cluster.health;
     exports org.elasticsearch.cluster.metadata;
     exports org.elasticsearch.cluster.node;
+    exports org.elasticsearch.cluster.project;
     exports org.elasticsearch.cluster.routing;
     exports org.elasticsearch.cluster.routing.allocation;
     exports org.elasticsearch.cluster.routing.allocation.allocator;
@@ -290,8 +290,7 @@ module org.elasticsearch.server {
         to
             org.elasticsearch.serverless.version,
             org.elasticsearch.serverless.buildinfo,
-            org.elasticsearch.serverless.constants,
-            org.elasticsearch.serverless.codec;
+            org.elasticsearch.serverless.constants;
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
@@ -315,6 +314,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.repositories.blobstore;
     exports org.elasticsearch.repositories.fs;
     exports org.elasticsearch.reservedstate;
+    exports org.elasticsearch.reservedstate.service to org.elasticsearch.multiproject, org.elasticsearch.serverless.multiproject;
     exports org.elasticsearch.rest;
     exports org.elasticsearch.rest.action;
     exports org.elasticsearch.rest.action.admin.cluster;
@@ -394,11 +394,11 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.downsample;
     exports org.elasticsearch.plugins.internal
         to
+            org.elasticsearch.inference,
             org.elasticsearch.metering,
             org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
-            org.elasticsearch.serverless.codec,
             org.elasticsearch.serverless.apifiltering,
             org.elasticsearch.internal.security;
 
@@ -413,33 +413,25 @@ module org.elasticsearch.server {
             org.elasticsearch.cluster.coordination.NodeToolCliProvider,
             org.elasticsearch.index.shard.ShardToolCliProvider;
 
+    uses org.elasticsearch.reservedstate.service.FileSettingsServiceProvider;
     uses org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
     uses org.elasticsearch.jdk.ModuleQualifiedExportsService;
     uses org.elasticsearch.node.internal.TerminationHandlerProvider;
     uses org.elasticsearch.internal.VersionExtension;
     uses org.elasticsearch.internal.BuildExtension;
-    uses CompletionsPostingsFormatExtension;
     uses org.elasticsearch.features.FeatureSpecification;
     uses org.elasticsearch.plugins.internal.LoggingDataProvider;
 
     provides org.elasticsearch.features.FeatureSpecification
         with
-            org.elasticsearch.action.admin.indices.stats.IndicesStatsFeatures,
             org.elasticsearch.action.bulk.BulkFeatures,
-            org.elasticsearch.features.FeatureInfrastructureFeatures,
-            org.elasticsearch.health.HealthFeatures,
-            org.elasticsearch.cluster.metadata.MetadataFeatures,
-            org.elasticsearch.rest.RestFeatures,
-            org.elasticsearch.repositories.RepositoriesFeatures,
-            org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
+            org.elasticsearch.features.InfrastructureFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.index.IndexFeatures,
-            org.elasticsearch.ingest.IngestGeoIpFeatures,
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.reservedstate.service.FileSettingsFeatures,
             org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
@@ -468,7 +460,8 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.Elasticsearch814Codec,
             org.elasticsearch.index.codec.Elasticsearch816Codec,
-            org.elasticsearch.index.codec.Elasticsearch900Codec;
+            org.elasticsearch.index.codec.Elasticsearch900Codec,
+            org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 

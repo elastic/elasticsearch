@@ -2,10 +2,7 @@ setup:
   - skip:
       features:
         - close_to
-        - contains
   - requires:
-      cluster_features: "text_similarity_reranker_retriever_supported"
-      reason: semantic reranking introduced in 8.15.0
       test_runner_features: "close_to"
 
   - do:
@@ -35,16 +32,8 @@ setup:
                 type: keyword
               subtopic:
                 type: keyword
-
-  - do:
-      index:
-        index: test-index
-        id: doc_1
-        body:
-          text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
-          topic: [ "science" ]
-          subtopic: [ "technology" ]
-        refresh: true
+              inference_text_field:
+                type: text
 
   - do:
       index:
@@ -54,6 +43,7 @@ setup:
           text: "The phases of the Moon come from the position of the Moon relative to the Earth and Sun."
           topic: [ "science" ]
           subtopic: [ "astronomy" ]
+          inference_text_field: "0"
         refresh: true
 
   - do:
@@ -63,10 +53,26 @@ setup:
         body:
           text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
           topic: [ "geography" ]
+          inference_text_field: "1"
+        refresh: true
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
+          topic: [ "science" ]
+          subtopic: [ "technology" ]
+          inference_text_field: "-1"
         refresh: true
 
 ---
 "Simple text similarity rank retriever":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
 
   - do:
       search:
@@ -77,27 +83,51 @@ setup:
           retriever:
             text_similarity_reranker:
               retriever:
+                # this one returns docs 1 and 2
                 standard:
                   query:
-                    term:
-                      topic: "science"
+                    bool: {
+                      should: [
+                        {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                subtopic: "technology"
+                              }
+                            },
+                            boost: 10
+                          }
+                        },
+                        {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                subtopic: "astronomy"
+                              }
+                            },
+                            boost: 1
+                          }
+                        }
+                      ]
+                    }
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: text
+              field: inference_text_field
           size: 10
 
   - match: { hits.total.value: 2 }
   - length: { hits.hits: 2 }
 
   - match: { hits.hits.0._id: "doc_2" }
-  - close_to: { hits.hits.0._score: { value: 0.4, error: 0.001 } }
-
   - match: { hits.hits.1._id: "doc_1" }
-  - close_to: { hits.hits.1._score: { value: 0.2, error: 0.001 } }
 
 ---
 "Simple text similarity rank retriever and filtering":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
 
   - do:
       search:
@@ -108,6 +138,7 @@ setup:
           retriever:
             text_similarity_reranker:
               retriever:
+                # this one returns doc 1
                 standard:
                   query:
                     term:
@@ -118,15 +149,13 @@ setup:
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: text
+              field: inference_text_field
           size: 10
 
   - match: { hits.total.value: 1 }
   - length: { hits.hits: 1 }
 
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 0.2, error: 0.001 } }
-
 
 ---
 "Text similarity reranking fails if the inference ID does not exist":
@@ -150,7 +179,7 @@ setup:
               rank_window_size: 10
               inference_id: i-dont-exist
               inference_text: "How often does the moon hide the sun?"
-              field: text
+              field: inference_text_field
           size: 10
 
 ---
@@ -176,12 +205,46 @@ setup:
               rank_window_size: 10
               inference_id: i-dont-exist
               inference_text: "asdfasdf"
-              field: text
+              field: inference_text_field
           size: 10
 
+---
+"Text similarity reranking with allowed failure maintains custom sorting":
+
+  - do:
+      search:
+        index: test-index
+        body:
+          track_total_hits: true
+          fields: [ "text", "topic" ]
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "science"
+                  sort:
+                    - "subtopic"
+              rank_window_size: 10
+              inference_id: failing-rerank-model
+              inference_text: "science"
+              field: text
+              allow_rerank_failures: true
+          size: 10
+
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
 
 ---
 "text similarity reranking with explain":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
 
   - do:
       search:
@@ -193,10 +256,32 @@ setup:
             text_similarity_reranker: {
               retriever:
                 {
+                  # this one returns doc 1 and 2
                   standard: {
                     query: {
-                      term: {
-                        topic: "science"
+                      bool: {
+                        should: [
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  subtopic: "technology"
+                                }
+                              },
+                              boost: 10
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  subtopic: "astronomy"
+                                }
+                              },
+                              boost: 1
+                            }
+                          }
+                        ]
                       }
                     }
                   }
@@ -204,15 +289,93 @@ setup:
               rank_window_size: 10,
               inference_id: my-rerank-model,
               inference_text: "How often does the moon hide the sun?",
-              field: text
+              field: inference_text_field
             }
           }
           size: 10
           explain: true
 
-  - contains: { hits.hits: { _id: "doc_2" } }
-  - contains: { hits.hits: { _id: "doc_1" } }
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
 
-  - close_to: { hits.hits.0._explanation.value: { value: 0.4, error: 0.000001 } }
-  - match: {hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[text\\].*/" }
-  - match: {hits.hits.0._explanation.details.0.description: "/weight.*science.*/" }
+  - match: {hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[inference_text_field\\].*/" }
+  - match: {hits.hits.0._explanation.details.0.details.0.description: "/subtopic.*astronomy.*/" }
+
+---
+"text similarity reranker properly handles aliases":
+  - requires:
+      cluster_features: "text_similarity_reranker_alias_handling_fix"
+      reason: Test for alias handling fix
+
+  # Create an empty index that will have an earlier shard index than the index with the desired result when referenced
+  # via the alias
+  - do:
+      indices.create:
+        index: first-test-index
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+              topic:
+                type: keyword
+              subtopic:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: second-test-index
+        body:
+          settings:
+            number_of_shards: 2
+            number_of_replicas: 0
+          mappings:
+            properties:
+              text:
+                type: text
+              topic:
+                type: keyword
+              subtopic:
+                type: keyword
+
+  - do:
+      indices.put_alias:
+        index: first-test-index
+        name: test-alias
+
+  - do:
+      indices.put_alias:
+        index: second-test-index
+        name: test-alias
+
+  - do:
+      index:
+        index: second-test-index
+        id: doc_1
+        body:
+          text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
+          topic: [ "science" ]
+          subtopic: [ "technology" ]
+        refresh: true
+
+  - do:
+      search:
+        index: test-alias
+        body:
+          track_total_hits: true
+          retriever:
+            text_similarity_reranker:
+              retriever:
+                standard:
+                  query:
+                    term:
+                      topic: "science"
+              rank_window_size: 10
+              inference_id: my-rerank-model
+              inference_text: "How often does the moon hide the sun?"
+              field: inference_text_field
+          size: 10
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "doc_1" }

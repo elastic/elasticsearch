@@ -8,27 +8,13 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.operator.exchange.ExchangeService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
-import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,39 +23,11 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClustersTestCase {
-    private static final String REMOTE_CLUSTER_1 = "cluster-a";
-    private static final String REMOTE_CLUSTER_2 = "cluster-b";
-
-    @Override
-    protected List<String> remoteClusterAlias() {
-        return List.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2);
-    }
+public class CrossClusterQueryUnavailableRemotesIT extends AbstractCrossClusterTestCase {
 
     @Override
     protected boolean reuseClusters() {
         return false;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(EsqlPluginWithEnterpriseOrTrialLicense.class);
-        plugins.add(CrossClustersQueryIT.InternalExchangePlugin.class);
-        return plugins;
-    }
-
-    public static class InternalExchangePlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(
-                Setting.timeSetting(
-                    ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
-                    TimeValue.timeValueSeconds(30),
-                    Setting.Property.NodeScope
-                )
-            );
-        }
     }
 
     public void testCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue() throws Exception {
@@ -99,6 +57,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2, LOCAL_CLUSTER)));
 
@@ -133,7 +92,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 assertThat(localCluster.getFailedShards(), equalTo(0));
 
                 // ensure that the _clusters metadata is present only if requested
-                assertClusterMetadataInResponse(resp, responseExpectMeta);
+                assertClusterMetadataInResponse(resp, responseExpectMeta, numClusters);
             }
 
             // scenario where there are no indices to match because
@@ -151,6 +110,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2, LOCAL_CLUSTER)));
 
@@ -186,7 +146,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 assertThat(localCluster.getFailedShards(), equalTo(0));
 
                 // ensure that the _clusters metadata is present only if requested
-                assertClusterMetadataInResponse(resp, responseExpectMeta);
+                assertClusterMetadataInResponse(resp, responseExpectMeta, numClusters);
             }
 
             // close remote-cluster-2 so that it is also unavailable
@@ -203,6 +163,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2, LOCAL_CLUSTER)));
 
@@ -237,7 +198,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 assertThat(localCluster.getFailedShards(), equalTo(0));
 
                 // ensure that the _clusters metadata is present only if requested
-                assertClusterMetadataInResponse(resp, responseExpectMeta);
+                assertClusterMetadataInResponse(resp, responseExpectMeta, numClusters);
             }
         } finally {
             clearSkipUnavailable(numClusters);
@@ -275,6 +236,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1)));
 
@@ -289,7 +251,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 assertThat(remoteCluster.getFailedShards(), equalTo(0));
 
                 // ensure that the _clusters metadata is present only if requested
-                assertClusterMetadataInResponse(resp, responseExpectMeta);
+                assertClusterMetadataInResponse(resp, responseExpectMeta, 1);
             }
 
             // close remote cluster 2 so that it is also unavailable
@@ -317,6 +279,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 long overallTookMillis = executionInfo.overallTook().millis();
                 assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
                 assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.isPartial(), equalTo(true));
 
                 assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
 
@@ -341,7 +304,7 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
                 assertThat(remote2Cluster.getFailedShards(), equalTo(0));
 
                 // ensure that the _clusters metadata is present only if requested
-                assertClusterMetadataInResponse(resp, responseExpectMeta);
+                assertClusterMetadataInResponse(resp, responseExpectMeta, 2);
             }
 
         } finally {
@@ -395,117 +358,5 @@ public class CrossClusterQueryUnavailableRemotesIT extends AbstractMultiClusters
         } finally {
             clearSkipUnavailable(numClusters);
         }
-    }
-
-    private void setSkipUnavailable(String clusterAlias, boolean skip) {
-        client(LOCAL_CLUSTER).admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(Settings.builder().put("cluster.remote." + clusterAlias + ".skip_unavailable", skip).build())
-            .get();
-    }
-
-    private void clearSkipUnavailable(int numClusters) {
-        assert numClusters == 2 || numClusters == 3 : "Only 2 or 3 clusters supported";
-        Settings.Builder settingsBuilder = Settings.builder().putNull("cluster.remote." + REMOTE_CLUSTER_1 + ".skip_unavailable");
-        if (numClusters == 3) {
-            settingsBuilder.putNull("cluster.remote." + REMOTE_CLUSTER_2 + ".skip_unavailable");
-        }
-        client(LOCAL_CLUSTER).admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(settingsBuilder.build())
-            .get();
-    }
-
-    private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {
-        try {
-            final Map<String, Object> esqlResponseAsMap = XContentTestUtils.convertToMap(resp);
-            final Object clusters = esqlResponseAsMap.get("_clusters");
-            if (responseExpectMeta) {
-                assertNotNull(clusters);
-                // test a few entries to ensure it looks correct (other tests do a full analysis of the metadata in the response)
-                @SuppressWarnings("unchecked")
-                Map<String, Object> inner = (Map<String, Object>) clusters;
-                assertTrue(inner.containsKey("total"));
-                assertTrue(inner.containsKey("details"));
-            } else {
-                assertNull(clusters);
-            }
-        } catch (IOException e) {
-            fail("Could not convert ESQL response to Map: " + e);
-        }
-    }
-
-    protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(query);
-        request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
-        request.profile(randomInt(5) == 2);
-        request.columnar(randomBoolean());
-        if (ccsMetadataInResponse != null) {
-            request.includeCCSMetadata(ccsMetadataInResponse);
-        }
-        return runQuery(request);
-    }
-
-    protected EsqlQueryResponse runQuery(EsqlQueryRequest request) {
-        return client(LOCAL_CLUSTER).execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
-    }
-
-    Map<String, Object> setupClusters(int numClusters) {
-        assert numClusters == 2 || numClusters == 3 : "2 or 3 clusters supported not: " + numClusters;
-        String localIndex = "logs-1";
-        int numShardsLocal = randomIntBetween(1, 5);
-        populateLocalIndices(localIndex, numShardsLocal);
-
-        String remoteIndex = "logs-2";
-        int numShardsRemote = randomIntBetween(1, 5);
-        populateRemoteIndices(REMOTE_CLUSTER_1, remoteIndex, numShardsRemote);
-
-        Map<String, Object> clusterInfo = new HashMap<>();
-        clusterInfo.put("local.num_shards", numShardsLocal);
-        clusterInfo.put("local.index", localIndex);
-        clusterInfo.put("remote.num_shards", numShardsRemote);
-        clusterInfo.put("remote.index", remoteIndex);
-
-        if (numClusters == 3) {
-            int numShardsRemote2 = randomIntBetween(1, 5);
-            populateRemoteIndices(REMOTE_CLUSTER_2, remoteIndex, numShardsRemote2);
-            clusterInfo.put("remote2.index", remoteIndex);
-            clusterInfo.put("remote2.num_shards", numShardsRemote2);
-        }
-
-        return clusterInfo;
-    }
-
-    void populateLocalIndices(String indexName, int numShards) {
-        Client localClient = client(LOCAL_CLUSTER);
-        assertAcked(
-            localClient.admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
-                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
-        );
-        for (int i = 0; i < 10; i++) {
-            localClient.prepareIndex(indexName).setSource("id", "local-" + i, "tag", "local", "v", i).get();
-        }
-        localClient.admin().indices().prepareRefresh(indexName).get();
-    }
-
-    void populateRemoteIndices(String clusterAlias, String indexName, int numShards) {
-        Client remoteClient = client(clusterAlias);
-        assertAcked(
-            remoteClient.admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
-                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
-        );
-        for (int i = 0; i < 10; i++) {
-            remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
-        }
-        remoteClient.admin().indices().prepareRefresh(indexName).get();
     }
 }

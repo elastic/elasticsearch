@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -30,7 +31,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
@@ -135,6 +137,15 @@ public class IbmWatsonxService extends SenderService {
                 serviceSettings,
                 taskSettings,
                 chunkingSettings,
+                secretSettings,
+                context
+            );
+            case RERANK -> new IbmWatsonxRerankModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                serviceSettings,
+                taskSettings,
                 secretSettings,
                 context
             );
@@ -261,7 +272,6 @@ public class IbmWatsonxService extends SenderService {
         Model model,
         InferenceInputs input,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -272,8 +282,13 @@ public class IbmWatsonxService extends SenderService {
 
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
 
-        var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings, inputType);
+        var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings);
         action.execute(input, timeout, listener);
+    }
+
+    @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(inputType, validationException);
     }
 
     @Override
@@ -289,7 +304,7 @@ public class IbmWatsonxService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput input,
+        EmbeddingsInput input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -297,15 +312,14 @@ public class IbmWatsonxService extends SenderService {
     ) {
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
 
-        var batchedRequests = new EmbeddingRequestChunker(
+        var batchedRequests = new EmbeddingRequestChunker<>(
             input.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.FLOAT,
             model.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
         for (var request : batchedRequests) {
-            var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings, inputType);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings);
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 
@@ -324,7 +338,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     API_VERSION,
-                    new SettingsConfiguration.Builder().setDescription("The IBM Watsonx API version ID to use.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The IBM Watsonx API version ID to use.")
                         .setLabel("API Version")
                         .setRequired(true)
                         .setSensitive(false)
@@ -335,7 +349,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     PROJECT_ID,
-                    new SettingsConfiguration.Builder().setDescription("")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
                         .setLabel("Project ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -346,7 +360,9 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDescription("The name of the model to use for the inference task.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -357,7 +373,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder().setDescription("")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
                         .setLabel("URL")
                         .setRequired(true)
                         .setSensitive(false)
@@ -368,7 +384,9 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     MAX_INPUT_TOKENS,
-                    new SettingsConfiguration.Builder().setDescription("Allows you to specify the maximum number of tokens per input.")
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        "Allows you to specify the maximum number of tokens per input."
+                    )
                         .setLabel("Maximum Input Tokens")
                         .setRequired(false)
                         .setSensitive(false)

@@ -11,11 +11,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
@@ -37,11 +38,15 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.lessThanOrEqualOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.notEqualsOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.rangeOf;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 
 public class PropagateEqualsTests extends ESTestCase {
+    private Expression propagateEquals(BinaryLogic e) {
+        return new PropagateEquals().rule(e, unboundLogicalOptimizerContext());
+    }
 
     // a == 1 AND a == 2 -> FALSE
     public void testDualEqualsConjunction() {
@@ -49,8 +54,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq1 = equalsOf(fa, ONE);
         Equals eq2 = equalsOf(fa, TWO);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq1, eq2));
+        Expression exp = propagateEquals(new And(EMPTY, eq1, eq2));
         assertEquals(FALSE, exp);
     }
 
@@ -60,8 +64,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq1 = equalsOf(fa, new Literal(EMPTY, 10, DataType.INTEGER));
         Range r = rangeOf(fa, ONE, false, new Literal(EMPTY, 10, DataType.INTEGER), false);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq1, r));
+        Expression exp = propagateEquals(new And(EMPTY, eq1, r));
         assertEquals(FALSE, exp);
     }
 
@@ -71,8 +74,7 @@ public class PropagateEqualsTests extends ESTestCase {
         NotEquals neq = notEqualsOf(fa, THREE);
         Equals eq = equalsOf(fa, THREE);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, neq, eq));
+        Expression exp = propagateEquals(new And(EMPTY, neq, eq));
         assertEquals(FALSE, exp);
     }
 
@@ -82,8 +84,7 @@ public class PropagateEqualsTests extends ESTestCase {
         NotEquals neq = notEqualsOf(fa, FOUR);
         Equals eq = equalsOf(fa, THREE);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, neq, eq));
+        Expression exp = propagateEquals(new And(EMPTY, neq, eq));
         assertEquals(Equals.class, exp.getClass());
         assertEquals(eq, exp);
     }
@@ -94,8 +95,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         LessThan lt = lessThanOf(fa, TWO);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq, lt));
+        Expression exp = propagateEquals(new And(EMPTY, eq, lt));
         assertEquals(FALSE, exp);
     }
 
@@ -105,8 +105,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         LessThanOrEqual lt = lessThanOrEqualOf(fa, TWO);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq, lt));
+        Expression exp = propagateEquals(new And(EMPTY, eq, lt));
         assertEquals(eq, exp);
     }
 
@@ -116,8 +115,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         LessThanOrEqual lt = lessThanOrEqualOf(fa, ONE);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq, lt));
+        Expression exp = propagateEquals(new And(EMPTY, eq, lt));
         assertEquals(FALSE, exp);
     }
 
@@ -127,8 +125,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThan gt = greaterThanOf(fa, TWO);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq, gt));
+        Expression exp = propagateEquals(new And(EMPTY, eq, gt));
         assertEquals(FALSE, exp);
     }
 
@@ -138,8 +135,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThanOrEqual gte = greaterThanOrEqualOf(fa, TWO);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq, gte));
+        Expression exp = propagateEquals(new And(EMPTY, eq, gte));
         assertEquals(eq, exp);
     }
 
@@ -149,8 +145,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThan gt = greaterThanOf(fa, THREE);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq, gt));
+        Expression exp = propagateEquals(new And(EMPTY, eq, gt));
         assertEquals(FALSE, exp);
     }
 
@@ -162,9 +157,8 @@ public class PropagateEqualsTests extends ESTestCase {
         GreaterThan gt = greaterThanOf(fa, ONE);
         NotEquals neq = notEqualsOf(fa, FOUR);
 
-        PropagateEquals rule = new PropagateEquals();
         Expression and = Predicates.combineAnd(asList(eq, lt, gt, neq));
-        Expression exp = rule.rule((And) and);
+        Expression exp = propagateEquals((And) and);
         assertEquals(eq, exp);
     }
 
@@ -176,9 +170,8 @@ public class PropagateEqualsTests extends ESTestCase {
         GreaterThan gt = greaterThanOf(fa, new Literal(EMPTY, 0, DataType.INTEGER));
         NotEquals neq = notEqualsOf(fa, FOUR);
 
-        PropagateEquals rule = new PropagateEquals();
         Expression and = Predicates.combineAnd(asList(eq, range, gt, neq));
-        Expression exp = rule.rule((And) and);
+        Expression exp = propagateEquals((And) and);
         assertEquals(eq, exp);
     }
 
@@ -188,8 +181,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThan gt = greaterThanOf(fa, ONE);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new Or(EMPTY, eq, gt));
+        Expression exp = propagateEquals(new Or(EMPTY, eq, gt));
         assertEquals(gt, exp);
     }
 
@@ -199,8 +191,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         GreaterThan gt = greaterThanOf(fa, TWO);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new Or(EMPTY, eq, gt));
+        Expression exp = propagateEquals(new Or(EMPTY, eq, gt));
         assertEquals(GreaterThanOrEqual.class, exp.getClass());
         GreaterThanOrEqual gte = (GreaterThanOrEqual) exp;
         assertEquals(TWO, gte.right());
@@ -212,8 +203,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         LessThan lt = lessThanOf(fa, THREE);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new Or(EMPTY, eq, lt));
+        Expression exp = propagateEquals(new Or(EMPTY, eq, lt));
         assertEquals(lt, exp);
     }
 
@@ -223,8 +213,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, THREE);
         LessThan lt = lessThanOf(fa, THREE);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new Or(EMPTY, eq, lt));
+        Expression exp = propagateEquals(new Or(EMPTY, eq, lt));
         assertEquals(LessThanOrEqual.class, exp.getClass());
         LessThanOrEqual lte = (LessThanOrEqual) exp;
         assertEquals(THREE, lte.right());
@@ -236,8 +225,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         Range range = rangeOf(fa, ONE, false, THREE, false);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new Or(EMPTY, eq, range));
+        Expression exp = propagateEquals(new Or(EMPTY, eq, range));
         assertEquals(range, exp);
     }
 
@@ -247,8 +235,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         Range range = rangeOf(fa, TWO, false, THREE, false);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new Or(EMPTY, eq, range));
+        Expression exp = propagateEquals(new Or(EMPTY, eq, range));
         assertEquals(Range.class, exp.getClass());
         Range r = (Range) exp;
         assertEquals(TWO, r.lower());
@@ -263,8 +250,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, THREE);
         Range range = rangeOf(fa, TWO, false, THREE, false);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new Or(EMPTY, eq, range));
+        Expression exp = propagateEquals(new Or(EMPTY, eq, range));
         assertEquals(Range.class, exp.getClass());
         Range r = (Range) exp;
         assertEquals(TWO, r.lower());
@@ -279,8 +265,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         NotEquals neq = notEqualsOf(fa, TWO);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new Or(EMPTY, eq, neq));
+        Expression exp = propagateEquals(new Or(EMPTY, eq, neq));
         assertEquals(TRUE, exp);
     }
 
@@ -290,8 +275,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq = equalsOf(fa, TWO);
         NotEquals neq = notEqualsOf(fa, FIVE);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new Or(EMPTY, eq, neq));
+        Expression exp = propagateEquals(new Or(EMPTY, eq, neq));
         assertEquals(NotEquals.class, exp.getClass());
         NotEquals ne = (NotEquals) exp;
         assertEquals(FIVE, ne.right());
@@ -305,8 +289,7 @@ public class PropagateEqualsTests extends ESTestCase {
         GreaterThan gt = greaterThanOf(fa, TWO);
         NotEquals neq = notEqualsOf(fa, TWO);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule((Or) Predicates.combineOr(asList(eq, range, neq, gt)));
+        Expression exp = propagateEquals((Or) Predicates.combineOr(asList(eq, range, neq, gt)));
         assertEquals(TRUE, exp);
     }
 
@@ -317,8 +300,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq2 = equalsOf(fa, TWO);
         And and = new And(EMPTY, eq1, eq2);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(and);
+        Expression exp = propagateEquals(and);
         assertEquals(and, exp);
     }
 
@@ -328,8 +310,7 @@ public class PropagateEqualsTests extends ESTestCase {
         Equals eq1 = equalsOf(fa, ONE);
         Range r = rangeOf(fa, ONE, true, new Literal(EMPTY, 10, DataType.INTEGER), false);
 
-        PropagateEquals rule = new PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq1, r));
+        Expression exp = propagateEquals(new And(EMPTY, eq1, r));
         assertEquals(eq1, exp);
     }
 }

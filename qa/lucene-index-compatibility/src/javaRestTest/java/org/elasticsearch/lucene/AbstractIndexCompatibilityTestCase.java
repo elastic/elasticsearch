@@ -12,9 +12,15 @@ package org.elasticsearch.lucene;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.XContentTestUtils;
@@ -23,7 +29,9 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -32,7 +40,9 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -41,8 +51,11 @@ import static org.elasticsearch.test.cluster.util.Version.CURRENT;
 import static org.elasticsearch.test.cluster.util.Version.fromString;
 import static org.elasticsearch.test.rest.ObjectPath.createFromResponse;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase {
@@ -151,13 +164,34 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
     }
 
     protected static Version indexVersion(String indexName) throws Exception {
-        var response = assertOK(client().performRequest(new Request("GET", "/" + indexName + "/_settings")));
-        int id = Integer.parseInt(createFromResponse(response).evaluate(indexName + ".settings.index.version.created"));
+        return indexVersion(indexName, false);
+    }
+
+    protected static Version indexVersion(String indexName, boolean ignoreWarnings) throws Exception {
+        Request request = new Request("GET", "/" + indexName + "/_settings");
+        request.addParameter("flat_settings", "true");
+        if (ignoreWarnings) {
+            RequestOptions.Builder options = request.getOptions().toBuilder();
+            options.setWarningsHandler(WarningsHandler.PERMISSIVE);
+            request.setOptions(options);
+        }
+        var response = assertOK(client().performRequest(request));
+        ObjectPath fromResponse = createFromResponse(response);
+        Map<String, Object> settings = fromResponse.evaluateExact(indexName, "settings");
+        int id = Integer.parseInt((String) settings.get("index.version.created"));
         return new Version((byte) ((id / 1000000) % 100), (byte) ((id / 10000) % 100), (byte) ((id / 100) % 100));
+    }
+
+    protected static int getNumberOfReplicas(String indexName) throws Exception {
+        var indexSettings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName).get(indexName)).get("settings");
+        var numberOfReplicas = Integer.parseInt((String) indexSettings.get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS));
+        assertThat(numberOfReplicas, allOf(greaterThanOrEqualTo(0), lessThanOrEqualTo(NODES - 1)));
+        return numberOfReplicas;
     }
 
     protected static void indexDocs(String indexName, int numDocs) throws Exception {
         var request = new Request("POST", "/_bulk");
+        request.addParameter("refresh", "true");
         var docs = new StringBuilder();
         IntStream.range(0, numDocs).forEach(n -> docs.append(Strings.format("""
             {"index":{"_index":"%s"}}
@@ -185,19 +219,30 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
     }
 
     protected static void restoreIndex(String repository, String snapshot, String indexName, String renamedIndexName) throws Exception {
+        restoreIndex(repository, snapshot, indexName, renamedIndexName, Settings.EMPTY);
+    }
+
+    protected static void restoreIndex(
+        String repository,
+        String snapshot,
+        String indexName,
+        String renamedIndexName,
+        Settings indexSettings
+    ) throws Exception {
         var request = new Request("POST", "/_snapshot/" + repository + "/" + snapshot + "/_restore");
         request.addParameter("wait_for_completion", "true");
-        request.setJsonEntity(org.elasticsearch.common.Strings.format("""
+        request.setJsonEntity(Strings.format("""
             {
               "indices": "%s",
               "include_global_state": false,
               "rename_pattern": "(.+)",
               "rename_replacement": "%s",
-              "include_aliases": false
-            }""", indexName, renamedIndexName));
+              "include_aliases": false,
+              "index_settings": %s
+            }""", indexName, renamedIndexName, Strings.toString(indexSettings)));
         var responseBody = createFromResponse(client().performRequest(request));
-        assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.failed")));
-        assertThat(responseBody.evaluate("snapshot.shards.successful"), equalTo(0));
+        assertThat(responseBody.evaluate("snapshot.shards.total"), equalTo((int) responseBody.evaluate("snapshot.shards.successful")));
+        assertThat(responseBody.evaluate("snapshot.shards.failed"), equalTo(0));
     }
 
     protected static void updateRandomIndexSettings(String indexName) throws IOException {
@@ -215,20 +260,19 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         updateIndexSettings(indexName, settings);
     }
 
-    protected static void updateRandomMappings(String indexName) throws IOException {
+    protected static void updateRandomMappings(String indexName) throws Exception {
         final var runtime = new HashMap<>();
         runtime.put("field_" + randomInt(2), Map.of("type", "keyword"));
         final var properties = new HashMap<>();
         properties.put(randomIdentifier(), Map.of("type", "long"));
-        var body = XContentTestUtils.convertToXContent(Map.of("runtime", runtime, "properties", properties), XContentType.JSON);
+        updateMappings(indexName, Map.of("runtime", runtime, "properties", properties));
+    }
+
+    protected static void updateMappings(String indexName, Map<String, ?> mappings) throws Exception {
+        var body = XContentTestUtils.convertToXContent(mappings, XContentType.JSON);
         var request = new Request("PUT", indexName + "/_mappings");
         request.setEntity(
-            new InputStreamEntity(
-                body.streamInput(),
-                body.length(),
-
-                ContentType.create(XContentType.JSON.mediaTypeWithoutParameters())
-            )
+            new InputStreamEntity(body.streamInput(), body.length(), ContentType.create(XContentType.JSON.mediaTypeWithoutParameters()))
         );
         assertOK(client().performRequest(request));
     }
@@ -237,5 +281,65 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         var responseBody = createFromResponse(client().performRequest(new Request("GET", "_cluster/state/metadata/" + indexName)));
         var state = responseBody.evaluate("metadata.indices." + indexName + ".state");
         return IndexMetadata.State.fromString((String) state) == IndexMetadata.State.CLOSE;
+    }
+
+    protected static void forceMerge(String indexName, int maxNumSegments) throws Exception {
+        var request = new Request("POST", '/' + indexName + "/_forcemerge");
+        request.addParameter("max_num_segments", String.valueOf(maxNumSegments));
+        assertOK(client().performRequest(request));
+    }
+
+    protected void addIndexBlock(String indexName, IndexMetadata.APIBlock apiBlock) throws Exception {
+        logger.debug("--> adding index block [{}] to [{}]", apiBlock, indexName);
+        var request = new Request("PUT", Strings.format("/%s/_block/%s", indexName, apiBlock.name().toLowerCase(Locale.ROOT)));
+        assertAcknowledged(client().performRequest(request));
+    }
+
+    private static ClusterBlock toIndexBlock(String blockId) {
+        int block = Integer.parseInt(blockId);
+        for (var indexBlock : List.of(
+            IndexMetadata.INDEX_READ_ONLY_BLOCK,
+            IndexMetadata.INDEX_READ_BLOCK,
+            IndexMetadata.INDEX_WRITE_BLOCK,
+            IndexMetadata.INDEX_METADATA_BLOCK,
+            IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK,
+            IndexMetadata.INDEX_REFRESH_BLOCK,
+            MetadataIndexStateService.INDEX_CLOSED_BLOCK
+        )) {
+            if (block == indexBlock.id()) {
+                return indexBlock;
+            }
+        }
+        throw new AssertionError("No index block found with id [" + blockId + ']');
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static List<ClusterBlock> indexBlocks(String indexName) throws Exception {
+        var responseBody = createFromResponse(client().performRequest(new Request("GET", "_cluster/state/blocks/" + indexName)));
+        var blocks = (Map<String, ?>) responseBody.evaluate("blocks.indices." + indexName);
+        if (blocks == null || blocks.isEmpty()) {
+            return List.of();
+        }
+        return blocks.keySet()
+            .stream()
+            .map(AbstractIndexCompatibilityTestCase::toIndexBlock)
+            .sorted(Comparator.comparing(ClusterBlock::id))
+            .toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static void assertIndexSetting(String indexName, Setting<?> setting, Matcher<Boolean> matcher) throws Exception {
+        var indexSettings = getIndexSettingsAsMap(indexName);
+        assertThat(Boolean.parseBoolean((String) indexSettings.get(setting.getKey())), matcher);
+    }
+
+    protected static ResponseException expectUpdateIndexSettingsThrows(String indexName, Settings.Builder settings) {
+        var exception = expectThrows(ResponseException.class, () -> updateIndexSettings(indexName, settings));
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        return exception;
+    }
+
+    protected static Matcher<String> containsStringCannotRemoveBlockOnReadOnlyIndex(String indexName) {
+        return allOf(containsString("Can't remove the write block on read-only compatible index"), containsString(indexName));
     }
 }

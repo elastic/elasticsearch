@@ -913,7 +913,7 @@ public class SearchModule {
         NamedRegistry<Highlighter> highlighters = new NamedRegistry<>("highlighter");
         highlighters.register("fvh", new FastVectorHighlighter(settings));
         highlighters.register("plain", new PlainHighlighter());
-        highlighters.register("unified", new DefaultHighlighter());
+        highlighters.register(DefaultHighlighter.NAME, new DefaultHighlighter());
         highlighters.extractAndRegister(plugins, SearchPlugin::getHighlighters);
 
         return unmodifiableMap(highlighters.getRegistry());
@@ -1157,6 +1157,10 @@ public class SearchModule {
         );
         registerQuery(
             new QuerySpec<>(
+                /*
+                 * Deprecated in #64227, 7.12/8.0. We do not plan to remove this so we
+                 * do not break any users using this.
+                 */
                 (new ParseField(GeoPolygonQueryBuilder.NAME).withAllDeprecated(GeoPolygonQueryBuilder.GEO_POLYGON_DEPRECATION_MSG)),
                 GeoPolygonQueryBuilder::new,
                 GeoPolygonQueryBuilder::fromXContent

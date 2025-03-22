@@ -461,7 +461,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             // Visit documents sorted by the leading source of the composite definition and terminates
             // when the leading source value is guaranteed to be greater than the lowest composite bucket
             // in the queue.
-            DocIdSet docIdSet = sortedDocsProducer.processLeaf(topLevelQuery(), queue, aggCtx.getLeafReaderContext(), fillDocIdSet);
+            DocIdSet docIdSet = sortedDocsProducer.processLeaf(queue, aggCtx.getLeafReaderContext(), fillDocIdSet);
             if (fillDocIdSet) {
                 entries.add(new Entry(aggCtx, docIdSet));
             }

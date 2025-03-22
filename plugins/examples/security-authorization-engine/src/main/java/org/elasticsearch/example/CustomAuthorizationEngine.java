@@ -10,7 +10,10 @@
 package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -33,7 +36,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Supplier;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -85,11 +87,14 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Map<String, IndexAbstraction> aliasOrIndexLookup,
-                                     ActionListener<IndexAuthorizationResult> listener) {
+    SubscribableListener<IndexAuthorizationResult> void authorizeIndexAction(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+        ProjectMetadata project
+    ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
+            ActionListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
                 for (String name : resolvedIndices.getLocal()) {
@@ -99,8 +104,9 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
                     new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));
                 listener.onResponse(new IndexAuthorizationResult(indicesAccessControl));
             }, listener::onFailure));
+            return listener;
         } else {
-            listener.onResponse(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
+            return SubscribableListener.succcess(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
         }
     }
 
@@ -113,19 +119,19 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(new AuthorizedIndices() {
-                public Supplier<Set<String>> all() {
+                public Set<String> all(IndexComponentSelector selector) {
                     return () -> indicesLookup.keySet();
                 }
-                public boolean check(String name) {
+                public boolean check(String name, IndexComponentSelector selector) {
                     return indicesLookup.containsKey(name);
                 }
             });
         } else {
             listener.onResponse(new AuthorizedIndices() {
-                public Supplier<Set<String>> all() {
+                public Set<String> all(IndexComponentSelector selector) {
                     return () -> Set.of();
                 }
-                public boolean check(String name) {
+                public boolean check(String name, IndexComponentSelector selector) {
                     return false;
                 }
             });

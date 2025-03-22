@@ -792,7 +792,12 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 if (executable.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
-                        String fileName = ObjectPath.eval(PATH_FILE_NAME, executable.getResponse().getSource());
+                        Map<String, Object> source = executable.getResponse().getSource();
+                        String fileName = ObjectPath.eval(PATH_FILE_NAME, source);
+                        if (fileName == null) {
+                            // If synthetic source is disabled, read from dotted field names.
+                            fileName = (String) source.get("Executable.file.name");
+                        }
                         if (fileName != null) {
                             executables.putIfAbsent(executable.getId(), fileName);
                         } else {

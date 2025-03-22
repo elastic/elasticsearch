@@ -26,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -47,23 +46,6 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         suppliers = anyNullIsNull(true, suppliers);
         for (int length = 4; length < 100; length++) {
             suppliers(suppliers, length);
-        }
-        Set<DataType> supported = Set.of(DataType.NULL, DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT);
-        List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
-        for (DataType lhs : DataType.types()) {
-            if (lhs == DataType.NULL || DataType.isRepresentable(lhs) == false) {
-                continue;
-            }
-            for (DataType rhs : DataType.types()) {
-                if (rhs == DataType.NULL || DataType.isRepresentable(rhs) == false) {
-                    continue;
-                }
-                if (DataType.isString(lhs) && DataType.isString(rhs)) {
-                    continue;
-                }
-
-                suppliers.add(typeErrorSupplier(false, supportedPerPosition, List.of(lhs, rhs), (v, p) -> "string"));
-            }
         }
         return parameterSuppliersFromTypedData(suppliers);
     }
@@ -133,7 +115,6 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
                 return new TestCaseSupplier.TestCase(values, expectedToString, DataType.KEYWORD, equalTo(new BytesRef(expectedValue)));
             }));
         }
-
     }
 
     @Override
@@ -159,11 +140,6 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
             fieldValues.add(new BytesRef("dummy"));
         }
         Expression expression = build(testCase.getSource(), mix);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTrue("expected unresolved", expression.typeResolved().unresolved());
-            assertThat(expression.typeResolved().message(), equalTo(testCase.getExpectedTypeError()));
-            return;
-        }
 
         int totalLength = testDataLength();
         if (totalLength >= Concat.MAX_CONCAT_LENGTH || rarely()) {

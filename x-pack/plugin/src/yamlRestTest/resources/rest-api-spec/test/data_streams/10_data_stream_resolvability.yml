@@ -148,6 +148,8 @@
 
   - do:
       # Should not raise error
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.get_rollup_index_caps:
         index: "logs*"
   - do:
@@ -473,6 +475,8 @@
         index: simple-data-stream1
 
   - do:
+      allowed_warnings:
+        - "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information."
       rollup.rollup_search:
         index: "simple-data-stream1"
         body:

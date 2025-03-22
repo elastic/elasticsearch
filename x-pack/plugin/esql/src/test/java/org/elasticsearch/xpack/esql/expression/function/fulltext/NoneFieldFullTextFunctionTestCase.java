@@ -26,16 +26,12 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
         this.testCase = testCaseSupplier.get();
     }
 
-    public final void testFold() {
+    public void testFold() {
         Expression expression = buildLiteralExpression(testCase);
-        if (testCase.getExpectedTypeError() != null) {
-            assertTypeResolutionFailure(expression);
-            return;
-        }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
     }
 
-    protected static Iterable<Object[]> generateParameters() {
+    protected static List<TestCaseSupplier> getStringTestSupplier() {
         List<TestCaseSupplier> suppliers = new LinkedList<>();
         for (DataType strType : DataType.stringTypes()) {
             suppliers.add(
@@ -46,9 +42,11 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
                 )
             );
         }
-        List<TestCaseSupplier> errorsSuppliers = errorsForCasesWithoutExamples(suppliers, (v, p) -> "string");
-        // Don't test null, as it is not allowed but the expected message is not a type error - so we check it separately in VerifierTests
-        return parameterSuppliersFromTypedData(errorsSuppliers.stream().filter(s -> s.types().contains(DataType.NULL) == false).toList());
+        return suppliers;
+    }
+
+    protected static Iterable<Object[]> generateParameters() {
+        return parameterSuppliersFromTypedData(getStringTestSupplier());
     }
 
     private static TestCaseSupplier.TestCase testCase(DataType strType, String str, Matcher<Boolean> matcher) {

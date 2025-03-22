@@ -12,6 +12,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -32,7 +33,7 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBedrockActionCreator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -52,8 +53,10 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -77,6 +80,17 @@ public class AmazonBedrockService extends SenderService {
     private final Sender amazonBedrockSender;
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
+
+    private static final AmazonBedrockProvider PROVIDER_WITH_TASK_TYPE = AmazonBedrockProvider.COHERE;
+
+    private static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.CLASSIFICATION,
+        InputType.CLUSTERING,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
+    );
 
     public AmazonBedrockService(
         HttpRequestSender.Factory httpSenderFactory,
@@ -102,7 +116,6 @@ public class AmazonBedrockService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -116,9 +129,29 @@ public class AmazonBedrockService extends SenderService {
     }
 
     @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
+            // inputType is only allowed when provider=cohere for text embeddings
+            var provider = baseAmazonBedrockModel.provider();
+
+            if (Objects.equals(provider, PROVIDER_WITH_TASK_TYPE)) {
+                // input type parameter allowed, so verify it is valid if specified
+                ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
+            } else {
+                // input type parameter not allowed so throw validation error if it is specified and not internal
+                ServiceUtils.validateInputTypeIsUnspecifiedOrInternal(
+                    inputType,
+                    validationException,
+                    Strings.format("Invalid value [%s] received. [%s] is not allowed for provider [%s]", inputType, "input_type", provider)
+                );
+            }
+        }
+    }
+
+    @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -128,16 +161,15 @@ public class AmazonBedrockService extends SenderService {
         if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
             var maxBatchSize = getEmbeddingsMaxBatchSize(baseAmazonBedrockModel.provider());
 
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 inputs.getInputs(),
                 maxBatchSize,
-                EmbeddingRequestChunker.EmbeddingType.FLOAT,
                 baseAmazonBedrockModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {
                 var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
-                action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
             }
         } else {
             listener.onFailure(createInvalidModelException(model));
@@ -378,7 +410,7 @@ public class AmazonBedrockService extends SenderService {
 
                 configurationMap.put(
                     PROVIDER_FIELD,
-                    new SettingsConfiguration.Builder().setDescription("The model provider for your deployment.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The model provider for your deployment.")
                         .setLabel("Provider")
                         .setRequired(true)
                         .setSensitive(false)
@@ -389,7 +421,7 @@ public class AmazonBedrockService extends SenderService {
 
                 configurationMap.put(
                     MODEL_FIELD,
-                    new SettingsConfiguration.Builder().setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The base model ID or an ARN to a custom model based on a foundational model."
                     )
                         .setLabel("Model")
@@ -402,7 +434,9 @@ public class AmazonBedrockService extends SenderService {
 
                 configurationMap.put(
                     REGION_FIELD,
-                    new SettingsConfiguration.Builder().setDescription("The region that your model or ARN is deployed in.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The region that your model or ARN is deployed in."
+                    )
                         .setLabel("Region")
                         .setRequired(true)
                         .setSensitive(false)
@@ -411,10 +445,25 @@ public class AmazonBedrockService extends SenderService {
                         .build()
                 );
 
+                configurationMap.put(
+                    DIMENSIONS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        "The number of dimensions the resulting embeddings should have. For more information refer to "
+                            + "https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-embed-text.html."
+                    )
+                        .setLabel("Dimensions")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
                 configurationMap.putAll(AmazonBedrockSecretSettings.Configuration.get());
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
-                        "By default, the amazonbedrock service sets the number of requests allowed per minute to 240."
+                        "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
+                        supportedTaskTypes
                     )
                 );
 

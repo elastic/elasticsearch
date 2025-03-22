@@ -1,8 +1,4 @@
 setup:
-  - requires:
-      cluster_features: 'rrf_retriever_supported'
-      reason: 'test requires rrf retriever implementation'
-
   - do:
       indices.create:
         index: test

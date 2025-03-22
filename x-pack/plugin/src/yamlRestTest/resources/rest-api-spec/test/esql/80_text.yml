@@ -574,10 +574,6 @@ setup:
 
 ---
 "values function":
-  - requires:
-      cluster_features: esql.agg_values
-      reason: "values is available in 8.14+"
-
   - do:
       esql.query:
         body:

@@ -29,6 +29,7 @@ import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 
@@ -42,8 +43,8 @@ import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 public class SpatialRelatesUtils {
 
     /** Converts a {@link Expression} into a {@link Component2D}. */
-    static Component2D asLuceneComponent2D(BinarySpatialFunction.SpatialCrsType crsType, Expression expression) {
-        return asLuceneComponent2D(crsType, makeGeometryFromLiteral(expression));
+    static Component2D asLuceneComponent2D(FoldContext ctx, BinarySpatialFunction.SpatialCrsType crsType, Expression expression) {
+        return asLuceneComponent2D(crsType, makeGeometryFromLiteral(ctx, expression));
     }
 
     /** Converts a {@link Geometry} into a {@link Component2D}. */
@@ -66,8 +67,8 @@ public class SpatialRelatesUtils {
      * Converts a {@link Expression} at a given {@code position} into a {@link Component2D} array.
      * The reason for generating an array instead of a single component is for multi-shape support with ST_CONTAINS.
      */
-    static Component2D[] asLuceneComponent2Ds(BinarySpatialFunction.SpatialCrsType crsType, Expression expression) {
-        return asLuceneComponent2Ds(crsType, makeGeometryFromLiteral(expression));
+    static Component2D[] asLuceneComponent2Ds(FoldContext ctx, BinarySpatialFunction.SpatialCrsType crsType, Expression expression) {
+        return asLuceneComponent2Ds(crsType, makeGeometryFromLiteral(ctx, expression));
     }
 
     /**
@@ -90,9 +91,12 @@ public class SpatialRelatesUtils {
     }
 
     /** Converts a {@link Expression} into a {@link GeometryDocValueReader} */
-    static GeometryDocValueReader asGeometryDocValueReader(BinarySpatialFunction.SpatialCrsType crsType, Expression expression)
-        throws IOException {
-        Geometry geometry = makeGeometryFromLiteral(expression);
+    static GeometryDocValueReader asGeometryDocValueReader(
+        FoldContext ctx,
+        BinarySpatialFunction.SpatialCrsType crsType,
+        Expression expression
+    ) throws IOException {
+        Geometry geometry = makeGeometryFromLiteral(ctx, expression);
         if (crsType == BinarySpatialFunction.SpatialCrsType.GEO) {
             return asGeometryDocValueReader(
                 CoordinateEncoder.GEO,
@@ -167,8 +171,8 @@ public class SpatialRelatesUtils {
      * This function is used in two places, when evaluating a spatial constant in the SpatialRelatesFunction, as well as when
      * we do lucene-pushdown of spatial functions.
      */
-    public static Geometry makeGeometryFromLiteral(Expression expr) {
-        return makeGeometryFromLiteralValue(valueOf(expr), expr.dataType());
+    public static Geometry makeGeometryFromLiteral(FoldContext ctx, Expression expr) {
+        return makeGeometryFromLiteralValue(valueOf(ctx, expr), expr.dataType());
     }
 
     private static Geometry makeGeometryFromLiteralValue(Object value, DataType dataType) {

@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -62,6 +63,7 @@ import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomP
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.TOKEN_URI_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BASE_PATH;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.BUCKET;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageRepository.CLIENT_NAME;
@@ -143,7 +145,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             Settings.builder().put("chunk_size", size + "mb").build()
         );
         chunkSize = GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repositoryMetadata);
-        assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), chunkSize);
+        assertEquals(ByteSizeValue.of(size, ByteSizeUnit.MB), chunkSize);
 
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
@@ -211,8 +213,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         }
 
         @Override
-        protected GoogleCloudStorageService createStorageService() {
-            return new GoogleCloudStorageService() {
+        protected GoogleCloudStorageService createStorageService(Settings settings) {
+            return new GoogleCloudStorageService(settings) {
                 @Override
                 StorageOptions createStorageOptions(
                     final GoogleCloudStorageClientSettings gcsClientSettings,
@@ -268,7 +270,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             metadata.name(),
                             storageService,
                             bigArrays,
-                            randomIntBetween(1, 8) * 1024
+                            randomIntBetween(1, 8) * 1024,
+                            BackoffPolicy.noBackoff()
                         ) {
                             @Override
                             long getLargeBlobThresholdInBytes() {
@@ -344,19 +347,17 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
-            if (Regex.simpleMatch("GET /storage/v1/b/*/o/*", request)) {
-                trackRequest("GetObject");
+            if (Regex.simpleMatch("GET */storage/v1/b/*/o/*", request)) {
+                trackRequest(Operation.GET_OBJECT.key());
             } else if (Regex.simpleMatch("GET /storage/v1/b/*/o*", request)) {
-                trackRequest("ListObjects");
-            } else if (Regex.simpleMatch("GET /download/storage/v1/b/*", request)) {
-                trackRequest("GetObject");
+                trackRequest(Operation.LIST_OBJECTS.key());
             } else if (Regex.simpleMatch("PUT /upload/storage/v1/b/*uploadType=resumable*", request) && isLastPart(requestHeaders)) {
                 // Resumable uploads are billed as a single operation, that's the reason we're tracking
                 // the request only when it's the last part.
                 // See https://cloud.google.com/storage/docs/resumable-uploads#introduction
-                trackRequest("InsertObject");
+                trackRequest(Operation.INSERT_OBJECT.key());
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/*uploadType=multipart*", request)) {
-                trackRequest("InsertObject");
+                trackRequest(Operation.INSERT_OBJECT.key());
             }
         }
 

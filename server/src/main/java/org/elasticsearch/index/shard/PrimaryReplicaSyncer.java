@@ -49,7 +49,7 @@ public class PrimaryReplicaSyncer {
     private final TransportService transportService;
     private final SyncAction syncAction;
 
-    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
+    public static final ByteSizeValue DEFAULT_CHUNK_SIZE = ByteSizeValue.of(512, ByteSizeUnit.KB);
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 

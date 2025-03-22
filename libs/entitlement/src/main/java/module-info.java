@@ -8,16 +8,20 @@
  */
 
 module org.elasticsearch.entitlement {
+    requires org.elasticsearch.base;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
     requires java.instrument;
-    requires org.elasticsearch.base;
+    requires java.logging;
+    requires java.net.http;
     requires jdk.attach;
+    requires jdk.net;
 
     requires static org.elasticsearch.entitlement.bridge; // At runtime, this will be in java.base
 
     exports org.elasticsearch.entitlement.runtime.api;
     exports org.elasticsearch.entitlement.runtime.policy;
+    exports org.elasticsearch.entitlement.runtime.policy.entitlements to org.elasticsearch.server;
     exports org.elasticsearch.entitlement.instrumentation;
     exports org.elasticsearch.entitlement.bootstrap to org.elasticsearch.server;
     exports org.elasticsearch.entitlement.initialization to java.base;

@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,7 +52,8 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
  * It holds a map of {@link ExchangeSinkHandler} instances for each node in the cluster to serve {@link ExchangeRequest}s
- * To connect exchange sources to exchange sinks, use {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, int, ActionListener)}.
+ * To connect exchange sources to exchange sinks,
+ * use {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}.
  */
 public final class ExchangeService extends AbstractLifecycleComponent {
     // TODO: Make this a child action of the data node transport to ensure that exchanges
@@ -59,7 +61,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final String EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
     public static final String EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/exchange";
 
-    private static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
+    public static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
     private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
     /**
@@ -76,6 +78,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -170,6 +173,32 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> TransportResponse.Empty.INSTANCE, responseExecutor)
         );
+    }
+
+    /**
+     * Remember the exchange source handler for the given session ID.
+     * This can be used for async/stop requests.
+     */
+    public void addExchangeSourceHandler(String sessionId, ExchangeSourceHandler sourceHandler) {
+        exchangeSources.put(sessionId, sourceHandler);
+    }
+
+    public ExchangeSourceHandler removeExchangeSourceHandler(String sessionId) {
+        return exchangeSources.remove(sessionId);
+    }
+
+    /**
+     * Finishes the session early, i.e., before all sources are finished.
+     * It is called by async/stop API and should be called on the node that coordinates the async request.
+     * It will close all sources and return the results - unlike cancel, this does not discard the results.
+     */
+    public void finishSessionEarly(String sessionId, ActionListener<Void> listener) {
+        ExchangeSourceHandler exchangeSource = removeExchangeSourceHandler(sessionId);
+        if (exchangeSource != null) {
+            exchangeSource.finishEarly(false, listener);
+        } else {
+            listener.onResponse(null);
+        }
     }
 
     private static class OpenExchangeRequest extends TransportRequest {
@@ -328,7 +357,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             }
             doFetchPageAsync(false, ActionListener.wrap(r -> {
                 if (r.finished()) {
-                    completionListenerRef.compareAndSet(null, SubscribableListener.newSucceeded(null));
+                    completionListenerRef.compareAndSet(null, SubscribableListener.nullSuccess());
                 }
                 listener.onResponse(r);
             }, e -> close(ActionListener.running(() -> listener.onFailure(e)))));
@@ -338,7 +367,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             final long reservedBytes = allSourcesFinished ? 0 : estimatedPageSizeInBytes.get();
             if (reservedBytes > 0) {
                 // This doesn't fully protect ESQL from OOM, but reduces the likelihood.
-                blockFactory.breaker().addEstimateBytesAndMaybeBreak(reservedBytes, "fetch page");
+                try {
+                    blockFactory.breaker().addEstimateBytesAndMaybeBreak(reservedBytes, "fetch page");
+                } catch (Exception e) {
+                    assert e instanceof CircuitBreakingException : new AssertionError(e);
+                    listener.onFailure(e);
+                    return;
+                }
                 listener = ActionListener.runAfter(listener, () -> blockFactory.breaker().addWithoutBreaking(-reservedBytes));
             }
             transportService.sendChildRequest(

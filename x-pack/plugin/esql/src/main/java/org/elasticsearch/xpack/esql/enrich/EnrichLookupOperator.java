@@ -16,7 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.ResponseHeadersCollector;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -27,7 +27,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public final class EnrichLookupOperator extends AsyncOperator {
+public final class EnrichLookupOperator extends AsyncOperator<Page> {
     private final EnrichLookupService enrichLookupService;
     private final String sessionId;
     private final CancellableTask parentTask;
@@ -37,7 +37,6 @@ public final class EnrichLookupOperator extends AsyncOperator {
     private final String matchType;
     private final String matchField;
     private final List<NamedExpression> enrichFields;
-    private final ResponseHeadersCollector responseHeadersCollector;
     private final Source source;
     private long totalTerms = 0L;
 
@@ -100,7 +99,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         List<NamedExpression> enrichFields,
         Source source
     ) {
-        super(driverContext, maxOutstandingRequests);
+        super(driverContext, enrichLookupService.getThreadContext(), maxOutstandingRequests);
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;
@@ -111,7 +110,6 @@ public final class EnrichLookupOperator extends AsyncOperator {
         this.matchField = matchField;
         this.enrichFields = enrichFields;
         this.source = source;
-        this.responseHeadersCollector = new ResponseHeadersCollector(enrichLookupService.getThreadContext());
     }
 
     @Override
@@ -128,11 +126,23 @@ public final class EnrichLookupOperator extends AsyncOperator {
             enrichFields,
             source
         );
-        enrichLookupService.lookupAsync(
-            request,
-            parentTask,
-            ActionListener.runBefore(listener.map(inputPage::appendPage), responseHeadersCollector::collect)
-        );
+        CheckedFunction<List<Page>, Page, Exception> handleResponse = pages -> {
+            if (pages.size() != 1) {
+                throw new UnsupportedOperationException("ENRICH should only return a single page");
+            }
+            return inputPage.appendPage(pages.getFirst());
+        };
+        enrichLookupService.lookupAsync(request, parentTask, listener.map(handleResponse));
+    }
+
+    @Override
+    public Page getOutput() {
+        return fetchFromBuffer();
+    }
+
+    @Override
+    protected void releaseFetchedOnAnyThread(Page page) {
+        releasePageOnAnyThread(page);
     }
 
     @Override
@@ -154,12 +164,11 @@ public final class EnrichLookupOperator extends AsyncOperator {
     protected void doClose() {
         // TODO: Maybe create a sub-task as the parent task of all the lookup tasks
         // then cancel it when this operator terminates early (e.g., have enough result).
-        responseHeadersCollector.finish();
     }
 
     @Override
-    protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
-        return new EnrichLookupOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms);
+    protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
+        return new EnrichLookupOperator.Status(receivedPages, completedPages, processNanos, totalTerms);
     }
 
     public static class Status extends AsyncOperator.Status {
@@ -171,8 +180,8 @@ public final class EnrichLookupOperator extends AsyncOperator {
 
         final long totalTerms;
 
-        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms) {
-            super(receivedPages, completedPages, totalTimeInMillis);
+        Status(long receivedPages, long completedPages, long processNanos, long totalTerms) {
+            super(receivedPages, completedPages, processNanos);
             this.totalTerms = totalTerms;
         }
 

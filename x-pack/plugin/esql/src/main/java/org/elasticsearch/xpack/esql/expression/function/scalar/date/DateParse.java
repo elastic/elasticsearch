@@ -57,8 +57,8 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         Source source,
         @Param(name = "datePattern", type = { "keyword", "text" }, description = """
             The date format. Refer to the
-            https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter`
-            documentation] for the syntax. If `null`, the function returns `null`.""", optional = true) Expression first,
+            {javadoc14}/java.base/java/time/format/DateTimeFormatter.html[`DateTimeFormatter` documentation] for the syntax.
+            If `null`, the function returns `null`.""", optional = true) Expression first,
         @Param(
             name = "dateString",
             type = { "keyword", "text" },
@@ -143,7 +143,7 @@ public class DateParse extends EsqlScalarFunction implements OptionalArgument {
         }
         if (format.foldable()) {
             try {
-                DateFormatter formatter = toFormatter(format.fold());
+                DateFormatter formatter = toFormatter(format.fold(toEvaluator.foldCtx()));
                 return new DateParseConstantEvaluator.Factory(source(), fieldEvaluator, formatter);
             } catch (IllegalArgumentException e) {
                 throw new InvalidArgumentException(e, "invalid date pattern for [{}]: {}", sourceText(), e.getMessage());

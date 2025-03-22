@@ -105,8 +105,6 @@ import static org.mockito.Mockito.when;
  */
 public abstract class MapperTestCase extends MapperServiceTestCase {
 
-    public static final IndexVersion DEPRECATED_BOOST_INDEX_VERSION = IndexVersions.V_7_10_0;
-
     protected abstract void minimalMapping(XContentBuilder b) throws IOException;
 
     /**
@@ -1077,12 +1075,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(blockLoaderResults), mapping);
         }
 
-        private void buildInput(XContentBuilder b) throws IOException {
+        public void buildInput(XContentBuilder b) throws IOException {
             b.field("field");
             inputValue.accept(b);
         }
 
-        private void buildInputArray(XContentBuilder b, int elementCount) throws IOException {
+        public void buildInputArray(XContentBuilder b, int elementCount) throws IOException {
             b.startArray("field");
             for (int i = 0; i < elementCount; i++) {
                 inputValue.accept(b);
@@ -1180,7 +1178,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         var firstExample = support.example(1);
         int maxDocs = randomIntBetween(20, 50);
         var settings = Settings.builder()
-            .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
             .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
             .build();
         var mapperService = createMapperService(getVersion(), settings, () -> true, mapping(b -> {
@@ -1213,7 +1211,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (var indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 int start = randomBoolean() ? 0 : randomIntBetween(1, maxDocs - 10);
                 var snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                    mapperService.mappingLookup(),
+                    mapperService,
                     new Engine.Searcher(
                         "recovery",
                         indexReader,
@@ -1369,7 +1367,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo(expected));
     }
 
-    private boolean shouldUseIgnoreMalformed() {
+    protected boolean shouldUseIgnoreMalformed() {
         // 5% of test runs use ignore_malformed
         return supportsIgnoreMalformed() && randomDouble() <= 0.05;
     }
@@ -1673,12 +1671,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }), equalTo("{}"));
     }
 
-    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed) {
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode keepMode) {
         return syntheticSourceSupport(ignoreMalformed);
     }
 
     public void testSyntheticSourceKeepNone() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.NONE).example(
+            1
+        );
         DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", "none");
@@ -1689,7 +1689,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceKeepAll() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ALL).example(
+            1
+        );
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("synthetic_source_keep", "all");
@@ -1706,10 +1708,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public void testSyntheticSourceKeepArrays() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ARRAYS)
+            .example(1);
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
-            b.field("synthetic_source_keep", randomFrom("arrays", "all"));  // Both options keep array source.
+            b.field("synthetic_source_keep", randomSyntheticSourceKeep());
             example.mapping().accept(b);
             b.endObject();
         })).documentMapper();
@@ -1726,6 +1729,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         String expected = Strings.toString(builder);
         String actual = syntheticSource(mapperAll, buildInput);
         assertThat(actual, equalTo(expected));
+    }
+
+    protected String randomSyntheticSourceKeep() {
+        return randomFrom("all", "arrays");
     }
 
     @Override

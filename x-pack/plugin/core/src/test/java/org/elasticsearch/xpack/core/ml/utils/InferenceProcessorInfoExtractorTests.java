@@ -71,7 +71,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         Set<String> expectedModelIds = new HashSet<>(Arrays.asList(modelId1, modelId2, modelId3));
 
         ClusterState clusterState = buildClusterStateWithModelReferences(2, modelId1, modelId2, modelId3);
-        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = clusterState.metadata().getProject().custom(IngestMetadata.TYPE);
         Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
 
         assertThat(actualModelIds, equalTo(expectedModelIds));
@@ -82,7 +82,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         Set<String> expectedModelIds = new HashSet<>(Arrays.asList());
 
         ClusterState clusterState = buildClusterStateWithModelReferences(0);
-        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = clusterState.metadata().getProject().custom(IngestMetadata.TYPE);
         Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
 
         assertThat(actualModelIds, equalTo(expectedModelIds));
@@ -147,7 +147,7 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         ClusterState clusterState = buildClusterStateWithPipelineConfigurations(
             Map.of("processor_does_not_have_a_definition_object", newConfigurationWithScriptProcessor("foo"))
         );
-        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = clusterState.metadata().getProject().custom(IngestMetadata.TYPE);
         Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
 
         assertThat(actualModelIds, equalTo(expectedModelIds));

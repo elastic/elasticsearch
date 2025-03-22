@@ -36,6 +36,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
 
     @FunctionInfo(
+        operator = "+",
         returnType = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" },
         description = "Add two numbers together. " + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
     )

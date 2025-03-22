@@ -62,7 +62,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
 
     public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = Setting.boolSetting(
         "xpack.eql.default_allow_partial_results",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

@@ -10,7 +10,6 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -86,10 +85,6 @@ public class FetchContext {
             sfc = StoredFieldsContext.metadataOnly();
         }
         return sfc;
-    }
-
-    public BitsetFilterCache bitsetFilterCache() {
-        return searchContext.bitsetFilterCache();
     }
 
     /**

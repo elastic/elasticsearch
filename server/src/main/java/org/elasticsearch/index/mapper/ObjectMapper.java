@@ -49,12 +49,10 @@ public class ObjectMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(ObjectMapper.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
     public static final FeatureFlag SUB_OBJECTS_AUTO_FEATURE_FLAG = new FeatureFlag("sub_objects_auto");
+    static final NodeFeature SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX = new NodeFeature("mapper.subobjects_false_mapping_update_fix");
 
     public static final String CONTENT_TYPE = "object";
     static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
-    static final NodeFeature SUBOBJECTS_AUTO = new NodeFeature("mapper.subobjects_auto", true);
-    // No-op. All uses of this feature were reverted but node features can't be removed.
-    static final NodeFeature SUBOBJECTS_AUTO_FIXES = new NodeFeature("mapper.subobjects_auto_fixes", true);
 
     /**
      * Enhances the previously boolean option for subobjects support with an intermediate mode `auto` that uses
@@ -398,7 +396,15 @@ public class ObjectMapper extends Mapper {
                     }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
-                        throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
+                        throw new MapperParsingException(
+                            "The mapper type ["
+                                + type
+                                + "] declared on field ["
+                                + fieldName
+                                + "] does not exist."
+                                + " It might have been created within a future version or requires a plugin to be installed."
+                                + " Check the documentation."
+                        );
                     }
                     Mapper.Builder fieldBuilder;
                     if (objBuilder.subobjects.isPresent() && objBuilder.subobjects.get() != Subobjects.ENABLED) {
@@ -663,11 +669,21 @@ public class ObjectMapper extends Mapper {
                     if (subobjects.isPresent()
                         && subobjects.get() == Subobjects.DISABLED
                         && mergeWithMapper instanceof ObjectMapper objectMapper) {
-                        // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects
-                        objectMapper.asFlattenedFieldMappers(objectMergeContext.getMapperBuilderContext())
-                            .stream()
-                            .filter(m -> objectMergeContext.decrementFieldBudgetIfPossible(m.getTotalFieldsCount()))
-                            .forEach(m -> putMergedMapper(mergedMappers, m));
+                        // An existing mapping that has set `subobjects: false` is merged with a mapping with sub-objects.
+                        List<FieldMapper> flattenedMappers = objectMapper.asFlattenedFieldMappers(
+                            objectMergeContext.getMapperBuilderContext()
+                        );
+                        for (FieldMapper flattenedMapper : flattenedMappers) {
+                            if (objectMergeContext.decrementFieldBudgetIfPossible(flattenedMapper.getTotalFieldsCount())) {
+                                var conflict = mergedMappers.get(flattenedMapper.leafName());
+                                if (objectMergeContext.getMapperBuilderContext().getMergeReason() == MergeReason.INDEX_TEMPLATE
+                                    || conflict == null) {
+                                    putMergedMapper(mergedMappers, flattenedMapper);
+                                } else {
+                                    putMergedMapper(mergedMappers, conflict.merge(flattenedMapper, objectMergeContext));
+                                }
+                            }
+                        }
                     } else if (objectMergeContext.decrementFieldBudgetIfPossible(mergeWithMapper.getTotalFieldsCount())) {
                         putMergedMapper(mergedMappers, mergeWithMapper);
                     } else if (mergeWithMapper instanceof ObjectMapper om) {
@@ -1119,7 +1135,7 @@ public class ObjectMapper extends Mapper {
             for (SourceLoader.SyntheticFieldLoader loader : fields) {
                 ignoredValuesPresent |= loader.setIgnoredValues(objectsWithIgnoredFields);
             }
-            return this.ignoredValues != null;
+            return ignoredValuesPresent;
         }
 
         @Override

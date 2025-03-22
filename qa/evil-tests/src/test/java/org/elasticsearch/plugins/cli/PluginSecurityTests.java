@@ -11,8 +11,10 @@ package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.bootstrap.PluginPolicyInfo;
 import org.elasticsearch.bootstrap.PolicyUtil;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,6 +27,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 
 /** Tests plugin manager security check */
 public class PluginSecurityTests extends ESTestCase {
+
+    @Before
+    public void assumeSecurityManagerSupported() {
+        assumeTrue("test requires security manager to be supported", RuntimeVersionFeature.isSecurityManagerAvailable());
+    }
 
     PluginPolicyInfo makeDummyPlugin(String policy, String... files) throws IOException {
         Path plugin = createTempDir();

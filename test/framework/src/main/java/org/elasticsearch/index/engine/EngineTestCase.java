@@ -99,6 +99,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -154,6 +155,7 @@ public abstract class EngineTestCase extends ESTestCase {
     protected static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
 
     protected ThreadPool threadPool;
+    protected ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     protected TranslogHandler translogHandler;
 
     protected Store store;
@@ -196,6 +198,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY))
             )
             .put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000))
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
     }
 
@@ -220,6 +223,10 @@ public abstract class EngineTestCase extends ESTestCase {
             """;
     }
 
+    protected List<MapperPlugin> extraMappers() {
+        return List.of();
+    }
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -236,12 +243,17 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("index", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            defaultSettings.getNodeSettings()
+        );
+
         store = createStore();
         storeReplica = createStore();
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
         primaryTranslogDir = createTempDir("translog-primary");
-        mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping());
+        mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping(), extraMappers());
         translogHandler = createTranslogHandler(mapperService);
         engine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
@@ -267,6 +279,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
+            config.getThreadPoolMergeExecutorService(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -299,6 +312,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
+            config.getThreadPoolMergeExecutorService(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -331,6 +345,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
+            config.getThreadPoolMergeExecutorService(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -835,6 +850,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             null,
             store,
@@ -875,6 +891,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
+            config.getThreadPoolMergeExecutorService(),
             indexSettings,
             config.getWarmer(),
             store,
@@ -1440,15 +1457,21 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     public static MapperService createMapperService() throws IOException {
-        return createMapperService(Settings.EMPTY, "{}");
+        return createMapperService(Settings.EMPTY, "{}", List.of());
     }
 
     public static MapperService createMapperService(Settings settings, String mappings) throws IOException {
+        return createMapperService(settings, mappings, List.of());
+    }
+
+    public static MapperService createMapperService(Settings settings, String mappings, List<MapperPlugin> extraMappers)
+        throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .settings(indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).put(settings))
             .putMapping(mappings)
             .build();
         MapperService mapperService = MapperTestUtils.newMapperService(
+            extraMappers,
             new NamedXContentRegistry(ClusterModule.getNamedXWriteables()),
             createTempDir(),
             indexMetadata.getSettings(),

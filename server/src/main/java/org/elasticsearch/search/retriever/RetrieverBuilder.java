@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.SuggestingErrorOnUnknown;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -50,18 +49,13 @@ import java.util.Objects;
  */
 public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>, ToXContent {
 
-    public static final NodeFeature RETRIEVERS_SUPPORTED = new NodeFeature("retrievers_supported", true);
-
     public static final ParseField PRE_FILTER_FIELD = new ParseField("filter");
 
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final ParseField NAME_FIELD = new ParseField("_name");
 
-    protected static void declareBaseParserFields(
-        String name,
-        AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
-    ) {
+    protected static void declareBaseParserFields(AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser) {
         parser.declareObjectArray(
             (r, v) -> r.preFilterQueryBuilders = new ArrayList<>(v),
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),

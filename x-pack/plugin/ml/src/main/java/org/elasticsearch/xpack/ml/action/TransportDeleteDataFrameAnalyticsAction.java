@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -61,7 +60,6 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
         MlMemoryTracker memoryTracker,
         DataFrameAnalyticsConfigProvider configProvider,
@@ -74,7 +72,6 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
             threadPool,
             actionFilters,
             DeleteDataFrameAnalyticsAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
@@ -155,7 +152,7 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
         ActionListener<AcknowledgedResponse> listener
     ) {
         String id = request.getId();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         DataFrameAnalyticsState taskState = MlTasks.getDataFrameAnalyticsState(id, tasks);
         if (taskState != DataFrameAnalyticsState.STOPPED) {
             listener.onFailure(

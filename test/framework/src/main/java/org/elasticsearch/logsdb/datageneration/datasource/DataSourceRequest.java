@@ -11,13 +11,22 @@ package org.elasticsearch.logsdb.datageneration.datasource;
 
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
-import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 
 import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 public interface DataSourceRequest<TResponse extends DataSourceResponse> {
     TResponse accept(DataSourceHandler handler);
+
+    record FieldDataGenerator(String fieldName, String fieldType, DataSource dataSource)
+        implements
+            DataSourceRequest<DataSourceResponse.FieldDataGenerator> {
+        public DataSourceResponse.FieldDataGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
 
     record LongGenerator() implements DataSourceRequest<DataSourceResponse.LongGenerator> {
         public DataSourceResponse.LongGenerator accept(DataSourceHandler handler) {
@@ -73,6 +82,30 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
+    record BooleanGenerator() implements DataSourceRequest<DataSourceResponse.BooleanGenerator> {
+        public DataSourceResponse.BooleanGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record InstantGenerator() implements DataSourceRequest<DataSourceResponse.InstantGenerator> {
+        public DataSourceResponse.InstantGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record GeoShapeGenerator() implements DataSourceRequest<DataSourceResponse.GeoShapeGenerator> {
+        public DataSourceResponse.GeoShapeGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record ShapeGenerator() implements DataSourceRequest<DataSourceResponse.ShapeGenerator> {
+        public DataSourceResponse.ShapeGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
     record NullWrapper() implements DataSourceRequest<DataSourceResponse.NullWrapper> {
         public DataSourceResponse.NullWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);
@@ -81,6 +114,26 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
 
     record ArrayWrapper() implements DataSourceRequest<DataSourceResponse.ArrayWrapper> {
         public DataSourceResponse.ArrayWrapper accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record RepeatingWrapper() implements DataSourceRequest<DataSourceResponse.RepeatingWrapper> {
+        public DataSourceResponse.RepeatingWrapper accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record MalformedWrapper(Supplier<Object> malformedValues) implements DataSourceRequest<DataSourceResponse.MalformedWrapper> {
+        public DataSourceResponse.MalformedWrapper accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record TransformWrapper(double transformedProportion, Function<Object, Object> transformation)
+        implements
+            DataSourceRequest<DataSourceResponse.TransformWrapper> {
+        public DataSourceResponse.TransformWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
     }
@@ -107,7 +160,7 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
 
     record LeafMappingParametersGenerator(
         String fieldName,
-        FieldType fieldType,
+        String fieldType,
         Set<String> eligibleCopyToFields,
         DynamicMapping dynamicMapping
     ) implements DataSourceRequest<DataSourceResponse.LeafMappingParametersGenerator> {

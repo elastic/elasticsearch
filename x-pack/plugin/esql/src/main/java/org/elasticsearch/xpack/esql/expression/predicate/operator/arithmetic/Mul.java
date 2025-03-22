@@ -26,6 +26,7 @@ public class Mul extends EsqlArithmeticOperation implements BinaryComparisonInve
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Mul", Mul::new);
 
     @FunctionInfo(
+        operator = "*",
         returnType = { "double", "integer", "long", "unsigned_long" },
         description = "Multiply two numbers together. "
             + "If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."

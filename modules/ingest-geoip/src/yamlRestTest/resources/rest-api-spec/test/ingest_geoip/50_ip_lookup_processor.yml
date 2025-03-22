@@ -1,9 +1,3 @@
-setup:
-  - requires:
-      cluster_features:
-        - "put_database_configuration_action.ipinfo"
-      reason: "ipinfo support added in 8.16"
-
 ---
 "Test ip_location processor with defaults":
   - do:

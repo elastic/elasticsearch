@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -30,7 +31,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.AlibabaCloudSearchActionCreator;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
@@ -75,6 +76,13 @@ public class AlibabaCloudSearchService extends SenderService {
         TaskType.SPARSE_EMBEDDING,
         TaskType.RERANK,
         TaskType.COMPLETION
+    );
+
+    public static final EnumSet<InputType> VALID_INPUT_TYPE_VALUES = EnumSet.of(
+        InputType.INGEST,
+        InputType.SEARCH,
+        InputType.INTERNAL_INGEST,
+        InputType.INTERNAL_SEARCH
     );
 
     public AlibabaCloudSearchService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -272,7 +280,6 @@ public class AlibabaCloudSearchService extends SenderService {
         Model model,
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
-        InputType inputType,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
@@ -284,14 +291,19 @@ public class AlibabaCloudSearchService extends SenderService {
         AlibabaCloudSearchModel alibabaCloudSearchModel = (AlibabaCloudSearchModel) model;
         var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
 
-        var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings, inputType);
+        var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings);
         action.execute(inputs, timeout, listener);
+    }
+
+    @Override
+    protected void validateInputType(InputType inputType, Model model, ValidationException validationException) {
+        ServiceUtils.validateInputTypeAgainstAllowlist(inputType, VALID_INPUT_TYPE_VALUES, SERVICE_NAME, validationException);
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
-        DocumentsOnlyInput inputs,
+        EmbeddingsInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -305,25 +317,16 @@ public class AlibabaCloudSearchService extends SenderService {
         AlibabaCloudSearchModel alibabaCloudSearchModel = (AlibabaCloudSearchModel) model;
         var actionCreator = new AlibabaCloudSearchActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            getEmbeddingTypeFromTaskType(alibabaCloudSearchModel.getTaskType()),
             alibabaCloudSearchModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings, inputType);
-            action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
+            var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings);
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
-    }
-
-    private EmbeddingRequestChunker.EmbeddingType getEmbeddingTypeFromTaskType(TaskType taskType) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.FLOAT;
-            case SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
-            default -> throw new IllegalArgumentException("Unsupported task type for chunking: " + taskType);
-        };
     }
 
     /**
@@ -379,7 +382,9 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     SERVICE_ID,
-                    new SettingsConfiguration.Builder().setDescription("The name of the model service to use for the {infer} task.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model service to use for the {infer} task."
+                    )
                         .setLabel("Project ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -390,7 +395,7 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     HOST,
-                    new SettingsConfiguration.Builder().setDescription(
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
                         "The name of the host address used for the {infer} task. You can find the host address at "
                             + "https://opensearch.console.aliyun.com/cn-shanghai/rag/api-key[ the API keys section] "
                             + "of the documentation."
@@ -405,9 +410,9 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     HTTP_SCHEMA_NAME,
-                    new SettingsConfiguration.Builder().setDescription("")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
                         .setLabel("HTTP Schema")
-                        .setRequired(true)
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
@@ -416,7 +421,9 @@ public class AlibabaCloudSearchService extends SenderService {
 
                 configurationMap.put(
                     WORKSPACE_NAME,
-                    new SettingsConfiguration.Builder().setDescription("The name of the workspace used for the {infer} task.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the workspace used for the {infer} task."
+                    )
                         .setLabel("Workspace")
                         .setRequired(true)
                         .setSensitive(false)
@@ -426,9 +433,12 @@ public class AlibabaCloudSearchService extends SenderService {
                 );
 
                 configurationMap.putAll(
-                    DefaultSecretSettings.toSettingsConfigurationWithDescription("A valid API key for the AlibabaCloud AI Search API.")
+                    DefaultSecretSettings.toSettingsConfigurationWithDescription(
+                        "A valid API key for the AlibabaCloud AI Search API.",
+                        supportedTaskTypes
+                    )
                 );
-                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)

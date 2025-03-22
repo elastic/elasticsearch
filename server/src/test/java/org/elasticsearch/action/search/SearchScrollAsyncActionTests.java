@@ -23,7 +23,6 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -86,7 +85,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 assertEquals(1, movedCounter.incrementAndGet());
                 return new SearchPhase("test") {
                     @Override
-                    public void run() throws IOException {
+                    protected void run() {
                         latch.countDown();
                     }
                 };
@@ -183,7 +182,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 assertEquals(1, movedCounter.incrementAndGet());
                 return new SearchPhase("TEST_PHASE") {
                     @Override
-                    public void run() throws IOException {
+                    protected void run() {
                         throw new IllegalArgumentException("BOOM");
                     }
                 };
@@ -261,7 +260,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 assertEquals(1, movedCounter.incrementAndGet());
                 return new SearchPhase("test") {
                     @Override
-                    public void run() throws IOException {
+                    protected void run() {
                         latch.countDown();
                     }
                 };
@@ -343,7 +342,7 @@ public class SearchScrollAsyncActionTests extends ESTestCase {
                 assertEquals(1, movedCounter.incrementAndGet());
                 return new SearchPhase("test") {
                     @Override
-                    public void run() throws IOException {
+                    protected void run() {
                         latch.countDown();
                     }
                 };

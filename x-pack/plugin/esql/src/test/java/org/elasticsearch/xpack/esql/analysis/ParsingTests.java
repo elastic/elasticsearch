@@ -79,7 +79,11 @@ public class ParsingTests extends ESTestCase {
      */
     public void testInlineCast() throws IOException {
         EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
-        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir")).resolve("esql").resolve("functions").resolve("kibana");
+        Path dir = PathUtils.get(System.getProperty("java.io.tmpdir"))
+            .resolve("query-languages")
+            .resolve("esql")
+            .resolve("kibana")
+            .resolve("definition");
         Files.createDirectories(dir);
         Path file = dir.resolve("inline_cast.json");
         try (XContentBuilder report = new XContentBuilder(JsonXContent.jsonXContent, Files.newOutputStream(file))) {
@@ -113,7 +117,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testJoinOnConstant() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
             "1:55: JOIN ON clause only supports fields at the moment, found [123]",
             error("row languages = 1, gender = \"f\" | lookup join test on 123")
@@ -129,7 +133,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testJoinOnMultipleFields() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
             "1:35: JOIN ON clause only supports one field at the moment, found [2]",
             error("row languages = 1, gender = \"f\" | lookup join test on gender, languages")
@@ -137,7 +141,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testJoinTwiceOnTheSameField() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
             "1:35: JOIN ON clause only supports one field at the moment, found [2]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages, languages")
@@ -145,7 +149,7 @@ public class ParsingTests extends ESTestCase {
     }
 
     public void testJoinTwiceOnTheSameField_TwoLookups() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertEquals(
             "1:80: JOIN ON clause only supports one field at the moment, found [2]",
             error("row languages = 1, gender = \"f\" | lookup join test on languages | eval x = 1 | lookup join test on gender, gender")

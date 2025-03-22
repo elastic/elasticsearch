@@ -16,7 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
-import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.sort.SortOrder;
@@ -406,6 +406,42 @@ public abstract class BucketedSortTestCase<T extends Releasable, V extends Compa
             assertBlock(sort, 0, List.of(values.get(0), values.get(0), values.get(1)));
             assertBlock(sort, 1, List.of(values.get(0), values.get(1), values.get(1)));
             assertBlock(sort, 2, values);
+        }
+    }
+
+    public final void testMergePastEnd() {
+        int buckets = 10000;
+        int bucketSize = between(1, 1000);
+        int target = between(0, buckets);
+        List<V> values = randomList(buckets, buckets, this::randomValue);
+        Collections.sort(values);
+        try (T sort = build(SortOrder.ASC, bucketSize)) {
+            // Add a single value to the main sort.
+            for (int b = 0; b < buckets; b++) {
+                collect(sort, values.get(b), b);
+            }
+
+            try (T other = build(SortOrder.ASC, bucketSize)) {
+                // Add *all* values to the target bucket of the secondary sort.
+                for (int i = 0; i < values.size(); i++) {
+                    if (i != target) {
+                        collect(other, values.get(i), target);
+                    }
+                }
+
+                // Merge all buckets pairwise. Most of the secondary ones are empty.
+                for (int b = 0; b < buckets; b++) {
+                    merge(sort, b, other, b);
+                }
+            }
+
+            for (int b = 0; b < buckets; b++) {
+                if (b == target) {
+                    assertBlock(sort, b, values.subList(0, bucketSize));
+                } else {
+                    assertBlock(sort, b, List.of(values.get(b)));
+                }
+            }
         }
     }
 

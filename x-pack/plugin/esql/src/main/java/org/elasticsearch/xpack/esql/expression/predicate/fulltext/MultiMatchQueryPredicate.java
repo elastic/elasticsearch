@@ -9,9 +9,14 @@ package org.elasticsearch.xpack.esql.expression.predicate.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
+import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.MultiMatchQuery;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,7 +25,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
-public class MultiMatchQueryPredicate extends FullTextPredicate {
+public class MultiMatchQueryPredicate extends FullTextPredicate implements TranslationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -87,5 +92,15 @@ public class MultiMatchQueryPredicate extends FullTextPredicate {
     @Override
     public String getWriteableName() {
         return ENTRY.name;
+    }
+
+    @Override
+    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
+        return true; // needs update if we'll ever validate the fields
+    }
+
+    @Override
+    public Query asQuery(TranslatorHandler handler) {
+        return new MultiMatchQuery(source(), query(), fields(), this);
     }
 }

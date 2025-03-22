@@ -1340,7 +1340,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMetrics() {
-        var query = "METRICS k8s bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
+        var query = "METRICS k8s | STATS bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
             assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'METRICS' expecting {"));
@@ -1365,7 +1365,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             "FROM employees | KEEP languages | RENAME languages AS language_code | LOOKUP JOIN languages_lookup ON language_code",
             Set.of("languages", "languages.*", "language_code", "language_code.*"),
@@ -1374,7 +1374,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLookupJoinKeep() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1388,7 +1388,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testLookupJoinKeepWildcard() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM employees
@@ -1402,7 +1402,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoin() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1415,7 +1415,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepBefore() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1429,7 +1429,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepBetween() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1454,7 +1454,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfter() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1481,7 +1481,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinKeepAfterWildcard() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1495,7 +1495,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndex() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1509,7 +1509,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepBefore() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1524,7 +1524,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepBetween() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1550,7 +1550,7 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
     }
 
     public void testMultiLookupJoinSameIndexKeepAfter() {
-        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V10.isEnabled());
+        assumeTrue("LOOKUP JOIN available as snapshot only", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
         assertFieldNames(
             """
                 FROM sample_data
@@ -1572,6 +1572,84 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
                 "env.*"
             ),
             Set.of()  // Since the KEEP is after both JOINs, we can use the global field names
+        );
+    }
+
+    public void testInsist_fieldIsMappedToNonKeywordSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 client_ip | KEEP @timestamp, client_ip",
+            Set.of("@timestamp", "@timestamp.*", "client_ip", "client_ip.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsMappedToKeywordSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 message | KEEP @timestamp, message",
+            Set.of("@timestamp", "@timestamp.*", "message", "message.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldDoesNotExistSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 foo | KEEP @timestamp, foo",
+            Set.of("@timestamp", "@timestamp.*", "foo", "foo.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsUnmappedSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 unmapped_message | KEEP @timestamp, unmapped_message",
+            Set.of("@timestamp", "@timestamp.*", "unmapped_message", "unmapped_message.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_multiFieldTestSingleIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM partial_mapping_sample_data | INSIST_🐔 message, unmapped_message, client_ip, foo | KEEP @timestamp, unmapped_message",
+            Set.of(
+                "@timestamp",
+                "@timestamp.*",
+                "message",
+                "message.*",
+                "unmapped_message",
+                "unmapped_message.*",
+                "client_ip",
+                "client_ip.*",
+                "foo",
+                "foo.*"
+            ),
+            Set.of()
+        );
+    }
+
+    public void testInsist_fieldIsMappedToDifferentTypesMultiIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            "FROM sample_data_ts_long, sample_data METADATA _index | INSIST_🐔 @timestamp | KEEP _index, @timestamp",
+            Set.of("@timestamp", "@timestamp.*"),
+            Set.of()
+        );
+    }
+
+    public void testInsist_multiFieldMappedMultiIndex() {
+        assumeTrue("UNMAPPED_FIELDS available as snapshot only", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+        assertFieldNames(
+            """
+                FROM sample_data_ts_long, sample_data METADATA _index
+                | INSIST_🐔 @timestamp, unmapped_message
+                | INSIST_🐔 message, foo
+                | KEEP _index, @timestamp, message, foo""",
+            Set.of("@timestamp", "@timestamp.*", "message", "message.*", "unmapped_message", "unmapped_message.*", "foo", "foo.*"),
+            Set.of()
         );
     }
 

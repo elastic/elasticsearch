@@ -216,32 +216,7 @@ final class IndexShardOperationPermits implements Closeable {
         try {
             synchronized (this) {
                 if (queuedBlockOperations > 0) {
-                    final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
-                    final ActionListener<Releasable> wrappedListener;
-                    if (executorOnDelay != null) {
-                        wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired).delegateFailure(
-                            (l, r) -> executorOnDelay.execute(new ActionRunnable<>(l) {
-                                @Override
-                                public boolean isForceExecution() {
-                                    return forceExecution;
-                                }
-
-                                @Override
-                                protected void doRun() {
-                                    listener.onResponse(r);
-                                }
-
-                                @Override
-                                public void onRejection(Exception e) {
-                                    IOUtils.closeWhileHandlingException(r);
-                                    super.onRejection(e);
-                                }
-                            })
-                        );
-                    } else {
-                        wrappedListener = new ContextPreservingActionListener<>(contextSupplier, onAcquired);
-                    }
-                    delayedOperations.add(wrappedListener);
+                    delayedOperations.add(wrapContextPreservingActionListener(onAcquired, executorOnDelay, forceExecution));
                     return;
                 } else {
                     releasable = acquire();
@@ -253,6 +228,39 @@ final class IndexShardOperationPermits implements Closeable {
         }
         // execute this outside the synchronized block!
         onAcquired.onResponse(releasable);
+    }
+
+    private <T extends Closeable> ActionListener<T> wrapContextPreservingActionListener(
+        ActionListener<T> listener,
+        @Nullable final Executor executorOnDelay,
+        final boolean forceExecution
+    ) {
+        final Supplier<StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(false);
+        final ActionListener<T> wrappedListener;
+        if (executorOnDelay != null) {
+            wrappedListener = new ContextPreservingActionListener<>(contextSupplier, listener).delegateFailure(
+                (l, r) -> executorOnDelay.execute(new ActionRunnable<>(l) {
+                    @Override
+                    public boolean isForceExecution() {
+                        return forceExecution;
+                    }
+
+                    @Override
+                    protected void doRun() {
+                        listener.onResponse(r);
+                    }
+
+                    @Override
+                    public void onRejection(Exception e) {
+                        IOUtils.closeWhileHandlingException(r);
+                        super.onRejection(e);
+                    }
+                })
+            );
+        } else {
+            wrappedListener = new ContextPreservingActionListener<>(contextSupplier, listener);
+        }
+        return wrappedListener;
     }
 
     private Releasable acquire() throws InterruptedException {

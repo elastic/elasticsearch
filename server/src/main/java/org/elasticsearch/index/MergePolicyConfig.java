@@ -116,9 +116,9 @@ public final class MergePolicyConfig {
     private final ByteSizeValue defaultMaxTimeBasedMergedSegment;
 
     public static final double DEFAULT_EXPUNGE_DELETES_ALLOWED = 10d;
-    public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = new ByteSizeValue(2, ByteSizeUnit.MB);
+    public static final ByteSizeValue DEFAULT_FLOOR_SEGMENT = ByteSizeValue.of(2, ByteSizeUnit.MB);
     public static final int DEFAULT_MAX_MERGE_AT_ONCE = 10;
-    public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = new ByteSizeValue(5, ByteSizeUnit.GB);
+    public static final ByteSizeValue DEFAULT_MAX_MERGED_SEGMENT = ByteSizeValue.of(5, ByteSizeUnit.GB);
     public static final Setting<ByteSizeValue> DEFAULT_MAX_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
         "indices.merge.policy.max_merged_segment",
         DEFAULT_MAX_MERGED_SEGMENT,
@@ -131,7 +131,7 @@ public final class MergePolicyConfig {
      * of merging fewer segments together than the merge factor, which in-turn increases write amplification. So we set an arbitrarily high
      * roof that serves as a protection that we expect to never hit.
      */
-    public static final ByteSizeValue DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT = new ByteSizeValue(100, ByteSizeUnit.GB);
+    public static final ByteSizeValue DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT = ByteSizeValue.of(100, ByteSizeUnit.GB);
     public static final Setting<ByteSizeValue> DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT_SETTING = Setting.byteSizeSetting(
         "indices.merge.policy.max_time_based_merged_segment",
         DEFAULT_MAX_TIME_BASED_MERGED_SEGMENT,
@@ -236,7 +236,7 @@ public final class MergePolicyConfig {
         "index.merge.policy.max_merge_at_once_explicit",
         30,
         2,
-        Property.Deprecated, // When removing in 9.0 follow the approach of IndexSettingDeprecatedInV7AndRemovedInV8
+        Property.IndexSettingDeprecatedInV9AndRemovedInV10,
         Property.Dynamic,
         Property.IndexScope
     );

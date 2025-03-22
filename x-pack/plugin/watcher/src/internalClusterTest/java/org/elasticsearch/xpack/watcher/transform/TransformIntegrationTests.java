@@ -140,14 +140,16 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
             assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
+            Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+            assertThat(source.size(), equalTo(1));
+            assertThat(source.get("key3").toString(), equalTo("20"));
         });
 
         assertNoFailuresAndResponse(prepareSearch("output2"), response -> {
             assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().get("key3").toString(), equalTo("20"));
+            Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+            assertThat(source.size(), equalTo(1));
+            assertThat(source.get("key3").toString(), equalTo("20"));
         });
     }
 
@@ -224,14 +226,16 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         assertNoFailuresAndResponse(prepareSearch("output1"), response -> {
             assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
+            Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+            assertThat(source.size(), equalTo(1));
+            assertThat(source.get("key4").toString(), equalTo("30"));
         });
 
         assertNoFailuresAndResponse(prepareSearch("output2"), response -> {
             assertThat(response.getHits().getTotalHits().value(), greaterThanOrEqualTo(1L));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
-            assertThat(response.getHits().getAt(0).getSourceAsMap().get("key4").toString(), equalTo("30"));
+            Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+            assertThat(source.size(), equalTo(1));
+            assertThat(source.get("key4").toString(), equalTo("30"));
         });
     }
 

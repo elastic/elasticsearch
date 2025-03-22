@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.XFeatureField;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -115,7 +116,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         var settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                SemanticInferenceMetadataFieldMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
+                SemanticInferenceMetadataFieldsMapperTests.getRandomCompatibleIndexVersion(useLegacyFormat)
             )
             .put(InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT.getKey(), useLegacyFormat)
             .build();
@@ -133,11 +134,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "semantic_text");
-    }
-
-    @Override
-    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        return "cannot have nested fields when index is in [index.mode=time_series]";
     }
 
     @Override
@@ -182,16 +178,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     @Override
     public MappedFieldType getMappedFieldType() {
-        return new SemanticTextFieldMapper.SemanticTextFieldType(
-            "field",
-            "fake-inference-id",
-            null,
-            null,
-            null,
-            getVersion(),
-            false,
-            Map.of()
-        );
+        return new SemanticTextFieldMapper.SemanticTextFieldType("field", "fake-inference-id", null, null, null, false, Map.of());
     }
 
     @Override
@@ -306,17 +293,100 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testCannotBeUsedInMultiFields() {
-        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
-            b.field("type", "text");
-            b.startObject("fields");
-            b.startObject("semantic");
-            b.field("type", "semantic_text");
-            b.field("inference_id", "my_inference_id");
-            b.endObject();
-            b.endObject();
-        }), useLegacyFormat));
-        assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
+    public void testInvalidTaskTypes() {
+        for (var taskType : TaskType.values()) {
+            if (taskType == TaskType.TEXT_EMBEDDING || taskType == TaskType.SPARSE_EMBEDDING) {
+                continue;
+            }
+            Exception e = expectThrows(
+                MapperParsingException.class,
+                () -> createMapperService(
+                    fieldMapping(
+                        b -> b.field("type", "semantic_text")
+                            .field(INFERENCE_ID_FIELD, "test1")
+                            .startObject("model_settings")
+                            .field("task_type", taskType)
+                            .endObject()
+                    ),
+                    useLegacyFormat
+                )
+            );
+            assertThat(e.getMessage(), containsString("Failed to parse mapping: Wrong [task_type]"));
+        }
+    }
+
+    public void testMultiFieldsSupport() throws IOException {
+        if (useLegacyFormat) {
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("semantic");
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat));
+            assertThat(e.getMessage(), containsString("Field [semantic] of type [semantic_text] can't be used in multifields"));
+        } else {
+            var mapperService = createMapperService(fieldMapping(b -> {
+                b.field("type", "text");
+                b.startObject("fields");
+                b.startObject("semantic");
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.startObject("model_settings");
+                b.field("task_type", "sparse_embedding");
+                b.endObject();
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat);
+            assertSemanticTextField(mapperService, "field.semantic", true);
+
+            mapperService = createMapperService(fieldMapping(b -> {
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.startObject("model_settings");
+                b.field("task_type", "sparse_embedding");
+                b.endObject();
+                b.startObject("fields");
+                b.startObject("text");
+                b.field("type", "text");
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat);
+            assertSemanticTextField(mapperService, "field", true);
+
+            mapperService = createMapperService(fieldMapping(b -> {
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.startObject("model_settings");
+                b.field("task_type", "sparse_embedding");
+                b.endObject();
+                b.startObject("fields");
+                b.startObject("semantic");
+                b.field("type", "semantic_text");
+                b.field("inference_id", "another_inference_id");
+                b.startObject("model_settings");
+                b.field("task_type", "sparse_embedding");
+                b.endObject();
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat);
+            assertSemanticTextField(mapperService, "field", true);
+            assertSemanticTextField(mapperService, "field.semantic", true);
+
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                b.field("type", "semantic_text");
+                b.field("inference_id", "my_inference_id");
+                b.startObject("fields");
+                b.startObject("inference");
+                b.field("type", "text");
+                b.endObject();
+                b.endObject();
+            }), useLegacyFormat));
+            assertThat(e.getMessage(), containsString("is already used by another field"));
+
+        }
     }
 
     public void testUpdatesToInferenceIdNotSupported() throws IOException {
@@ -345,7 +415,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             MapperService mapperService = mapperServiceForFieldWithModelSettings(
                 fieldName,
                 inferenceId,
-                new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
+                new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
             assertSemanticTextField(mapperService, fieldName, true);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
@@ -356,7 +426,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                 fieldName,
                 inferenceId,
                 searchInferenceId,
-                new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
+                new MinimalServiceSettings("service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
             assertSemanticTextField(mapperService, fieldName, true);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, searchInferenceId);
@@ -434,8 +504,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     exc.getMessage(),
                     containsString(
                         "Cannot update parameter [model_settings] "
-                            + "from [task_type=sparse_embedding] "
-                            + "to [task_type=text_embedding, dimensions=10, similarity=cosine, element_type=float]"
+                            + "from [service=null, task_type=sparse_embedding] "
+                            + "to [service=null, task_type=text_embedding, dimensions=10, similarity=cosine, element_type=float]"
                     )
                 );
             }
@@ -476,7 +546,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             mapperService = mapperServiceForFieldWithModelSettings(
                 fieldName,
                 inferenceId,
-                new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
+                new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
             );
             assertSemanticTextField(mapperService, fieldName, true);
             assertInferenceEndpoints(mapperService, fieldName, inferenceId, inferenceId);
@@ -695,7 +765,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         useLegacyFormat,
                         b -> b.startObject("field")
                             .startObject(INFERENCE_FIELD)
-                            .field(MODEL_SETTINGS_FIELD, new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null))
+                            .field(
+                                MODEL_SETTINGS_FIELD,
+                                new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
+                            )
                             .field(CHUNKS_FIELD, useLegacyFormat ? List.of() : Map.of())
                             .endObject()
                             .endObject()
@@ -757,7 +830,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService floatMapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new SemanticTextField.ModelSettings(
+            new MinimalServiceSettings(
+                "my-service",
                 TaskType.TEXT_EMBEDDING,
                 1024,
                 SimilarityMeasure.COSINE,
@@ -769,7 +843,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService byteMapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new SemanticTextField.ModelSettings(
+            new MinimalServiceSettings(
+                "my-service",
                 TaskType.TEXT_EMBEDDING,
                 1024,
                 SimilarityMeasure.COSINE,
@@ -808,11 +883,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(ex.getMessage(), containsString("[model_settings] must be set for field [field] when chunks are provided"));
     }
 
-    private MapperService mapperServiceForFieldWithModelSettings(
-        String fieldName,
-        String inferenceId,
-        SemanticTextField.ModelSettings modelSettings
-    ) throws IOException {
+    private MapperService mapperServiceForFieldWithModelSettings(String fieldName, String inferenceId, MinimalServiceSettings modelSettings)
+        throws IOException {
         return mapperServiceForFieldWithModelSettings(fieldName, inferenceId, null, modelSettings);
     }
 
@@ -820,7 +892,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         String fieldName,
         String inferenceId,
         String searchInferenceId,
-        SemanticTextField.ModelSettings modelSettings
+        MinimalServiceSettings modelSettings
     ) throws IOException {
         String mappingParams = "type=semantic_text,inference_id=" + inferenceId;
         if (searchInferenceId != null) {
@@ -867,7 +939,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null)
+            new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
         );
 
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
@@ -884,7 +956,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new SemanticTextField.ModelSettings(
+            new MinimalServiceSettings(
+                "my-service",
                 TaskType.TEXT_EMBEDDING,
                 1024,
                 SimilarityMeasure.COSINE,
@@ -920,7 +993,7 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         mappingBuilder.endObject();
     }
 
-    private static void addSemanticTextInferenceResults(
+    public static void addSemanticTextInferenceResults(
         boolean useLegacyFormat,
         XContentBuilder sourceBuilder,
         List<SemanticTextField> semanticTextInferenceResults

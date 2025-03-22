@@ -22,12 +22,17 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldCollectorManager;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -44,6 +49,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
 
     private final IndexVersion indexVersionCreated;
     private final IndexSearcher indexSearcher;
+    private final ValueFetcher sourceMetadataFetcher;
     private final Closeable onClose;
 
     protected final long fromSeqNo, toSeqNo;
@@ -67,6 +73,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * @param indexVersionCreated  Version of the index when it was created.
      */
     protected SearchBasedChangesSnapshot(
+        MapperService mapperService,
         Engine.Searcher engineSearcher,
         int searchBatchSize,
         long fromSeqNo,
@@ -103,6 +110,19 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
 
         this.accessStats = accessStats;
         this.totalHits = accessStats ? indexSearcher.count(rangeQuery(fromSeqNo, toSeqNo, indexVersionCreated)) : -1;
+        this.sourceMetadataFetcher = createSourceMetadataValueFetcher(mapperService, indexSearcher);
+    }
+
+    private ValueFetcher createSourceMetadataValueFetcher(MapperService mapperService, IndexSearcher searcher) {
+        if (mapperService.mappingLookup().inferenceFields().isEmpty()) {
+            return null;
+        }
+        var mapper = (InferenceMetadataFieldsMapper) mapperService.mappingLookup()
+            .getMapping()
+            .getMetadataMapperByName(InferenceMetadataFieldsMapper.NAME);
+        return mapper != null
+            ? mapper.fieldType().valueFetcher(mapperService.mappingLookup(), mapperService.getBitSetProducer(), searcher)
+            : null;
     }
 
     /**
@@ -166,13 +186,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         Query rangeQuery = rangeQuery(Math.max(fromSeqNo, lastSeenSeqNo), toSeqNo, indexVersionCreated);
         SortField sortBySeqNo = new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG);
 
-        TopFieldCollectorManager collectorManager = new TopFieldCollectorManager(
-            new Sort(sortBySeqNo),
-            searchBatchSize,
-            afterDoc,
-            0,
-            false
-        );
+        TopFieldCollectorManager collectorManager = new TopFieldCollectorManager(new Sort(sortBySeqNo), searchBatchSize, afterDoc, 0);
         TopDocs results = indexSearcher.search(rangeQuery, collectorManager);
 
         if (results.scoreDocs.length > 0) {
@@ -182,6 +196,45 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
             results.scoreDocs[i].shardIndex = i;
         }
         return results;
+    }
+
+    /**
+     * Sets the reader context to enable reading metadata that was removed from the {@code _source}.
+     * This method sets up the {@code sourceMetadataFetcher} with the provided {@link LeafReaderContext},
+     * ensuring it is ready to fetch metadata for subsequent operations.
+     *
+     * <p>Note: This method should be called before {@link #addSourceMetadata(BytesReference, int)} at the start of every leaf
+     * to ensure the metadata fetcher is properly initialized.</p>
+     */
+    protected void setNextSourceMetadataReader(LeafReaderContext context) {
+        if (sourceMetadataFetcher != null) {
+            sourceMetadataFetcher.setNextReader(context);
+        }
+    }
+
+    /**
+     * Creates a new {@link Source} object by combining the provided {@code originalSource}
+     * with additional metadata fields. If the {@code sourceMetadataFetcher} is null or no metadata
+     * fields are fetched, the original source is returned unchanged.
+     *
+     * @param originalSourceBytes the original source bytes
+     * @param segmentDocID the document ID used to fetch metadata fields
+     * @return a new {@link Source} instance containing the original data and additional metadata,
+     *         or the original source if no metadata is added
+     * @throws IOException if an error occurs while fetching metadata values
+     */
+    protected BytesReference addSourceMetadata(BytesReference originalSourceBytes, int segmentDocID) throws IOException {
+        if (sourceMetadataFetcher == null) {
+            return originalSourceBytes;
+        }
+        var originalSource = Source.fromBytes(originalSourceBytes);
+        List<Object> values = sourceMetadataFetcher.fetchValues(originalSource, segmentDocID, List.of());
+        if (values.isEmpty()) {
+            return originalSourceBytes;
+        }
+        var map = originalSource.source();
+        map.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
+        return Source.fromMap(map, originalSource.sourceContentType()).internalSourceRef();
     }
 
     static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {

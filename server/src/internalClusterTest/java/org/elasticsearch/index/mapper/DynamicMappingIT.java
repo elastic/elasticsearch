@@ -96,7 +96,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         client().prepareIndex("index").setId("1").setSource("a.x", 1).get();
         client().prepareIndex("index").setId("2").setSource("a.y", 2).get();
 
-        Map<String, Object> mappings = indicesAdmin().prepareGetMappings("index").get().mappings().get("index").sourceAsMap();
+        Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+            .get()
+            .mappings()
+            .get("index")
+            .sourceAsMap();
         assertTrue(new WriteField("properties.a", () -> mappings).exists());
         assertTrue(new WriteField("properties.a.properties.x", () -> mappings).exists());
     }
@@ -183,7 +187,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfFieldsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
-        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings("index").get();
+        GetMappingsResponse mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index").get();
         MappingMetadata indexMappings = mappings.getMappings().get("index");
         assertNotNull(indexMappings);
         Map<String, Object> typeMappingsMap = indexMappings.getSourceAsMap();
@@ -214,7 +218,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (int i = 0; i < numberOfDocsToCreate; ++i) {
             assertTrue(client().prepareGet("index", Integer.toString(i)).get().isExists());
         }
-        Map<String, Object> index = indicesAdmin().prepareGetMappings("index").get().getMappings().get("index").getSourceAsMap();
+        Map<String, Object> index = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "index")
+            .get()
+            .getMappings()
+            .get("index")
+            .getSourceAsMap();
         for (int i = 0, j = 1; i < numberOfDocsToCreate; i++, j++) {
             assertThat(new WriteField("properties.field" + i + ".type", () -> index).get(null), is(oneOf("long", "float")));
             assertThat(new WriteField("properties.field" + j + ".type", () -> index).get(null), is(oneOf("long", "float")));
@@ -525,9 +533,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
     public void testMappingVersionAfterDynamicMappingUpdate() throws Exception {
         createIndex("test");
         final ClusterService clusterService = internalCluster().clusterService();
-        final long previousVersion = clusterService.state().metadata().index("test").getMappingVersion();
+        final long previousVersion = clusterService.state().metadata().getProject().index("test").getMappingVersion();
         prepareIndex("test").setId("1").setSource("field", "text").get();
-        assertBusy(() -> assertThat(clusterService.state().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion)));
+        assertBusy(
+            () -> assertThat(clusterService.state().metadata().getProject().index("test").getMappingVersion(), equalTo(1 + previousVersion))
+        );
     }
 
     public void testBulkRequestWithDynamicTemplates() throws Exception {
@@ -806,7 +816,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {
-            Map<String, Object> mappings = indicesAdmin().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
             @SuppressWarnings("unchecked")
             Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
             assertEquals(4, properties.size());
@@ -851,7 +865,11 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertEquals(RestStatus.CREATED, indexResponse.status());
 
         assertBusy(() -> {
-            Map<String, Object> mappings = indicesAdmin().prepareGetMappings("test").get().mappings().get("test").sourceAsMap();
+            Map<String, Object> mappings = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .mappings()
+                .get("test")
+                .sourceAsMap();
             Map<String, Object> properties = (Map<String, Object>) mappings.get("properties");
             Map<String, Object> foo = (Map<String, Object>) properties.get("foo");
             properties = (Map<String, Object>) foo.get("properties");

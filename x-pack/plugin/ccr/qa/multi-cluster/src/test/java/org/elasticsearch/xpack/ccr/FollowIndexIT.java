@@ -368,7 +368,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
             Settings settings = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
                 .build();
             createIndex(adminClient(), leaderIndexName, settings, """
                 "properties": {"kwd": {"type": "keyword"}}}""", null);

@@ -67,6 +67,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         description = """
             Returns a subset of the multivalued field using the start and end index values.
@@ -74,7 +75,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             in a known order like <<esql-split>> or <<esql-mv_sort>>.""",
         detailedDescription = """
             The order that <<esql-multivalued-fields, multivalued fields>> are read from
-            underlying storage is not guaranteed. It is *frequently* ascending, but don't
+            underlying storage is not guaranteed. It is **frequently** ascending, but don’t
             rely on that.""",
         examples = { @Example(file = "ints", tag = "mv_slice_positive"), @Example(file = "ints", tag = "mv_slice_negative") }
     )
@@ -96,6 +97,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "keyword",
                 "long",
                 "text",
+                "unsigned_long",
                 "version" },
             description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,
@@ -130,7 +132,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteable(start);
         out.writeOptionalNamedWriteable(end);
@@ -187,8 +189,8 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (start.foldable() && end.foldable()) {
-            int startOffset = stringToInt(String.valueOf(start.fold()));
-            int endOffset = stringToInt(String.valueOf(end.fold()));
+            int startOffset = stringToInt(String.valueOf(start.fold(toEvaluator.foldCtx())));
+            int endOffset = stringToInt(String.valueOf(end.fold(toEvaluator.foldCtx())));
             checkStartEnd(startOffset, endOffset);
         }
         return switch (PlannerUtils.toElementType(field.dataType())) {

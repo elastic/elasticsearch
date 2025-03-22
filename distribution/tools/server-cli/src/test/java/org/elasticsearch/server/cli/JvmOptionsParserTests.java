@@ -11,9 +11,12 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -43,6 +46,19 @@ import static org.hamcrest.Matchers.not;
 public class JvmOptionsParserTests extends ESTestCase {
 
     private static final Map<String, String> TEST_SYSPROPS = Map.of("os.name", "Linux", "os.arch", "aarch64");
+
+    private static final Path ENTITLEMENTS_LIB_DIR = Path.of("lib", "entitlement-bridge");
+
+    @BeforeClass
+    public static void beforeClass() throws IOException {
+        Files.createDirectories(ENTITLEMENTS_LIB_DIR);
+        Files.createTempFile(ENTITLEMENTS_LIB_DIR, "mock-entitlements-bridge", ".jar");
+    }
+
+    @AfterClass
+    public static void afterClass() throws IOException {
+        IOUtils.rm(Path.of("lib"));
+    }
 
     public void testSubstitution() {
         final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(

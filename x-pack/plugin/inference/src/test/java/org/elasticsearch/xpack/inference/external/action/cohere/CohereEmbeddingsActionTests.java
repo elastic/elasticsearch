@@ -22,12 +22,13 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.sender.CohereEmbeddingsRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.cohere.CohereUtils;
@@ -45,14 +46,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationByte;
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationByte;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.external.request.cohere.CohereEmbeddingsRequestEntity.convertToString;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -118,14 +119,15 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             var action = createAction(
                 getUrl(webServer),
                 "secret",
-                new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START),
+                new CohereEmbeddingsTaskSettings(null, CohereTruncation.START),
                 "model",
                 CohereEmbeddingType.FLOAT,
                 sender
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            var inputType = InputTypeTests.randomWithNull();
+            action.execute(new EmbeddingsInput(List.of("abc"), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -143,23 +145,31 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(
-                requestMap,
-                is(
-                    Map.of(
-                        "texts",
-                        List.of("abc"),
-                        "model",
-                        "model",
-                        "input_type",
-                        "search_document",
-                        "embedding_types",
-                        List.of("float"),
-                        "truncate",
-                        "start"
+            if (inputType != null && inputType != InputType.UNSPECIFIED) {
+                var cohereInputType = convertToString(inputType);
+                MatcherAssert.assertThat(
+                    requestMap,
+                    is(
+                        Map.of(
+                            "texts",
+                            List.of("abc"),
+                            "model",
+                            "model",
+                            "input_type",
+                            cohereInputType,
+                            "embedding_types",
+                            List.of("float"),
+                            "truncate",
+                            "start"
+                        )
                     )
-                )
-            );
+                );
+            } else {
+                MatcherAssert.assertThat(
+                    requestMap,
+                    is(Map.of("texts", List.of("abc"), "model", "model", "embedding_types", List.of("float"), "truncate", "start"))
+                );
+            }
         }
     }
 
@@ -206,7 +216,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -261,7 +271,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -272,8 +282,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+            ActionListener<HttpResult> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -282,22 +291,18 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send Cohere embeddings request to [%s]", getUrl(webServer)))
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsElasticsearchException_WhenSenderOnFailureIsCalled_WhenUrlIsNull() {
         var sender = mock(Sender.class);
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<HttpResult> listener = (ActionListener<HttpResult>) invocation.getArguments()[2];
+            ActionListener<HttpResult> listener = invocation.getArgument(3);
             listener.onFailure(new IllegalStateException("failed"));
 
             return Void.TYPE;
@@ -306,11 +311,11 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var action = createAction(null, "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request"));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsException() {
@@ -320,14 +325,11 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            is(format("Failed to send Cohere embeddings request to [%s]", getUrl(webServer)))
-        );
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request. Cause: failed"));
     }
 
     public void testExecute_ThrowsExceptionWithNullUrl() {
@@ -337,11 +339,11 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         var action = createAction(null, "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(new EmbeddingsInput(List.of("abc"), null), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request"));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request. Cause: failed"));
     }
 
     private ExecutableAction createAction(
@@ -353,10 +355,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
         Sender sender
     ) {
         var model = CohereEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            model.getServiceSettings().getCommonSettings().uri(),
-            "Cohere embeddings"
-        );
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage("Cohere embeddings");
         var requestCreator = CohereEmbeddingsRequestManager.of(model, threadPool);
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }

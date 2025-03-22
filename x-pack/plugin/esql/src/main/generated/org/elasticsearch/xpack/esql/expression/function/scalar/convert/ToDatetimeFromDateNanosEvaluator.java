@@ -13,21 +13,25 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDatetime}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDatetimeFromDateNanosEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDatetimeFromDateNanosEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
+  private final EvalOperator.ExpressionEvaluator in;
+
+  public ToDatetimeFromDateNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
       DriverContext driverContext) {
-    super(driverContext, field, source);
+    super(driverContext, source);
+    this.in = in;
   }
 
   @Override
-  public String name() {
-    return "ToDatetimeFromDateNanos";
+  public EvalOperator.ExpressionEvaluator next() {
+    return in;
   }
 
   @Override
@@ -55,7 +59,7 @@ public final class ToDatetimeFromDateNanosEvaluator extends AbstractConvertFunct
     }
   }
 
-  private static long evalValue(LongVector container, int index) {
+  private long evalValue(LongVector container, int index) {
     long value = container.getLong(index);
     return ToDatetime.fromDatenanos(value);
   }
@@ -94,29 +98,39 @@ public final class ToDatetimeFromDateNanosEvaluator extends AbstractConvertFunct
     }
   }
 
-  private static long evalValue(LongBlock container, int index) {
+  private long evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
     return ToDatetime.fromDatenanos(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToDatetimeFromDateNanosEvaluator[" + "in=" + in + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(in);
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in) {
       this.source = source;
+      this.in = in;
     }
 
     @Override
     public ToDatetimeFromDateNanosEvaluator get(DriverContext context) {
-      return new ToDatetimeFromDateNanosEvaluator(field.get(context), source, context);
+      return new ToDatetimeFromDateNanosEvaluator(source, in.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "ToDatetimeFromDateNanosEvaluator[field=" + field + "]";
+      return "ToDatetimeFromDateNanosEvaluator[" + "in=" + in + "]";
     }
   }
 }

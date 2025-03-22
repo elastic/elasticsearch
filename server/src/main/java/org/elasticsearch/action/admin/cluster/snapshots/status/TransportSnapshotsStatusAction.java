@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -81,8 +80,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         ThreadPool threadPool,
         RepositoriesService repositoriesService,
         NodeClient client,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             TYPE.name(),
@@ -91,7 +89,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             threadPool,
             actionFilters,
             SnapshotsStatusRequest::new,
-            indexNameExpressionResolver,
             SnapshotsStatusResponse::new,
             // building the response is somewhat expensive for large snapshots, so we fork.
             threadPool.executor(ThreadPool.Names.SNAPSHOT_META)

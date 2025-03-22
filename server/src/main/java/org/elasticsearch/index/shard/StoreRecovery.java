@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadataVerifier.isReadOnlyVerified;
 import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
@@ -625,7 +626,9 @@ public final class StoreRecovery {
         try {
             final var translogLocation = indexShard.shardPath().resolveTranslog();
             if (indexShard.hasTranslog() == false) {
-                Translog.deleteAll(translogLocation);
+                if (isReadOnlyVerified(indexShard.indexSettings().getIndexMetadata())) {
+                    Translog.deleteAll(translogLocation);
+                }
                 return;
             }
             store.bootstrapNewHistory();

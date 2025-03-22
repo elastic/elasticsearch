@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * A {@code Project} is a {@code Plan} with one child. In {@code SELECT x FROM y}, the "SELECT" statement is a Project.
  */
-public class Project extends UnaryPlan {
+public class Project extends UnaryPlan implements SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Project", Project::new);
 
     private final List<? extends NamedExpression> projections;
@@ -76,14 +76,6 @@ public class Project extends UnaryPlan {
     @Override
     public boolean resolved() {
         return super.resolved() && Expressions.anyMatch(projections, Functions::isAggregate) == false;
-    }
-
-    @Override
-    public String commandName() {
-        // this could represent multiple commands (KEEP, DROP, RENAME)
-        // and should not be present in a pre-analyzed plan.
-        // maybe it should throw exception?
-        return "<project>";
     }
 
     @Override

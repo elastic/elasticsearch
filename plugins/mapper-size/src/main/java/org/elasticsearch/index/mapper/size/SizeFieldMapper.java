@@ -50,7 +50,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     private static class SizeFieldType extends NumberFieldType {
         SizeFieldType() {
-            super(NAME, NumberType.INTEGER, true, true, true, false, null, Collections.emptyMap(), null, false, null, null);
+            super(NAME, NumberType.INTEGER, true, true, true, false, null, Collections.emptyMap(), null, false, null, null, false);
         }
 
         @Override

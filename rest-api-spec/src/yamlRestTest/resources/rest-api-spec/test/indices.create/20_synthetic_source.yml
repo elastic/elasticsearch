@@ -5,10 +5,6 @@ setup:
 
 ---
 object with unmapped fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -56,10 +52,6 @@ object with unmapped fields:
 
 ---
 unmapped arrays:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -102,10 +94,6 @@ unmapped arrays:
 
 ---
 nested object with unmapped fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -153,10 +141,6 @@ nested object with unmapped fields:
 
 ---
 empty object with unmapped fields:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -314,10 +298,6 @@ disabled object contains array:
 
 ---
 disabled subobject:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -353,10 +333,6 @@ disabled subobject:
 
 ---
 disabled subobject with array:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -393,10 +369,6 @@ disabled subobject with array:
 
 ---
 mixed disabled and enabled objects:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -441,7 +413,7 @@ mixed disabled and enabled objects:
 ---
 object with dynamic override:
   - requires:
-      cluster_features: ["mapper.ignored_source.dont_expand_dots", "mapper.bwc_workaround_9_0"]
+      cluster_features: ["mapper.ignored_source.dont_expand_dots"]
       reason: requires tracking ignored source
 
   - do:
@@ -488,10 +460,6 @@ object with dynamic override:
 
 ---
 subobject with dynamic override:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -537,10 +505,6 @@ subobject with dynamic override:
 
 ---
 object array in object with dynamic override:
-  - requires:
-      cluster_features: ["mapper.synthetic_source_keep"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -592,10 +556,6 @@ object array in object with dynamic override:
 
 ---
 value array in object with dynamic override:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -636,10 +596,6 @@ value array in object with dynamic override:
 
 ---
 nested object:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -682,10 +638,6 @@ nested object:
 
 ---
 nested object next to regular:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -729,10 +681,6 @@ nested object next to regular:
 
 ---
 nested object with disabled:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -818,10 +766,6 @@ nested object with disabled:
 
 ---
 doubly nested object:
-  - requires:
-      cluster_features: ["mapper.track_ignored_source"]
-      reason: requires tracking ignored source
-
   - do:
       indices.create:
         index: test
@@ -914,10 +858,6 @@ doubly nested object:
 
 ---
 subobjects auto:
-  - requires:
-      cluster_features: ["mapper.subobjects_auto", "mapper.bwc_workaround_9_0"]
-      reason: requires tracking ignored source and supporting subobjects auto setting
-
   - do:
       indices.create:
         index: test
@@ -982,7 +922,7 @@ subobjects auto:
   - match: { hits.hits.0._source.foo: 10  }
   - match: { hits.hits.0._source.foo\.bar: 100  }
   - match: { hits.hits.0._source.regular.span.id: "1" }
-  - match: { hits.hits.0._source.regular.trace.id: [ "a", "b" ] }
+  - match: { hits.hits.0._source.regular.trace.id: ["a", "b" ] }
   - match: { hits.hits.1._source.id: 2  }
   - match: { hits.hits.1._source.foo: 20 }
   - match: { hits.hits.1._source.foo\.bar: 200 }
@@ -1003,10 +943,6 @@ subobjects auto:
 
 ---
 synthetic_source with copy_to:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1140,10 +1076,6 @@ synthetic_source with copy_to:
 
 ---
 synthetic_source with disabled doc_values:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
-      reason: requires disabled doc_values support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1224,10 +1156,6 @@ synthetic_source with disabled doc_values:
 
 ---
 fallback synthetic_source for text field:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_with_copy_to_and_doc_values_false"]
-      reason: requires disabled doc_values support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1259,10 +1187,6 @@ fallback synthetic_source for text field:
 
 ---
 synthetic_source with copy_to and ignored values:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1328,10 +1252,6 @@ synthetic_source with copy_to and ignored values:
 
 ---
 synthetic_source with copy_to field having values in source:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1392,10 +1312,6 @@ synthetic_source with copy_to field having values in source:
 
 ---
 synthetic_source with ignored source field using copy_to:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1457,10 +1373,6 @@ synthetic_source with ignored source field using copy_to:
 
 ---
 synthetic_source with copy_to field from dynamic template having values in source:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1555,7 +1467,6 @@ synthetic_source with copy_to field from dynamic template having values in sourc
 ---
 synthetic_source with copy_to and invalid values for copy:
   - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_fix"]
       reason: requires copy_to support in synthetic source
       test_runner_features: "contains"
 
@@ -1592,10 +1503,6 @@ synthetic_source with copy_to and invalid values for copy:
 
 ---
 synthetic_source with copy_to pointing inside object:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1696,11 +1603,75 @@ synthetic_source with copy_to pointing inside object:
           c.copy: [ "100", "hello", "zap" ]
 
 ---
-synthetic_source with copy_to pointing to ambiguous field:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
+synthetic_source with copy_to inside nested object:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              my_values:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+                    copy_to: my_values.copy
+                  second_level:
+                    type: nested
+                    properties:
+                      k2:
+                        type: keyword
+                        copy_to: my_values.copy
+                  copy:
+                    type: keyword
+              dummy:
+                type: keyword
 
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          my_values:
+            k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          my_values:
+            second_level:
+              k2: "hello"
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        my_values:
+          k: "hello"
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        my_values:
+          second_level:
+            k2: "hello"
+
+---
+synthetic_source with copy_to pointing to ambiguous field:
   - do:
       indices.create:
         index: test
@@ -1745,10 +1716,6 @@ synthetic_source with copy_to pointing to ambiguous field:
 
 ---
 synthetic_source with copy_to pointing to ambiguous field and subobjects false:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1794,10 +1761,6 @@ synthetic_source with copy_to pointing to ambiguous field and subobjects false:
 
 ---
 synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -1845,7 +1808,6 @@ synthetic_source with copy_to pointing to ambiguous field and subobjects auto:
 synthetic_source with copy_to pointing at dynamic field:
   - requires:
       test_runner_features: contains
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
       reason: requires copy_to support in synthetic source
 
   - do:
@@ -1931,10 +1893,6 @@ synthetic_source with copy_to pointing at dynamic field:
 
 ---
 synthetic_source with copy_to pointing inside dynamic object:
-  - requires:
-      cluster_features: ["mapper.source.synthetic_source_copy_to_inside_objects_fix"]
-      reason: requires copy_to support in synthetic source
-
   - do:
       indices.create:
         index: test
@@ -2050,3 +2008,143 @@ create index with use_synthetic_source:
         flush: false
   - gt: { test.store_size_in_bytes: 0 }
   - is_false: test.fields._recovery_source
+---
+"Nested synthetic source with indexed dense vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ synthetic_nested_dense_vector_bug_fix ]
+      reason: "Requires synthetic source bugfix for dense vectors in nested objects"
+  - do:
+      indices.create:
+        index: nested_dense_vector_synthetic_test
+        body:
+          mappings:
+            properties:
+              parent:
+                type: nested
+                properties:
+                  vector:
+                    type: dense_vector
+                    index: true
+                    similarity: l2_norm
+                  text:
+                    type: text
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 0
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ],"text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 1
+        refresh: true
+        body: { "parent": [ { "text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 2
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ] }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+
+  - do:
+      search:
+        index: nested_dense_vector_synthetic_test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.hits.0._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.0.text: "foo" }
+  - match: { hits.hits.0._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.1.text: "bar" }
+  - is_false:  hits.hits.1._source.parent.0.vector
+  - match: { hits.hits.1._source.parent.0.text: "foo" }
+  - match: { hits.hits.1._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.1._source.parent.1.text: "bar" }
+  - match: {hits.hits.2._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - is_false: hits.hits.2._source.parent.0.text
+  - match: { hits.hits.2._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.2._source.parent.1.text: "bar" }
+---
+"Nested synthetic source with un-indexed dense vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ synthetic_nested_dense_vector_bug_fix ]
+      reason: "Requires synthetic source bugfix for dense vectors in nested objects"
+  - do:
+      indices.create:
+        index: nested_dense_vector_synthetic_test
+        body:
+          mappings:
+            properties:
+              parent:
+                type: nested
+                properties:
+                  vector:
+                    type: dense_vector
+                    index: false
+                  text:
+                    type: text
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 0
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ],"text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 1
+        refresh: true
+        body: { "parent": [ { "text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 2
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ] }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+
+  - do:
+      search:
+        index: nested_dense_vector_synthetic_test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.hits.0._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.0.text: "foo" }
+  - match: { hits.hits.0._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.1.text: "bar" }
+  - is_false:  hits.hits.1._source.parent.0.vector
+  - match: { hits.hits.1._source.parent.0.text: "foo" }
+  - match: { hits.hits.1._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.1._source.parent.1.text: "bar" }
+  - match: {hits.hits.2._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - is_false: hits.hits.2._source.parent.0.text
+  - match: { hits.hits.2._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.2._source.parent.1.text: "bar" }
+

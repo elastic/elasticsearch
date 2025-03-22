@@ -96,6 +96,7 @@ import org.elasticsearch.index.engine.RefreshFailedEngineException;
 import org.elasticsearch.index.engine.SafeCommitInfo;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
@@ -189,11 +190,12 @@ import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READ
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.index.shard.IndexShard.PrimaryPermitCheck.CHECK_PRIMARY_MODE;
 
 public class IndexShard extends AbstractIndexShardComponent implements IndicesClusterStateService.Shard {
 
     private final ThreadPool threadPool;
+    @Nullable
+    private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final MapperService mapperService;
     private final IndexCache indexCache;
     private final Store store;
@@ -298,6 +300,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos;
     private volatile long indexingTimeBeforeShardStartedInNanos;
+    private volatile double recentIndexingLoadAtShardStarted;
     private final SubscribableListener<Void> waitForEngineOrClosedShardListeners = new SubscribableListener<>();
 
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
@@ -317,6 +320,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexEventListener indexEventListener,
         final CheckedFunction<DirectoryReader, DirectoryReader, IOException> indexReaderWrapper,
         final ThreadPool threadPool,
+        final ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         final BigArrays bigArrays,
         final Engine.Warmer warmer,
         final List<SearchOperationListener> searchOperationListener,
@@ -327,7 +331,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
         final Engine.IndexCommitListener indexCommitListener,
-        final MapperMetrics mapperMetrics
+        final MapperMetrics mapperMetrics,
+        final IndexingStatsSettings indexingStatsSettings
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -343,9 +348,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
+        this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
-        this.internalIndexingStats = new InternalIndexingStats();
+        this.internalIndexingStats = new InternalIndexingStats(relativeTimeInNanosSupplier, indexingStatsSettings);
         var indexingFailuresDebugListener = new IndexingFailuresDebugListener(this);
         this.indexingOperationListeners = new IndexingOperationListener.CompositeListener(
             CollectionUtils.appendToCopyNoNullElements(listeners, internalIndexingStats, indexingFailuresDebugListener),
@@ -553,6 +559,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
                 startedRelativeTimeInNanos = getRelativeTimeInNanos();
                 indexingTimeBeforeShardStartedInNanos = internalIndexingStats.totalIndexingTimeInNanos();
+                recentIndexingLoadAtShardStarted = internalIndexingStats.recentIndexingLoad(startedRelativeTimeInNanos);
             } else if (currentRouting.primary()
                 && currentRouting.relocating()
                 && replicationTracker.isRelocated()
@@ -1362,11 +1369,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throttleTimeInMillis = engine.getIndexThrottleTimeInMillis();
         }
 
+        long currentTimeInNanos = getRelativeTimeInNanos();
         return internalIndexingStats.stats(
             throttled,
             throttleTimeInMillis,
             indexingTimeBeforeShardStartedInNanos,
-            getRelativeTimeInNanos() - startedRelativeTimeInNanos
+            currentTimeInNanos - startedRelativeTimeInNanos,
+            currentTimeInNanos,
+            recentIndexingLoadAtShardStarted
         );
     }
 
@@ -1489,7 +1499,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * @return true the shard has a translog.
+     * @return true the shard has a translog. In the case there is no translog, the shard is not writeable.
      */
     public boolean hasTranslog() {
         return translogConfig.hasTranslog();
@@ -3206,7 +3216,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             try {
                 doCheckIndex();
             } catch (IOException e) {
-                store.markStoreCorrupted(e);
+                if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                    // Cache-based read operations on Lucene files can throw an AlreadyClosedException wrapped into an IOException in case
+                    // of evictions. We don't want to mark the store as corrupted for this.
+                } else {
+                    store.markStoreCorrupted(e);
+                }
                 throw e;
             } finally {
                 store.decRef();
@@ -3541,6 +3556,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new EngineConfig(
             shardId,
             threadPool,
+            threadPoolMergeExecutorService,
             indexSettings,
             warmer,
             store,
@@ -3570,24 +3586,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Check to run before running the primary permit operation
-     */
-    public enum PrimaryPermitCheck {
-        CHECK_PRIMARY_MODE,
-        /**
-         * IMPORTANT: Currently intented to be used only for acquiring primary permits during the recovery of hollow shards.
-         * Don't disable primary mode checks unless you're really sure.
-         */
-        NONE
-    }
-
-    /**
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
      */
     public void acquirePrimaryOperationPermit(ActionListener<Releasable> onPermitAcquired, Executor executorOnDelay) {
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false, CHECK_PRIMARY_MODE);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false);
     }
 
     public void acquirePrimaryOperationPermit(
@@ -3595,22 +3599,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         Executor executorOnDelay,
         boolean forceExecution
     ) {
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, forceExecution, CHECK_PRIMARY_MODE);
-    }
-
-    public void acquirePrimaryOperationPermit(
-        ActionListener<Releasable> onPermitAcquired,
-        Executor executorOnDelay,
-        boolean forceExecution,
-        PrimaryPermitCheck primaryPermitCheck
-    ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
-        indexShardOperationPermits.acquire(
-            wrapPrimaryOperationPermitListener(primaryPermitCheck, onPermitAcquired),
-            executorOnDelay,
-            forceExecution
-        );
+        indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
     }
 
     public boolean isPrimaryMode() {
@@ -3618,51 +3609,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return replicationTracker.isPrimaryMode();
     }
 
-    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
-        acquireAllPrimaryOperationsPermits(onPermitAcquired, timeout, CHECK_PRIMARY_MODE);
-    }
-
     /**
      * Acquire all primary operation permits. Once all permits are acquired, the provided ActionListener is called.
      * It is the responsibility of the caller to close the {@link Releasable}.
      */
-    public void acquireAllPrimaryOperationsPermits(
-        final ActionListener<Releasable> onPermitAcquired,
-        final TimeValue timeout,
-        final PrimaryPermitCheck primaryPermitCheck
-    ) {
+    public void acquireAllPrimaryOperationsPermits(final ActionListener<Releasable> onPermitAcquired, final TimeValue timeout) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquireAllPrimaryOperationsPermits should only be called on primary shard: " + shardRouting;
 
-        asyncBlockOperations(
-            wrapPrimaryOperationPermitListener(primaryPermitCheck, onPermitAcquired),
-            timeout.duration(),
-            timeout.timeUnit()
-        );
+        asyncBlockOperations(wrapPrimaryOperationPermitListener(onPermitAcquired), timeout.duration(), timeout.timeUnit());
     }
 
     /**
-     * Wraps the action to run on a primary after acquiring permit.
+     * Wraps the action to run on a primary after acquiring permit. This wrapping is used to check if the shard is in primary mode before
+     * executing the action.
      *
-     * @param primaryPermitCheck check to run before the primary mode operation
      * @param listener the listener to wrap
      * @return the wrapped listener
      */
-    private ActionListener<Releasable> wrapPrimaryOperationPermitListener(
-        final PrimaryPermitCheck primaryPermitCheck,
-        final ActionListener<Releasable> listener
-    ) {
-        return switch (primaryPermitCheck) {
-            case CHECK_PRIMARY_MODE -> listener.delegateFailure((l, r) -> {
-                if (isPrimaryMode()) {
-                    l.onResponse(r);
-                } else {
-                    r.close();
-                    l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
-                }
-            });
-            case NONE -> listener;
-        };
+    private ActionListener<Releasable> wrapPrimaryOperationPermitListener(final ActionListener<Releasable> listener) {
+        return listener.delegateFailure((l, r) -> {
+            if (isPrimaryMode()) {
+                l.onResponse(r);
+            } else {
+                r.close();
+                l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
+            }
+        });
     }
 
     private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
@@ -3700,7 +3673,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 runnable.run();
             }
         }, onFailure);
-        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay, false, CHECK_PRIMARY_MODE);
+        acquirePrimaryOperationPermit(onPermitAcquired, executorOnDelay);
     }
 
     private <E extends Exception> void bumpPrimaryTerm(
@@ -4339,6 +4312,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Reset the current engine to a new one.
+     *
+     * Calls {@link Engine#prepareForEngineReset()} on the current engine, then closes it, and loads a new engine without
+     * doing any translog recovery.
+     *
+     * In general, resetting the engine should be done with care, to consider any in-progress operations and listeners.
+     * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
+     */
+    public void resetEngine() {
+        assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
+        assert waitForEngineOrClosedShardListeners.isDone();
+        try {
+            synchronized (engineMutex) {
+                verifyNotClosed();
+                getEngine().prepareForEngineReset();
+                var newEngine = createEngine(newEngineConfig(replicationTracker));
+                IOUtils.close(currentEngineReference.getAndSet(newEngine));
+                onNewEngine(newEngine);
+            }
+            onSettingsChanged();
+        } catch (Exception e) {
+            // we want to fail the shard in the case prepareForEngineReset throws
+            failShard("unable to reset engine", e);
+        }
+    }
+
+    /**
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */
     void resetEngineToGlobalCheckpoint() throws IOException {
@@ -4503,14 +4503,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Registers a listener for an event when the shard advances to the provided primary term and segment generation
+     * Registers a listener for an event when the shard advances to the provided primary term and segment generation.
+     * Completes the listener with a {@link IndexShardClosedException} if the shard is closed.
      */
     public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
-        waitForEngineOrClosedShard(
-            listener.delegateFailureAndWrap(
-                (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
-            )
-        );
+        waitForEngineOrClosedShard(listener.delegateFailureAndWrap((l, ignored) -> {
+            if (state == IndexShardState.CLOSED) {
+                l.onFailure(new IndexShardClosedException(shardId));
+            } else {
+                getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l);
+            }
+        }));
     }
 
+    /**
+     * Ensures that the shard is ready to perform mutable operations.
+     * This method is particularly useful when the shard initializes its internal
+     * {@link org.elasticsearch.index.engine.Engine} lazily, as it may take some time before becoming mutable.
+     *
+     * The provided listener will be notified once the shard is ready for mutating operations.
+     *
+     * @param listener the listener to be notified when the shard is mutable
+     */
+    public void ensureMutable(ActionListener<Void> listener) {
+        indexEventListener.beforeIndexShardMutableOperation(this, listener.delegateFailure((l, unused) -> {
+            // TODO ES-10826: Acquire ref to engine and retry if it's immutable again?
+            l.onResponse(null);
+        }));
+    }
 }

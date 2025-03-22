@@ -543,9 +543,24 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
+        return contentParser(parserConfig);
+    }
+
+    private XContentParser contentParser(XContentParserConfiguration parserConfig) throws IOException {
         BytesReference content = requiredContent(); // will throw exception if body or content type missing
         return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
+    }
 
+    /**
+     * If there is any content then call {@code applyParser} with the parser modified by {@code includeSourceOnError}, otherwise do nothing.
+     */
+    public final void applyContentParser(boolean includeSourceOnError, CheckedConsumer<XContentParser, IOException> applyParser)
+        throws IOException {
+        if (hasContent()) {
+            try (XContentParser parser = contentParser(parserConfig.withIncludeSourceOnError(includeSourceOnError))) {
+                applyParser.accept(parser);
+            }
+        }
     }
 
     /**
@@ -553,7 +568,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final void applyContentParser(CheckedConsumer<XContentParser, IOException> applyParser) throws IOException {
         if (hasContent()) {
-            try (XContentParser parser = contentParser()) {
+            try (XContentParser parser = contentParser(parserConfig)) {
                 applyParser.accept(parser);
             }
         }

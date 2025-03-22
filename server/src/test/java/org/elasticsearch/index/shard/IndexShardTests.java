@@ -27,6 +27,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -790,21 +791,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }, TimeValue.timeValueSeconds(30));
             latch.await();
-
-            // It's possible to acquire permits if we skip the primary mode check
-            var permitAcquiredLatch = new CountDownLatch(1);
-            indexShard.acquirePrimaryOperationPermit(ActionListener.wrap(r -> {
-                r.close();
-                permitAcquiredLatch.countDown();
-            }, Assert::assertNotNull), EsExecutors.DIRECT_EXECUTOR_SERVICE, false, IndexShard.PrimaryPermitCheck.NONE);
-            safeAwait(permitAcquiredLatch);
-
-            var allPermitsAcquiredLatch = new CountDownLatch(1);
-            indexShard.acquireAllPrimaryOperationsPermits(ActionListener.wrap(r -> {
-                r.close();
-                allPermitsAcquiredLatch.countDown();
-            }, Assert::assertNotNull), TimeValue.timeValueSeconds(30), IndexShard.PrimaryPermitCheck.NONE);
-            safeAwait(allPermitsAcquiredLatch);
         }
 
         if (Assertions.ENABLED && indexShard.routingEntry().isRelocationTarget() == false) {
@@ -3349,6 +3335,21 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener should have been called", called.get(), equalTo(true));
     }
 
+    public void testWaitForPrimaryTermAndGenerationFailsForClosedShard() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard initializingShard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        var future = new PlainActionFuture<Long>();
+        initializingShard.waitForPrimaryTermAndGeneration(0L, 0L, future);
+
+        assertFalse("waitForPrimaryTermAndGeneration should be waiting", future.isDone());
+        closeShards(initializingShard);
+        // Should bail out earlier without calling the engine
+        assertNotNull(ExceptionsHelper.unwrap(expectThrows(Exception.class, future::get), IndexShardClosedException.class));
+    }
+
     public void testRecoverFromLocalShard() throws IOException {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("source")
@@ -4512,7 +4513,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testResetEngine() throws Exception {
+    public void testResetEngineToGlobalCheckpoint() throws Exception {
         IndexShard shard = newStartedShard(false);
         indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
         long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
@@ -4572,6 +4573,31 @@ public class IndexShardTests extends IndexShardTestCase {
         done.set(true);
         thread.join();
         closeShard(shard, false);
+    }
+
+    public void testResetEngine() throws Exception {
+        var newEngineCreated = new CountDownLatch(2);
+        var indexShard = newStartedShard(true, Settings.EMPTY, config -> {
+            try {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true) {
+                    @Override
+                    public void prepareForEngineReset() throws IOException {}
+                };
+            } finally {
+                newEngineCreated.countDown();
+            }
+        });
+        var newEngineNotification = new CountDownLatch(1);
+        indexShard.waitForEngineOrClosedShard(ActionListener.running(newEngineNotification::countDown));
+
+        var onAcquired = new PlainActionFuture<Releasable>();
+        indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
+        try (var permits = safeGet(onAcquired)) {
+            indexShard.resetEngine();
+        }
+        safeAwait(newEngineCreated);
+        safeAwait(newEngineNotification);
+        closeShard(indexShard, false);
     }
 
     /**
@@ -5007,6 +5033,7 @@ public class IndexShardTests extends IndexShardTestCase {
             EngineConfig configWithWarmer = new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
+                config.getThreadPoolMergeExecutorService(),
                 config.getIndexSettings(),
                 warmer,
                 config.getStore(),
@@ -5095,7 +5122,15 @@ public class IndexShardTests extends IndexShardTestCase {
             NOOP_GCP_SYNCER,
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
-            fakeClock
+            fakeClock,
+            // Use a listener to advance the fake clock once per indexing operation:
+            new IndexingOperationListener() {
+                @Override
+                public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+                    fakeClock.advance();
+                    return IndexingOperationListener.super.preIndex(shardId, operation);
+                }
+            }
         );
 
         // Now simulate that each operation takes 1 minute to complete.
@@ -5203,24 +5238,19 @@ public class IndexShardTests extends IndexShardTestCase {
 
     static class FakeClock implements LongSupplier {
         private final AtomicLong currentRelativeTime = new AtomicLong();
-        private final AtomicInteger tick = new AtomicInteger();
-        private volatile TimeValue elapsedTimePerPairOfQueries = TimeValue.ZERO;
+        private volatile TimeValue simulatedElapsedRelativeTime = TimeValue.ZERO;
 
         @Override
         public long getAsLong() {
-            // Since the clock is checked at the beginning and at the end of
-            // the indexing op, just increase the current relative time at the
-            // end.
-            if (tick.getAndIncrement() % 2 == 0) {
-                return currentRelativeTime.get();
-            } else {
-                return currentRelativeTime.addAndGet(elapsedTimePerPairOfQueries.nanos());
-            }
+            return currentRelativeTime.get();
         }
 
-        void setSimulatedElapsedRelativeTime(TimeValue elapsedTimePerPairOfQueries) {
-            tick.set(0);
-            this.elapsedTimePerPairOfQueries = elapsedTimePerPairOfQueries;
+        void setSimulatedElapsedRelativeTime(TimeValue simulatedElapsedRelativeTime) {
+            this.simulatedElapsedRelativeTime = simulatedElapsedRelativeTime;
+        }
+
+        public void advance() {
+            currentRelativeTime.addAndGet(simulatedElapsedRelativeTime.nanos());
         }
     }
 

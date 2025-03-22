@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -24,10 +25,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.datastreams.DataStreamFeatures;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.node.DataStreamLifecycleHealthInfo;
 import org.elasticsearch.health.node.DslErrorInfo;
 import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
@@ -40,7 +40,6 @@ import org.junit.Before;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -83,13 +82,7 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
 
         final Client client = getTransportRequestsRecordingClient();
         errorStore = new DataStreamLifecycleErrorStore(() -> now);
-        dslHealthInfoPublisher = new DataStreamLifecycleHealthInfoPublisher(
-            Settings.EMPTY,
-            client,
-            clusterService,
-            errorStore,
-            new FeatureService(List.of(new DataStreamFeatures()))
-        );
+        dslHealthInfoPublisher = new DataStreamLifecycleHealthInfoPublisher(Settings.EMPTY, client, clusterService, errorStore);
     }
 
     @After
@@ -100,21 +93,13 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
     }
 
     public void testPublishDslErrorEntries() {
+        @FixForMultiProject(description = "Once the health API becomes project-aware, we shouldn't use the default project ID")
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
         for (int i = 0; i < 11; i++) {
-            errorStore.recordError("testIndexOverSignalThreshold", new NullPointerException("ouch"));
+            errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));
         }
-        errorStore.recordError("testIndex", new IllegalStateException("bad state"));
+        errorStore.recordError(projectId, "testIndex", new IllegalStateException("bad state"));
         ClusterState stateWithHealthNode = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
-        stateWithHealthNode = ClusterState.builder(stateWithHealthNode)
-            .nodeFeatures(
-                Map.of(
-                    node1.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id()),
-                    node2.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id())
-                )
-            )
-            .build();
         ClusterServiceUtils.setState(clusterService, stateWithHealthNode);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override
@@ -136,23 +121,15 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
     }
 
     public void testPublishDslErrorEntriesNoHealthNode() {
+        @FixForMultiProject(description = "Once the health API becomes project-aware, we shouldn't use the default project ID")
+        final var projectId = Metadata.DEFAULT_PROJECT_ID;
         // no requests are being executed
         for (int i = 0; i < 11; i++) {
-            errorStore.recordError("testIndexOverSignalThreshold", new NullPointerException("ouch"));
+            errorStore.recordError(projectId, "testIndexOverSignalThreshold", new NullPointerException("ouch"));
         }
-        errorStore.recordError("testIndex", new IllegalStateException("bad state"));
+        errorStore.recordError(projectId, "testIndex", new IllegalStateException("bad state"));
 
         ClusterState stateNoHealthNode = ClusterStateCreationUtils.state(node1, node1, null, allNodes);
-        stateNoHealthNode = ClusterState.builder(stateNoHealthNode)
-            .nodeFeatures(
-                Map.of(
-                    node1.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id()),
-                    node2.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id())
-                )
-            )
-            .build();
         ClusterServiceUtils.setState(clusterService, stateNoHealthNode);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override
@@ -170,16 +147,6 @@ public class DataStreamLifecycleHealthInfoPublisherTests extends ESTestCase {
     public void testPublishDslErrorEntriesEmptyErrorStore() {
         // publishes the empty error store (this is the "back to healthy" state where all errors have been fixed)
         ClusterState state = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
-        state = ClusterState.builder(state)
-            .nodeFeatures(
-                Map.of(
-                    node1.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id()),
-                    node2.getId(),
-                    Set.of(DataStreamLifecycleHealthInfoPublisher.DSL_HEALTH_INFO_FEATURE.id())
-                )
-            )
-            .build();
         ClusterServiceUtils.setState(clusterService, state);
         dslHealthInfoPublisher.publishDslErrorEntries(new ActionListener<>() {
             @Override

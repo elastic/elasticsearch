@@ -12,6 +12,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.AbstractBulkRequestParser;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
@@ -145,7 +146,7 @@ public class RestBulkAction extends BaseRestHandler {
         }
     }
 
-    static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
+    public static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
 
         private final RestRequest request;
 
@@ -158,24 +159,37 @@ public class RestBulkAction extends BaseRestHandler {
         private final ArrayDeque<ReleasableBytesReference> unParsedChunks = new ArrayDeque<>(4);
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
-        ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
+        public ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
+            this(
+                allowExplicitIndex,
+                request,
+                handlerSupplier,
+                new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
+            );
+        }
+
+        public ChunkHandler(
+            boolean allowExplicitIndex,
+            RestRequest request,
+            Supplier<IncrementalBulkService.Handler> handlerSupplier,
+            AbstractBulkRequestParser requestParser
+        ) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
-                .incrementalParser(
-                    request.param("index"),
-                    request.param("routing"),
-                    FetchSourceContext.parseFromRestRequest(request),
-                    request.param("pipeline"),
-                    request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
-                    request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
-                    request.paramAsBoolean("list_executed_pipelines", false),
-                    allowExplicitIndex,
-                    request.getXContentType(),
-                    (indexRequest, type) -> items.add(indexRequest),
-                    items::add,
-                    items::add
-                );
+            this.parser = requestParser.incrementalParser(
+                request.param("index"),
+                request.param("routing"),
+                FetchSourceContext.parseFromRestRequest(request),
+                request.param("pipeline"),
+                request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
+                request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
+                request.paramAsBoolean("list_executed_pipelines", false),
+                allowExplicitIndex,
+                request.getXContentType(),
+                (indexRequest, type) -> items.add(indexRequest),
+                items::add,
+                items::add
+            );
         }
 
         @Override
@@ -252,7 +266,7 @@ public class RestBulkAction extends BaseRestHandler {
 
         private void shortCircuit() {
             shortCircuited = true;
-            Releasables.close(handler);
+            Releasables.close(parser, handler);
             Releasables.close(unParsedChunks);
             unParsedChunks.clear();
         }

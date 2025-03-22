@@ -41,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -87,26 +88,28 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     @Override
-    SubscribableListener<IndexAuthorizationResult> void authorizeIndexAction(
+    public SubscribableListener<IndexAuthorizationResult> authorizeIndexAction(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
         AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
         ProjectMetadata project
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
-            ActionListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
-            indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
-                Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
-                for (String name : resolvedIndices.getLocal()) {
-                    indexAccessControlMap.put(name, new IndexAccessControl(FieldPermissions.DEFAULT, null));
-                }
-                IndicesAccessControl indicesAccessControl =
-                    new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));
-                listener.onResponse(new IndexAuthorizationResult(indicesAccessControl));
-            }, listener::onFailure));
+            SubscribableListener<IndexAuthorizationResult> listener = new SubscribableListener<>();
+            indicesAsyncSupplier.getAsync().addListener(listener.delegateFailureAndWrap(
+                (delegateListener, resolvedIndices) -> {
+                    Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();
+                    for (String name : resolvedIndices.getLocal()) {
+                        indexAccessControlMap.put(name, new IndexAccessControl(FieldPermissions.DEFAULT, null));
+                    }
+                    IndicesAccessControl indicesAccessControl =
+                        new IndicesAccessControl(true, Collections.unmodifiableMap(indexAccessControlMap));
+                    listener.onResponse(new IndexAuthorizationResult(indicesAccessControl));
+                })
+            );
             return listener;
         } else {
-            return SubscribableListener.succcess(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
+            return SubscribableListener.newSucceeded(new IndexAuthorizationResult(IndicesAccessControl.DENIED));
         }
     }
 
@@ -119,19 +122,21 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             listener.onResponse(new AuthorizedIndices() {
-                public Set<String> all(IndexComponentSelector selector) {
-                    return () -> indicesLookup.keySet();
+                public Supplier<Set<String>> all() {
+                    return indicesLookup::keySet;
                 }
-                public boolean check(String name, IndexComponentSelector selector) {
+
+                public boolean check(String name) {
                     return indicesLookup.containsKey(name);
                 }
             });
         } else {
             listener.onResponse(new AuthorizedIndices() {
-                public Set<String> all(IndexComponentSelector selector) {
+                public Supplier<Set<String>> all() {
                     return () -> Set.of();
                 }
-                public boolean check(String name, IndexComponentSelector selector) {
+
+                public boolean check(String name) {
                     return false;
                 }
             });
@@ -259,6 +264,6 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
 
     private boolean isSuperuser(AuthorizationInfo authorizationInfo) {
         assert authorizationInfo instanceof CustomAuthorizationInfo;
-        return Arrays.asList(((CustomAuthorizationInfo)authorizationInfo).asMap().get("roles")).contains("custom_superuser");
+        return Arrays.asList(((CustomAuthorizationInfo) authorizationInfo).asMap().get("roles")).contains("custom_superuser");
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.example;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -52,7 +53,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     public void testAuthorizeRunAs() {
         final String action = "cluster:monitor/foo";
-        final TransportRequest request = new TransportRequest() {};
+        final TransportRequest request = new TransportRequest() {
+        };
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
         // unauthorized
         {
@@ -125,8 +127,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build(),
-                    false
-                ).build();
+            false
+        ).build();
         // authorized
         {
             RequestInfo requestInfo =
@@ -138,9 +140,10 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             AuthorizationInfo authzInfo = future.actionGet();
 
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
-            engine.authorizeIndexAction(requestInfo, authzInfo,
-                listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                project, resultFuture);
+            SubscribableListener<IndexAuthorizationResult> l = engine.authorizeIndexAction(requestInfo, authzInfo,
+                () -> SubscribableListener.newSucceeded(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
+                project);
+            l.addListener(resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(true));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
@@ -159,8 +162,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
             PlainActionFuture<IndexAuthorizationResult> resultFuture = new PlainActionFuture<>();
             engine.authorizeIndexAction(requestInfo, authzInfo,
-                listener -> listener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
-                project, resultFuture);
+                () -> SubscribableListener.newSucceeded(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
+                project).addListener(resultFuture);
             IndexAuthorizationResult result = resultFuture.actionGet();
             assertThat(result.isGranted(), is(false));
             IndicesAccessControl indicesAccessControl = result.getIndicesAccessControl();
@@ -170,7 +173,8 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
 
     private RequestInfo getRequestInfo() {
         final String action = "cluster:monitor/foo";
-        final TransportRequest request = new TransportRequest() {};
+        final TransportRequest request = new TransportRequest() {
+        };
         final Authentication authentication =
             Authentication.newRealmAuthentication(new User("joe", "custom_superuser"), new RealmRef("test", "test", "node"));
         return new RequestInfo(authentication, request, action, null);

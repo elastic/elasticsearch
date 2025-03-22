@@ -44,8 +44,7 @@ import org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60MetadataOnlyPo
  */
 @Deprecated
 public class Lucene62Codec extends BWCCodec {
-    private final FieldInfosFormat fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
-    private final SegmentInfoFormat segmentInfosFormat = wrap(new Lucene62SegmentInfoFormat());
+
     private final LiveDocsFormat liveDocsFormat = new Lucene50LiveDocsFormat();
     private final CompoundFormat compoundFormat = new Lucene50CompoundFormat();
     private final StoredFieldsFormat storedFieldsFormat;
@@ -68,18 +67,18 @@ public class Lucene62Codec extends BWCCodec {
     }
 
     @Override
+    protected FieldInfosFormat originalFieldInfosFormat() {
+        return new Lucene60FieldInfosFormat();
+    }
+
+    @Override
+    protected SegmentInfoFormat originalSegmentInfoFormat() {
+        return new Lucene62SegmentInfoFormat();
+    }
+
+    @Override
     public final StoredFieldsFormat storedFieldsFormat() {
         return storedFieldsFormat;
-    }
-
-    @Override
-    public final FieldInfosFormat fieldInfosFormat() {
-        return fieldInfosFormat;
-    }
-
-    @Override
-    public SegmentInfoFormat segmentInfoFormat() {
-        return segmentInfosFormat;
     }
 
     @Override

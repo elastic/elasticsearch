@@ -1,0 +1,1 @@
+# Elasticsearch and index management

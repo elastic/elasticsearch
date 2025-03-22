@@ -61,6 +61,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             a[4] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamOptions.Template>) a[4]
         )
     );
+    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.builder().enabled(false).buildTemplate();
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
@@ -127,6 +128,20 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         this.dataStreamOptions = dataStreamOptions;
     }
 
+    public Template(
+        @Nullable Settings settings,
+        @Nullable CompressedXContent mappings,
+        @Nullable Map<String, AliasMetadata> aliases,
+        @Nullable DataStreamLifecycle.Template lifecycle,
+        @Nullable DataStreamOptions.Template dataStreamOptions
+    ) {
+        this.settings = settings;
+        this.mappings = mappings;
+        this.aliases = aliases;
+        this.lifecycle = lifecycle;
+        this.dataStreamOptions = ResettableValue.create(dataStreamOptions);
+    }
+
     public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
         this(settings, mappings, aliases, null, ResettableValue.undefined());
     }
@@ -152,7 +167,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             boolean isExplicitNull = in.readBoolean();
             if (isExplicitNull) {
-                this.lifecycle = DataStreamLifecycle.Template.builder().enabled(false).build();
+                this.lifecycle = DISABLED_LIFECYCLE;
             } else {
                 this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
             }
@@ -387,8 +402,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             return this;
         }
 
-        public Builder lifecycle(DataStreamLifecycle.Template.Builder lifecycle) {
-            this.lifecycle = lifecycle.build();
+        public Builder lifecycle(DataStreamLifecycle.Builder lifecycle) {
+            this.lifecycle = lifecycle.buildTemplate();
             return this;
         }
 

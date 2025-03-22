@@ -116,6 +116,15 @@ public final class Expressions {
         return folded;
     }
 
+    public static boolean literals(List<? extends Expression> exps) {
+        for (Expression exp : exps) {
+            if (exp instanceof Literal == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public static AttributeSet references(List<? extends Expression> exps) {
         if (exps.isEmpty()) {
             return AttributeSet.EMPTY;

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Comparisons;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
@@ -50,7 +51,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -459,7 +459,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
     @Override
     public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && Expressions.foldable(list());
+        return pushdownPredicates.isPushableAttribute(value) && Expressions.literals(list());
     }
 
     @Override
@@ -487,7 +487,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                         queries.add(query);
                     }
                 } else {
-                    terms.add(valueOf(FoldContext.small() /* TODO remove me */, rhs));
+                    terms.add(Foldables.valueOfLiteral(rhs));
                 }
             }
         }

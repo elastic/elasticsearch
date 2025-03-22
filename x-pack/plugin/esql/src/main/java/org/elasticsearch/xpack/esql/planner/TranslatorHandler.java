@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
@@ -52,5 +53,19 @@ public final class TranslatorHandler {
     // TODO: is this method necessary?
     public String nameOf(Expression e) {
         return Expressions.name(e);
+    }
+
+    /**
+     * Returns the value of the given expression, as long as it's a Literal.
+     * <p>
+     *     At this stage of the planning, foldable expressions should be literals.
+     * </p>
+     */
+    public Object valueOf(Expression e) {
+        if (e instanceof Literal literal) {
+            return literal.value();
+        }
+
+        throw new EsqlIllegalArgumentException("Expected a Literal but received [" + e + "]");
     }
 }

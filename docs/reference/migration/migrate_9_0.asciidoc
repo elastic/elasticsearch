@@ -55,6 +55,21 @@ To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
 [discrete]
+[[deprecations_90_rest_api]]
+==== REST API deprecations
+
+[[add_deprecation_warning_for_flush_api]]
+.Add deprecation warning for flush API
+[%collapsible]
+====
+*Details* +
+The anomaly detection job flush API is deprecated since it is only required for the post data API, which was deprecated since 7.11.0.
+
+*Impact* +
+This should have a minimal impact on users as the flush API is only required for the post data API, which was deprecated since 7.11.0.
+====
+
+[discrete]
 [[deprecations_90_search]]
 ==== Search deprecations
 

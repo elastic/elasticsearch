@@ -90,13 +90,13 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                                     searchRouting = parser.textOrNull();
                                 } else if ("is_write_index".equals(currentFieldName)) {
                                     writeIndex = parser.booleanValue();
+                                } else {
+                                    throw new IllegalArgumentException("Unsupported field [" + currentFieldName + "]");
                                 }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("filter".equals(currentFieldName)) {
                             filter = parser.mapOrdered();
                         }
-                    } else {
-                        throw new IllegalArgumentException("Unknown token [" + token + "]");
                     }
                 }
             }

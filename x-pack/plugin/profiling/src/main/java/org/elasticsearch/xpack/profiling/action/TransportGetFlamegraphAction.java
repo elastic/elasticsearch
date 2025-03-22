@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class TransportGetFlamegraphAction extends TransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
     public static final int FRAMETYPE_ROOT = 0x100;
-    public static final int FRAMETYPE_EXECUTABLE = 0x101;
+    public static final int FRAMETYPE_EXECUTABLE = 0x103;
     public static final int FRAMETYPE_THREAD = 0x102;
     private static final Logger log = LogManager.getLogger(TransportGetFlamegraphAction.class);
     private final NodeClient nodeClient;

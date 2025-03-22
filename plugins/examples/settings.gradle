@@ -32,7 +32,14 @@ gradle.rootProject {
 }
 
 gradle.projectsEvaluated {
-  if (gradle.includedBuilds) {
+  if (gradle.includedBuilds  || gradle.parent != null) {
+    pluginManagement {
+      repositories {
+        mavenCentral()
+        gradlePluginPortal()
+      }
+      includeBuild "../../build-tools"
+    }
     gradle.allprojects {
       configurations.all {
         resolutionStrategy.dependencySubstitution {

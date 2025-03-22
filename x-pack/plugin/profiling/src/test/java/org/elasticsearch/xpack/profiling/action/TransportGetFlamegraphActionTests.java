@@ -96,7 +96,7 @@ public class TransportGetFlamegraphActionTests extends ESTestCase {
         assertEquals(
             List.of(
                 TransportGetFlamegraphAction.FRAMETYPE_ROOT,
-                TransportGetFlamegraphAction.FRAMETYPE_PROCESS,
+                TransportGetFlamegraphAction.FRAMETYPE_EXECUTABLE,
                 TransportGetFlamegraphAction.FRAMETYPE_THREAD,
                 3,
                 3,

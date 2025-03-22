@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class TransportGetFlamegraphAction extends TransportAction<GetStackTracesRequest, GetFlamegraphResponse> {
     public static final int FRAMETYPE_ROOT = 0x100;
-    public static final int FRAMETYPE_PROCESS = 0x101;
+    public static final int FRAMETYPE_EXECUTABLE = 0x101;
     public static final int FRAMETYPE_THREAD = 0x102;
     private static final Logger log = LogManager.getLogger(TransportGetFlamegraphAction.class);
     private final NodeClient nodeClient;
@@ -90,15 +90,15 @@ public class TransportGetFlamegraphAction extends TransportAction<GetStackTraces
             double annualCO2Tons = event.annualCO2Tons;
             double annualCostsUSD = event.annualCostsUSD;
 
-            String processName = eventId.processName();
-            if (processName.isEmpty() && stackTrace.typeIds.length > 0 && stackTrace.typeIds[0] == StackTrace.KERNEL_FRAME_TYPE) {
-                // kernel threads are not associated with a process
-                processName = "kernel";
+            String executableName = eventId.executableName();
+            if (executableName.isEmpty() && stackTrace.typeIds.length > 0 && stackTrace.typeIds[0] == StackTrace.KERNEL_FRAME_TYPE) {
+                // kernel threads are not associated with an executable
+                executableName = "kernel";
             }
 
             builder.setCurrentNode(0);
             builder.addToRootNode(samples, annualCO2Tons, annualCostsUSD);
-            builder.addOrUpdateAggregationNode(processName, samples, annualCO2Tons, annualCostsUSD, FRAMETYPE_PROCESS);
+            builder.addOrUpdateAggregationNode(executableName, samples, annualCO2Tons, annualCostsUSD, FRAMETYPE_EXECUTABLE);
             builder.addOrUpdateAggregationNode(eventId.threadName(), samples, annualCO2Tons, annualCostsUSD, FRAMETYPE_THREAD);
 
             int frameCount = stackTrace.frameIds.length;

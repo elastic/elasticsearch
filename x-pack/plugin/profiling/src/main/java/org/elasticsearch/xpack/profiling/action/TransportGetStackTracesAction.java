@@ -351,7 +351,6 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 new TermsAggregationBuilder("group_by")
                     // 'size' specifies the max number of host ID we support per request.
                     .size(MAX_TRACE_EVENTS_RESULT_SIZE)
-                    // 'process.executable.name' is the process name (OTEL semconv), not the executable name.
                     .field("process.executable.name")
                     // missing("") is used to include documents where the field is missing.
                     .missing("")
@@ -372,11 +371,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                 long totalFinalCount = 0;
                 Map<TraceEventID, TraceEvent> stackTraceEvents = new HashMap<>(MAX_TRACE_EVENTS_RESULT_SIZE);
 
-                Terms processNames = searchResponse.getAggregations().get("group_by");
-                for (Terms.Bucket processBucket : processNames.getBuckets()) {
-                    String processName = processBucket.getKeyAsString();
+                Terms executableNames = searchResponse.getAggregations().get("group_by");
+                for (Terms.Bucket executableBucket : executableNames.getBuckets()) {
+                    String executableName = executableBucket.getKeyAsString();
 
-                    Terms threads = processBucket.getAggregations().get("group_by");
+                    Terms threads = executableBucket.getAggregations().get("group_by");
                     for (Terms.Bucket threadBucket : threads.getBuckets()) {
                         String threadName = threadBucket.getKeyAsString();
 
@@ -395,7 +394,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
 
                                 String stackTraceID = stacktraceBucket.getKeyAsString();
 
-                                TraceEventID eventID = new TraceEventID(processName, threadName, hostID, stackTraceID);
+                                TraceEventID eventID = new TraceEventID(executableName, threadName, hostID, stackTraceID);
                                 TraceEvent event = stackTraceEvents.computeIfAbsent(eventID, k -> new TraceEvent());
                                 event.count += finalCount;
                                 subGroups.collectResults(stacktraceBucket, event);

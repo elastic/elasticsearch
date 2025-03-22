@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchResponseHandler;
@@ -69,9 +70,11 @@ public class AlibabaCloudSearchEmbeddingsRequestManager extends AlibabaCloudSear
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> input = DocumentsOnlyInput.of(inferenceInputs).getInputs();
-        AlibabaCloudSearchEmbeddingsRequest request = new AlibabaCloudSearchEmbeddingsRequest(account, input, model);
+        EmbeddingsInput input = EmbeddingsInput.of(inferenceInputs);
+        List<String> docsInput = input.getInputs();
+        InputType inputType = input.getInputType();
 
+        AlibabaCloudSearchEmbeddingsRequest request = new AlibabaCloudSearchEmbeddingsRequest(account, docsInput, inputType, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

@@ -96,14 +96,26 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
     }
 
     public void testRepositoriesMetadataSerializationBwc() throws IOException {
-        final Metadata orig = randomMetadata(between(0, 5), -1);
+        {
+            final var oldVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.MULTI_PROJECT,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)
+            );
+            final Metadata orig = randomMetadata(between(0, 5), -1);
+            doTestRepositoriesMetadataSerializationBwc(orig, oldVersion);
+        }
 
+        {
+            final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+            // Before multi-project, BWC is possible for a single project
+            final Metadata orig = randomMetadata(0, -1);
+            doTestRepositoriesMetadataSerializationBwc(orig, oldVersion);
+        }
+    }
+
+    private void doTestRepositoriesMetadataSerializationBwc(Metadata orig, TransportVersion oldVersion) throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
-        final var oldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MULTI_PROJECT,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)
-        );
         out.setTransportVersion(oldVersion);
         orig.writeTo(out);
 
@@ -114,10 +126,11 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
         assertTrue(Metadata.isGlobalStateEquals(orig, fromStream));
 
         // Simulate new-node writes to old-stream and old-node reads from old-stream
-        simulateReadOnOldNode(out.bytes(), oldVersion, orig);
+        simulateReadOnOldNodeAndAssert(out.bytes(), oldVersion, orig);
     }
 
-    private void simulateReadOnOldNode(BytesReference bytesReference, TransportVersion oldVersion, Metadata orig) throws IOException {
+    private void simulateReadOnOldNodeAndAssert(BytesReference bytesReference, TransportVersion oldVersion, Metadata orig)
+        throws IOException {
         final var in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistryBwc);
         in.setTransportVersion(oldVersion);
         final Metadata fromStream = Metadata.readFrom(in);
@@ -125,17 +138,32 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
     }
 
     public void testRepositoriesMetadataDiffSerializationBwc() throws IOException {
-        final Tuple<Metadata, Metadata> tuple = randomMetadataAndUpdate(between(0, 5), -1);
+        {
+            final var oldVersion = TransportVersionUtils.randomVersionBetween(
+                random(),
+                TransportVersions.MULTI_PROJECT,
+                TransportVersionUtils.getPreviousVersion(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)
+            );
+            final Tuple<Metadata, Metadata> tuple = randomMetadataAndUpdate(between(0, 5), -1);
+            doTestRepositoriesMetadataDiffSerializationBwc(tuple, oldVersion);
+        }
+
+        {
+            final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.MULTI_PROJECT);
+            // Before multi-project, BWC is possible for a single project
+            final Tuple<Metadata, Metadata> tuple = randomMetadataAndUpdate(0, -1);
+            doTestRepositoriesMetadataDiffSerializationBwc(tuple, oldVersion);
+        }
+    }
+
+    private void doTestRepositoriesMetadataDiffSerializationBwc(Tuple<Metadata, Metadata> tuple, TransportVersion oldVersion)
+        throws IOException {
         final Metadata before = tuple.v1();
         final Metadata after = tuple.v2();
         final Diff<Metadata> diff = after.diff(before);
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        final var oldVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MULTI_PROJECT,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)
-        );
+
         out.setTransportVersion(oldVersion);
         diff.writeTo(out);
 
@@ -147,11 +175,11 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
         assertTrue(Metadata.isGlobalStateEquals(after, metadataFromDiff));
 
         // Simulate new-node writes diff to old-stream and old-node reads from old-stream
-        simulateReadAndApplyDiffOnOldNode(out.bytes(), oldVersion, before, after);
+        simulateReadAndApplyDiffOnOldNodeAndAssert(out.bytes(), oldVersion, before, after);
     }
 
     // Simulate the deserialization and application of the diff on an old node
-    private void simulateReadAndApplyDiffOnOldNode(
+    private void simulateReadAndApplyDiffOnOldNodeAndAssert(
         BytesReference bytesReference,
         TransportVersion oldVersion,
         Metadata before,
@@ -176,6 +204,11 @@ public class MetadataRepositoriesMetadataTests extends ESTestCase {
         assertMetadataBwcEquals(metadataFromDiff, after);
     }
 
+    /**
+     * Check equality of the two metadata by handling the different types of RepositoriesMetadata
+     * @param metadataBwc The old style metadata with RepositoriesMetadata as Metadata#ClusterCustom
+     * @param metadataNew The new style metadata with RepositoriesMetadata as Metadata#ProjectCustom
+     */
     private void assertMetadataBwcEquals(Metadata metadataBwc, Metadata metadataNew) {
         // BWC metadata has no repositories in project
         assertThat(metadataBwc.getProject(ProjectId.DEFAULT).custom(RepositoriesMetadata.TYPE), nullValue());

@@ -201,10 +201,11 @@ The document `_score` is computed as
 where `dims` is the number of dimensions per vector.
 
 `cosine`:::
-Computes the cosine similarity. Note that the most efficient way to perform
-cosine similarity is to normalize all vectors to unit length, and instead use
-`dot_product`. You should only use `cosine` if you need to preserve the
-original vectors and cannot normalize them in advance. The document `_score`
+Computes the cosine similarity. During indexing {es} automatically
+normalizes vectors with `cosine` similarity to unit length. This allows
+to internally use `dot_product` for computing similarity, which is more efficient.
+Original un-normalized vectors can be still accessed
+through scripts. The document `_score`
 is computed as `(1 + cosine(query, vector)) / 2`. The `cosine` similarity does
 not allow vectors with zero magnitude, since cosine is not defined in this
 case.

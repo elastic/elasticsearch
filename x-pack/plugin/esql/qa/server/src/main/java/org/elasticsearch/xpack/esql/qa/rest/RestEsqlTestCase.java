@@ -986,6 +986,24 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
     }
 
+    public void testMultipleBatchesWithLookupJoin() throws IOException {
+        // create 20 indices to trigger multiple batches of data node planning and execution
+        for (int i = 1; i <= 20; i++) {
+            createIndex("idx" + i, false);
+        }
+        bulkLoadTestDataLookupMode(10);
+        var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer | sort integer", testIndexName()));
+        Map<String, Object> result = runEsql(query);
+        var columns = as(result.get("columns"), List.class);
+        assertEquals(20, columns.size());
+        var values = as(result.get("values"), List.class);
+        assertEquals(10, values.size());
+        // clean up
+        for (int i = 1; i <= 20; i++) {
+            assertThat(deleteIndex("idx" + i).isAcknowledged(), is(true));
+        }
+    }
+
     private void validateResultsOfDoubleParametersForIdentifiers(RequestObjectBuilder query) throws IOException {
         Map<String, Object> result = runEsql(query);
         Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");

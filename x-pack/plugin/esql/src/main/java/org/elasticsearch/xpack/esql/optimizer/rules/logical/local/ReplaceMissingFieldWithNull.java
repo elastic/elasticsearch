@@ -81,7 +81,9 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                     Alias nullAlias = nullLiteral.get(f.dataType());
                     // save the first field as null (per datatype)
                     if (nullAlias == null) {
-                        Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), f.id());
+                        Alias alias = joinAttributes.isEmpty()
+                            ? new Alias(f.source(), f.name(), Literal.of(f, null), f.id())
+                            : new Alias(f.source(), f.name(), Literal.of(f, null));
                         nullLiteral.put(dt, alias);
                         projection = alias.toAttribute();
                     }

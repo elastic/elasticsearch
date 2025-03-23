@@ -1,0 +1,6 @@
+pr: 125462
+summary: Assign new id to alias created by `ReplaceMissingFieldWithNull` when there
+  is lookup join
+area: ES|QL
+type: bug
+issues: []

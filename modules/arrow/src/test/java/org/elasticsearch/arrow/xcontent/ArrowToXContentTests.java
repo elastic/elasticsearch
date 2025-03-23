@@ -48,7 +48,7 @@ public class ArrowToXContentTests extends ESTestCase {
 
     public void testWriteVarChar() throws Exception {
         try (
-            var allocator = Arrow.rootAllocator().newChildAllocator("test", 0, Long.MAX_VALUE);
+            var allocator = Arrow.newChildAllocator("test", 0, Long.MAX_VALUE);
             VarCharVector vector = new VarCharVector("stringField", allocator);
         ) {
             vector.allocateNew();
@@ -61,7 +61,7 @@ public class ArrowToXContentTests extends ESTestCase {
 
     public void testWriteMap() throws Exception {
         try (
-            var allocator = Arrow.rootAllocator().newChildAllocator("test", 0, Long.MAX_VALUE);
+            var allocator = Arrow.newChildAllocator("test", 0, Long.MAX_VALUE);
             MapVector vector = MapVector.empty("mapField", allocator, false);
         ) {
             var w = vector.getWriter();
@@ -78,10 +78,7 @@ public class ArrowToXContentTests extends ESTestCase {
     }
 
     public void testWriteNullValue() throws Exception {
-        try (
-            var allocator = Arrow.rootAllocator().newChildAllocator("test", 0, Long.MAX_VALUE);
-            IntVector vector = new IntVector("intField", allocator);
-        ) {
+        try (var allocator = Arrow.newChildAllocator("test", 0, Long.MAX_VALUE); IntVector vector = new IntVector("intField", allocator);) {
             vector.allocateNew(1);
             vector.setNull(0);
             vector.setValueCount(1);

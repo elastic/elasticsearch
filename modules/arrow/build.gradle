@@ -7,16 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
-
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   name = 'arrow'
   description = 'Provides Arrow integration for Elasticsearch'
   classname ='org.elasticsearch.arrow.ArrowPlugin'
-  //extendedPlugins = ['lang-painless']
 }
 
 dependencies {

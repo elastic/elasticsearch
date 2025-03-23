@@ -2204,6 +2204,8 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
         out.writeCollection(templates.values());
         Collection<Metadata.ProjectCustom> filteredCustoms = customs.values();
         if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
+            // RepositoriesMetadata is sent as part of Metadata#customs for version before RepositoriesMetadata migration
+            // So we exclude it from the project level customs
             if (custom(RepositoriesMetadata.TYPE) != null) {
                 assert ProjectId.DEFAULT.equals(id)
                     : "Only default project can have repositories metadata. Otherwise the code should have thrown before it reaches here";

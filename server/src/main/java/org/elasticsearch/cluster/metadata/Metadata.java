@@ -954,8 +954,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 multiProject = null;
             } else {
                 fromNodeBeforeMultiProjectsSupport = false;
-                // Repositories metadata is sent as cluster customs diff from old node. We need to
-                // 1. Split it from the cluster customs diff
+                // Repositories metadata is sent as Metadata#customs diff from old node. We need to
+                // 1. Split it from the Metadata#customs diff
                 // 2. Merge it into the default project's ProjectMetadataDiff
                 final var bwcCustoms = maybeReadBwcCustoms(in);
                 clusterCustoms = bwcCustoms.v1();
@@ -1094,7 +1094,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             // are defined only for the default project or (b) no repositories at all. What we need to do are:
             // 1. Iterate through the multi-project's MapDiff to extract the RepositoriesMetadata of the default project
             // 2. Throws if any repositories are found for non-default projects
-            // 3. Merge default project's RepositoriesMetadata into cluster customs
+            // 3. Merge default project's RepositoriesMetadata into Metadata#customs
             final var combineClustersCustoms = new SetOnce<MapDiff<String, MetadataCustom, Map<String, MetadataCustom>>>();
             final var updatedMultiProject = DiffableUtils.updateDiffsAndUpserts(multiProject, ignore -> true, (k, v) -> {
                 assert v instanceof ProjectMetadata.ProjectMetadataDiff : v;
@@ -1114,7 +1114,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 if (ProjectId.DEFAULT.equals(k) == false) {
                     throwForVersionBeforeRepositoriesMetadataMigration(out);
                 }
-                // RepositoriesMetadata is found for the default project as a diff, merge it into the cluster customs
+                // RepositoriesMetadata is found for the default project as a diff, merge it into the Metadata#customs
                 combineClustersCustoms.set(
                     DiffableUtils.<String, MetadataCustom, ClusterCustom, ProjectCustom, Map<String, MetadataCustom>>merge(
                         clusterCustoms,
@@ -1133,7 +1133,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 if (ProjectId.DEFAULT.equals(k) == false) {
                     throwForVersionBeforeRepositoriesMetadataMigration(out);
                 }
-                // RepositoriesMetadata is found for the default project as an upsert, package it as MapDiff and merge with cluster customs
+                // RepositoriesMetadata found for the default project as an upsert, package it as MapDiff and merge into Metadata#customs
                 combineClustersCustoms.set(
                     DiffableUtils.<String, MetadataCustom, ClusterCustom, ProjectCustom, Map<String, MetadataCustom>>merge(
                         clusterCustoms,
@@ -1155,6 +1155,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
 
         private static void throwForVersionBeforeRepositoriesMetadataMigration(StreamOutput out) {
+            assert out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM) : out.getTransportVersion();
             throw new UnsupportedOperationException(
                 "Serialize a diff with repositories defined for multiple projects requires version on or after ["
                     + TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM
@@ -1317,7 +1318,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         } else {
             List<ProjectCustom> defaultProjectCustoms = List.of();
             if (in.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
-                // Extract the default project's repositories metadata from an old style cluster customs
+                // Extract the default project's repositories metadata from the Metadata#customs from an old node
                 defaultProjectCustoms = new ArrayList<>();
                 readBwcCustoms(in, builder, defaultProjectCustoms::add);
                 assert defaultProjectCustoms.size() <= 1
@@ -1429,7 +1430,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         } else {
             if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
                 if (isSingleProject() || hasNoNonDefaultProjectRepositories(projects().values())) {
-                    // Repositories metadata must be sent as cluster customs for old nodes
+                    // Repositories metadata must be sent as Metadata#customs for old nodes
                     final List<VersionedNamedWriteable> combinedCustoms = new ArrayList<>(customs.size() + 1);
                     combinedCustoms.addAll(customs.values());
                     final ProjectCustom custom = getProject(ProjectId.DEFAULT).custom(RepositoriesMetadata.TYPE);
@@ -2009,9 +2010,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                                         if (projectCustom instanceof RepositoriesMetadata repositoriesMetadata) {
                                             // Repositories at the top level means it is either
                                             // 1. Serialization from a single project for which we need to create the default project
-                                            // 2. Serialization from repositories metadata migration. In this case, the metadata may
+                                            // 2. Serialization before repositories metadata migration. In this case, the metadata may
                                             // contain multiple projects, including the default project, which should be deserialized
-                                            // already with readProjects.
+                                            // already with readProjects, i.e. no need to create the default project.
                                             final ProjectMetadata.Builder defaultProjectBuilder = builder.getProject(ProjectId.DEFAULT);
                                             if (defaultProjectBuilder == null) {
                                                 builder.putProjectCustom(name, projectCustom);

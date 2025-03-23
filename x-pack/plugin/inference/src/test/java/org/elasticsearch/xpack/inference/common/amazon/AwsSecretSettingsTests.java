@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.amazonbedrock;
+package org.elasticsearch.xpack.inference.common.amazon;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
@@ -27,48 +27,46 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class AmazonBedrockSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AmazonBedrockSecretSettings> {
+public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase<AwsSecretSettings> {
 
     public void testNewSecretSettings() {
-        AmazonBedrockSecretSettings initialSettings = createRandom();
-        AmazonBedrockSecretSettings newSettings = createRandom();
+        AwsSecretSettings initialSettings = createRandom();
+        AwsSecretSettings newSettings = createRandom();
 
-        AmazonBedrockSecretSettings finalSettings = (AmazonBedrockSecretSettings) initialSettings.newSecretSettings(
-            Map.of(ACCESS_KEY_FIELD, newSettings.accessKey.toString(), SECRET_KEY_FIELD, newSettings.secretKey.toString())
+        AwsSecretSettings finalSettings = (AwsSecretSettings) initialSettings.newSecretSettings(
+            Map.of(ACCESS_KEY_FIELD, newSettings.accessKey().toString(), SECRET_KEY_FIELD, newSettings.secretKey().toString())
         );
 
         assertEquals(newSettings, finalSettings);
     }
 
     public void testIt_CreatesSettings_ReturnsNullFromMap_null() {
-        var secrets = AmazonBedrockSecretSettings.fromMap(null);
+        var secrets = AwsSecretSettings.fromMap(null);
         assertNull(secrets);
     }
 
     public void testIt_CreatesSettings_FromMap_WithValues() {
-        var secrets = AmazonBedrockSecretSettings.fromMap(
-            new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest", SECRET_KEY_FIELD, "secrettest"))
-        );
+        var secrets = AwsSecretSettings.fromMap(new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest", SECRET_KEY_FIELD, "secrettest")));
         assertThat(
             secrets,
-            is(new AmazonBedrockSecretSettings(new SecureString("accesstest".toCharArray()), new SecureString("secrettest".toCharArray())))
+            is(new AwsSecretSettings(new SecureString("accesstest".toCharArray()), new SecureString("secrettest".toCharArray())))
         );
     }
 
     public void testIt_CreatesSettings_FromMap_IgnoresExtraKeys() {
-        var secrets = AmazonBedrockSecretSettings.fromMap(
+        var secrets = AwsSecretSettings.fromMap(
             new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest", SECRET_KEY_FIELD, "secrettest", "extrakey", "extravalue"))
         );
         assertThat(
             secrets,
-            is(new AmazonBedrockSecretSettings(new SecureString("accesstest".toCharArray()), new SecureString("secrettest".toCharArray())))
+            is(new AwsSecretSettings(new SecureString("accesstest".toCharArray()), new SecureString("secrettest".toCharArray())))
         );
     }
 
     public void testIt_FromMap_ThrowsValidationException_AccessKeyMissing() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AmazonBedrockSecretSettings.fromMap(new HashMap<>(Map.of(SECRET_KEY_FIELD, "secrettest")))
+            () -> AwsSecretSettings.fromMap(new HashMap<>(Map.of(SECRET_KEY_FIELD, "secrettest")))
         );
 
         assertThat(
@@ -80,7 +78,7 @@ public class AmazonBedrockSecretSettingsTests extends AbstractBWCWireSerializati
     public void testIt_FromMap_ThrowsValidationException_SecretKeyMissing() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AmazonBedrockSecretSettings.fromMap(new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest")))
+            () -> AwsSecretSettings.fromMap(new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest")))
         );
 
         assertThat(
@@ -90,9 +88,7 @@ public class AmazonBedrockSecretSettingsTests extends AbstractBWCWireSerializati
     }
 
     public void testToXContent_CreatesProperContent() throws IOException {
-        var secrets = AmazonBedrockSecretSettings.fromMap(
-            new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest", SECRET_KEY_FIELD, "secrettest"))
-        );
+        var secrets = AwsSecretSettings.fromMap(new HashMap<>(Map.of(ACCESS_KEY_FIELD, "accesstest", SECRET_KEY_FIELD, "secrettest")));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         secrets.toXContent(builder, null);
@@ -106,26 +102,26 @@ public class AmazonBedrockSecretSettingsTests extends AbstractBWCWireSerializati
     }
 
     @Override
-    protected AmazonBedrockSecretSettings mutateInstanceForVersion(AmazonBedrockSecretSettings instance, TransportVersion version) {
+    protected AwsSecretSettings mutateInstanceForVersion(AwsSecretSettings instance, TransportVersion version) {
         return instance;
     }
 
     @Override
-    protected Writeable.Reader<AmazonBedrockSecretSettings> instanceReader() {
-        return AmazonBedrockSecretSettings::new;
+    protected Writeable.Reader<AwsSecretSettings> instanceReader() {
+        return AwsSecretSettings::new;
     }
 
     @Override
-    protected AmazonBedrockSecretSettings createTestInstance() {
+    protected AwsSecretSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected AmazonBedrockSecretSettings mutateInstance(AmazonBedrockSecretSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AmazonBedrockSecretSettingsTests::createRandom);
+    protected AwsSecretSettings mutateInstance(AwsSecretSettings instance) throws IOException {
+        return randomValueOtherThan(instance, AwsSecretSettingsTests::createRandom);
     }
 
-    private static AmazonBedrockSecretSettings createRandom() {
-        return new AmazonBedrockSecretSettings(new SecureString(randomAlphaOfLength(10)), new SecureString(randomAlphaOfLength(10)));
+    private static AwsSecretSettings createRandom() {
+        return new AwsSecretSettings(new SecureString(randomAlphaOfLength(10)), new SecureString(randomAlphaOfLength(10)));
     }
 }

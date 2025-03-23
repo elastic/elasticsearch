@@ -27,7 +27,6 @@ import org.elasticsearch.test.GraalVMThreadsFilter;
 import org.elasticsearch.test.MockLog;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFileAttributeView;
@@ -270,7 +269,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     private void createControllerProgram(final Path outputFile) throws IOException {
         final Path outputDir = outputFile.getParent();
         Files.createDirectories(outputDir);
-        Files.write(outputFile, CONTROLLER_SOURCE.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(outputFile, CONTROLLER_SOURCE);
         final PosixFileAttributeView view = Files.getFileAttributeView(outputFile, PosixFileAttributeView.class);
         if (view != null) {
             final Set<PosixFilePermission> perms = new HashSet<>();

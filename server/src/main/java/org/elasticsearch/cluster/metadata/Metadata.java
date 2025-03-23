@@ -954,7 +954,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 multiProject = null;
             } else {
                 fromNodeBeforeMultiProjectsSupport = false;
-                // Repositories metadata is sent as cluster customs diff from old node. We need
+                // Repositories metadata is sent as cluster customs diff from old node. We need to
                 // 1. Split it from the cluster customs diff
                 // 2. Merge it into the default project's ProjectMetadataDiff
                 final var bwcCustoms = maybeReadBwcCustoms(in);
@@ -1090,8 +1090,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             assert out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)
                 && out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM) : out.getTransportVersion();
 
-            // For old nodes, RepositoriesMetadata needs to be sent as a cluster custom. This is possible only if (a) the repositories
-            // are defined only for the default project or (b) no repositories at all. What we need to do is:
+            // For old nodes, RepositoriesMetadata needs to be sent as a cluster custom. This is possible when (a) the repositories
+            // are defined only for the default project or (b) no repositories at all. What we need to do are:
             // 1. Iterate through the multi-project's MapDiff to extract the RepositoriesMetadata of the default project
             // 2. Throws if any repositories are found for non-default projects
             // 3. Merge default project's RepositoriesMetadata into cluster customs
@@ -1961,7 +1961,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     switch (currentFieldName) {
-                        case "projects" -> readProjects(parser, builder);
+                        case "projects" -> {
+                            assert builder.projectMetadata.isEmpty() : "expect empty projectMetadata, but got " + builder.projectMetadata;
+                            readProjects(parser, builder);
+                        }
                         default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
@@ -2003,7 +2006,21 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                                         builder.putProjectCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
                                         builder.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tuple.v1());
                                     } else {
-                                        builder.putProjectCustom(name, projectCustom);
+                                        if (projectCustom instanceof RepositoriesMetadata repositoriesMetadata) {
+                                            // Repositories at the top level means it is either
+                                            // 1. Serialization from a single project for which we need to create the default project
+                                            // 2. Serialization from repositories metadata migration. In this case, the metadata may
+                                            // contain multiple projects, including the default project, which should be deserialized
+                                            // already with readProjects.
+                                            final ProjectMetadata.Builder defaultProjectBuilder = builder.getProject(ProjectId.DEFAULT);
+                                            if (defaultProjectBuilder == null) {
+                                                builder.putProjectCustom(name, projectCustom);
+                                            } else {
+                                                defaultProjectBuilder.putCustom(RepositoriesMetadata.TYPE, repositoriesMetadata);
+                                            }
+                                        } else {
+                                            builder.putProjectCustom(name, projectCustom);
+                                        }
                                     }
                                 });
                             } else {

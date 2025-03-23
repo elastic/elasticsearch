@@ -159,7 +159,17 @@ public final class DiffableUtils {
         return false;
     }
 
-    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> updateDiffsAndUpsertsForKey(
+    /**
+     * Create a new MapDiff from the specified MapDiff by transforming its diffs with the provided diffUpdateFunction as well as
+     * transforming its upserts with the provided upsertUpdateFunction. Whether an entry should be transformed is determined by
+     * the specified keyPredicate.
+     * @param diff The original MapDiff
+     * @param keyPredicate Determines whether an entry should be transformed
+     * @param diffUpdateFunction A function to transform a Diff entry
+     * @param upsertUpdateFunction A function to transform an upsert entry
+     * @return A new MapDiff as a result of the transformation
+     */
+    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> updateDiffsAndUpserts(
         MapDiff<K, T, M> diff,
         Predicate<K> keyPredicate,
         BiFunction<K, Diff<T>, Diff<T>> diffUpdateFunction,

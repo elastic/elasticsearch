@@ -954,6 +954,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 multiProject = null;
             } else {
                 fromNodeBeforeMultiProjectsSupport = false;
+                // Repositories metadata is sent as cluster customs diff from old node. We need
+                // 1. Split it from the cluster customs diff
+                // 2. Merge it into the default project's ProjectMetadataDiff
                 final var bwcCustoms = maybeReadBwcCustoms(in);
                 clusterCustoms = bwcCustoms.v1();
                 final var defaultProjectCustoms = bwcCustoms.v2();
@@ -996,8 +999,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 ProjectMetadata.ProjectMetadataDiff::new
             );
 
+            // If the defaultProjectCustoms has content, the diff is read from an old node. We need to merge it into the
+            // default project's ProjectMetadataDiff
             if (defaultProjectCustoms != null && defaultProjectCustoms.isEmpty() == false) {
-                return DiffableUtils.updateDiffsAndUpsertsForKey(multiProject, ProjectId.DEFAULT::equals, (k, v) -> {
+                return DiffableUtils.updateDiffsAndUpserts(multiProject, ProjectId.DEFAULT::equals, (k, v) -> {
                     assert ProjectId.DEFAULT.equals(k) : k;
                     assert v instanceof ProjectMetadata.ProjectMetadataDiff : v;
                     final var projectMetadataDiff = (ProjectMetadata.ProjectMetadataDiff) v;
@@ -1061,22 +1066,22 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 buildUnifiedCustomDiff().writeTo(out);
                 buildUnifiedReservedStateMetadataDiff().writeTo(out);
             } else {
-                final var multiProjectForWrite = multiProject != null
+                final var multiProjectToWrite = multiProject != null
                     ? multiProject
                     : DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, PROJECT_ID_SERIALIZER);
 
                 if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
-                    writeDiffBeforeRepositoriesMetadataMigration(out, clusterCustoms, multiProjectForWrite, reservedStateMetadata);
+                    writeDiffWithRepositoriesMetadataAsClusterCustom(out, clusterCustoms, multiProjectToWrite, reservedStateMetadata);
                 } else {
                     clusterCustoms.writeTo(out);
                     reservedStateMetadata.writeTo(out);
-                    multiProjectForWrite.writeTo(out);
+                    multiProjectToWrite.writeTo(out);
                 }
             }
         }
 
         @SuppressWarnings({ "rawtypes", "unchecked" })
-        private static void writeDiffBeforeRepositoriesMetadataMigration(
+        private static void writeDiffWithRepositoriesMetadataAsClusterCustom(
             StreamOutput out,
             MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>> clusterCustoms,
             MapDiff<ProjectId, ProjectMetadata, Map<ProjectId, ProjectMetadata>> multiProject,
@@ -1085,9 +1090,13 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             assert out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)
                 && out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM) : out.getTransportVersion();
 
+            // For old nodes, RepositoriesMetadata needs to be sent as a cluster custom. This is possible only if (a) the repositories
+            // are defined only for the default project or (b) no repositories at all. What we need to do is:
+            // 1. Iterate through the multi-project's MapDiff to extract the RepositoriesMetadata of the default project
+            // 2. Throws if any repositories are found for non-default projects
+            // 3. Merge default project's RepositoriesMetadata into cluster customs
             final var combineClustersCustoms = new SetOnce<MapDiff<String, MetadataCustom, Map<String, MetadataCustom>>>();
-
-            final var updatedMultiProject = DiffableUtils.updateDiffsAndUpsertsForKey(multiProject, ignore -> true, (k, v) -> {
+            final var updatedMultiProject = DiffableUtils.updateDiffsAndUpserts(multiProject, ignore -> true, (k, v) -> {
                 assert v instanceof ProjectMetadata.ProjectMetadataDiff : v;
                 final var projectMetadataDiff = (ProjectMetadata.ProjectMetadataDiff) v;
                 final var bwcCustoms = DiffableUtils.split(
@@ -1097,14 +1106,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     type -> RepositoriesMetadata.TYPE.equals(type) == false,
                     PROJECT_CUSTOM_VALUE_SERIALIZER
                 );
+                // Simply return if RepositoriesMetadata is not found
                 if (bwcCustoms.v1().isEmpty()) {
                     return projectMetadataDiff;
                 }
-
+                // RepositoriesMetadata can only be defined for the default project. Otherwise throw exception.
                 if (ProjectId.DEFAULT.equals(k) == false) {
                     throwForVersionBeforeRepositoriesMetadataMigration(out);
                 }
-
+                // RepositoriesMetadata is found for the default project as a diff, merge it into the cluster customs
                 combineClustersCustoms.set(
                     DiffableUtils.<String, MetadataCustom, ClusterCustom, ProjectCustom, Map<String, MetadataCustom>>merge(
                         clusterCustoms,
@@ -1115,14 +1125,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 return projectMetadataDiff.withCustoms(bwcCustoms.v2());
             }, (k, v) -> {
                 final ProjectCustom projectCustom = v.customs().get(RepositoriesMetadata.TYPE);
+                // Simply return if RepositoriesMetadata is not found
                 if (projectCustom == null) {
                     return v;
                 }
-
+                // RepositoriesMetadata can only be defined for the default project. Otherwise throw exception.
                 if (ProjectId.DEFAULT.equals(k) == false) {
                     throwForVersionBeforeRepositoriesMetadataMigration(out);
                 }
-
+                // RepositoriesMetadata is found for the default project as an upsert, package it as MapDiff and merge with cluster customs
                 combineClustersCustoms.set(
                     DiffableUtils.<String, MetadataCustom, ClusterCustom, ProjectCustom, Map<String, MetadataCustom>>merge(
                         clusterCustoms,
@@ -1145,7 +1156,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         private static void throwForVersionBeforeRepositoriesMetadataMigration(StreamOutput out) {
             throw new UnsupportedOperationException(
-                "Serialize a diff containing per-project repository requires version on or after ["
+                "Serialize a diff with repositories defined for multiple projects requires version on or after ["
                     + TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM
                     + "], but got ["
                     + out.getTransportVersion()
@@ -1304,13 +1315,14 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.put(ReservedStateMetadata.readFrom(in));
             }
         } else {
-            List<ProjectCustom> projectCustoms = List.of();
+            List<ProjectCustom> defaultProjectCustoms = List.of();
             if (in.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
-                projectCustoms = new ArrayList<>();
-                readBwcCustoms(in, builder, projectCustoms::add);
-                assert projectCustoms.size() <= 1
-                    : "expect only a single custom for repository metadata, but got "
-                        + projectCustoms.stream().map(ProjectCustom::getWriteableName).toList();
+                // Extract the default project's repositories metadata from an old style cluster customs
+                defaultProjectCustoms = new ArrayList<>();
+                readBwcCustoms(in, builder, defaultProjectCustoms::add);
+                assert defaultProjectCustoms.size() <= 1
+                    : "expect only a single default project custom for repository metadata, but got "
+                        + defaultProjectCustoms.stream().map(ProjectCustom::getWriteableName).toList();
             } else {
                 readClusterCustoms(in, builder);
             }
@@ -1321,12 +1333,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             }
 
             builder.projectMetadata(in.readMap(ProjectId::readFrom, ProjectMetadata::readFrom));
-
-            if (projectCustoms.isEmpty() == false) {
-                projectCustoms.forEach(
-                    projectCustom -> builder.getProject(ProjectId.DEFAULT).putCustom(projectCustom.getWriteableName(), projectCustom)
-                );
-            }
+            defaultProjectCustoms.forEach(c -> builder.getProject(ProjectId.DEFAULT).putCustom(c.getWriteableName(), c));
         }
         return builder.build();
     }
@@ -1421,7 +1428,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             out.writeCollection(combinedMetadata);
         } else {
             if (out.getTransportVersion().before(TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM)) {
-                if (isSingleProject() || noRepositoryExceptForDefaultProject(projects().values())) {
+                if (isSingleProject() || hasNoNonDefaultProjectRepositories(projects().values())) {
+                    // Repositories metadata must be sent as cluster customs for old nodes
                     final List<VersionedNamedWriteable> combinedCustoms = new ArrayList<>(customs.size() + 1);
                     combinedCustoms.addAll(customs.values());
                     final ProjectCustom custom = getProject(ProjectId.DEFAULT).custom(RepositoriesMetadata.TYPE);
@@ -1431,7 +1439,11 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     VersionedNamedWriteable.writeVersionedWriteables(out, combinedCustoms);
                 } else {
                     throw new UnsupportedOperationException(
-                        "Cannot serialize metadata with multiple projects to an output of version before repositories metadata migration"
+                        "Serialize metadata with repositories defined for multiple projects requires version on or after ["
+                            + TransportVersions.REPOSITORIES_METADATA_AS_PROJECT_CUSTOM
+                            + "], but got ["
+                            + out.getTransportVersion()
+                            + "]"
                     );
                 }
             } else {
@@ -1443,7 +1455,10 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
         }
     }
 
-    private static boolean noRepositoryExceptForDefaultProject(Collection<ProjectMetadata> projects) {
+    /**
+     * @return {@code true} iff no repositories are defined for non-default-projects.
+     */
+    private static boolean hasNoNonDefaultProjectRepositories(Collection<ProjectMetadata> projects) {
         return projects.stream()
             .allMatch(project -> ProjectId.DEFAULT.equals(project.id()) || project.custom(RepositoriesMetadata.TYPE) == null);
     }

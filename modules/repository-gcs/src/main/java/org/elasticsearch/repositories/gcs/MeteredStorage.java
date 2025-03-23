@@ -152,6 +152,7 @@ public class MeteredStorage {
     /**
      * A delegating WriteChannel with metrics collection
      */
+    @SuppressForbidden(reason = "wraps GCS channel")
     public static class MeteredWriteChannel implements WriteChannel {
         private final RepositoryStatsCollector statsCollector;
         private final WriteChannel writeChannel;
@@ -192,6 +193,7 @@ public class MeteredStorage {
     /**
      * A delegating ReadChannel with metrics collection
      */
+    @SuppressForbidden(reason = "wraps GCS channel")
     public static class MeteredReadChannel implements ReadChannel {
         private final RepositoryStatsCollector statsCollector;
         private final ReadChannel readChannel;

@@ -183,3 +183,19 @@
             min_age: "0s"
             min_docs: 1
   - match: { error.reason: "Validation Failed: 1: at least one max_* rollover condition must be set when using min_* conditions;" }
+
+---
+"Rolling over an unknown target should return 404":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /{index}/_rollover
+          capabilities: ['return-404-on-missing-target']
+      test_runner_features: [capabilities]
+      reason: Rollover used to return a 400, then it briefly returned a 500 due to an NPE, now it properly returns a 404
+
+  - do:
+      catch: missing
+      indices.rollover:
+        alias: "non_existent"
+  - match: {error.reason: "rollover target [non_existent] does not exist"}

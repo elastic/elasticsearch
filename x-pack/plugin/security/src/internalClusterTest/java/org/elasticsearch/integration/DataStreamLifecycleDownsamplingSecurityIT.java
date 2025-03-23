@@ -26,6 +26,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -119,7 +120,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     public void testDownsamplingAuthorized() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -132,7 +133,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                     )
                 )
             )
-            .build();
+            .buildTemplate();
 
         setupDataStreamAndIngestDocs(
             client(),
@@ -243,9 +244,9 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         Map<String, String> indicesAndErrors = new HashMap<>();
         for (DataStreamLifecycleService lifecycleService : lifecycleServices) {
             DataStreamLifecycleErrorStore errorStore = lifecycleService.getErrorStore();
-            Set<String> allIndices = errorStore.getAllIndices();
+            Set<String> allIndices = errorStore.getAllIndices(Metadata.DEFAULT_PROJECT_ID);
             for (var index : allIndices) {
-                ErrorEntry error = errorStore.getError(index);
+                ErrorEntry error = errorStore.getError(Metadata.DEFAULT_PROJECT_ID, index);
                 if (error != null) {
                     indicesAndErrors.put(index, error.error());
                 }
@@ -409,7 +410,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
-        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.Template.builder()
+        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.builder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -422,7 +423,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                     )
                 )
             )
-            .build();
+            .buildTemplate();
         static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
 
         @Override

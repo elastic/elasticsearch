@@ -145,11 +145,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             final SubscribableListener<IndexAuthorizationResult> resultListener = engine.authorizeIndexAction(
                 requestInfo,
                 authzInfo,
-                () -> {
-                    final var resolvedIndicesListener = new SubscribableListener<ResolvedIndices>();
-                    resolvedIndicesListener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList()));
-                    return resolvedIndicesListener;
-                },
+                () -> SubscribableListener.newSucceeded(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
                 project
             );
             IndexAuthorizationResult result = safeAwait(resultListener);
@@ -173,11 +169,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
             final SubscribableListener<IndexAuthorizationResult> resultListener = engine.authorizeIndexAction(
                 requestInfo,
                 authzInfo,
-                () -> {
-                    final var resolvedIndicesListener = new SubscribableListener<ResolvedIndices>();
-                    resolvedIndicesListener.onResponse(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList()));
-                    return resolvedIndicesListener;
-                },
+                () -> SubscribableListener.newSucceeded(new ResolvedIndices(Collections.singletonList("index"), Collections.emptyList())),
                 project
             );
             IndexAuthorizationResult result = safeAwait(resultListener);

@@ -1457,7 +1457,7 @@ multipleBatches
 required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 
-from *
+from addresses, client*, languages*, message_types*, employees*, k8s
 | dissect street "%{height_range} %{MNyXV}"
 | rename env AS kxpCK, pod AS etUHW, language_code AS city.country.continent.planet.galaxy
 | rename city.country.continent.planet.name as message
@@ -1468,6 +1468,7 @@ from *
 | lookup join languages_lookup on language_code
 | stats c = count(*) by language_code
 | sort language_code
+| limit 5
 ;
 
 c:long | language_code:long
@@ -1476,5 +1477,4 @@ c:long | language_code:long
 17     | 3
 18     | 4
 21     | 5
-6571   | null
 ;

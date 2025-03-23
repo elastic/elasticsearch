@@ -366,7 +366,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             id,
             type,
             action,
-            request.getDescription(),
+            request.query(), // Pass the query as the description
             parentTaskId,
             headers,
             originHeaders,

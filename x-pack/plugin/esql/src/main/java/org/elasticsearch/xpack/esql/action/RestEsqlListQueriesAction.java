@@ -45,16 +45,9 @@ public class RestEsqlListQueriesAction extends BaseRestHandler {
         LOGGER.debug("Beginning execution of ESQL list queries.");
 
         String id = request.param("id");
-        return id != null
-            ? (channel -> client.execute(
-                EsqlGetQueryAction.INSTANCE,
-                new EsqlGetQueryRequest(new TaskId(id)),
-                new RestToXContentListener<>(channel)
-            ))
-            : (channel -> client.execute(
-                EsqlListQueriesAction.INSTANCE,
-                new EsqlListQueriesRequest(),
-                new RestToXContentListener<>(channel)
-            ));
+        var action = id != null ? EsqlGetQueryAction.INSTANCE : EsqlListQueriesAction.INSTANCE;
+        var actionRequest = id != null ? new EsqlGetQueryRequest(new TaskId(id)) : new EsqlListQueriesRequest();
+
+        return channel -> client.execute(action, actionRequest, new RestToXContentListener<>(channel));
     }
 }

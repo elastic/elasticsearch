@@ -41,21 +41,23 @@ public class TransportEsqlListQueriesAction extends HandledTransportAction<EsqlL
 
     @Override
     protected void doExecute(Task task, EsqlListQueriesRequest request, ActionListener<EsqlListQueriesResponse> listener) {
-        new ListTasksRequestBuilder(nodeClient).setActions(EsqlQueryAction.NAME).setDetailed(true).execute(new ActionListener<>() {
-            @Override
-            public void onResponse(ListTasksResponse response) {
-                List<EsqlListQueriesResponse.Query> queries = response.getTasks()
-                    .stream()
-                    .map(TransportEsqlListQueriesAction::toQuery)
-                    .toList();
-                listener.onResponse(new EsqlListQueriesResponse(queries));
-            }
+        new ListTasksRequestBuilder(nodeClient).setActions(EsqlQueryAction.NAME, EsqlQueryAction.NAME + "[a]")
+            .setDetailed(true)
+            .execute(new ActionListener<>() {
+                @Override
+                public void onResponse(ListTasksResponse response) {
+                    List<EsqlListQueriesResponse.Query> queries = response.getTasks()
+                        .stream()
+                        .map(TransportEsqlListQueriesAction::toQuery)
+                        .toList();
+                    listener.onResponse(new EsqlListQueriesResponse(queries));
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
     }
 
     private static EsqlListQueriesResponse.Query toQuery(TaskInfo taskInfo) {

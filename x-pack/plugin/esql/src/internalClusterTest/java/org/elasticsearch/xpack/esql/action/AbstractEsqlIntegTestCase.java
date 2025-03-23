@@ -55,7 +55,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             ExchangeService exchangeService = esqlQueryAction.exchangeService();
             assertBusy(() -> {
                 if (exchangeService.lifecycleState() == Lifecycle.State.STARTED) {
-                    assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty());
+                    assertTrue("Leftover exchanges " + exchangeService + " on taskId " + node, exchangeService.isEmpty());
                 }
             });
         }
@@ -98,7 +98,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                             )
                             .toList()
                     );
-                    assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L));
+                    assertThat("Request breaker not reset to 0 on taskId: " + node, reqBreaker.getUsed(), equalTo(0L));
                 });
             } catch (Exception e) {
                 throw new RuntimeException("failed waiting for breakers to clear", e);

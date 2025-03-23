@@ -16,6 +16,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
@@ -26,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -44,6 +46,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,6 +73,7 @@ import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -1343,6 +1347,56 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             values
         );
 
+    }
+
+    public void testListApi_noRunningQueries_returnsAnObject() throws Exception {
+        Request request = prepareListQueriesRequest();
+        Response response = performRequest(request);
+        assertThat(entityToMap(response.getEntity(), XContentType.JSON), is(Map.of("queries", Map.of())));
+    }
+
+    public void testListApi_runningQuery_returnsQueriesObject() throws Exception {
+        bulkLoadTestData(1);
+        String query = fromIndex() + " | keep keyword, integer | where delay(10s) | limit 100 ";
+        var builder = requestObjectBuilder().query(query);
+        Request request = prepareRequest(SYNC);
+        String mediaType = attachBody(builder.build(), request);
+        RequestOptions.Builder options = request.getOptions().toBuilder();
+        options.addHeader("Content-Type", mediaType);
+        options.addHeader("Accept", mediaType);
+        request.setOptions(options);
+        client().performRequestAsync(request, new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {}
+
+            @Override
+            public void onFailure(Exception exception) {}
+        });
+        Thread.sleep(Duration.ofSeconds(5));
+        Response response = performRequest(prepareListQueriesRequest());
+        @SuppressWarnings("unchecked")
+        var listResult = (Map<String, Map<String, Object>>) EsqlTestUtils.singleValue(
+            entityToMap(response.getEntity(), XContentType.JSON).values()
+        );
+        var taskId = new TaskId(EsqlTestUtils.singleValue(listResult.keySet()));
+        var queryFromListResult = EsqlTestUtils.singleValue(listResult.values());
+        assertThat(queryFromListResult.get("id"), is((int) taskId.getId()));
+        assertThat(queryFromListResult.get("node"), is(taskId.getNodeId()));
+        assertThat(queryFromListResult.get("query"), is(query));
+        assertThat(queryFromListResult, hasKey("start_time_millis"));
+        assertThat(queryFromListResult, hasKey("running_time_nanos"));
+
+        response = performRequest(prepareGetQueryRequest(taskId));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> getQueryResult = entityToMap(response.getEntity(), XContentType.JSON);
+        assertThat(getQueryResult.get("id"), is((int) taskId.getId()));
+        assertThat(getQueryResult.get("node"), is(taskId.getNodeId()));
+        assertThat(getQueryResult.get("query"), is(query));
+        assertThat(getQueryResult.get("start_time_millis"), is(queryFromListResult.get("start_time_millis")));
+        assertThat(getQueryResult, hasKey("running_time_nanos"));
+        assertThat(getQueryResult, hasKey("coordinating_node"));
+        assertThat(getQueryResult, hasKey("data_nodes"));
+        Thread.sleep(Duration.ofSeconds(5));
     }
 
     protected static Request prepareRequestWithOptions(RequestObjectBuilder requestObject, Mode mode) throws IOException {

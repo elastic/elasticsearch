@@ -41,6 +41,7 @@ public class TransportEsqlListQueriesAction extends HandledTransportAction<EsqlL
 
     @Override
     protected void doExecute(Task task, EsqlListQueriesRequest request, ActionListener<EsqlListQueriesResponse> listener) {
+        // FIXME(gal, NOCOMMIT) The + [a] hack needs a better solution.
         new ListTasksRequestBuilder(nodeClient).setActions(EsqlQueryAction.NAME, EsqlQueryAction.NAME + "[a]")
             .setDetailed(true)
             .execute(new ActionListener<>() {

@@ -219,6 +219,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos greater than, no mv min
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos > TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos > TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948000000Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -255,6 +256,7 @@ millis:date             | nanos:date_nanos
 implicit casting to nanos, date only, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos > "2023-10-23" 
@@ -289,6 +291,7 @@ millis:date             | nanos:date_nanos
 implicit casting to nanos, date only, equality test, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos == "2023-10-23" 
@@ -324,6 +327,7 @@ millis:date             | nanos:date_nanos
 implicit casting to nanos, date plus time to seconds, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos > "2023-10-23T00:00:00" 
@@ -358,6 +362,7 @@ millis:date             | nanos:date_nanos
 implicit casting to nanos, date plus time to seconds, equality test, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos == "2023-10-23T12:27:28" 
@@ -392,6 +397,7 @@ millis:date             | nanos:date_nanos
 implicit casting to nanos, date plus time to millis, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos > "2023-10-23T00:00:00.000" 
@@ -427,6 +433,7 @@ millis:date             | nanos:date_nanos
 implicit casting to nanos, date plus time to millis, equality test, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos == "2023-10-23T12:27:28.948" 
@@ -462,6 +469,7 @@ millis:date             | nanos:date_nanos
 implicit casting to nanos, date plus time to nanos, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos > "2023-10-23T00:00:00.000000000" 
@@ -497,6 +505,7 @@ millis:date             | nanos:date_nanos
 implicit casting to nanos, date plus time to nanos, equality test, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos == "2023-10-23T12:27:28.948000000" 
@@ -526,6 +535,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos greater than millis, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos > TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos > TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -557,6 +567,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos greater than or equal, no mv min
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos >= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos >= TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -589,6 +600,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos greater than or equal millis, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos >= TO_DATETIME("2023-10-23T12:27:28.948Z") | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos >= TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -625,6 +637,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos less than, no mv min
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos < TO_DATE_NANOS("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos < TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -648,6 +661,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos less than millis, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos < TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos < TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -673,6 +687,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos less than equal, no mv min
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos <= TO_DATE_NANOS("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos <= TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -699,6 +714,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos less than equal millis, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos <= TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos <= TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -723,6 +739,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos equals, no mv min
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos == TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z");
 warningRegex:Line 1:25: evaluation of \[nanos == TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948000000Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -745,6 +762,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos equals millis exact match, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos == TO_DATETIME("2023-10-23T12:27:28.948Z");
 warningRegex:Line 1:25: evaluation of \[nanos == TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -766,6 +784,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos equals millis without exact match, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos == TO_DATETIME("2023-10-23T13:33:34.937");
 warningRegex:Line 1:25: evaluation of \[nanos == TO_DATETIME\(\\\"2023-10-23T13:33:34\.937\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -793,6 +812,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos not equals, no mv min
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos != TO_DATE_NANOS("2023-10-23T12:27:28.948000000Z") AND millis > "2000-01-01" | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos != TO_DATE_NANOS\(\\\"2023-10-23T12:27:28\.948000000Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -827,6 +847,7 @@ millis:date              | nanos:date_nanos               | num:long
 date nanos not equals millis, no mv min
 required_capability: date_nanos_type
 required_capability: date_nanos_compare_to_millis
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos | WHERE nanos != TO_DATETIME("2023-10-23T12:27:28.948Z") AND millis > "2000-01-01" | SORT nanos DESC;
 warningRegex:Line 1:25: evaluation of \[nanos != TO_DATETIME\(\\\"2023-10-23T12:27:28\.948Z\\\"\)\] failed, treating result as null\. Only first 20 failures recorded\.
@@ -1571,6 +1592,7 @@ millis:date              | nanos:date_nanos               | num:long
 Date Nanos IN constant date nanos, no mv first
 required_capability: date_nanos_in_operator
 required_capability: to_date_nanos
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos IN (TO_DATE_NANOS("2023-10-23T13:55:01.543123456Z"), TO_DATE_NANOS("2023-10-23T12:27:28.948Z"), TO_DATE_NANOS("2017-10-23T13:53:55.832987654Z"));
@@ -1601,6 +1623,7 @@ Date Nanos IN constant date nanos, implicit casting, no mv function
 required_capability: date_nanos_in_operator
 required_capability: to_date_nanos
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE nanos IN ("2023-10-23T13:55:01.543123456Z", "2023-10-23T12:27:28.948Z", "2017-10-23T13:53:55.832987654Z");
@@ -1629,6 +1652,7 @@ Date Nanos IN date nanos field, implicit casting, no mv function
 required_capability: date_nanos_in_operator
 required_capability: to_date_nanos
 required_capability: date_nanos_implicit_casting
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos 
 | WHERE "2023-10-23T13:55:01.543123456Z" IN (nanos);

@@ -164,7 +164,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(request.getRolloverTarget(), request.indicesOptions());
         final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(resolvedRolloverTarget.resource());
         final String[] indicesToCheck;
-        if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
+        if (indexAbstraction != null && indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
             DataStream dataStream = (DataStream) indexAbstraction;
             boolean targetFailureStore = resolvedRolloverTarget.selector() != null
                 && resolvedRolloverTarget.selector().shouldIncludeFailures();

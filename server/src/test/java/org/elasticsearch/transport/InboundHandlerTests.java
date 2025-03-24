@@ -172,11 +172,11 @@ public class InboundHandlerTests extends ESTestCase {
         String requestValue = randomAlphaOfLength(10);
         BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
         BytesReference fullRequestBytes = OutboundHandler.serialize(
+            OutboundHandler.MessageDirection.REQUEST,
             action,
             requestId,
             false,
             TransportVersion.current(),
-            false,
             null,
             new TestRequest(requestValue),
             threadPool.getThreadContext(),

@@ -291,6 +291,21 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 + acc3.reduceLanes(VectorOperators.ADD);
         }
 
+        sectionLength = INT_SPECIES_256.length();
+        if (q.length - i >= sectionLength) {
+            IntVector acc = IntVector.zero(INT_SPECIES_256);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var vals = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
+
+                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                var mask = VectorMask.fromLong(INT_SPECIES_256, maskBits);
+
+                acc = acc.add(vals, mask);
+            }
+            sum += acc.reduceLanes(VectorOperators.ADD);
+        }
+
         // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)
         assert i == q.length;
         return sum;
@@ -383,6 +398,21 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             }
             sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
                 + acc3.reduceLanes(VectorOperators.ADD);
+        }
+
+        sectionLength = FLOAT_SPECIES_256.length();
+        if (q.length - i >= sectionLength) {
+            FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
+            int limit = limit(q.length, sectionLength);
+            for (; i < limit; i += sectionLength) {
+                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
+
+                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                var mask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
+
+                acc = acc.add(floats, mask);
+            }
+            sum += acc.reduceLanes(VectorOperators.ADD);
         }
 
         // that should have got them all (q.length is a multiple of 8, which fits in a 256-bit vector)

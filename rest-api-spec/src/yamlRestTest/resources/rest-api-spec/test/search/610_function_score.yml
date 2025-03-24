@@ -82,7 +82,7 @@
 ---
 "No field only runs on 9.x":
   - requires:
-      cluster_features: [ "gte_v9.0.0" ]
+      cluster_features: [ "gte_v8.20.0" ]
       reason: "empty field works seamlessly (relying on _seqno since 9.x)"
   - do:
       indices.create:

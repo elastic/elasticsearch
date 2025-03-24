@@ -290,7 +290,7 @@ PUT _ilm/policy/my_policy
 [ilm-rollover-conditions-ex]]
 ===== Roll over while maintaining shard sizes
 
-This example rolls the index over when the primary shard size is at least 50gb,
+This example rolls the index over when the primary shard size is at most 50gb,
 or when the index is at least 30 days old, but only as long as a primary shard is at least 1gb.
 For low-volume indices, this prevents the creation of many small shards.
 

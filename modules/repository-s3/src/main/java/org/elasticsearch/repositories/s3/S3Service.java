@@ -15,15 +15,11 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.auth.signer.Aws4Signer;
-import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
-import software.amazon.awssdk.core.signer.NoOpSigner;
-import software.amazon.awssdk.core.signer.Signer;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
@@ -228,14 +224,6 @@ class S3Service implements Closeable {
         return s3clientBuilder;
     }
 
-    private static Signer getSigner(S3ClientSettings.AwsSignerOverrideType signerOverrideType) {
-        return switch (signerOverrideType) {
-            case Aws4Signer, AWS4SignerType -> Aws4Signer.create();
-            case AWS3SignerType, AwsS3V4Signer -> AwsS3V4Signer.create();
-            case NoOpSigner, NoOpSignerType -> new NoOpSigner();
-        };
-    }
-
     ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
         ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
@@ -267,7 +255,7 @@ class S3Service implements Closeable {
         }
 
         clientOverrideConfiguration.retryPolicy(retryPolicy.build());
-        clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, getSigner(clientSettings.signerOverride));
+        clientOverrideConfiguration.putAdvancedOption(SdkAdvancedClientOption.SIGNER, clientSettings.signerOverride.signerFactory.get());
         return clientOverrideConfiguration.build();
     }
 

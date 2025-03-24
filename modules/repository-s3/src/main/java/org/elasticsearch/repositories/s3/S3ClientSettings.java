@@ -12,6 +12,10 @@ package org.elasticsearch.repositories.s3;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.signer.Aws4Signer;
+import software.amazon.awssdk.auth.signer.AwsS3V4Signer;
+import software.amazon.awssdk.core.signer.NoOpSigner;
+import software.amazon.awssdk.core.signer.Signer;
 
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -26,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * A container for settings used to create an S3 client.
@@ -178,22 +183,30 @@ final class S3ClientSettings {
         // Supported for upgrade compatibility, ultimately converted to a V2 equivalent.
         // Note: AWS4UnsignedPayloadSignerType is no longer supported, there is no equivalent in V2 short of a custom signer.
         // Note: QueryStringSigner is deprecated in V2, thus not given support.
-        // TODO NOMERGE let's find better names for these things
-        AWS4SignerType, // -> Aws4Signer
-        AWS3SignerType, // -> AwsS3V4Signer
-        NoOpSignerType, // -> NoOpSigner
+        // TODO NOMERGE let's find better names for these things and make this less of a breaking change
+        SDKV1_AWS_V4_SIGNER_TYPE("Aws4SignerType", Aws4Signer::create),
+        SDKV1_AWS_S3_V4_SIGNER_TYPE("AwsS3V4Signer", AwsS3V4Signer::create),
+        SDKV1_NOOP_SIGNER_TYPE("NoopSigner", NoOpSigner::new),
 
         // AWS SDK V2 Signer types
-        Aws4Signer,
-        AwsS3V4Signer,
-        NoOpSigner
+        SDKV2_AWS_V4_SIGNER_TYPE("Aws4Signer", Aws4Signer::create),
+        SDKV2_AWS_S3_V4_SIGNER_TYPE("AwsS3V4Signer", AwsS3V4Signer::create),
+        SDKV2_NOOP_SIGNER_TYPE("NoopSigner", NoOpSigner::new);
+
+        final String signerName;
+        final Supplier<Signer> signerFactory;
+
+        AwsSignerOverrideType(String signerName, Supplier<Signer> signerFactory) {
+            this.signerName = signerName;
+            this.signerFactory = signerFactory;
+        }
     }
 
     /** An override for the signer to use. */
     static final Setting.AffixSetting<AwsSignerOverrideType> SIGNER_OVERRIDE = Setting.affixKeySetting(
         PREFIX,
         "signer_override",
-        key -> Setting.enumSetting(AwsSignerOverrideType.class, key, AwsSignerOverrideType.Aws4Signer, Property.NodeScope)
+        key -> Setting.enumSetting(AwsSignerOverrideType.class, key, AwsSignerOverrideType.SDKV2_AWS_V4_SIGNER_TYPE, Property.NodeScope)
     );
 
     /** Credentials to authenticate with s3. */

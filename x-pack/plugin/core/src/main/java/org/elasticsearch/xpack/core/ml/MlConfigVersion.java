@@ -25,7 +25,6 @@ import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -281,24 +280,17 @@ public record MlConfigVersion(int id) implements VersionId<MlConfigVersion>, ToX
     public static Tuple<MlConfigVersion, MlConfigVersion> getMinMaxMlConfigVersion(DiscoveryNodes nodes) {
         MlConfigVersion minMlConfigVersion = MlConfigVersion.CURRENT;
         MlConfigVersion maxMlConfigVersion = MlConfigVersion.FIRST_ML_VERSION;
-
-        // many nodes will have the same versions, so de-duplicate versions first so that we only have to parse unique versions
-        final Set<String> versions = new HashSet<>();
         for (DiscoveryNode node : nodes) {
-            String mlConfigVerStr = node.getAttributes().get(ML_CONFIG_VERSION_NODE_ATTR);
-            if (mlConfigVerStr != null) { // ignore nodes that don't have an ML config version
-                versions.add(mlConfigVerStr);
-            }
-        }
-
-        // of the unique versions, find the min and max
-        for (String version : versions) {
-            MlConfigVersion mlConfigVersion = fromString(version);
-            if (mlConfigVersion.before(minMlConfigVersion)) {
-                minMlConfigVersion = mlConfigVersion;
-            }
-            if (mlConfigVersion.after(maxMlConfigVersion)) {
-                maxMlConfigVersion = mlConfigVersion;
+            try {
+                MlConfigVersion mlConfigVersion = getMlConfigVersionForNode(node);
+                if (mlConfigVersion.before(minMlConfigVersion)) {
+                    minMlConfigVersion = mlConfigVersion;
+                }
+                if (mlConfigVersion.after(maxMlConfigVersion)) {
+                    maxMlConfigVersion = mlConfigVersion;
+                }
+            } catch (IllegalStateException e) {
+                // This means we encountered a node that is after 8.10.0 but has the ML plugin disabled - ignore it
             }
         }
         return new Tuple<>(minMlConfigVersion, maxMlConfigVersion);

@@ -89,8 +89,7 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
 
     /**
      * This class is only used in template configuration. It wraps the fields of {@link DataStreamFailureStore} with {@link ResettableValue}
-     * to allow a user to signal when they want to reset any previously encountered values during template composition. Furthermore, it
-     * provides the method {@link #merge(Template, Template)} that dictates how two templates can be composed.
+     * to allow a user to signal when they want to reset any previously encountered values during template composition.
      */
     public record Template(ResettableValue<Boolean> enabled) implements Writeable, ToXContentObject {
 
@@ -110,6 +109,10 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
                 ENABLED_FIELD,
                 ObjectParser.ValueType.BOOLEAN_OR_NULL
             );
+        }
+
+        public Template(Boolean enabled) {
+            this(ResettableValue.create(enabled));
         }
 
         public Template {
@@ -144,15 +147,6 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
             return PARSER.parse(parser, null);
         }
 
-        /**
-         * Returns a template which has the value of the initial template updated with the values of the update.
-         * Note: for now it's a trivial composition because we have only one non-null field.
-         * @return the composed template
-         */
-        public static Template merge(Template ignored, Template update) {
-            return update;
-        }
-
         public DataStreamFailureStore toFailureStore() {
             return new DataStreamFailureStore(enabled.get());
         }
@@ -160,6 +154,67 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
         @Override
         public String toString() {
             return Strings.toString(this, true, true);
+        }
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static Builder builder(Template template) {
+        return new Builder(template);
+    }
+
+    public static Builder builder(DataStreamFailureStore failureStore) {
+        return new Builder(failureStore);
+    }
+
+    /**
+     * Builder that is able to create either a DataStreamFailureStore or its respective Template.
+     * Furthermore, its update methods can be used to compose templates.
+     */
+    public static class Builder {
+        private Boolean enabled = null;
+
+        private Builder() {}
+
+        private Builder(Template template) {
+            if (template != null) {
+                enabled = template.enabled.get();
+            }
+        }
+
+        private Builder(DataStreamFailureStore failureStore) {
+            if (failureStore != null) {
+                enabled = failureStore.enabled;
+            }
+        }
+
+        public Builder enabled(Boolean enabled) {
+            this.enabled = enabled;
+            return this;
+        }
+
+        public Builder enabled(ResettableValue<Boolean> enabled) {
+            if (enabled.shouldReset()) {
+                this.enabled = null;
+            } else if (enabled.isDefined()) {
+                this.enabled = enabled.get();
+            }
+            return this;
+        }
+
+        public Builder composeTemplate(DataStreamFailureStore.Template failureStore) {
+            this.enabled(failureStore.enabled());
+            return this;
+        }
+
+        public DataStreamFailureStore build() {
+            return new DataStreamFailureStore(enabled);
+        }
+
+        public DataStreamFailureStore.Template buildTemplate() {
+            return new Template(enabled);
         }
     }
 }

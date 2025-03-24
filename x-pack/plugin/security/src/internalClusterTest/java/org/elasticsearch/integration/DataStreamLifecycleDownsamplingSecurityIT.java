@@ -120,7 +120,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     public void testDownsamplingAuthorized() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.builder()
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -133,7 +133,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                     )
                 )
             )
-            .build();
+            .buildTemplate();
 
         setupDataStreamAndIngestDocs(
             client(),
@@ -410,7 +410,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
 
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
-        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.Template.builder()
+        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.builder()
             .downsampling(
                 List.of(
                     new DataStreamLifecycle.DownsamplingRound(
@@ -423,7 +423,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                     )
                 )
             )
-            .build();
+            .buildTemplate();
         static final String SYSTEM_DATA_STREAM_NAME = ".fleet-actions-results";
 
         @Override

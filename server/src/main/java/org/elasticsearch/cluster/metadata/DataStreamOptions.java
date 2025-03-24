@@ -96,8 +96,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
 
     /**
      * This class is only used in template configuration. It wraps the fields of {@link DataStreamOptions} with {@link ResettableValue}
-     * to allow a user to signal when they want to reset any previously encountered values during template composition. Furthermore, it
-     * provides the {@link Template.Builder} that dictates how two templates can be composed.
+     * to allow a user to signal when they want to reset any previously encountered values during template composition.
      */
     public record Template(ResettableValue<DataStreamFailureStore.Template> failureStore) implements Writeable, ToXContentObject {
         public static final Template EMPTY = new Template(ResettableValue.undefined());
@@ -118,6 +117,10 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
                 ResettableValue.reset(),
                 FAILURE_STORE_FIELD
             );
+        }
+
+        public Template(DataStreamFailureStore.Template template) {
+            this(ResettableValue.create(template));
         }
 
         public Template {
@@ -150,43 +153,65 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
             return builder;
         }
 
-        public DataStreamOptions toDataStreamOptions() {
-            return new DataStreamOptions(failureStore.mapAndGet(DataStreamFailureStore.Template::toFailureStore));
-        }
-
-        public static Builder builder(Template template) {
-            return new Builder(template);
-        }
-
-        /**
-         * Builds and composes a data stream template.
-         */
-        public static class Builder {
-            private ResettableValue<DataStreamFailureStore.Template> failureStore = ResettableValue.undefined();
-
-            public Builder(Template template) {
-                if (template != null) {
-                    failureStore = template.failureStore();
-                }
-            }
-
-            /**
-             * Updates the current failure store configuration with the provided value. This is not a replacement necessarily, if both
-             * instance contain data the configurations are merged.
-             */
-            public Builder updateFailureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {
-                failureStore = ResettableValue.merge(failureStore, newFailureStore, DataStreamFailureStore.Template::merge);
-                return this;
-            }
-
-            public Template build() {
-                return new Template(failureStore);
-            }
-        }
-
         @Override
         public String toString() {
             return Strings.toString(this, true, true);
+        }
+    }
+
+    public static Builder builder(Template template) {
+        return new Builder(template);
+    }
+
+    /**
+     * Builds and composes the data stream options or the respective template.
+     */
+    public static class Builder {
+        private DataStreamFailureStore.Builder failureStore = null;
+
+        public Builder(Template template) {
+            if (template != null && template.failureStore().get() != null) {
+                failureStore = DataStreamFailureStore.builder(template.failureStore().get());
+            }
+        }
+
+        public Builder(DataStreamOptions options) {
+            if (options != null && options.failureStore() != null) {
+                failureStore = DataStreamFailureStore.builder(options.failureStore());
+            }
+        }
+
+        /**
+         * Updates this builder with the values of the provided template. This is not a replacement necessarily, the
+         * inner values will be merged.
+         */
+        public Builder composeTemplate(DataStreamOptions.Template options) {
+            return failureStore(options.failureStore());
+        }
+
+        /**
+         * Updates the current failure store configuration with the provided value. This is not a replacement necessarily, if both
+         * instance contain data the configurations are merged.
+         */
+        public Builder failureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {
+            if (newFailureStore.shouldReset()) {
+                failureStore = null;
+            } else if (newFailureStore.isDefined()) {
+                if (failureStore == null) {
+                    failureStore = DataStreamFailureStore.builder(newFailureStore.get());
+                } else {
+                    failureStore.composeTemplate(newFailureStore.get());
+                }
+            }
+            return this;
+        }
+
+        public Template buildTemplate() {
+            return new Template(failureStore == null ? null : failureStore.buildTemplate());
+        }
+
+        public DataStreamOptions build() {
+            return new DataStreamOptions(failureStore == null ? null : failureStore.build());
         }
     }
 }

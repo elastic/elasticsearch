@@ -366,7 +366,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             @Override
             public SyntheticSourceExample example(int maxVals) throws IOException {
                 var example = super.example(maxVals);
-                // Need the expectedForSyntheticSource as inputValue since the inputValue since MapperTestCase#testSyntheticSourceKeepArrays
+                // Need the expectedForSyntheticSource as inputValue since MapperTestCase#testSyntheticSourceKeepArrays
                 // uses the inputValue as both the input and expected.
                 return new SyntheticSourceExample(
                     example.expectedForSyntheticSource(),

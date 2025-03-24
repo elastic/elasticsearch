@@ -50,7 +50,8 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         Utils.storeSparseModel(client());
-        availableVersions = IndexVersionUtils.allReleasedVersions().stream()
+        availableVersions = IndexVersionUtils.allReleasedVersions()
+            .stream()
             .filter(indexVersion -> indexVersion.after(SEMANTIC_TEXT_INTRODUCED_VERSION))
             .collect(Collectors.toSet());
     }
@@ -136,9 +137,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
 
             // Test data ingestion
             String[] text = new String[] { "inference test", "another inference test" };
-            DocWriteResponse docWriteResponse = client().prepareIndex(indexName)
-                .setSource(Map.of("semantic_field", text))
-                .get();
+            DocWriteResponse docWriteResponse = client().prepareIndex(indexName).setSource(Map.of("semantic_field", text)).get();
 
             assertEquals("Document should be created", "created", docWriteResponse.getResult().toString().toLowerCase());
 
@@ -147,13 +146,13 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
             ensureGreen(indexName);
 
             // Semantic Search
-            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-                .query(new SemanticQueryBuilder("semantic_field", "inference"))
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new SemanticQueryBuilder("semantic_field", "inference"))
                 .trackTotalHits(true);
 
-            assertResponse(client().search(new SearchRequest(indexName).source(sourceBuilder)), response -> {
-                assertHitCount(response, 1L);
-            });
+            assertResponse(
+                client().search(new SearchRequest(indexName).source(sourceBuilder)),
+                response -> { assertHitCount(response, 1L); }
+            );
 
             Settings settings = client().admin()
                 .indices()
@@ -162,12 +161,11 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 .getIndexToSettings()
                 .get(indexName);
 
-            //Semantic Search with highlighter only available from 8.18 and 9.0
+            // Semantic Search with highlighter only available from 8.18 and 9.0
             if (InferenceMetadataFieldsMapper.isEnabled(settings)) {
-                SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder()
-                    .query(new SemanticQueryBuilder("semantic_field", "inference"))
-                    .highlighter(new HighlightBuilder().field("semantic_field"))
-                    .trackTotalHits(true);
+                SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder().query(
+                    new SemanticQueryBuilder("semantic_field", "inference")
+                ).highlighter(new HighlightBuilder().field("semantic_field")).trackTotalHits(true);
 
                 assertResponse(client().search(new SearchRequest(indexName).source(sourceHighlighterBuilder)), response -> {
                     assertHighlight(response, 0, "semantic_field", 0, 2, equalTo("inference test"));

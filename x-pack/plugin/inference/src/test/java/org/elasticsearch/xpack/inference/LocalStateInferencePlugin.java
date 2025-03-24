@@ -89,11 +89,9 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(super.getNamedWriteables());
         namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
-        namedWriteables.add(new NamedWriteableRegistry.Entry(
-            QueryBuilder.class,
-            SparseVectorQueryBuilder.NAME,
-            SparseVectorQueryBuilder::new
-        ));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(QueryBuilder.class, SparseVectorQueryBuilder.NAME, SparseVectorQueryBuilder::new)
+        );
 
         return namedWriteables;
     }

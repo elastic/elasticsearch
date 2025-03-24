@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,8 +40,6 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
             }
         }
     }
-
-    static NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "CompositeBlock", CompositeBlock::readFrom);
 
     @Override
     public Vector asVector() {
@@ -208,18 +205,14 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
         return Arrays.stream(blocks).mapToLong(Accountable::ramBytesUsed).sum();
     }
 
-    @Override
-    public String getWriteableName() {
-        return "CompositeBlock";
-    }
-
     static Block readFrom(StreamInput in) throws IOException {
         final int numBlocks = in.readVInt();
         boolean success = false;
         final Block[] blocks = new Block[numBlocks];
+        BlockStreamInput blockStreamInput = (BlockStreamInput) in;
         try {
             for (int b = 0; b < numBlocks; b++) {
-                blocks[b] = in.readNamedWriteable(Block.class);
+                blocks[b] = Block.readTypedBlock(blockStreamInput);
             }
             CompositeBlock result = new CompositeBlock(blocks);
             success = true;
@@ -235,7 +228,7 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(blocks.length);
         for (Block block : blocks) {
-            out.writeNamedWriteable(block);
+            Block.writeTypedBlock(block, out);
         }
     }
 

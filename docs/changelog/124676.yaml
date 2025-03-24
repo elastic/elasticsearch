@@ -1,0 +1,6 @@
+pr: 124676
+summary: TO_LOWER processes all values
+area: ES|QL
+type: bug
+issues:
+ - 124002

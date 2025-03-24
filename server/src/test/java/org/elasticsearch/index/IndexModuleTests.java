@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -59,6 +60,8 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -69,6 +72,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -158,6 +162,7 @@ public class IndexModuleTests extends ESTestCase {
     };
     private MapperRegistry mapperRegistry;
     private ThreadPool threadPool;
+    private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private CircuitBreakerService circuitBreakerService;
     private BigArrays bigArrays;
     private ScriptService scriptService;
@@ -170,6 +175,7 @@ public class IndexModuleTests extends ESTestCase {
         settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
         indicesQueryCache = new IndicesQueryCache(settings);
         indexSettings = IndexSettingsModule.newIndexSettings("foo", settings);
@@ -188,6 +194,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyMap()
         );
         threadPool = new TestThreadPool("test");
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, settings);
         circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
         bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
@@ -214,6 +221,7 @@ public class IndexModuleTests extends ESTestCase {
             circuitBreakerService,
             bigArrays,
             threadPool,
+            threadPoolMergeExecutorService,
             scriptService,
             clusterService,
             null,
@@ -241,7 +249,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -269,7 +278,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final IndexService indexService = newIndexService(module);
@@ -295,7 +305,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -649,7 +660,8 @@ public class IndexModuleTests extends ESTestCase {
             recoveryStateFactories,
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final IndexService indexService = newIndexService(module);
@@ -672,7 +684,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -775,7 +788,8 @@ public class IndexModuleTests extends ESTestCase {
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
             MapperMetrics.NOOP,
-            emptyList()
+            emptyList(),
+            new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

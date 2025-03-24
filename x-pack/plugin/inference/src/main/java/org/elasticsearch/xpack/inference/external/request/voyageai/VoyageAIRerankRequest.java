@@ -12,9 +12,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.voyageai.VoyageAIAccount;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankTaskSettings;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -23,46 +21,40 @@ import java.util.Objects;
 
 public class VoyageAIRerankRequest extends VoyageAIRequest {
 
-    private final VoyageAIAccount account;
     private final String query;
     private final List<String> input;
-    private final VoyageAIRerankTaskSettings taskSettings;
-    private final String model;
-    private final String inferenceEntityId;
+    private final VoyageAIRerankModel model;
 
     public VoyageAIRerankRequest(String query, List<String> input, VoyageAIRerankModel model) {
-        Objects.requireNonNull(model);
+        this.model = Objects.requireNonNull(model);
 
-        this.account = VoyageAIAccount.of(model);
         this.input = Objects.requireNonNull(input);
         this.query = Objects.requireNonNull(query);
-        taskSettings = model.getTaskSettings();
-        this.model = model.getServiceSettings().modelId();
-        inferenceEntityId = model.getInferenceEntityId();
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(account.uri());
+        HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new VoyageAIRerankRequestEntity(query, input, taskSettings, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new VoyageAIRerankRequestEntity(query, input, model.getTaskSettings(), model.getServiceSettings().modelId()))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
-        decorateWithHeaders(httpPost, account);
+        decorateWithHeaders(httpPost, model);
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     @Override
     public String getInferenceEntityId() {
-        return inferenceEntityId;
+        return model.getInferenceEntityId();
     }
 
     @Override
     public URI getURI() {
-        return account.uri();
+        return model.uri();
     }
 
     @Override

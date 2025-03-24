@@ -39,22 +39,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
 
 /**
- * Various benchmarks for the distance functions
- * used by indexed and non-indexed vectors.
- * Parameters include element, dims, function, and type.
+ * Various benchmarks for the distance functions used by indexed and non-indexed vectors.
+ * Parameters include doc and query type, dims, function, and implementation.
  * For individual local tests it may be useful to increase
- * fork, measurement, and operations per invocation. (Note
- * to also update the benchmark loop if operations per invocation
- * is increased.)
+ * fork, measurement, and operations per invocation.
  */
 @Fork(1)
 @Warmup(iterations = 1)
 @Measurement(iterations = 2)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
-@OperationsPerInvocation(25000)
+@OperationsPerInvocation(DistanceFunctionBenchmark.OPERATIONS)
 @State(Scope.Benchmark)
 public class DistanceFunctionBenchmark {
+
+    public static final int OPERATIONS = 25000;
 
     static {
         LogConfigurator.configureESLogging();
@@ -125,7 +124,7 @@ public class DistanceFunctionBenchmark {
     }
 
     private static BytesRef generateVectorData(float[] vector, float mag) {
-        ByteBuffer buffer = ByteBuffer.allocate(vector.length * 4 + 4);
+        ByteBuffer buffer = ByteBuffer.allocate(vector.length * Float.BYTES + Float.BYTES);
         for (float f : vector) {
             buffer.putFloat(f);
         }
@@ -136,7 +135,7 @@ public class DistanceFunctionBenchmark {
     private static BytesRef generateVectorData(byte[] vector) {
         float mag = calculateMag(vector);
 
-        ByteBuffer buffer = ByteBuffer.allocate(vector.length + 4);
+        ByteBuffer buffer = ByteBuffer.allocate(vector.length + Float.BYTES);
         buffer.put(vector);
         buffer.putFloat(mag);
         return new BytesRef(buffer.array());
@@ -144,6 +143,7 @@ public class DistanceFunctionBenchmark {
 
     @Setup
     public void findBenchmarkImpl() {
+        if (dims % 8 != 0) throw new IllegalArgumentException("Dims must be a multiple of 8");
         Random r = new Random();
 
         float[] floatDocVector = new float[dims];
@@ -225,7 +225,7 @@ public class DistanceFunctionBenchmark {
     @Fork(1)
     @Benchmark
     public void benchmark(Blackhole blackhole) {
-        for (int i = 0; i < 25000; ++i) {
+        for (int i = 0; i < OPERATIONS; ++i) {
             blackhole.consume(benchmarkImpl.getAsDouble());
         }
     }
@@ -233,7 +233,7 @@ public class DistanceFunctionBenchmark {
     @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
     @Benchmark
     public void vectorBenchmark(Blackhole blackhole) {
-        for (int i = 0; i < 25000; ++i) {
+        for (int i = 0; i < OPERATIONS; ++i) {
             blackhole.consume(benchmarkImpl.getAsDouble());
         }
     }

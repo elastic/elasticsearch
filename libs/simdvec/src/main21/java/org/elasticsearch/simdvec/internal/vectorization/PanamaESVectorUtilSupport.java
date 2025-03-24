@@ -77,6 +77,9 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float ipFloatByte(float[] q, byte[] d) {
+        if (BYTE_SPECIES_FOR_PREFFERED_FLOATS != null && q.length >= PREFERRED_FLOAT_SPECIES.length()) {
+            return ipFloatByteImpl(q, d);
+        }
         return DefaultESVectorUtilSupport.ipFloatByteImpl(q, d);
     }
 
@@ -424,6 +427,43 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             // do the tail
             // default implementation uses length of data vector, not query vector
             sum += DefaultESVectorUtilSupport.ipFloatBitImpl(q, d, i / 8);
+        }
+
+        return sum;
+    }
+
+    private static final VectorSpecies<Float> PREFERRED_FLOAT_SPECIES = FloatVector.SPECIES_PREFERRED;
+    private static final VectorSpecies<Byte> BYTE_SPECIES_FOR_PREFFERED_FLOATS;
+
+    static {
+        VectorSpecies<Byte> byteForFloat;
+        try {
+            // calculate vector size to convert from single bytes to 4-byte floats
+            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(PREFERRED_FLOAT_SPECIES.vectorBitSize() / Integer.BYTES));
+        } catch (IllegalArgumentException e) {
+            // can't get a byte vector size small enough, just use default impl
+            byteForFloat = null;
+        }
+        BYTE_SPECIES_FOR_PREFFERED_FLOATS = byteForFloat;
+    }
+
+    public static float ipFloatByteImpl(float[] q, byte[] d) {
+        assert BYTE_SPECIES_FOR_PREFFERED_FLOATS != null;
+        FloatVector acc = FloatVector.zero(PREFERRED_FLOAT_SPECIES);
+        int i = 0;
+
+        int limit = PREFERRED_FLOAT_SPECIES.loopBound(q.length);
+        for (; i < limit; i += PREFERRED_FLOAT_SPECIES.length()) {
+            FloatVector qv = FloatVector.fromArray(PREFERRED_FLOAT_SPECIES, q, i);
+            ByteVector bv = ByteVector.fromArray(BYTE_SPECIES_FOR_PREFFERED_FLOATS, d, i);
+            acc = qv.fma(bv.castShape(PREFERRED_FLOAT_SPECIES, 0), acc);
+        }
+
+        float sum = acc.reduceLanes(VectorOperators.ADD);
+
+        // handle the tail
+        for (; i < q.length; i++) {
+            sum += q[i] * d[i];
         }
 
         return sum;

@@ -5,3 +5,6 @@
 `query`
 :   Query string in Lucene query string format.
 
+`options`
+:   (Optional) Additional options for Query String as [function named parameters](/reference/query-languages/esql/esql-syntax.md#esql-function-named-params). See [query string query](/reference/query-languages/query-dsl/query-dsl-query-string-query.md) for more information.
+

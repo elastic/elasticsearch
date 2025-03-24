@@ -981,6 +981,7 @@ beta         | Kubernetes cluster
 ;
 
 startsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
 
 from hosts
 | where starts_with(description, "epsilon")
@@ -1266,6 +1267,7 @@ beta         | Kubernetes cluster
 ;
 
 endsWithLucenePushdownIgnoreMultivalues
+required_capability: starts_with_ends_with_lucene_pushdown
 
 from hosts
 | where ends_with(description, "host")
@@ -1403,6 +1405,20 @@ emp_no:integer  | first_name:keyword    | name_lower:keyword
 ;
 
 
+toLowerMv
+required_capability: to_lower_mv
+// tag::to_lower_mv[]
+ROW v = TO_LOWER(["Some", "Text"])
+// end::to_lower_mv[]
+;
+
+// tag::to_lower_mv-result[]
+   v:keyword
+["some", "text"]
+// end::to_lower_mv-result[]
+;
+
+
 toUpperRow#[skip:-8.12.99]
 // tag::to_upper[]
 ROW message = "Some Text"
@@ -1422,6 +1438,20 @@ from employees | sort emp_no | eval name_upper = TO_UPPER(first_name) | keep emp
 
 emp_no:integer  | first_name:keyword    | name_upper:keyword
 10001           | Georgi                | GEORGI
+;
+
+
+toUpperMv
+required_capability: to_lower_mv
+// tag::to_upper_mv[]
+ROW v = TO_UPPER(["Some", "Text"])
+// end::to_upper_mv[]
+;
+
+// tag::to_upper_mv-result[]
+   v:keyword
+["SOME", "TEXT"]
+// end::to_upper_mv-result[]
 ;
 
 
@@ -1740,9 +1770,9 @@ valuesGrouped
 required_capability: agg_values
 
 // tag::values-grouped[]
-  FROM employees
+FROM employees
 | EVAL first_letter = SUBSTRING(first_name, 0, 1)
-| STATS first_name=MV_SORT(VALUES(first_name)) BY first_letter
+| STATS first_name = MV_SORT(VALUES(first_name)) BY first_letter
 | SORT first_letter
 // end::values-grouped[]
 ;
@@ -1786,8 +1816,8 @@ M              | [foo, bar]
 
 locate#[skip:-8.13.99,reason:new string function added in 8.14]
 // tag::locate[]
-row a = "hello"
-| eval a_ll = locate(a, "ll")
+ROW a = "hello"
+| EVAL a_ll = LOCATE(a, "ll")
 // end::locate[]
 ;
 
@@ -1978,8 +2008,8 @@ base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
 // tag::to_base64[]
-row a = "elastic" 
-| eval e = to_base64(a)
+ROW a = "elastic" 
+| EVAL e = TO_BASE64(a)
 // end::to_base64[]
 ;
 
@@ -1993,8 +2023,8 @@ base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
 required_capability: base64_decode_encode
 
 // tag::from_base64[]
-row a = "ZWxhc3RpYw==" 
-| eval d = from_base64(a)
+ROW a = "ZWxhc3RpYw=="
+| EVAL d = FROM_BASE64(a)
 // end::from_base64[]
 ;
 

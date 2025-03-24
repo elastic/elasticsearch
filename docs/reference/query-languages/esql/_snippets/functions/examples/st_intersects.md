@@ -9,6 +9,6 @@ FROM airports
 
 | abbrev:keyword | city:keyword | city_location:geo_point | country:keyword | location:geo_point | name:text | scalerank:i | type:k |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| HOD | Al Ḩudaydah | POINT(42.9511 14.8022) | Yemen | POINT(42.97109630194 14.7552534413725) | Hodeidah Int’l | 9 | mid |
+| HOD | Al Ḩudaydah | POINT(42.9511 14.8022) | Yemen | POINT(42.97109630194 14.7552534413725) | Hodeidah Int'l | 9 | mid |
 
 

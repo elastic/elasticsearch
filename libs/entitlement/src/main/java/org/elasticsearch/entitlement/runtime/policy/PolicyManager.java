@@ -59,7 +59,10 @@ import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
 
 public class PolicyManager {
-    private static final Logger logger = LogManager.getLogger(PolicyManager.class);
+    /**
+     * Use this if you don't have a {@link ModuleEntitlements} in hand.
+     */
+    private static final Logger generalLogger = LogManager.getLogger(PolicyManager.class);
 
     static final String UNKNOWN_COMPONENT_NAME = "(unknown)";
     static final String SERVER_COMPONENT_NAME = "(server)";
@@ -76,7 +79,8 @@ public class PolicyManager {
     record ModuleEntitlements(
         String componentName,
         Map<Class<? extends Entitlement>, List<Entitlement>> entitlementsByType,
-        FileAccessTree fileAccess
+        FileAccessTree fileAccess,
+        Logger logger
     ) {
 
         ModuleEntitlements {
@@ -101,8 +105,13 @@ public class PolicyManager {
     }
 
     // pkg private for testing
-    ModuleEntitlements defaultEntitlements(String componentName, Path componentPath) {
-        return new ModuleEntitlements(componentName, Map.of(), getDefaultFileAccess(componentName, componentPath));
+    ModuleEntitlements defaultEntitlements(String componentName, Path componentPath, String moduleName) {
+        return new ModuleEntitlements(
+            componentName,
+            Map.of(),
+            getDefaultFileAccess(componentName, componentPath),
+            getLogger(componentName, moduleName)
+        );
     }
 
     // pkg private for testing
@@ -116,7 +125,8 @@ public class PolicyManager {
         return new ModuleEntitlements(
             componentName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPath, exclusivePaths)
+            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, componentPath, exclusivePaths),
+            getLogger(componentName, moduleName)
         );
     }
 
@@ -131,9 +141,9 @@ public class PolicyManager {
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
-    private static final Set<Module> systemModules = findSystemModules();
+    private static final Set<Module> SYSTEM_LAYER_MODULES = findSystemLayerModules();
 
-    private static Set<Module> findSystemModules() {
+    private static Set<Module> findSystemLayerModules() {
         var systemModulesDescriptors = ModuleFinder.ofSystem()
             .findAll()
             .stream()
@@ -152,6 +162,13 @@ public class PolicyManager {
                 )
         ).collect(Collectors.toUnmodifiableSet());
     }
+
+    // Anything in the boot layer that is not in the system layer, is in the server layer
+    public static final Set<Module> SERVER_LAYER_MODULES = ModuleLayer.boot()
+        .modules()
+        .stream()
+        .filter(m -> SYSTEM_LAYER_MODULES.contains(m) == false)
+        .collect(Collectors.toUnmodifiableSet());
 
     private final Map<String, Path> sourcePaths;
     /**
@@ -255,17 +272,17 @@ public class PolicyManager {
             return;
         }
 
-        String componentName = getEntitlements(requestingClass).componentName();
+        ModuleEntitlements entitlements = getEntitlements(requestingClass);
         notEntitled(
             Strings.format(
                 "component [%s], module [%s], class [%s], operation [%s]",
-                componentName,
-                requestingClass.getModule().getName(),
+                entitlements.componentName(),
+                getModuleName(requestingClass),
                 requestingClass,
                 operationDescription.get()
             ),
             callerClass,
-            componentName
+            entitlements
         );
     }
 
@@ -323,7 +340,7 @@ public class PolicyManager {
     private static boolean isPathOnDefaultFilesystem(Path path) {
         var pathFileSystemClass = path.getFileSystem().getClass();
         if (path.getFileSystem().getClass() != DEFAULT_FILESYSTEM_CLASS) {
-            logger.trace(
+            generalLogger.trace(
                 () -> Strings.format(
                     "File entitlement trivially allowed: path [%s] is for a different FileSystem class [%s], default is [%s]",
                     path.toString(),
@@ -378,12 +395,12 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
                 callerClass,
-                entitlements.componentName()
+                entitlements
             );
         }
     }
@@ -408,12 +425,12 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     path
                 ),
                 callerClass,
-                entitlements.componentName()
+                entitlements
             );
         }
     }
@@ -497,23 +514,24 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     PolicyParser.getEntitlementTypeName(entitlementClass)
                 ),
                 callerClass,
-                classEntitlements.componentName()
+                classEntitlements
             );
         }
-        logger.debug(
-            () -> Strings.format(
-                "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
-                classEntitlements.componentName(),
-                requestingClass.getModule().getName(),
-                requestingClass,
-                PolicyParser.getEntitlementTypeName(entitlementClass)
-            )
-        );
+        classEntitlements.logger()
+            .debug(
+                () -> Strings.format(
+                    "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
+                    classEntitlements.componentName(),
+                    getModuleName(requestingClass),
+                    requestingClass,
+                    PolicyParser.getEntitlementTypeName(entitlementClass)
+                )
+            );
     }
 
     public void checkWriteProperty(Class<?> callerClass, String property) {
@@ -524,45 +542,54 @@ public class PolicyManager {
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.getEntitlements(WriteSystemPropertiesEntitlement.class).anyMatch(e -> e.properties().contains(property))) {
-            logger.debug(
-                () -> Strings.format(
-                    "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
-                    entitlements.componentName(),
-                    requestingClass.getModule().getName(),
-                    requestingClass,
-                    property
-                )
-            );
+            entitlements.logger()
+                .debug(
+                    () -> Strings.format(
+                        "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
+                        entitlements.componentName(),
+                        getModuleName(requestingClass),
+                        requestingClass,
+                        property
+                    )
+                );
             return;
         }
         notEntitled(
             Strings.format(
                 "component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
-                requestingClass.getModule().getName(),
+                getModuleName(requestingClass),
                 requestingClass,
                 property
             ),
             callerClass,
-            entitlements.componentName()
+            entitlements
         );
     }
 
-    private void notEntitled(String message, Class<?> callerClass, String componentName) {
+    private void notEntitled(String message, Class<?> callerClass, ModuleEntitlements entitlements) {
         var exception = new NotEntitledException(message);
         // Don't emit a log for muted classes, e.g. classes containing self tests
         if (mutedClasses.contains(callerClass) == false) {
-            var moduleName = callerClass.getModule().getName();
-            var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
-            var notEntitledLogger = LogManager.getLogger(PolicyManager.class.getName() + loggerSuffix);
-            String frameInfoSuffix = StackWalker.getInstance(RETAIN_CLASS_REFERENCE)
-                .walk(this::findRequestingFrame)
-                .map(frame -> "\n\tat " + frame)
-                .orElse("");
-            notEntitledLogger.warn("Not entitled: " + message + frameInfoSuffix);
+            entitlements.logger().warn("Not entitled:", exception);
         }
         throw exception;
     }
+
+    private static Logger getLogger(String componentName, String moduleName) {
+        var loggerSuffix = "." + componentName + "." + ((moduleName == null) ? ALL_UNNAMED : moduleName);
+        return MODULE_LOGGERS.computeIfAbsent(PolicyManager.class.getName() + loggerSuffix, LogManager::getLogger);
+    }
+
+    /**
+     * We want to use the same {@link Logger} object for a given name, because we want {@link ModuleEntitlements}
+     * {@code equals} and {@code hashCode} to work.
+     * <p>
+     * This would not be required if LogManager
+     * <a href="https://github.com/elastic/elasticsearch/issues/87511">memoized the loggers</a>,
+     * but here we are.
+     */
+    private static final ConcurrentHashMap<String, Logger> MODULE_LOGGERS = new ConcurrentHashMap<>();
 
     public void checkManageThreadsEntitlement(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, ManageThreadsEntitlement.class);
@@ -596,7 +623,7 @@ public class PolicyManager {
         if (pluginName != null) {
             var pluginEntitlements = pluginsEntitlements.get(pluginName);
             if (pluginEntitlements == null) {
-                return defaultEntitlements(pluginName, sourcePaths.get(pluginName));
+                return defaultEntitlements(pluginName, sourcePaths.get(pluginName), requestingModule.getName());
             } else {
                 return getModuleScopeEntitlements(
                     pluginEntitlements,
@@ -617,7 +644,7 @@ public class PolicyManager {
             );
         }
 
-        return defaultEntitlements(UNKNOWN_COMPONENT_NAME, null);
+        return defaultEntitlements(UNKNOWN_COMPONENT_NAME, null, requestingModule.getName());
     }
 
     private static String getScopeName(Module requestingModule) {
@@ -638,7 +665,7 @@ public class PolicyManager {
             return Paths.get(codeSource.getLocation().toURI());
         } catch (Exception e) {
             // If we get a URISyntaxException, or any other Exception due to an invalid URI, we return null to safely skip this location
-            logger.info(
+            generalLogger.info(
                 "Cannot get component path for [{}]: [{}] cannot be converted to a valid Path",
                 requestingClass.getName(),
                 codeSource.getLocation().toString()
@@ -655,7 +682,7 @@ public class PolicyManager {
     ) {
         var entitlements = scopeEntitlements.get(scopeName);
         if (entitlements == null) {
-            return defaultEntitlements(componentName, componentPath);
+            return defaultEntitlements(componentName, componentPath, scopeName);
         }
         return policyEntitlements(componentName, componentPath, scopeName, entitlements);
     }
@@ -698,19 +725,27 @@ public class PolicyManager {
      * @return true if permission is granted regardless of the entitlement
      */
     private static boolean isTriviallyAllowed(Class<?> requestingClass) {
-        if (logger.isTraceEnabled()) {
-            logger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
+        if (generalLogger.isTraceEnabled()) {
+            generalLogger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
         }
         if (requestingClass == null) {
-            logger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
+            generalLogger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
-        if (systemModules.contains(requestingClass.getModule())) {
-            logger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
+        if (SYSTEM_LAYER_MODULES.contains(requestingClass.getModule())) {
+            generalLogger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
-        logger.trace("Entitlement not trivially allowed");
+        generalLogger.trace("Entitlement not trivially allowed");
         return false;
+    }
+
+    /**
+     * @return the {@code requestingClass}'s module name as it would appear in an entitlement policy file
+     */
+    private static String getModuleName(Class<?> requestingClass) {
+        String name = requestingClass.getModule().getName();
+        return (name == null) ? ALL_UNNAMED : name;
     }
 
     @Override

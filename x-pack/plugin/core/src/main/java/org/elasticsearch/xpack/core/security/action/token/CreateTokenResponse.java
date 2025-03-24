@@ -32,7 +32,6 @@ public final class CreateTokenResponse extends ActionResponse implements ToXCont
     private Authentication authentication;
 
     public CreateTokenResponse(StreamInput in) throws IOException {
-        super(in);
         tokenString = in.readString();
         expiresIn = in.readTimeValue();
         scope = in.readOptionalString();

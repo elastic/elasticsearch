@@ -37,6 +37,7 @@ public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3Res
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
         new Ec2ImdsServiceBuilder(Ec2ImdsVersion.V2).newCredentialsConsumer(dynamicCredentials::addValidCredentials)
+            .instanceIdentityDocument((b, p) -> b.field("region", "es-test-region")) // TODO NOMERGE assert this region is used
     );
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, dynamicCredentials::isAuthorized);
@@ -44,7 +45,7 @@ public class RepositoryS3ImdsV2CredentialsRestIT extends AbstractRepositoryS3Res
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME, ec2ImdsHttpFixture::getAddress)
+        .systemProperty(Ec2ImdsHttpFixture.ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, ec2ImdsHttpFixture::getAddress)
         .build();
 
     @ClassRule

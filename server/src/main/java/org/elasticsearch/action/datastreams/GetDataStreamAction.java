@@ -468,7 +468,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
              */
             public ManagedBy getNextGenerationManagedBy() {
                 // both ILM and DSL are configured so let's check the prefer_ilm setting to see which system takes precedence
-                if (ilmPolicyName != null && dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                if (ilmPolicyName != null && dataStream.getLifecycle() != null && dataStream.getLifecycle().enabled()) {
                     return templatePreferIlmValue ? ManagedBy.ILM : ManagedBy.LIFECYCLE;
                 }
 
@@ -476,7 +476,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     return ManagedBy.ILM;
                 }
 
-                if (dataStream.getLifecycle() != null && dataStream.getLifecycle().isEnabled()) {
+                if (dataStream.getLifecycle() != null && dataStream.getLifecycle().enabled()) {
                     return ManagedBy.LIFECYCLE;
                 }
 

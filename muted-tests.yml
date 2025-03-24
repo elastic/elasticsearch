@@ -252,15 +252,18 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/nodes/line_361}
   issue: https://github.com/elastic/elasticsearch/issues/124103
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
-  method: testFilesEntitlementsWithExclusive
-  issue: https://github.com/elastic/elasticsearch/issues/124420
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/124160
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/610_function_score/Random}
   issue: https://github.com/elastic/elasticsearch/issues/125010
+- class: org.elasticsearch.xpack.ilm.history.ILMHistoryItemTests
+  method: testTruncateLongError
+  issue: https://github.com/elastic/elasticsearch/issues/125216
+- class: org.elasticsearch.index.shard.StoreRecoveryTests
+  method: testAddIndices
+  issue: https://github.com/elastic/elasticsearch/issues/124104
 
 # Examples:
 #

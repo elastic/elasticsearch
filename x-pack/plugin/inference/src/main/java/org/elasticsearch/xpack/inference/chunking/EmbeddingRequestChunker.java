@@ -54,7 +54,9 @@ public class EmbeddingRequestChunker<E extends EmbeddingResults.Embedding<E>> {
 
     public record BatchRequest(List<Request> requests) {
         public List<ChunkInferenceInput> inputs() {
-            return requests.stream().flatMap(r -> r.inputs().stream()).collect(Collectors.toList());
+            return requests.stream()
+                .map(r -> new ChunkInferenceInput(r.chunkText(), r.inputs().getFirst().chunkingSettings()))
+                .collect(Collectors.toList());
         }
     }
 

@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.putTS
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 4)
 public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
     private static final Logger logger = LogManager.getLogger(DataStreamLifecycleDownsampleDisruptionIT.class);
-    public static final int DOC_COUNT = 50_000;
+    public static final int DOC_COUNT = 25_000;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

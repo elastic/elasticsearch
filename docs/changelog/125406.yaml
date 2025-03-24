@@ -1,0 +1,5 @@
+pr: 125406
+summary: Make project and cluster secrets customs available in core
+area: Security
+type: enhancement
+issues: []

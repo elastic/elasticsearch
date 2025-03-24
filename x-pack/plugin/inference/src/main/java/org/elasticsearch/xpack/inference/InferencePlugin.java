@@ -342,10 +342,9 @@ public class InferencePlugin extends Plugin
         actionFilter.setInferenceBytesCircuitBreaker(inferenceBytesBreaker.get());
         shardBulkInferenceActionFilter.set(actionFilter);
 
-        services.clusterService().getClusterSettings().addSettingsUpdateConsumer(
-            INFERENCE_BYTES_CIRCUIT_BREAKER_LIMIT_SETTING,
-            this::updateCircuitBreaker
-        );
+        services.clusterService()
+            .getClusterSettings()
+            .addSettingsUpdateConsumer(INFERENCE_BYTES_CIRCUIT_BREAKER_LIMIT_SETTING, this::updateCircuitBreaker);
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
         var inferenceStats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));

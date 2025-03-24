@@ -20,6 +20,7 @@ import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.client.config.SdkAdvancedClientOption;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.core.retry.conditions.RetryCondition;
+import software.amazon.awssdk.core.retry.conditions.RetryOnExceptionsCondition;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.identity.spi.AwsCredentialsIdentity;
@@ -224,7 +225,7 @@ class S3Service implements Closeable {
         return s3clientBuilder;
     }
 
-    ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
+    static ApacheHttpClient.Builder buildHttpClient(S3ClientSettings clientSettings) {
         ApacheHttpClient.Builder httpClientBuilder = ApacheHttpClient.builder();
 
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
@@ -234,6 +235,17 @@ class S3Service implements Closeable {
         return httpClientBuilder;
     }
 
+    static final RetryCondition RETRYABLE_403_RETRY_POLICY = (retryPolicyContext) -> {
+        if (RetryCondition.defaultRetryCondition().shouldRetry(retryPolicyContext)) {
+            return true;
+        }
+        if (retryPolicyContext.exception() instanceof AwsServiceException ase) {
+            return ase.statusCode() == RestStatus.FORBIDDEN.getStatus()
+                && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
+        }
+        return false;
+    };
+
     static ClientOverrideConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         ClientOverrideConfiguration.Builder clientOverrideConfiguration = ClientOverrideConfiguration.builder();
 
@@ -242,16 +254,7 @@ class S3Service implements Closeable {
         retryPolicy.numRetries(clientSettings.maxRetries);
         if (isStateless) {
             // Create a 403 error retyable policy.
-            retryPolicy.retryCondition((retryPolicyContext) -> {
-                if (RetryCondition.defaultRetryCondition().shouldRetry(retryPolicyContext)) {
-                    return true;
-                }
-                if (retryPolicyContext.exception() instanceof AwsServiceException ase) {
-                    return ase.statusCode() == RestStatus.FORBIDDEN.getStatus()
-                        && "InvalidAccessKeyId".equals(ase.awsErrorDetails().errorCode());
-                }
-                return false;
-            });
+            retryPolicy.retryCondition(RETRYABLE_403_RETRY_POLICY);
         }
 
         clientOverrideConfiguration.retryPolicy(retryPolicy.build());

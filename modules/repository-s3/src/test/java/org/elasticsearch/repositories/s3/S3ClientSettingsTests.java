@@ -9,9 +9,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.services.s3.AmazonS3Client;
-
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -19,11 +16,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.mockito.Mockito;
 
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.services.s3.S3Client;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.emptyString;
@@ -38,16 +40,15 @@ public class S3ClientSettingsTests extends ESTestCase {
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.credentials, nullValue());
         assertThat(defaultSettings.endpoint, is(emptyString()));
-        assertThat(defaultSettings.protocol, is(HttpScheme.HTTPS));
         assertThat(defaultSettings.proxyHost, is(emptyString()));
         assertThat(defaultSettings.proxyPort, is(80));
         assertThat(defaultSettings.proxyScheme, is(HttpScheme.HTTP));
         assertThat(defaultSettings.proxyUsername, is(emptyString()));
         assertThat(defaultSettings.proxyPassword, is(emptyString()));
-        assertThat(defaultSettings.readTimeoutMillis, is(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT));
-        assertThat(defaultSettings.maxConnections, is(ClientConfiguration.DEFAULT_MAX_CONNECTIONS));
-        assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
-        assertThat(defaultSettings.throttleRetries, is(ClientConfiguration.DEFAULT_THROTTLE_RETRIES));
+        assertThat(defaultSettings.readTimeoutMillis, is(Math.toIntExact(S3ClientSettings.Defaults.READ_TIMEOUT.millis())));
+        assertThat(defaultSettings.maxConnections, is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
+        assertThat(defaultSettings.maxRetries, is(S3ClientSettings.Defaults.RETRY_COUNT));
+        assertThat(defaultSettings.throttleRetries, is(S3ClientSettings.Defaults.THROTTLE_RETRIES));
     }
 
     public void testDefaultClientSettingsCanBeSet() {
@@ -67,7 +68,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(settings.keySet(), contains("default", "another_client"));
 
         final S3ClientSettings defaultSettings = settings.get("default");
-        assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
+        assertThat(defaultSettings.maxRetries, is(S3ClientSettings.Defaults.RETRY_COUNT));
 
         final S3ClientSettings anotherClientSettings = settings.get("another_client");
         assertThat(anotherClientSettings.maxRetries, is(10));
@@ -109,9 +110,9 @@ public class S3ClientSettingsTests extends ESTestCase {
         secureSettings.setString("s3.client.default.secret_key", "secret_key");
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
         final S3ClientSettings defaultSettings = settings.get("default");
-        S3BasicCredentials credentials = defaultSettings.credentials;
-        assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
-        assertThat(credentials.getAWSSecretKey(), is("secret_key"));
+        AwsBasicCredentials credentials = (AwsBasicCredentials) defaultSettings.credentials;
+        assertThat(credentials.accessKeyId(), is("access_key"));
+        assertThat(credentials.secretAccessKey(), is("secret_key"));
     }
 
     public void testCredentialsTypeWithAccessKeyAndSecretKeyAndSessionToken() {
@@ -121,10 +122,10 @@ public class S3ClientSettingsTests extends ESTestCase {
         secureSettings.setString("s3.client.default.session_token", "session_token");
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
         final S3ClientSettings defaultSettings = settings.get("default");
-        S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) defaultSettings.credentials;
-        assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
-        assertThat(credentials.getAWSSecretKey(), is("secret_key"));
-        assertThat(credentials.getSessionToken(), is("session_token"));
+        AwsSessionCredentials credentials = (AwsSessionCredentials) defaultSettings.credentials;
+        assertThat(credentials.accessKeyId(), is("access_key"));
+        assertThat(credentials.secretAccessKey(), is("secret_key"));
+        assertThat(credentials.sessionToken(), is("session_token"));
     }
 
     public void testRefineWithRepoSettings() {
@@ -144,19 +145,19 @@ public class S3ClientSettingsTests extends ESTestCase {
             final String endpoint = "some.host";
             final S3ClientSettings refinedSettings = baseSettings.refine(Settings.builder().put("endpoint", endpoint).build());
             assertThat(refinedSettings.endpoint, is(endpoint));
-            S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;
-            assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
-            assertThat(credentials.getAWSSecretKey(), is("secret_key"));
-            assertThat(credentials.getSessionToken(), is("session_token"));
+            AwsSessionCredentials credentials = (AwsSessionCredentials) refinedSettings.credentials;
+            assertThat(credentials.accessKeyId(), is("access_key"));
+            assertThat(credentials.secretAccessKey(), is("secret_key"));
+            assertThat(credentials.sessionToken(), is("session_token"));
         }
 
         {
             final S3ClientSettings refinedSettings = baseSettings.refine(Settings.builder().put("path_style_access", true).build());
             assertThat(refinedSettings.pathStyleAccess, is(true));
-            S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) refinedSettings.credentials;
-            assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
-            assertThat(credentials.getAWSSecretKey(), is("secret_key"));
-            assertThat(credentials.getSessionToken(), is("session_token"));
+            AwsSessionCredentials credentials = (AwsSessionCredentials) refinedSettings.credentials;
+            assertThat(credentials.accessKeyId(), is("access_key"));
+            assertThat(credentials.secretAccessKey(), is("secret_key"));
+            assertThat(credentials.sessionToken(), is("session_token"));
         }
     }
 
@@ -207,15 +208,17 @@ public class S3ClientSettingsTests extends ESTestCase {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
             Settings.builder().put("s3.client.other.max_connections", maxConnections).build()
         );
-        assertThat(settings.get("default").maxConnections, is(ClientConfiguration.DEFAULT_MAX_CONNECTIONS));
+        assertThat(settings.get("default").maxConnections, is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
         assertThat(settings.get("other").maxConnections, is(maxConnections));
-        ClientConfiguration defaultConfiguration = S3Service.buildConfiguration(settings.get("default"), false);
-        assertThat(defaultConfiguration.getMaxConnections(), is(ClientConfiguration.DEFAULT_MAX_CONNECTIONS));
-        ClientConfiguration configuration = S3Service.buildConfiguration(settings.get("other"), false);
-        assertThat(configuration.getMaxConnections(), is(maxConnections));
+
+        ApacheHttpClient.Builder defaultClientBuilder = S3Service.buildHttpClient(settings.get("default"));
+        assertThat(defaultClientBuilder.getMaxConnections(), is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
+
+        ApacheHttpClient.Builder otherConfiguration = S3Service.buildHttpClient(settings.get("other"));
+        assertThat(otherConfiguration.getMaxConnections(), is(maxConnections));
 
         // the default appears in the docs so let's make sure it doesn't change:
-        assertEquals(50, ClientConfiguration.DEFAULT_MAX_CONNECTIONS);
+        assertEquals(50, S3ClientSettings.Defaults.MAX_CONNECTIONS);
     }
 
     public void testStatelessDefaultRetryPolicy() {

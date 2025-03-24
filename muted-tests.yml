@@ -384,6 +384,9 @@ tests:
 - class: org.elasticsearch.index.shard.StoreRecoveryTests
   method: testAddIndices
   issue: https://github.com/elastic/elasticsearch/issues/124104
+- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
+  method: testInvalidJoinPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/125536
 
 # Examples:
 #

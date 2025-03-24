@@ -189,7 +189,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).chunkingSettings,
             XContentBuilder::field,
             Objects::toString
-        ).acceptsNull().setMergeValidator(SemanticTextFieldMapper::canMergeChunkingSettings);
+        ).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -317,14 +317,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
          * @return A mapper with the copied settings applied
          */
         private SemanticTextFieldMapper copySettings(SemanticTextFieldMapper mapper, MapperMergeContext mapperMergeContext) {
-            SemanticTextFieldMapper returnedMapper = mapper;
+            SemanticTextFieldMapper returnedMapper;
+            Builder builder = from(mapper);
             if (mapper.fieldType().getModelSettings() == null) {
-                Builder builder = from(mapper);
                 builder.setModelSettings(modelSettings.getValue());
-                builder.setChunkingSettings(chunkingSettings.getValue());
-                returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());
             }
-
+            builder.setChunkingSettings(chunkingSettings.getValue());
+            returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());
             return returnedMapper;
         }
     }
@@ -1021,17 +1020,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return true;
         }
         conflicts.addConflict("model_settings", "");
-        return false;
-    }
-
-    private static boolean canMergeChunkingSettings(ChunkingSettings previous, ChunkingSettings current, Conflicts conflicts) {
-        if (Objects.equals(previous, current)) {
-            return true;
-        }
-        if (previous == null || current == null) {
-            return true;
-        }
-        conflicts.addConflict("chunking_settings", "");
         return false;
     }
 }

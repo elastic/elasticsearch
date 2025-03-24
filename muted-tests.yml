@@ -125,9 +125,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.rest.ShardChangesRestIT
   method: testShardChangesNoOperation
   issue: https://github.com/elastic/elasticsearch/issues/118800
-- class: org.elasticsearch.cluster.service.MasterServiceTests
-  method: testThreadContext
-  issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
@@ -161,9 +158,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
-- class: org.elasticsearch.search.ccs.CrossClusterIT
-  method: testCancel
-  issue: https://github.com/elastic/elasticsearch/issues/108061
 - class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
   method: testInvalidJSON
   issue: https://github.com/elastic/elasticsearch/issues/120482
@@ -217,29 +211,11 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120816
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactoryTests
   issue: https://github.com/elastic/elasticsearch/issues/121285
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_357}
-  issue: https://github.com/elastic/elasticsearch/issues/121287
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/index-modules/slowlog/line_102}
-  issue: https://github.com/elastic/elasticsearch/issues/121288
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testGetBestDowngradeVersion
   issue: https://github.com/elastic/elasticsearch/issues/121316
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/rest-api/security/invalidate-tokens/line_194}
-  issue: https://github.com/elastic/elasticsearch/issues/121337
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/rest-api/common-options/line_125}
-  issue: https://github.com/elastic/elasticsearch/issues/121338
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_751}
-  issue: https://github.com/elastic/elasticsearch/issues/121345
 - class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/121407
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
-  issue: https://github.com/elastic/elasticsearch/issues/121867
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
@@ -254,39 +230,12 @@ tests:
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/cat/health/cat-health-example}
-  issue: https://github.com/elastic/elasticsearch/issues/122335
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/alias/line_260}
-  issue: https://github.com/elastic/elasticsearch/issues/122343
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_488}
-  issue: https://github.com/elastic/elasticsearch/issues/121611
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_408}
-  issue: https://github.com/elastic/elasticsearch/issues/122681
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/cat/allocation/cat-allocation-example}
-  issue: https://github.com/elastic/elasticsearch/issues/121976
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testEnrichExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/122913
-- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
-  method: testClientsAreNotSharedAcrossRepositories
-  issue: https://github.com/elastic/elasticsearch/issues/123090
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/troubleshooting/common-issues/disk-usage-exceeded/line_65}
-  issue: https://github.com/elastic/elasticsearch/issues/123094
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121672
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/snapshot-restore/restore-snapshot/line_408}
-  issue: https://github.com/elastic/elasticsearch/issues/123192
 - class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
   method: testRestoredIndexManagedByLocalPolicySkipsIllegalActions
   issue: https://github.com/elastic/elasticsearch/issues/123202
@@ -327,15 +276,123 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests
   method: testDuplicatePrunedPaths
   issue: https://github.com/elastic/elasticsearch/issues/124006
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
-  issue: https://github.com/elastic/elasticsearch/issues/124052
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120814
-- class: org.elasticsearch.test.apmintegration.MetricsApmIT
-  method: testApmIntegration
-  issue: https://github.com/elastic/elasticsearch/issues/124106
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/start_data_frame_analytics/Test start classification analysis when the dependent variable is missing}
+  issue: https://github.com/elastic/elasticsearch/issues/124168
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/3rd_party_deployment/Test start and stop multiple deployments}
+  issue: https://github.com/elastic/elasticsearch/issues/124315
+- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
+  method: testSnapshotRecovery {p0=false p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/124383
+- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
+  method: testSnapshotRecovery {p0=true p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/124384
+- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
+  method: testSnapshotRecovery {p0=false p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/124385
+- class: org.elasticsearch.env.NodeEnvironmentTests
+  method: testIndexCompatibilityChecks
+  issue: https://github.com/elastic/elasticsearch/issues/124388
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
+  method: testFilesEntitlementsWithExclusive
+  issue: https://github.com/elastic/elasticsearch/issues/124420
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/124159
+- class: org.elasticsearch.indices.stats.IndexStatsIT
+  method: testFilterCacheStats
+  issue: https://github.com/elastic/elasticsearch/issues/124447
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/190_failure_store_redirection/Redirect ingest failure in data stream to failure store}
+  issue: https://github.com/elastic/elasticsearch/issues/124518
+- class: org.elasticsearch.xpack.esql.expression.function.aggregate.ValuesTests
+  method: "testGroupingAggregate {TestCase=<<no alt geo_shape>s> #2}"
+  issue: https://github.com/elastic/elasticsearch/issues/124571
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=data_stream/150_tsdb/created the data stream}
+  issue: https://github.com/elastic/elasticsearch/issues/124575
+- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
+  method: testDeploymentSurvivesRestart {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/124160
+- class: org.elasticsearch.lucene.spatial.CartesianCentroidCalculatorTests
+  method: testAddDifferentDimensionalType
+  issue: https://github.com/elastic/elasticsearch/issues/124609
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search.vectors/41_knn_search_byte_quantized/kNN search plus query}
+  issue: https://github.com/elastic/elasticsearch/issues/124687
+- class: org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRateTests
+  method: testEwmr_threadSafe
+  issue: https://github.com/elastic/elasticsearch/issues/124692
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testUpdateIndexTemplateToDataStreamLifecyclePreference
+  issue: https://github.com/elastic/elasticsearch/issues/124837
+- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
+  method: testAutomaticForceMerge
+  issue: https://github.com/elastic/elasticsearch/issues/124846
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Test knn search}
+  issue: https://github.com/elastic/elasticsearch/issues/124848
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testUpdateIndexTemplateToMigrateFromDataStreamLifecycleToIlm
+  issue: https://github.com/elastic/elasticsearch/issues/124849
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testUpdateIndexTemplateFromILMtoBothILMAndDataStreamLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124850
+- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
+  method: testExplainLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124882
+- class: org.elasticsearch.datastreams.lifecycle.ExplainDataStreamLifecycleIT
+  method: testSystemExplainLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124885
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testIndexTemplateSwapsILMForDataStreamLifecycle
+  issue: https://github.com/elastic/elasticsearch/issues/124886
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test20RunWithBootstrapChecks
+  issue: https://github.com/elastic/elasticsearch/issues/124940
+- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
+  method: testErrorRecordingOnRetention
+  issue: https://github.com/elastic/elasticsearch/issues/124950
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocalNoRemotes
+  issue: https://github.com/elastic/elasticsearch/issues/124959
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121672
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQuery
+  issue: https://github.com/elastic/elasticsearch/issues/124977
+- class: org.elasticsearch.integration.DataStreamLifecycleServiceRuntimeSecurityIT
+  method: testRolloverLifecycleAndForceMergeAuthorized
+  issue: https://github.com/elastic/elasticsearch/issues/124978
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test10Install
+  issue: https://github.com/elastic/elasticsearch/issues/124957
+- class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
+  method: testRolloverAction
+  issue: https://github.com/elastic/elasticsearch/issues/124987
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test011SecurityEnabledStatus
+  issue: https://github.com/elastic/elasticsearch/issues/124990
+- class: org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleServiceIT
+  method: testLifecycleAppliedToFailureStore
+  issue: https://github.com/elastic/elasticsearch/issues/124999
+- class: org.elasticsearch.xpack.ilm.DataStreamAndIndexLifecycleMixingTests
+  method: testGetDataStreamResponse
+  issue: https://github.com/elastic/elasticsearch/issues/125083
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test012SecurityCanBeDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/116636
+- class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
+  method: testSchedulerCloseWaitsForRunningMerge
+  issue: https://github.com/elastic/elasticsearch/issues/125236
+- class: org.elasticsearch.reservedstate.service.ReservedClusterStateServiceTests
+  method: testProcessMultipleChunks
+  issue: https://github.com/elastic/elasticsearch/issues/125305
 
 # Examples:
 #

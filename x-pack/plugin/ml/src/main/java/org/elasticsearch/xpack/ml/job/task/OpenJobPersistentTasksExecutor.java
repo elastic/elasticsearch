@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
@@ -486,10 +485,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                 assert jobPage.size() == 1;
 
                 String jobSnapshotId = jobPage.get(0).getModelSnapshotId();
-                if (jobSnapshotId == null
-                    // If the minimum TransportVersion is on or above ResetJobAction.TRANSPORT_VERSION_INTRODUCED then so must be
-                    // the version associated with the master node, which is what is required to perform this action
-                    && TransportVersionUtils.isMinTransportVersionOnOrAfter(clusterState, ResetJobAction.TRANSPORT_VERSION_INTRODUCED)) {
+                if (jobSnapshotId == null) {
                     logger.info("[{}] job has running datafeed task; resetting as no snapshot exists", jobTask.getJobId());
                     ResetJobAction.Request request = new ResetJobAction.Request(jobTask.getJobId());
                     request.setSkipJobStateValidation(true);

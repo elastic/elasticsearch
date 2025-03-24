@@ -9,9 +9,9 @@ mapped_pages:
 
 The `point` data type facilitates the indexing of and searching arbitrary `x, y` pairs that fall in a 2-dimensional planar coordinate system.
 
-You can query documents using this type using [shape Query](/reference/query-languages/query-dsl-shape-query.md).
+You can query documents using this type using [shape Query](/reference/query-languages/query-dsl/query-dsl-shape-query.md).
 
-As with [geo_shape](/reference/elasticsearch/mapping-reference/geo-shape.md) and [geo_point](/reference/elasticsearch/mapping-reference/geo-point.md), `point` can be specified in [GeoJSON](http://geojson.org) and [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md) formats. However, there are a number of additional formats that are supported for convenience and historical reasons. In total there are five ways that a cartesian point may be specified, as demonstrated below:
+As with [geo_shape](/reference/elasticsearch/mapping-reference/geo-shape.md) and [geo_point](/reference/elasticsearch/mapping-reference/geo-point.md), `point` can be specified in [GeoJSON](http://geojson.org) and [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) formats. However, there are a number of additional formats that are supported for convenience and historical reasons. In total there are five ways that a cartesian point may be specified, as demonstrated below:
 
 ```console
 PUT my-index-000001
@@ -63,7 +63,7 @@ PUT my-index-000001/_doc/5
 ```
 
 1. Point expressed as an object, in [GeoJSON](https://geojson.org/) format, with `type` and `coordinates` keys.
-2. Point expressed as a [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.md) POINT with the format: `"POINT(x y)"`
+2. Point expressed as a [Well-Known Text](https://docs.opengeospatial.org/is/12-063r5/12-063r5.html) POINT with the format: `"POINT(x y)"`
 3. Point expressed as an object, with `x` and `y` keys.
 4. Point expressed as an array with the format: [ `x`, `y`]
 5. Point expressed as a string with the format: `"x,y"`.

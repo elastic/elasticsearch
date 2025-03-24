@@ -15,17 +15,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -38,12 +40,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioEmbeddingsRequestEntity.convertToString;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModelTests.createModel;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -104,7 +107,8 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
             var action = createAction(getUrl(webServer), apiKey, model, sender);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of(input)), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            var inputType = InputTypeTests.randomWithNull();
+            action.execute(new EmbeddingsInput(List.of(input), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -115,19 +119,39 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(1));
-            assertThat(
-                requestMap.get("requests"),
-                is(
-                    List.of(
-                        Map.of(
-                            "model",
-                            Strings.format("%s/%s", "models", model),
-                            "content",
-                            Map.of("parts", List.of(Map.of("text", input)))
+
+            if (inputType != null && inputType != InputType.UNSPECIFIED) {
+                var convertedInputType = convertToString(inputType);
+                assertThat(
+                    requestMap.get("requests"),
+                    is(
+                        List.of(
+                            Map.of(
+                                "model",
+                                Strings.format("%s/%s", "models", model),
+                                "content",
+                                Map.of("parts", List.of(Map.of("text", input))),
+                                "taskType",
+                                convertedInputType
+                            )
                         )
                     )
-                )
-            );
+                );
+            } else {
+                assertThat(
+                    requestMap.get("requests"),
+                    is(
+                        List.of(
+                            Map.of(
+                                "model",
+                                Strings.format("%s/%s", "models", model),
+                                "content",
+                                Map.of("parts", List.of(Map.of("text", input)))
+                            )
+                        )
+                    )
+                );
+            }
         }
     }
 
@@ -138,7 +162,11 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -158,7 +186,11 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -172,7 +204,11 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+        action.execute(
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
+            InferenceAction.Request.DEFAULT_TIMEOUT,
+            listener
+        );
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

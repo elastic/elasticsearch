@@ -76,6 +76,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  *
  * Data node plan is passed to {@code org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#startComputeOnDataNodes}
  * that is responsible for
+ * <ul>
  * <li>
  *     Determining list of nodes that contain shards referenced by the query with
  *     {@code org.elasticsearch.xpack.esql.plugin.DataNodeRequestSender#searchShards}
@@ -84,6 +85,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  *     Each node in the list processed in
  *     {@code org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#startComputeOnDataNodes}
  *     in order to
+ *     <ul>
  *     <li>
  *         Open ExchangeSink on the target data node and link it with local ExchangeSource for the query
  *         using `internal:data/read/esql/open_exchange` transport request.
@@ -102,7 +104,9 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  *         using `internal:data/read/esql/exchange` transport requests.
  *         {@see org.elasticsearch.compute.operator.exchange.ExchangeService.ExchangeTransportAction#messageReceived}
  *     </li>
+ *     </ul>
  * </li>
+ * </ul>
  */
 public class ComputeService {
     public static final String DATA_ACTION_NAME = EsqlQueryAction.NAME + "/data";

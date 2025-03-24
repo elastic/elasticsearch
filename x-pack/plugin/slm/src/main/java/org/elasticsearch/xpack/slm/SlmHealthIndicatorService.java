@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.time.DateFormatter;
@@ -115,9 +116,39 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
         return NAME;
     }
 
+    private Map<String, SnapshotLifecyclePolicyMetadata> getProjectSlmConfigurations(ProjectMetadata projectMetadata) {
+        return projectMetadata.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY).getSnapshotConfigurations();
+    }
+
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
         final ClusterState currentState = clusterService.state();
+
+        int totalSlmPolicyCount = currentState.metadata()
+            .projects()
+            .values()
+            .stream()
+            .map(this::getProjectSlmConfigurations)
+            .mapToInt(Map::size)
+            .sum();
+        if (totalSlmPolicyCount == 0) {
+            return createIndicator(
+                GREEN,
+                "No Snapshot Lifecycle Management policies configured",
+                createDetails(verbose, Collections.emptyList(), 0, OperationMode.RUNNING),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
+        }
+
+        // currentState.metadata().projects()
+        // .forEach((projectId, projectMetadata) -> {
+        // var slmMetadata = projectMetadata.custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+        // final OperationMode currentMode = currentSLMMode(projectMetadata);
+        //
+        //
+        // });
+
         var slmMetadata = currentState.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         final OperationMode currentMode = currentSLMMode(currentState);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
@@ -216,6 +247,38 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
         }
 
         return policyMetadata.getInvocationsSinceLastSuccess() >= failedSnapshotWarnThreshold;
+    }
+
+    private static HealthIndicatorDetails createDetails(
+        boolean verbose,
+        Collection<SnapshotLifecyclePolicyMetadata> unhealthyPolicies,
+        int numSlmPolicies,
+        OperationMode mode
+    ) {
+        if (verbose == false) {
+            return HealthIndicatorDetails.EMPTY;
+        }
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("slm_status", mode);
+        details.put("policies", numSlmPolicies);
+        if (unhealthyPolicies.isEmpty() == false) {
+            details.put(
+                "unhealthy_policies",
+                Map.of(
+                    "count",
+                    unhealthyPolicies.size(),
+                    "invocations_since_last_success",
+                    unhealthyPolicies.stream()
+                        .collect(
+                            Collectors.toMap(
+                                SnapshotLifecyclePolicyMetadata::getId,
+                                SnapshotLifecyclePolicyMetadata::getInvocationsSinceLastSuccess
+                            )
+                        )
+                )
+            );
+        }
+        return new SimpleHealthIndicatorDetails(details);
     }
 
     private static HealthIndicatorDetails createDetails(

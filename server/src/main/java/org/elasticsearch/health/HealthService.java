@@ -17,6 +17,8 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.health.node.HealthInfo;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -46,6 +48,8 @@ public class HealthService {
      * Detail map key that contains the reasons a result was marked as UNKNOWN
      */
     private static final String REASON = "reasons";
+
+    private static final Logger logger = LogManager.getLogger(HealthService.class);
 
     // Indicators that are run first and represent a serious cascading health problem
     private final List<HealthIndicatorService> preflightHealthIndicatorServices;
@@ -85,6 +89,8 @@ public class HealthService {
         int maxAffectedResourcesCount,
         ActionListener<List<HealthIndicatorResult>> listener
     ) {
+        logger.info("Calling HealthService!");
+
         if (maxAffectedResourcesCount < 0) {
             throw new IllegalArgumentException("The max number of resources must be a positive integer");
         }

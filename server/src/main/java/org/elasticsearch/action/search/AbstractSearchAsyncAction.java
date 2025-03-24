@@ -670,6 +670,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         listener.onFailure(exception);
     }
 
+    /**
+     * Records a failure of a specific search phase, that does not cause the search operation itself to fail.
+     */
     public void addPhaseFailure(String phase, Exception exception) {
         phaseFailures.add(new PhaseFailure(phase, exception));
     }

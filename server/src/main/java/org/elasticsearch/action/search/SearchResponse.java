@@ -113,7 +113,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             ShardSearchFailure::readShardSearchFailure,
             s -> s == 0 ? ShardSearchFailure.EMPTY_ARRAY : new ShardSearchFailure[s]
         );
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_SUBSIDIARY_FAILURES)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_PHASE_FAILURES)) {
             phaseFailures = in.readArray(PhaseFailure::new, s -> s == 0 ? PhaseFailure.EMPTY_ARRAY : new PhaseFailure[s]);
         } else {
             phaseFailures = PhaseFailure.EMPTY_ARRAY;
@@ -470,7 +470,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeArray(shardFailures);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_SUBSIDIARY_FAILURES)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_PHASE_FAILURES)) {
             out.writeArray(phaseFailures);
         }
         clusters.writeTo(out);

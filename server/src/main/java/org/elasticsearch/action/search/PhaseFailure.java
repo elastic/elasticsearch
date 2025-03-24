@@ -18,6 +18,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * Contains information on a failure of a particular search phase (ie not a shard failure),
+ * that does not cause the search operation itself to fail.
+ */
 public record PhaseFailure(String phase, Exception failure) implements ToXContentObject, Writeable {
     public static final String PHASE_FIELD = "phase";
     public static final String FAILURE_FIELD = "failure";

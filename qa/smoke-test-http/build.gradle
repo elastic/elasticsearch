@@ -16,8 +16,3 @@ dependencies {
   internalClusterTestImplementation project(':modules:rest-root')
   clusterModules project(":modules:rest-root")
 }
-
-//testClusters.configureEach {
-//  module ':modules:rest-root'
-//  setting 'xpack.security.enabled', 'false'
-//}

@@ -345,21 +345,21 @@ public final class IndicesPermission {
                 );
                 for (String privilege : checkForPrivileges) {
                     final IndexPrivilege indexPrivilege = IndexPrivilege.get(privilege);
-                    final boolean checkDataAccess = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.DATA);
-                    final boolean checkFailuresAccess = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES);
-                    assert checkDataAccess || checkFailuresAccess
+                    final boolean checkWithDataSelector = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.DATA);
+                    final boolean checkWithFailuresSelector = indexPrivilege.getSelectorPredicate().test(IndexComponentSelector.FAILURES);
+                    assert checkWithDataSelector || checkWithFailuresSelector
                         : "index privilege must map to at least one of [data, failures] selectors";
                     assert containsPrivilegesForFailuresSelector
                         || indexPrivilege.getSelectorPredicate() != IndexComponentSelectorPredicate.FAILURES
                         : "no failures access privileges should be present in the set of privileges to check";
                     final Automaton automatonToCheck = indexPrivilege.getAutomaton();
-                    if (checkDataAccess
+                    if (checkWithDataSelector
                         && allowedPrivilegesAutomatonForDataSelector != null
                         && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForDataSelector)) {
                         if (resourcePrivilegesMapBuilder != null) {
                             resourcePrivilegesMapBuilder.addResourcePrivilege(forIndexPattern, privilege, Boolean.TRUE);
                         }
-                    } else if (checkFailuresAccess
+                    } else if (checkWithFailuresSelector
                         && allowedPrivilegesAutomatonForFailuresSelector != null
                         && Automatons.subsetOf(automatonToCheck, allowedPrivilegesAutomatonForFailuresSelector)) {
                             if (resourcePrivilegesMapBuilder != null) {

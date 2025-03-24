@@ -53,7 +53,13 @@ public final class CefProcessor extends AbstractProcessor {
 
     public static final class Factory implements org.elasticsearch.ingest.Processor.Factory {
         @Override
-        public CefProcessor create(Map<String, Processor.Factory> processorFactories, String processorTag, String description, Map<String, Object> config, ProjectId projectId) {
+        public CefProcessor create(
+            Map<String, Processor.Factory> processorFactories,
+            String processorTag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
 
             boolean removeEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", true);

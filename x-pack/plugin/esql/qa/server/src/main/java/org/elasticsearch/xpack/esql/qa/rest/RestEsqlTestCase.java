@@ -992,12 +992,15 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             createIndex("idx" + i, false);
         }
         bulkLoadTestDataLookupMode(10);
-        var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer | sort integer", testIndexName()));
-        Map<String, Object> result = runEsql(query);
-        var columns = as(result.get("columns"), List.class);
-        assertEquals(20, columns.size());
-        var values = as(result.get("values"), List.class);
-        assertEquals(10, values.size());
+        // lookup join with and without sort
+        for (String sort : List.of("", "| sort integer")) {
+            var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
+            Map<String, Object> result = runEsql(query);
+            var columns = as(result.get("columns"), List.class);
+            assertEquals(20, columns.size());
+            var values = as(result.get("values"), List.class);
+            assertEquals(10, values.size());
+        }
         // clean up
         for (int i = 1; i <= 20; i++) {
             assertThat(deleteIndex("idx" + i).isAcknowledged(), is(true));

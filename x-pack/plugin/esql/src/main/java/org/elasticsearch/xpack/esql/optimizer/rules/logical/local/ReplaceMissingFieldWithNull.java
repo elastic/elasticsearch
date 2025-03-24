@@ -81,9 +81,11 @@ public class ReplaceMissingFieldWithNull extends ParameterizedRule<LogicalPlan, 
                     Alias nullAlias = nullLiteral.get(f.dataType());
                     // save the first field as null (per datatype)
                     if (nullAlias == null) {
-                        Alias alias = joinAttributes.isEmpty()
-                            ? new Alias(f.source(), f.name(), Literal.of(f, null), f.id())
-                            : new Alias(f.source(), f.name(), Literal.of(f, null));
+                        // In case of batch executions on data nodes and join exists, SearchStats may not always be available for all,
+                        // fields, creating a new alias for null with the same id as the field id can potentially cause planEval to add a
+                        // duplicated ChannelSet to a layout, and Layout.builder().build() could throw a NullPointerException.
+                        // As a workaround, assign a new alias id to the null alias when join exists and SearchStats is not available.
+                        Alias alias = new Alias(f.source(), f.name(), Literal.of(f, null), joinAttributes.isEmpty() ? f.id() : null);
                         nullLiteral.put(dt, alias);
                         projection = alias.toAttribute();
                     }

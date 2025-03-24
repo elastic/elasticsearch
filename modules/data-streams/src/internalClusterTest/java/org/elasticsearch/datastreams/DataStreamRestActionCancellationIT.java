@@ -22,6 +22,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -69,6 +70,13 @@ public class DataStreamRestActionCancellationIT extends ESIntegTestCase {
         runRestActionCancellationTest(
             new Request(HttpGet.METHOD_NAME, "/_data_stream/test/_lifecycle"),
             GetDataStreamLifecycleAction.INSTANCE.name()
+        );
+    }
+
+    public void testGetDataStreamOptionsCancellation() {
+        runRestActionCancellationTest(
+            new Request(HttpGet.METHOD_NAME, "/_data_stream/test/_options"),
+            GetDataStreamOptionsAction.INSTANCE.name()
         );
     }
 

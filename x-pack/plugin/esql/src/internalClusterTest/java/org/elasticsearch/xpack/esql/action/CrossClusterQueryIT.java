@@ -341,7 +341,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                     List.of(
                         // local cluster is never marked as SKIPPED even when no matching indices - just marked as 0 shards searched
                         new ExpectedCluster(LOCAL_CLUSTER, indexLoc, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, localNumShards),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0)
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0)
                     )
                 );
             }
@@ -358,7 +358,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
                     List.of(
                         // LIMIT 0 searches always have total shards = 0
                         new ExpectedCluster(LOCAL_CLUSTER, indexLoc, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0),
-                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0)
+                        new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, 0)
                     )
                 );
             }
@@ -506,13 +506,13 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             assertThat(executionInfo.isCrossClusterSearch(), is(true));
             assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-            assertThat(executionInfo.isPartial(), equalTo(true));
+            assertThat(executionInfo.isPartial(), equalTo(false));
 
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("no_such_index*"));
-            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
             assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
             assertThat(remoteCluster.getTotalShards(), equalTo(0));
             assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
@@ -912,7 +913,12 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
-        METRICS_COMMAND(Build.current().isSnapshot());
+        METRICS_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Index component selector syntax (my-data-stream-name::failures)
+         */
+        INDEX_COMPONENT_SELECTORS(DataStream.isFailureStoreFeatureFlagEnabled());
 
         private final boolean enabled;
 

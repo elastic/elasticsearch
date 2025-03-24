@@ -12,7 +12,7 @@ ROW base = 2.0, value = 8.0
 | 2.0 | 8.0 | 3.0 |
 
 ```esql
-row value = 100
+ROW value = 100
 | EVAL s = LOG(value);
 ```
 

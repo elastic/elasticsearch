@@ -1457,24 +1457,14 @@ multipleBatches
 required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
 
-from addresses, client*, languages*, message_types*, employees*, k8s
-| dissect street "%{height_range} %{MNyXV}"
-| rename env AS kxpCK, pod AS etUHW, language_code AS city.country.continent.planet.galaxy
-| rename city.country.continent.planet.name as message
+from *
+| rename city.country.continent.planet.name as message 
 | lookup join message_types_lookup on message
-| rename languages.int as language_code
-| lookup join languages_lookup on language_code
-| rename language_code as language_code
-| lookup join languages_lookup on language_code
-| stats c = count(*) by language_code
-| sort language_code
-| limit 5
+| sort language_code, birth_date
+| keep birth_date
+| limit 1
 ;
 
-c:long | language_code:long
-15     | 1
-19     | 2
-17     | 3
-18     | 4
-21     | 5
+birth_date:date
+null
 ;

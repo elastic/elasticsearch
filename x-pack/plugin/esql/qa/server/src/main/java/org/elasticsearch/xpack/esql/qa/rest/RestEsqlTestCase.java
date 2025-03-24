@@ -987,9 +987,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testMultipleBatchesWithLookupJoin() throws IOException {
-        // create 20 indices to trigger multiple batches of data node planning and execution
+        // Create more than 10 indices to trigger multiple batches of data node execution.
+        // The sort field should be missing on some indices to reproduce NullPointerException caused by duplicated items in layout
         for (int i = 1; i <= 20; i++) {
-            createIndex("idx" + i, false);
+            createIndex("idx" + i, randomBoolean(), "\"mappings\": {\"properties\" : {\"a\" : {\"type\" : \"keyword\"}}}");
         }
         bulkLoadTestDataLookupMode(10);
         // lookup join with and without sort
@@ -997,7 +998,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             var query = requestObjectBuilder().query(format(null, "from * | lookup join {} on integer {}", testIndexName(), sort));
             Map<String, Object> result = runEsql(query);
             var columns = as(result.get("columns"), List.class);
-            assertEquals(20, columns.size());
+            assertEquals(21, columns.size());
             var values = as(result.get("values"), List.class);
             assertEquals(10, values.size());
         }
@@ -1687,6 +1688,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
     private static String repeatValueAsMV(Object value) {
         return "[" + value + ", " + value + "]";
+    }
+
+    private static void createIndex(String indexName, boolean lookupMode, String mapping) throws IOException {
+        Request request = new Request("PUT", "/" + indexName);
+        String settings = "\"settings\" : {\"mode\" : \"lookup\"}, ";
+        request.setJsonEntity("{" + (lookupMode ? settings : "") + mapping + "}");
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
     }
 
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {

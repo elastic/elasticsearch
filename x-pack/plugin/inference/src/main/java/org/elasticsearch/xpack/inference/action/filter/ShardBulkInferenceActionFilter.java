@@ -354,12 +354,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
                 // TODO: Verify that ramBytesUsed is what to use here
                 long estimatedMemoryUsage = 0;
+                long newEstimatedInferenceRequestMemoryUsageInBytes = estimatedInferenceRequestMemoryUsageInBytes;
+                long newNoInferenceRequestMemoryUsageInBytes = noInferenceRequestMemoryUsageInBytes;
                 if (estimatedEmbeddingBytes > 0) {
                     estimatedMemoryUsage = estimatedEmbeddingBytes + indexRequest.source().ramBytesUsed();
-                    estimatedInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
+                    newEstimatedInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
                 } else if (noInferenceSourceUpdate) {
                     estimatedMemoryUsage = indexRequest.source().ramBytesUsed();
-                    noInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
+                    newNoInferenceRequestMemoryUsageInBytes += estimatedMemoryUsage;
                 }
 
                 if (estimatedMemoryUsage > 0) {
@@ -372,6 +374,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         throw e;
                     }
                 }
+
+                estimatedInferenceRequestMemoryUsageInBytes = newEstimatedInferenceRequestMemoryUsageInBytes;
+                noInferenceRequestMemoryUsageInBytes = newNoInferenceRequestMemoryUsageInBytes;
             }
 
             actualMemoryUsageInBytes = estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes;

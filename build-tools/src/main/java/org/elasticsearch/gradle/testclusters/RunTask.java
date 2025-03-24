@@ -42,7 +42,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     private Boolean debug = false;
     private Boolean cliDebug = false;
-    private Boolean entitlementsEnabled = false;
+
     private Boolean apmServerEnabled = false;
 
     private Boolean preserveData = false;
@@ -74,9 +74,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
         option = "entitlements",
         description = "Use the Entitlements agent system in place of SecurityManager to enforce sandbox policies."
     )
-    public void setEntitlementsEnabled(boolean enabled) {
-        this.entitlementsEnabled = enabled;
-    }
+    public void setEntitlementsEnabled(boolean enabled) {}
 
     @Input
     public Boolean getDebug() {
@@ -90,7 +88,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     @Input
     public Boolean getEntitlementsEnabled() {
-        return entitlementsEnabled;
+        return true;
     }
 
     @Input
@@ -240,9 +238,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
         if (cliDebug) {
             enableCliDebug();
         }
-        if (entitlementsEnabled) {
-            enableEntitlements();
-        }
+        enableEntitlements();
     }
 
     @TaskAction

@@ -8,7 +8,7 @@ mapped_pages:
 
 
 ::::{note}
-[Runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) provide a very similar feature that is more flexible. You write a script to create field values and they are available everywhere, such as [`fields`](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md), [all queries](/reference/query-languages/querydsl.md), and [aggregations](/reference/data-analysis/aggregations/index.md).
+[Runtime fields](docs-content://manage-data/data-store/mapping/runtime-fields.md) provide a very similar feature that is more flexible. You write a script to create field values and they are available everywhere, such as [`fields`](/reference/elasticsearch/rest-apis/retrieve-selected-fields.md), [all queries](/reference/query-languages/querydsl.md), and [aggregations](/reference/aggregations/index.md).
 ::::
 
 

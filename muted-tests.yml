@@ -464,9 +464,6 @@ tests:
 - class: org.elasticsearch.index.shard.StoreRecoveryTests
   method: testAddIndices
   issue: https://github.com/elastic/elasticsearch/issues/124104
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
-  method: testFilesEntitlementsWithExclusive
-  issue: https://github.com/elastic/elasticsearch/issues/124420
 - class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
   method: testRecreateTemplateWhenDeleted
   issue: https://github.com/elastic/elasticsearch/issues/123232
@@ -483,3 +480,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings.AzureOpenAiEmbeddingsRequestTests
   method: testCreateRequest_WithEntraIdDefined
   issue: https://github.com/elastic/elasticsearch/issues/125061
+- class: org.elasticsearch.xpack.ilm.history.ILMHistoryItemTests
+  method: testTruncateLongError
+  issue: https://github.com/elastic/elasticsearch/issues/125216

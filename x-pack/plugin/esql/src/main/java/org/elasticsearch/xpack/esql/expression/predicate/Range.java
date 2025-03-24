@@ -217,9 +217,9 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         String format = null;
 
         DataType dataType = value.dataType();
-        logger.warn("dataType is [" + dataType + "]");
-        logger.warn("upper is [" + upper + "]");
-        logger.warn("lower is [" + lower + "]");
+        logger.trace(
+            "Translating Range into lucene query.  dataType is [" + dataType + "] upper is [" + upper + "]  lower is [" + lower + "]"
+        );
         if (dataType == DataType.DATETIME && lower.dataType() == DATETIME && upper.dataType() == DATETIME) {
             l = dateTimeToString((Long) l);
             u = dateTimeToString((Long) u);

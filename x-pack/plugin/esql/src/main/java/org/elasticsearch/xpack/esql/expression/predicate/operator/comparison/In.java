@@ -471,7 +471,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     private Query translate(TranslatorHandler handler) {
-        logger.warn("Attempting to generate lucene query for IN expression");
+        logger.trace("Attempting to generate lucene query for IN expression");
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(value());
 
         Set<Object> terms = new LinkedHashSet<>();

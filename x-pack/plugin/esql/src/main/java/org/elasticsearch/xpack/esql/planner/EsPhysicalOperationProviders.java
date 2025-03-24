@@ -183,7 +183,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         final LuceneOperator.Factory luceneFactory;
-        logger.warn("Query Exec is " + esQueryExec);
+        logger.trace("Query Exec is " + esQueryExec);
 
         List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";

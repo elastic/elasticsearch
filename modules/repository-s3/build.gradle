@@ -20,6 +20,7 @@ esplugin {
 
 dependencies {
   // TODO NOMERGE sort alphabetically
+  implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:apache-client:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"

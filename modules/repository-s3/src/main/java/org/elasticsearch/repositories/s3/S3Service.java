@@ -505,8 +505,8 @@ class S3Service implements Closeable {
         }
 
         /**
-         * Sets up a {@link FileWatcher} that runs {@link #credentialsProvider#resolveCredentials()} whenever the file to which
-         * {@code webIdentityTokenFileSymlink} refers gets updated.
+         * Sets up a {@link FileWatcher} that runs {@link StsAssumeRoleWithWebIdentityCredentialsProvider#resolveCredentials()} whenever the
+         * file to which {@code webIdentityTokenFileSymlink} refers gets updated.
          */
         private void setupFileWatcherToRefreshCredentials(Path webIdentityTokenFileSymlink, ResourceWatcherService resourceWatcherService) {
             var watcher = new FileWatcher(webIdentityTokenFileSymlink);

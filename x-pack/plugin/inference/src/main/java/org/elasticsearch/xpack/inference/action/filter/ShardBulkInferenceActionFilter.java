@@ -371,7 +371,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         circuitBreaker.addWithoutBreaking(
                             -(estimatedInferenceRequestMemoryUsageInBytes + noInferenceRequestMemoryUsageInBytes)
                         );
-                        throw e;
+                        throw new InferenceException("Insufficient memory available to perform inference on bulk request", e);
                     }
                 }
 

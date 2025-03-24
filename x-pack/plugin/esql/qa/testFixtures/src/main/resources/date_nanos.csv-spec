@@ -1740,6 +1740,7 @@ diff_sec:integer | diff_sec_m:integer | n:date_nanos
 
 Regression out of bounds in where clause
 required_capability: to_date_nanos
+required_capability: fix_date_nanos_lucene_pushdown_bug
 
 FROM date_nanos
 | WHERE millis > "2020-01-01"

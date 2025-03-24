@@ -99,6 +99,14 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         assertThat(clusterInfo.getFailures(), empty());
     }
 
+    private Exception unwrapIfWrappedInRemoteComputeException(Exception e) {
+        if (e instanceof RemoteComputeException rce) {
+            return (Exception) rce.getCause();
+        } else {
+            return e;
+        }
+    }
+
     public void testPartialResults() throws Exception {
         populateIndices();
         EsqlQueryRequest request = new EsqlQueryRequest();
@@ -106,11 +114,11 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         request.includeCCSMetadata(randomBoolean());
         {
             request.allowPartialResults(false);
-            RemoteComputeException rce = expectThrows(RemoteComputeException.class, () -> runQuery(request).close());
-            Throwable t = rce.getCause();
+            Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+            error = unwrapIfWrappedInRemoteComputeException(error);
 
-            assertThat(t, instanceOf(IllegalStateException.class));
-            assertThat(t.getMessage(), containsString("Accessing failing field"));
+            assertThat(error, instanceOf(IllegalStateException.class));
+            assertThat(error.getMessage(), containsString("Accessing failing field"));
         }
         request.allowPartialResults(true);
         try (var resp = runQuery(request)) {
@@ -194,8 +202,8 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             request.includeCCSMetadata(randomBoolean());
             {
                 request.allowPartialResults(false);
-                RemoteComputeException rce = expectThrows(RemoteComputeException.class, () -> runQuery(request).close());
-                var error = (Exception) rce.getCause();
+                Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+                error = unwrapIfWrappedInRemoteComputeException(error);
                 var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
                 assertNotNull(unwrapped);
                 assertThat(unwrapped.getMessage(), equalTo(simulatedFailure.getMessage()));
@@ -242,8 +250,8 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             request.includeCCSMetadata(randomBoolean());
             {
                 request.allowPartialResults(false);
-                var rce = expectThrows(RemoteComputeException.class, () -> runQuery(request).close());
-                var error = (Exception) rce.getCause();
+                Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+                error = unwrapIfWrappedInRemoteComputeException(error);
                 EsqlTestUtils.assertEsqlFailure(error);
                 var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
                 assertNotNull(unwrapped);

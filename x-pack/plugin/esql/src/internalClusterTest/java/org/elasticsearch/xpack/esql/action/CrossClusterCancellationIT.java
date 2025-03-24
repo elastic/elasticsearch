@@ -89,6 +89,14 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         return false;
     }
 
+    private Exception unwrapIfWrappedInRemoteComputeException(Exception e) {
+        if (e instanceof RemoteComputeException rce) {
+            return (Exception) rce.getCause();
+        } else {
+            return e;
+        }
+    }
+
     private void createRemoteIndex(int numDocs) throws Exception {
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
@@ -163,8 +171,9 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         } finally {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
-        RemoteComputeException rce = expectThrows(RemoteComputeException.class, requestFuture::actionGet);
-        assertThat(rce.getCause().getMessage(), containsString("proxy timeout"));
+        Exception error = expectThrows(Exception.class, requestFuture::actionGet);
+        error = unwrapIfWrappedInRemoteComputeException(error);
+        assertThat(error.getCause().getMessage(), containsString("proxy timeout"));
     }
 
     public void testSameRemoteClusters() throws Exception {
@@ -284,7 +293,8 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
             SimplePauseFieldPlugin.allowEmitting.countDown();
         }
 
-        RemoteComputeException error = expectThrows(RemoteComputeException.class, requestFuture::actionGet);
+        Exception error = expectThrows(Exception.class, requestFuture::actionGet);
+        error = unwrapIfWrappedInRemoteComputeException(error);
         assertThat(error.getCause(), instanceOf(TaskCancelledException.class));
     }
 }

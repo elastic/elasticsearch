@@ -64,6 +64,14 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         return Map.of(REMOTE_CLUSTER_1, randomBoolean(), REMOTE_CLUSTER_2, randomBoolean());
     }
 
+    private Exception unwrapIfWrappedInRemoteComputeException(Exception e) {
+        if (e instanceof RemoteComputeException rce) {
+            return (Exception) rce.getCause();
+        } else {
+            return e;
+        }
+    }
+
     public void testSuccessfulPathways() throws Exception {
         Map<String, Object> testClusterInfo = setupTwoClusters();
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -816,11 +824,11 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
         String remote1Index = (String) testClusterInfo.get("remote.index");
         String q = Strings.format("FROM %s,cluster-a:%s*", localIndex, remote1Index);
 
-        RemoteComputeException rce = expectThrows(RemoteComputeException.class, () -> runQuery(q, false));
-        Throwable t = rce.getCause();
+        Exception error = expectThrows(Exception.class, () -> runQuery(q, false));
+        error = unwrapIfWrappedInRemoteComputeException(error);
 
-        assertThat(t, instanceOf(IllegalStateException.class));
-        assertThat(t.getMessage(), containsString("Accessing failing field"));
+        assertThat(error, instanceOf(IllegalStateException.class));
+        assertThat(error.getMessage(), containsString("Accessing failing field"));
     }
 
     private static void assertClusterMetadataInResponse(EsqlQueryResponse resp, boolean responseExpectMeta) {

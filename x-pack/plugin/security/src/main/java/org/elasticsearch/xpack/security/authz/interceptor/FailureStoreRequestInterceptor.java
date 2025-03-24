@@ -32,7 +32,7 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
         ActionListener<Void> listener
     ) {
         for (var indexAccessControl : indicesAccessControlByIndex.entrySet()) {
-            if (hasFailureStoreSelectorSuffix(indexAccessControl.getKey()) && hasDlsFlsPermissions(indexAccessControl.getValue())) {
+            if (hasFailuresSelectorSuffix(indexAccessControl.getKey()) && hasDlsFlsPermissions(indexAccessControl.getValue())) {
                 listener.onFailure(
                     new ElasticsearchSecurityException(
                         "Failure store access is not allowed for users who have "
@@ -50,7 +50,7 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
     boolean supports(IndicesRequest request) {
         if (request.indicesOptions().allowSelectors()) {
             for (String index : request.indices()) {
-                if (hasFailureStoreSelectorSuffix(index)) {
+                if (hasFailuresSelectorSuffix(index)) {
                     return true;
                 }
             }
@@ -58,7 +58,7 @@ public class FailureStoreRequestInterceptor extends FieldAndDocumentLevelSecurit
         return false;
     }
 
-    private boolean hasFailureStoreSelectorSuffix(String name) {
+    private boolean hasFailuresSelectorSuffix(String name) {
         return IndexNameExpressionResolver.hasSelectorSuffix(name)
             && IndexComponentSelector.getByKey(
                 IndexNameExpressionResolver.splitSelectorExpression(name).v2()

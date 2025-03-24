@@ -47,6 +47,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -1388,12 +1389,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             Map.of(dataIndexName, Set.of("@timestamp", "age"))
         );
 
-        // FLS sort of applies to failure store
-        // TODO this will change with FLS handling
-        assertSearchResponseContainsExpectedIndicesAndFields(
-            performRequest(user, new Search("test1::failures").toSearchRequest()),
-            Map.of(failureIndexName, Set.of("@timestamp"))
-        );
+        // FLS does not apply to failure store
+        expectFlsDlsError(() -> performRequest(user, new Search("test1::failures").toSearchRequest()));
 
         upsertRole(Strings.format("""
             {
@@ -1422,12 +1419,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
             Map.of(dataIndexName, Set.of("@timestamp", "age"))
         );
 
-        // FLS sort of applies to failure store
-        // TODO this will change with FLS handling
-        assertSearchResponseContainsExpectedIndicesAndFields(
-            performRequest(user, new Search("test1::failures").toSearchRequest()),
-            Map.of(failureIndexName, Set.of("@timestamp"))
-        );
+        // FLS does not apply to failure store
+        expectFlsDlsError(() -> performRequest(user, new Search("test1::failures").toSearchRequest()));
 
         upsertRole("""
             {
@@ -1473,7 +1466,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
              }""", role);
         // DLS applies and no docs match the query
         expectSearch(user, new Search(randomFrom("test1", "test1::data")));
-        expectSearch(user, new Search("test1::failures"));
+        // DLS is not applicable to failure store
+        expectFlsDlsError(() -> performRequest(user, new Search("test1::failures").toSearchRequest()));
 
         upsertRole("""
             {
@@ -1488,7 +1482,8 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
              }""", role);
         // DLS applies and doc matches the query
         expectSearch(user, new Search(randomFrom("test1", "test1::data")), dataIndexDocId);
-        expectSearch(user, new Search("test1::failures"));
+        // DLS is not applicable to failure store
+        expectFlsDlsError(() -> performRequest(user, new Search("test1::failures").toSearchRequest()));
 
         upsertRole("""
             {
@@ -1826,5 +1821,15 @@ public class FailureStoreSecurityRestIT extends ESRestTestCase {
         assertThat(indices.v1().size(), equalTo(1));
         assertThat(indices.v2().size(), equalTo(1));
         return new Tuple<>(indices.v1().get(0), indices.v2().get(0));
+    }
+
+    private static void expectFlsDlsError(ThrowingRunnable runnable) {
+        var exception = expectThrows(ResponseException.class, runnable);
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "Failure store access is not allowed for users who have field or document level security enabled on one of the indices"
+            )
+        );
     }
 }

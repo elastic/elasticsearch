@@ -111,7 +111,6 @@ public abstract class RunTask extends DefaultTestClustersTask {
             for (String plugin : this.plugins) {
                 cluster.plugin(":plugins:" + plugin);
             }
-            ;
             dependsOn(cluster.getPluginAndModuleConfigurations());
         }
     }

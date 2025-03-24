@@ -10,7 +10,7 @@ mapped_pages:
 
 An {{esql}} source command produces a table, typically with data from {{es}}. An {{esql}} query must start with a source command.
 
-:::{image} ../../../images/source-command.svg
+:::{image} ../images/source-command.svg
 :alt: A source command producing a table from {{es}}
 :::
 
@@ -25,7 +25,7 @@ An {{esql}} source command produces a table, typically with data from {{es}}. An
 
 {{esql}} processing commands change an input table by adding, removing, or changing rows and columns.
 
-:::{image} ../../../images/processing-command.svg
+:::{image} ../images/processing-command.svg
 :alt: A processing command changing an input table
 :::
 
@@ -307,7 +307,7 @@ ENRICH policy [ON match_field] [WITH [new_name1 = ]field1, [new_name2 = ]field2,
 
 `ENRICH` enables you to add data from existing indices as new columns using an enrich policy. Refer to [Data enrichment](/reference/query-languages/esql/esql-enrich-data.md) for information about setting up a policy.
 
-:::{image} ../../../images/esql-enrich.png
+:::{image} ../images/esql-enrich.png
 :alt: esql enrich
 :::
 
@@ -666,6 +666,10 @@ FROM employees
 ## `LOOKUP JOIN` [esql-lookup-join]
 
 ::::{warning}
+```{applies_to}
+stack: preview 9.0, coming 9.1
+serverless: preview
+```
 This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 
@@ -741,12 +745,16 @@ FROM Left
 ```esql
 FROM Left
 | LOOKUP JOIN Right ON Key
-| WHERE Language IS NOT NULL 
+| WHERE Language IS NOT NULL
 ```
 
 ## `MV_EXPAND` [esql-mv_expand]
 
 ::::{warning}
+```{applies_to}
+stack: preview 9.0, coming 9.1
+serverless: preview
+```
 This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features.
 ::::
 

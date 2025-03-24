@@ -147,7 +147,10 @@ public final class DiffableUtils {
     }
 
     /**
-     * Create a new MapDiff by transforming the keys with the provided keyFunction
+     * Create a new JDK map backed MapDiff by transforming the keys with the provided keyFunction.
+     * @param diff Original MapDiff to transform
+     * @param keyFunction Function to transform the key
+     * @param keySerializer Serializer for the new key
      */
     public static <K1, K2, T extends Diffable<T>, M1 extends Map<K1, T>> MapDiff<K2, T, Map<K2, T>> jdkMapDiffWithUpdatedKeys(
         MapDiff<K1, T, M1> diff,

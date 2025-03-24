@@ -105,7 +105,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         out.setTransportVersion(oldVersion);
 
         final Custom before = createTestInstance(() -> randomSnapshot(ProjectId.DEFAULT));
-        final Custom after = makeTestChanges(before);
+        final Custom after = makeTestChanges(before, () -> randomSnapshot(ProjectId.DEFAULT));
         final Diff<Custom> diff = after.diff(before);
         diff.writeTo(out);
 
@@ -206,6 +206,10 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
 
     @Override
     protected Custom makeTestChanges(Custom testInstance) {
+        return makeTestChanges(testInstance, () -> randomSnapshot(randomProjectIdOrDefault()));
+    }
+
+    protected Custom makeTestChanges(Custom testInstance, Supplier<Entry> randomEntrySupplier) {
         final SnapshotsInProgress snapshots = (SnapshotsInProgress) testInstance;
         SnapshotsInProgress updatedInstance = SnapshotsInProgress.EMPTY;
         if (randomBoolean() && snapshots.count() > 1) {
@@ -226,7 +230,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             // add some elements
             int addElements = randomInt(10);
             for (int i = 0; i < addElements; i++) {
-                updatedInstance = updatedInstance.withAddedEntry(randomSnapshot());
+                updatedInstance = updatedInstance.withAddedEntry(randomEntrySupplier.get());
             }
         }
         if (randomBoolean()) {

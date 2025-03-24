@@ -37,13 +37,16 @@ dependencies {
 
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
 
-  runtimeOnly "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
-  runtimeOnly "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
-  runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
-  runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
-  runtimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
   runtimeOnly "joda-time:joda-time:2.10.14"
+  runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  runtimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+  runtimeOnly "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:retries:${versions.awsv2sdk}"
 
   testImplementation project(':test:fixtures:s3-fixture')
 

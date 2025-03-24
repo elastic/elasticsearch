@@ -9,7 +9,7 @@ They intersect if they have any point in common, including their interior points
 This is the inverse of the [ST_DISJOINT](https://www.elastic.co/docs/reference/elasticsearch/query-languages/esql/esql-functions-operators#esql-st_disjoint) function.
 In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅
 
-```
+```esql
 FROM airports
 | WHERE ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))
 ```

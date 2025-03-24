@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.inference.integration;
 
-import org.elasticsearch.action.DocWriteResponse;;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -45,7 +46,7 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
     private static final IndexVersion SEMANTIC_TEXT_INTRODUCED_VERSION = IndexVersion.fromId(8512000);
 
     private Set<IndexVersion> availableVersions;
-    private static final int MIN_NUMBER_OF_TESTS_TO_RUN = 1;
+    private static final int MIN_NUMBER_OF_TESTS_TO_RUN = 10;
 
     @Before
     public void setup() throws Exception {
@@ -154,16 +155,25 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
                 assertHitCount(response, 1L);
             });
 
-            //Semantic Search with highlighter
-            SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder()
-                .query(new SemanticQueryBuilder("semantic_field", "inference"))
-                .highlighter(new HighlightBuilder().field(new HighlightBuilder.Field("semantic_field").numOfFragments(1)))
-                .trackTotalHits(true);
+            //Semantic Search with highlighter only available from 8.18 and 9.0
+            Settings settings = client().admin()
+                .indices()
+                .prepareGetSettings(TimeValue.THIRTY_SECONDS, indexName)
+                .get()
+                .getIndexToSettings()
+                .get(indexName);
 
-            assertResponse(client().search(new SearchRequest(indexName).source(sourceBuilder)), response -> {
-                assertHitCount(response, 1L);
-                assertHighlight(response, 0, "semantic_field", 0, 2, equalTo("inference"));
-            });
+            if (InferenceMetadataFieldsMapper.isEnabled(settings)) {
+                SearchSourceBuilder sourceHighlighterBuilder = new SearchSourceBuilder()
+                    .query(new SemanticQueryBuilder("semantic_field", "inference"))
+                    .highlighter(new HighlightBuilder().field("semantic_field"))
+                    .trackTotalHits(true);
+
+                assertResponse(client().search(new SearchRequest(indexName).source(sourceHighlighterBuilder)), response -> {
+                    assertHighlight(response, 0, "semantic_field", 0, 2, equalTo("inference test"));
+                    assertHighlight(response, 0, "semantic_field", 1, 2, equalTo("another inference test"));
+                });
+            }
         }
     }
 }

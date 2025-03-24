@@ -34,6 +34,7 @@ import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
@@ -452,8 +453,8 @@ public final class IndexPrivilege extends Privilege {
         Collection<String> actions,
         IndexComponentSelectorPredicate selectorPredicate
     ) {
-        final Set<Automaton> automata = HashSet.newHashSet(privileges.size() + actions.size());
-        final Set<String> names = HashSet.newHashSet(privileges.size() + actions.size());
+        final Set<Automaton> automata = Sets.newHashSetWithExpectedSize(privileges.size() + actions.size());
+        final Set<String> names = Sets.newHashSetWithExpectedSize(privileges.size() + actions.size());
         for (IndexPrivilege privilege : privileges) {
             names.addAll(privilege.name());
             automata.add(privilege.automaton);

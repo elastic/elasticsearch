@@ -9,6 +9,8 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -16,11 +18,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
+
 /**
  * Basic information about a snapshot - a SnapshotId and the repository that the snapshot belongs to.
  */
 public final class Snapshot implements Writeable {
 
+    private final ProjectId projectId;
     private final String repository;
     private final SnapshotId snapshotId;
     private final int hashCode;
@@ -28,7 +33,16 @@ public final class Snapshot implements Writeable {
     /**
      * Constructs a snapshot.
      */
+    @Deprecated(forRemoval = true)
     public Snapshot(final String repository, final SnapshotId snapshotId) {
+        this(ProjectId.DEFAULT, repository, snapshotId);
+    }
+
+    /**
+     * Constructs a snapshot.
+     */
+    public Snapshot(ProjectId projectId, final String repository, final SnapshotId snapshotId) {
+        this.projectId = projectId;
         this.repository = Objects.requireNonNull(repository);
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.hashCode = computeHashCode();
@@ -38,9 +52,18 @@ public final class Snapshot implements Writeable {
      * Constructs a snapshot from the stream input.
      */
     public Snapshot(final StreamInput in) throws IOException {
+        if (in.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+            projectId = ProjectId.DEFAULT;
+        } else {
+            projectId = ProjectId.readFrom(in);
+        }
         repository = in.readString();
         snapshotId = new SnapshotId(in);
         hashCode = computeHashCode();
+    }
+
+    public ProjectId getProjectId() {
+        return projectId;
     }
 
     /**
@@ -48,6 +71,10 @@ public final class Snapshot implements Writeable {
      */
     public String getRepository() {
         return repository;
+    }
+
+    public ProjectRepo getProjectRepo() {
+        return new ProjectRepo(projectId, repository);
     }
 
     /**
@@ -59,7 +86,7 @@ public final class Snapshot implements Writeable {
 
     @Override
     public String toString() {
-        return repository + ":" + snapshotId.toString();
+        return projectId + ":" + repository + ":" + snapshotId.toString();
     }
 
     @Override
@@ -71,7 +98,7 @@ public final class Snapshot implements Writeable {
             return false;
         }
         Snapshot that = (Snapshot) o;
-        return repository.equals(that.repository) && snapshotId.equals(that.snapshotId);
+        return projectId.equals(that.projectId) && repository.equals(that.repository) && snapshotId.equals(that.snapshotId);
     }
 
     @Override
@@ -80,11 +107,23 @@ public final class Snapshot implements Writeable {
     }
 
     private int computeHashCode() {
-        return Objects.hash(repository, snapshotId);
+        return Objects.hash(projectId, repository, snapshotId);
     }
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
+        if (out.getTransportVersion().before(TransportVersions.PROJECT_ID_IN_SNAPSHOT)) {
+            if (ProjectId.DEFAULT.equals(projectId) == false) {
+                throw new IllegalArgumentException(
+                    "Cannot write instance with non-default project id "
+                        + projectId
+                        + " to version before "
+                        + TransportVersions.PROJECT_ID_IN_SNAPSHOT
+                );
+            }
+        } else {
+            projectId.writeTo(out);
+        }
         out.writeString(repository);
         snapshotId.writeTo(out);
     }

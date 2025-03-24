@@ -147,6 +147,26 @@ public final class DiffableUtils {
     }
 
     /**
+     * Create a new MapDiff by transforming the keys with the provided keyFunction
+     */
+    public static <K1, K2, T extends Diffable<T>, M1 extends Map<K1, T>> MapDiff<K2, T, Map<K2, T>> jdkMapDiffWithUpdatedKeys(
+        MapDiff<K1, T, M1> diff,
+        Function<K1, K2> keyFunction,
+        KeySerializer<K2> keySerializer
+    ) {
+        final List<K2> deletes = diff.getDeletes().stream().map(keyFunction).toList();
+        final List<Map.Entry<K2, Diff<T>>> diffs = diff.getDiffs()
+            .stream()
+            .map(entry -> Map.entry(keyFunction.apply(entry.getKey()), entry.getValue()))
+            .toList();
+        final List<Map.Entry<K2, T>> upserts = diff.getUpserts()
+            .stream()
+            .map(entry -> Map.entry(keyFunction.apply(entry.getKey()), entry.getValue()))
+            .toList();
+        return new MapDiff<>(keySerializer, DiffableValueSerializer.getWriteOnlyInstance(), deletes, diffs, upserts, JdkMapBuilder::new);
+    }
+
+    /**
      * Creates a MapDiff that applies a single entry diff to a map
      */
     public static <K, T extends Diffable<T>, M extends Map<K, T>> MapDiff<K, T, M> singleEntryDiff(

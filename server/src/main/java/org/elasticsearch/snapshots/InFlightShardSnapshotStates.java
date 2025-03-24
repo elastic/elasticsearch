@@ -46,7 +46,7 @@ public final class InFlightShardSnapshotStates {
         }
         final Map<String, Map<Integer, ShardGeneration>> generations = new HashMap<>();
         final Map<String, Set<Integer>> busyIds = new HashMap<>();
-        assert snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1
+        assert snapshots.stream().map(SnapshotsInProgress.Entry::projectRepo).distinct().count() == 1
             : "snapshots must either be an empty list or all belong to the same repository but saw " + snapshots;
         for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
             for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot

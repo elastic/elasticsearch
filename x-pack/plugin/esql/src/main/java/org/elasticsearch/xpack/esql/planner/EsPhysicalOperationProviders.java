@@ -79,6 +79,7 @@ import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPrefere
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
+
     /**
      * Context of each shard we're operating against.
      */

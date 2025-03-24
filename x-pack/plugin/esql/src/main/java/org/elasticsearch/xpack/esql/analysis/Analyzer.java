@@ -939,6 +939,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
+            // Make a copy of childOutput because we may mutate this to simplify resolution of e.g. RENAME.
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
             for (var ne : drop.removals()) {
@@ -974,6 +975,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new EsqlProject(rename.source(), rename.child(), projections);
         }
 
+        /**
+         * This will turn a {@link Rename} into an equivalent {@link Project}.
+         * Can mutate {@code childrenOutput}; hand this a copy if you want to avoid mutation.
+         */
         public static List<NamedExpression> projectionsForRename(Rename rename, List<Attribute> childrenOutput, Logger logger) {
             List<NamedExpression> projections = new ArrayList<>(childrenOutput);
 

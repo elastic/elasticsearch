@@ -277,7 +277,7 @@ public class PolicyManager {
             Strings.format(
                 "component [%s], module [%s], class [%s], operation [%s]",
                 entitlements.componentName(),
-                requestingClass.getModule().getName(),
+                getModuleName(requestingClass),
                 requestingClass,
                 operationDescription.get()
             ),
@@ -395,7 +395,7 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     realPath == null ? path : Strings.format("%s -> %s", path, realPath)
                 ),
@@ -425,7 +425,7 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     path
                 ),
@@ -514,7 +514,7 @@ public class PolicyManager {
                 Strings.format(
                     "component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     PolicyParser.getEntitlementTypeName(entitlementClass)
                 ),
@@ -527,7 +527,7 @@ public class PolicyManager {
                 () -> Strings.format(
                     "Entitled: component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
-                    requestingClass.getModule().getName(),
+                    getModuleName(requestingClass),
                     requestingClass,
                     PolicyParser.getEntitlementTypeName(entitlementClass)
                 )
@@ -547,7 +547,7 @@ public class PolicyManager {
                     () -> Strings.format(
                         "Entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                         entitlements.componentName(),
-                        requestingClass.getModule().getName(),
+                        getModuleName(requestingClass),
                         requestingClass,
                         property
                     )
@@ -558,7 +558,7 @@ public class PolicyManager {
             Strings.format(
                 "component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
-                requestingClass.getModule().getName(),
+                getModuleName(requestingClass),
                 requestingClass,
                 property
             ),
@@ -738,6 +738,14 @@ public class PolicyManager {
         }
         generalLogger.trace("Entitlement not trivially allowed");
         return false;
+    }
+
+    /**
+     * @return the {@code requestingClass}'s module name as it would appear in an entitlement policy file
+     */
+    private static String getModuleName(Class<?> requestingClass) {
+        String name = requestingClass.getModule().getName();
+        return (name == null) ? ALL_UNNAMED : name;
     }
 
     @Override

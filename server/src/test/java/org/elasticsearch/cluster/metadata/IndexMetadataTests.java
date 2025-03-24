@@ -735,7 +735,12 @@ public class IndexMetadataTests extends ESTestCase {
         IndexWriteLoad.Builder indexWriteLoadBuilder = IndexWriteLoad.builder(numberOfShards);
         int numberOfPopulatedWriteLoads = randomIntBetween(0, numberOfShards);
         for (int i = 0; i < numberOfPopulatedWriteLoads; i++) {
-            indexWriteLoadBuilder.withShardWriteLoad(i, randomDoubleBetween(0.0, 128.0, true), randomNonNegativeLong());
+            indexWriteLoadBuilder.withShardWriteLoad(
+                i,
+                randomDoubleBetween(0.0, 128.0, true),
+                randomDoubleBetween(0.0, 128.0, true),
+                randomNonNegativeLong()
+            );
         }
         return new IndexMetadataStats(indexWriteLoadBuilder.build(), randomLongBetween(100, 1024), randomIntBetween(1, 2));
     }

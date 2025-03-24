@@ -379,6 +379,7 @@ public class IndexLifecycleService
                 final ClusterState currentState = lastSeenState.get();
                 // This should never be null, but we're checking anyway to be sure.
                 if (currentState == null) {
+                    assert false : "Expected current state to non-null when processing cluster state in ILM";
                     return;
                 }
                 this.currentState.set(currentState);

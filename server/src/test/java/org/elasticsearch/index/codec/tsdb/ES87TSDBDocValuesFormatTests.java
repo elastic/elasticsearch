@@ -253,7 +253,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         }
     }
 
-    public void testForceMerge() throws Exception {
+    public void testForceMergeDenseCase() throws Exception {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";
         long baseTimestamp = 1704067200000L;
@@ -272,9 +272,9 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
             long[] gauge1Values = new long[] { 2, 4, 6, 8, 10, 12, 14, 16 };
             long[] gauge2Values = new long[] { -2, -4, -6, -8, -10, -12, -14, -16 };
             String[] tags = new String[] { "tag_1", "tag_2", "tag_3", "tag_4", "tag_5", "tag_6", "tag_7", "tag_8" };
-            int numHosts = 10;
 
             int numDocs = 256 + random().nextInt(1024);
+            int numHosts = numDocs / 20;
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
 

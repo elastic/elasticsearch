@@ -213,11 +213,12 @@ public class S3HttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add("ETag", blob.v1());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
-            } else if (Regex.simpleMatch("GET /" + bucket + "/?prefix=*", request)) {
+            } else if (isListObjectsRequest(request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
-                if (params.get("list-type") != null) {
-                    throw new AssertionError("Test must be adapted for GET Bucket (List Objects) Version 2");
+                final var listType = params.getOrDefault("list-type", "1");
+                if (params.containsKey("list-type") && listType.equals("2") == false) {
+                    throw new AssertionError("Unsupported list-type, must be absent or `2` but got " + listType);
                 }
 
                 final StringBuilder list = new StringBuilder();
@@ -255,6 +256,10 @@ public class S3HttpHandler implements HttpHandler {
                     commonPrefixes.forEach(commonPrefix -> list.append("<Prefix>").append(commonPrefix).append("</Prefix>"));
                     list.append("</CommonPrefixes>");
 
+                }
+                if (listType.equals("2")) {
+                    // TODO test pagination here too
+                    list.append("<IsTruncated>false</IsTruncated>");
                 }
                 list.append("</ListBucketResult>");
 
@@ -315,7 +320,7 @@ public class S3HttpHandler implements HttpHandler {
                 }
                 exchange.sendResponseHeaders((deletions > 0 ? RestStatus.OK : RestStatus.NO_CONTENT).getStatus(), -1);
 
-            } else if (Regex.simpleMatch("POST /" + bucket + "/?delete", request)) {
+            } else if (isMultiObjectDeleteRequest(request)) {
                 final String requestBody = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), UTF_8));
 
                 final StringBuilder deletes = new StringBuilder();
@@ -347,6 +352,15 @@ public class S3HttpHandler implements HttpHandler {
     private boolean isListMultipartUploadsRequest(String request) {
         return Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)
             || Regex.simpleMatch("GET /" + bucket + "/?uploads&max-uploads=*&prefix=*", request);
+    }
+
+    private boolean isListObjectsRequest(String request) {
+        return Regex.simpleMatch("GET /" + bucket + "/?prefix=*", request)
+            || Regex.simpleMatch("GET /" + bucket + "?list-type=2&*prefix=*", request);
+    }
+
+    private boolean isMultiObjectDeleteRequest(String request) {
+        return request.equals("POST /" + bucket + "/?delete") || request.equals("POST /" + bucket + "?delete");
     }
 
     public Map<String, BytesReference> blobs() {

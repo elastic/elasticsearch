@@ -423,7 +423,7 @@ public class ReservedClusterStateService {
             ErrorState errorState = new ErrorState(
                 projectId,
                 namespace,
-                reservedStateChunks.isEmpty() ? null : reservedStateChunks.getFirst().metadata().version(),
+                reservedStateChunks.isEmpty() ? EMPTY_VERSION : reservedStateChunks.getFirst().metadata().version(),
                 versionCheck,
                 e,
                 ReservedStateErrorMetadata.ErrorKind.PARSING

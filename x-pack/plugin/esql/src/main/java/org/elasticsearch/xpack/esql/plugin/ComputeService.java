@@ -72,7 +72,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  * This method is responsible for splitting physical plan into coordinator and data node plans.
  *
  * Coordinator plan is immediately executed locally (using {@code org.elasticsearch.xpack.esql.plugin.ComputeService#runCompute})
- * and is prepared to collect and merge pages from data nodes into the final qquery result.
+ * and is prepared to collect and merge pages from data nodes into the final query result.
  *
  * Data node plan is passed to {@code org.elasticsearch.xpack.esql.plugin.DataNodeComputeHandler#startComputeOnDataNodes}
  * that is responsible for
@@ -97,7 +97,7 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_
  *     </li>
  *     <li>
  *         While coordinator plan executor is running it will read data from ExchangeSource that will poll pages
- *         from linked ExchangeSink on target data nodes or notify zem that data set is already completed
+ *         from linked ExchangeSink on target data nodes or notify them that data set is already completed
  *         (for example when running FROM * | LIMIT 10 type of query) or query is canceled
  *         using `internal:data/read/esql/exchange` transport requests.
  *         {@see org.elasticsearch.compute.operator.exchange.ExchangeService.ExchangeTransportAction#messageReceived}

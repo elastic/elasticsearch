@@ -102,7 +102,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("event.id", String.class), equalTo("1"));
         assertThat(ingestDocument.getFieldValue("source.bytes", Long.class), equalTo(4294967296L));
         assertThat(ingestDocument.getFieldValue("destination.bytes", Long.class), equalTo(4294967296L));
-
     }
 
     @Test
@@ -123,7 +122,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("device.event_class_id"), equalTo("100"));
         assertThat(cef.get("name"), equalTo("trojan successfully stopped"));
         assertThat(cef.get("severity"), equalTo("10"));
-
     }
 
     @Test
@@ -148,7 +146,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
         assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
-
     }
 
     @Test

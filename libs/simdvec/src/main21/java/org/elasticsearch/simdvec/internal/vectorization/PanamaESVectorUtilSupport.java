@@ -236,34 +236,20 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        sectionLength = INT_SPECIES_256.length() * 4;
+        sectionLength = INT_SPECIES_256.length();
         if (q.length - i >= sectionLength) {
-            IntVector acc0 = IntVector.zero(INT_SPECIES_256);
-            IntVector acc1 = IntVector.zero(INT_SPECIES_256);
-            IntVector acc2 = IntVector.zero(INT_SPECIES_256);
-            IntVector acc3 = IntVector.zero(INT_SPECIES_256);
+            // don't unroll this, we want to catch as many as we can before going scalar
+            IntVector acc = IntVector.zero(INT_SPECIES_256);
             int limit = limit(q.length, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var vals0 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
-                var vals1 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length()).castShape(INT_SPECIES_256, 0);
-                var vals2 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 2)
-                    .castShape(INT_SPECIES_256, 0);
-                var vals3 = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i + INT_SPECIES_256.length() * 3)
-                    .castShape(INT_SPECIES_256, 0);
+                var vals = ByteVector.fromArray(BYTE_SPECIES_FOR_INT_256, q, i).castShape(INT_SPECIES_256, 0);
 
-                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
-                var mask0 = VectorMask.fromLong(INT_SPECIES_256, maskBits);
-                var mask1 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 8);
-                var mask2 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 16);
-                var mask3 = VectorMask.fromLong(INT_SPECIES_256, maskBits >> 24);
+                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                var mask = VectorMask.fromLong(INT_SPECIES_256, maskBits);
 
-                acc0 = acc0.add(vals0, mask0);
-                acc1 = acc1.add(vals1, mask1);
-                acc2 = acc2.add(vals2, mask2);
-                acc3 = acc3.add(vals3, mask3);
+                acc = acc.add(vals, mask);
             }
-            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-                + acc3.reduceLanes(VectorOperators.ADD);
+            sum += acc.reduceLanes(VectorOperators.ADD);
         }
 
         if (i < q.length) {
@@ -353,32 +339,20 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
                 + acc3.reduceLanes(VectorOperators.ADD);
         }
 
-        sectionLength = FLOAT_SPECIES_256.length() * 4;
+        sectionLength = FLOAT_SPECIES_256.length();
         if (q.length - i >= sectionLength) {
-            FloatVector acc0 = FloatVector.zero(FLOAT_SPECIES_256);
-            FloatVector acc1 = FloatVector.zero(FLOAT_SPECIES_256);
-            FloatVector acc2 = FloatVector.zero(FLOAT_SPECIES_256);
-            FloatVector acc3 = FloatVector.zero(FLOAT_SPECIES_256);
+            // don't unroll this, we want to catch as many as we can before going scalar
+            FloatVector acc = FloatVector.zero(FLOAT_SPECIES_256);
             int limit = limit(q.length, sectionLength);
             for (; i < limit; i += sectionLength) {
-                var floats0 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
-                var floats1 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length());
-                var floats2 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 2);
-                var floats3 = FloatVector.fromArray(FLOAT_SPECIES_256, q, i + FLOAT_SPECIES_256.length() * 3);
+                var floats = FloatVector.fromArray(FLOAT_SPECIES_256, q, i);
 
-                long maskBits = Integer.reverse((int) BitUtil.VH_BE_INT.get(d, i / 8));
-                var mask0 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
-                var mask1 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 8);
-                var mask2 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 16);
-                var mask3 = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits >> 24);
+                long maskBits = Integer.reverse(d[i / 8]) >> 24;
+                var mask = VectorMask.fromLong(FLOAT_SPECIES_256, maskBits);
 
-                acc0 = acc0.add(floats0, mask0);
-                acc1 = acc1.add(floats1, mask1);
-                acc2 = acc2.add(floats2, mask2);
-                acc3 = acc3.add(floats3, mask3);
+                acc = acc.add(floats, mask);
             }
-            sum += acc0.reduceLanes(VectorOperators.ADD) + acc1.reduceLanes(VectorOperators.ADD) + acc2.reduceLanes(VectorOperators.ADD)
-                + acc3.reduceLanes(VectorOperators.ADD);
+            sum += acc.reduceLanes(VectorOperators.ADD);
         }
 
         if (i < q.length) {

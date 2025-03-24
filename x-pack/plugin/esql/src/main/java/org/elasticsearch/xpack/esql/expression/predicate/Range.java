@@ -218,7 +218,10 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
 
         DataType dataType = value.dataType();
         logger.trace(
-            "Translating Range into lucene query.  dataType is [" + dataType + "] upper is [" + upper + "]  lower is [" + lower + "]"
+                "Translating Range into lucene query.  dataType is [{}] upper is [{}]  lower is [{}]",
+                dataType,
+                lower,
+                upper
         );
         if (dataType == DataType.DATETIME && lower.dataType() == DATETIME && upper.dataType() == DATETIME) {
             l = dateTimeToString((Long) l);

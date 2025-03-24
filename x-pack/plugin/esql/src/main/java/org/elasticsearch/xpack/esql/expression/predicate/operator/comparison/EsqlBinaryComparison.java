@@ -383,19 +383,13 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         boolean isDateLiteralComparison = false;
 
         logger.trace(
-            "Translating binary comparison with right: ["
-                + right()
-                + "<"
-                + right().dataType()
-                + ">] left: ["
-                + left()
-                + "<"
-                + left().dataType()
-                + ">] attribute: ["
-                + attribute
-                + "<"
-                + attribute.dataType()
-                + ">]"
+            "Translating binary comparison with right: [{}<{}>], left: [{}<{}>], attribute: [{}<{}>]",
+                 right(),
+                 right().dataType(),
+                 left(),
+                 left().dataType(),
+                 attribute,
+                 attribute.dataType()
         );
 
         // TODO: This type coersion layer is copied directly from the QL counterpart code. It's probably not necessary or desireable

@@ -97,14 +97,14 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         ensureDownsamplingStatus(
             targetIndex,
             Set.of(IndexMetadata.DownsampleTaskStatus.STARTED, IndexMetadata.DownsampleTaskStatus.SUCCESS),
-            TimeValue.timeValueSeconds(5)
+            TimeValue.timeValueMillis(4500)
         );
 
         logger.info("-> Starting the disruption.");
         internalCluster().rollingRestart(new InternalTestCluster.RestartCallback() {
         });
 
-        ensureDownsamplingStatus(targetIndex, Set.of(IndexMetadata.DownsampleTaskStatus.SUCCESS), TimeValue.timeValueMinutes(2));
+        ensureDownsamplingStatus(targetIndex, Set.of(IndexMetadata.DownsampleTaskStatus.SUCCESS), TimeValue.timeValueSeconds(120));
         ensureGreen(targetIndex);
         logger.info("-> Relocation has finished");
     }

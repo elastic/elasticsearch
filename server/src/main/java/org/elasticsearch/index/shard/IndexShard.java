@@ -4459,8 +4459,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * In general, resetting the engine should be done with care, to consider any in-progress operations and listeners.
      * At the moment, this is implemented in serverless for a special case that ensures the engine is prepared for reset.
+     *
+     * @param postResetNewEngineConsumer A consumer that will be called with the newly created engine after the reset
+     *                                   is complete, allowing for post-reset operations on the new engine instance.
+     *                                   The provided engine reference should not be retained by the consumer.
      */
-    public void resetEngine() {
+    public void resetEngine(Consumer<Engine> postResetNewEngineConsumer) {
         assert Thread.holdsLock(mutex) == false : "resetting engine under mutex";
         assert waitForEngineOrClosedShardListeners.isDone();
         try {
@@ -4477,6 +4481,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 // Promote to write lock in order to swap engines
                 engineLock.writeLock().lock();
+                Engine previousEngine = null;
                 try {
 
                     // How do we ensure that no indexing operations have been processed since prepareForEngineReset() here? We're not
@@ -4484,10 +4489,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                     assert state != IndexShardState.CLOSED : "state has changed without holding engine write lock!";
                     var newEngine = createEngine(newEngineConfig(replicationTracker));
-                    IOUtils.close(getAndSetCurrentEngine(newEngine));
+                    previousEngine = getAndSetCurrentEngine(newEngine);
+                    postResetNewEngineConsumer.accept(newEngine);
                     onNewEngine(newEngine);
                 } finally {
-                    engineLock.writeLock().unlock();
+                    engineLock.readLock().lock();
+                    try {
+                        engineLock.writeLock().unlock();
+                        IOUtils.close(previousEngine);
+                    } finally {
+                        engineLock.readLock().unlock();
+                    }
                 }
             } finally {
                 if (release) {
@@ -4518,6 +4530,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final long globalCheckpoint = getLastKnownGlobalCheckpoint();
         assert globalCheckpoint == getLastSyncedGlobalCheckpoint();
         engineLock.writeLock().lock();
+        Engine previousEngine = null;
         try {
             verifyNotClosed();
             // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
@@ -4574,11 +4587,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     IOUtils.close(super::close, newEngine);
                 }
             };
-            IOUtils.close(getAndSetCurrentEngine(readOnlyEngine));
+            previousEngine = getAndSetCurrentEngine(readOnlyEngine);
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         } finally {
-            engineLock.writeLock().unlock();
+            engineLock.readLock().lock();
+            try {
+                engineLock.writeLock().unlock();
+                IOUtils.close(previousEngine);
+            } finally {
+                engineLock.readLock().unlock();
+            }
         }
         final Engine.TranslogRecoveryRunner translogRunner = (engine, snapshot) -> runTranslogRecovery(
             engine,

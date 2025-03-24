@@ -1294,43 +1294,48 @@ public class ES87TSDBDocValuesProducer extends DocValuesProducer {
     private SortedNumericDocValues getSortedNumeric(SortedNumericEntry entry, long maxOrd) throws IOException {
         if (entry.numValues == entry.numDocsWithField) {
             var numeric = getNumeric(entry, maxOrd);
-            return new BaseSortedNumericDocValues(entry) {
+            if (merging) {
+                return new BaseSortedNumericDocValues(entry) {
 
-                @Override
-                public long nextValue() throws IOException {
-                    return numeric.longValue();
-                }
+                    @Override
+                    public long nextValue() throws IOException {
+                        return numeric.longValue();
+                    }
 
-                @Override
-                public int docValueCount() {
-                    return 1;
-                }
+                    @Override
+                    public int docValueCount() {
+                        return 1;
+                    }
 
-                @Override
-                public boolean advanceExact(int target) throws IOException {
-                    return numeric.advanceExact(target);
-                }
+                    @Override
+                    public boolean advanceExact(int target) throws IOException {
+                        return numeric.advanceExact(target);
+                    }
 
-                @Override
-                public int docID() {
-                    return numeric.docID();
-                }
+                    @Override
+                    public int docID() {
+                        return numeric.docID();
+                    }
 
-                @Override
-                public int nextDoc() throws IOException {
-                    return numeric.nextDoc();
-                }
+                    @Override
+                    public int nextDoc() throws IOException {
+                        return numeric.nextDoc();
+                    }
 
-                @Override
-                public int advance(int target) throws IOException {
-                    return numeric.advance(target);
-                }
+                    @Override
+                    public int advance(int target) throws IOException {
+                        return numeric.advance(target);
+                    }
 
-                @Override
-                public long cost() {
-                    return numeric.cost();
-                }
-            };
+                    @Override
+                    public long cost() {
+                        return numeric.cost();
+                    }
+                };
+            } else {
+                // Required otherwise search / compute engine can't otherwise optimize for when each document has exactly one value:
+                return DocValues.singleton(numeric);
+            }
         }
 
         final RandomAccessInput addressesInput = data.randomAccessSlice(entry.addressesOffset, entry.addressesLength);

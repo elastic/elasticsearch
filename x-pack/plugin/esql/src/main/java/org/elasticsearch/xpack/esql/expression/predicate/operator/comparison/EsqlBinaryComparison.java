@@ -384,12 +384,12 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
         logger.trace(
             "Translating binary comparison with right: [{}<{}>], left: [{}<{}>], attribute: [{}<{}>]",
-                 right(),
-                 right().dataType(),
-                 left(),
-                 left().dataType(),
-                 attribute,
-                 attribute.dataType()
+            right(),
+            right().dataType(),
+            left(),
+            left().dataType(),
+            attribute,
+            attribute.dataType()
         );
 
         // TODO: This type coersion layer is copied directly from the QL counterpart code. It's probably not necessary or desireable

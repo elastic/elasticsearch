@@ -37,6 +37,7 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
+        .systemProperty("aws.region", "elastic-test-region") // TODO NOMERGE is requiring this property a breaking change?
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)

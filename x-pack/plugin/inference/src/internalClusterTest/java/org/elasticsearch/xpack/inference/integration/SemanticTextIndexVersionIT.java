@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -49,7 +50,8 @@ public class SemanticTextIndexVersionIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        Utils.storeSparseModel(client());
+        ModelRegistry modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
+        Utils.storeSparseModel(modelRegistry);
         availableVersions = IndexVersionUtils.allReleasedVersions()
             .stream()
             .filter(indexVersion -> indexVersion.after(SEMANTIC_TEXT_INTRODUCED_VERSION))

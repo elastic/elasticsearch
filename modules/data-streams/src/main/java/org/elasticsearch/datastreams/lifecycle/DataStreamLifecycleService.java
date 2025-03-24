@@ -494,7 +494,6 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             // if the current index is not a downsample we want to mark the index as read-only before proceeding with downsampling
             if (org.elasticsearch.common.Strings.hasText(downsamplingSourceIndex) == false
                 && state.blocks().indexBlocked(ClusterBlockLevel.WRITE, indexName) == false) {
-
                 affectedIndices.add(index);
                 addIndexBlockOnce(indexName);
             } else {

@@ -13,6 +13,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.index.shard.IndexShard;
 
+/**
+ * Temporary stub for index shard prewarming capabilities that is a no-op in the default build but can be extende
+ * by classes implementing the interface
+ */
 public interface OnlinePrewarmingService {
     void prewarm(IndexShard indexShard);
 
@@ -28,7 +32,7 @@ public interface OnlinePrewarmingService {
             }
         }
         return indexShard -> {
-            // No-Op
+            // no-Op by default
         };
     }
 

@@ -454,6 +454,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
             final List<Attribute> childrenOutput = new ArrayList<>();
 
+            // Gather all the children's output in case of non-unary plans; even for unaries, we need to copy because we may mutate this to
+            // simplify resolution of e.g. RENAME.
             for (LogicalPlan child : plan.children()) {
                 var output = child.output();
                 childrenOutput.addAll(output);
@@ -939,7 +941,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveDrop(Drop drop, List<Attribute> childOutput) {
-            // Make a copy of childOutput because we may mutate this to simplify resolution of e.g. RENAME.
             List<NamedExpression> resolvedProjections = new ArrayList<>(childOutput);
 
             for (var ne : drop.removals()) {

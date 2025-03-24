@@ -439,7 +439,7 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
         VectorSpecies<Byte> byteForFloat;
         try {
             // calculate vector size to convert from single bytes to 4-byte floats
-            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(PREFERRED_FLOAT_SPECIES.vectorBitSize() / Integer.BYTES));
+            byteForFloat = VectorSpecies.of(byte.class, VectorShape.forBitSize(PREFERRED_FLOAT_SPECIES.vectorBitSize() / Float.BYTES));
         } catch (IllegalArgumentException e) {
             // can't get a byte vector size small enough, just use default impl
             byteForFloat = null;

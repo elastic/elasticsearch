@@ -13,7 +13,6 @@ import org.elasticsearch.simdvec.internal.vectorization.BaseVectorizationTests;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
 import java.util.Arrays;
-import java.util.function.ToDoubleBiFunction;
 import java.util.function.ToLongBiFunction;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
@@ -63,12 +62,6 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
     }
 
     public void testIpFloatByte() {
-        testIpFloatByteImpl(ESVectorUtil::ipFloatByte);
-        testIpFloatByteImpl(defaultedProvider.getVectorUtilSupport()::ipFloatByte);
-        testIpFloatByteImpl(defOrPanamaProvider.getVectorUtilSupport()::ipFloatByte);
-    }
-
-    private void testIpFloatByteImpl(ToDoubleBiFunction<float[], byte[]> impl) {
         int vectorSize = randomIntBetween(1, 1024);
         // scale the delta according to the vector size
         double delta = 1e-5 * vectorSize;
@@ -84,7 +77,9 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         for (int i = 0; i < q.length; i++) {
             expected += q[i] * d[i];
         }
-        assertThat(impl.applyAsDouble(q, d), closeTo(expected, delta));
+        assertThat((double) ESVectorUtil.ipFloatByte(q, d), closeTo(expected, delta));
+        assertThat((double) defaultedProvider.getVectorUtilSupport().ipFloatByte(q, d), closeTo(expected, delta));
+        assertThat((double) defOrPanamaProvider.getVectorUtilSupport().ipFloatByte(q, d), closeTo(expected, delta));
     }
 
     public void testBitAndCount() {

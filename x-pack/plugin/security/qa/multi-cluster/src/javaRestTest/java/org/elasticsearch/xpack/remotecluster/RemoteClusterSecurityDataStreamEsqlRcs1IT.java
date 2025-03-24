@@ -270,7 +270,7 @@ public class RemoteClusterSecurityDataStreamEsqlRcs1IT extends AbstractRemoteClu
     }
 
     private static void createDataStreamAlias(CheckedFunction<Request, Response, Exception> requestConsumer) throws Exception {
-        Request request = new Request("PUT", "_alias");
+        Request request = new Request("POST", "_aliases");
         request.setJsonEntity("""
             {
               "actions": [

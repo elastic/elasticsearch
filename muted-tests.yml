@@ -297,9 +297,6 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testIndexCompatibilityChecks
   issue: https://github.com/elastic/elasticsearch/issues/124388
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests
-  method: testFilesEntitlementsWithExclusive
-  issue: https://github.com/elastic/elasticsearch/issues/124420
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/124159
@@ -381,6 +378,12 @@ tests:
 - class: org.elasticsearch.index.engine.ThreadPoolMergeSchedulerTests
   method: testSchedulerCloseWaitsForRunningMerge
   issue: https://github.com/elastic/elasticsearch/issues/125236
+- class: org.elasticsearch.xpack.ilm.history.ILMHistoryItemTests
+  method: testTruncateLongError
+  issue: https://github.com/elastic/elasticsearch/issues/125216
+- class: org.elasticsearch.index.shard.StoreRecoveryTests
+  method: testAddIndices
+  issue: https://github.com/elastic/elasticsearch/issues/124104
 
 # Examples:
 #

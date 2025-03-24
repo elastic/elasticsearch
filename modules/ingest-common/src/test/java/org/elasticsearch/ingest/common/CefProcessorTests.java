@@ -12,7 +12,6 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,7 +29,6 @@ public class CefProcessorTests extends ESTestCase {
         super.setUp();
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testExecute() {
         Map<String, Object> source = new HashMap<>();
@@ -66,7 +64,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("url.original", String.class), equalTo("https://www.example.com/cart"));
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testInvalidCefFormat() {
         Map<String, Object> invalidSource = new HashMap<>();
         invalidSource.put("message", "Invalid CEF message");
@@ -76,7 +73,6 @@ public class CefProcessorTests extends ESTestCase {
         processor.execute(invalidIngestDocument);
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testStandardMessage() {
         String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|"
@@ -104,7 +100,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("destination.bytes", Long.class), equalTo(4294967296L));
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testHeaderOnly() {
         String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|";
@@ -124,7 +119,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("10"));
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEmptyDeviceFields() {
         String message = "CEF:0|||1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
@@ -148,7 +142,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEscapedPipeInHeader() {
         String message = "CEF:26|security|threat\\|->manager|1.0|100|"
@@ -171,10 +164,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
         assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEqualsSignInHeader() {
         String message = "CEF:26|security|threat=manager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232";
@@ -198,7 +189,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEmptyExtensionValue() {
         String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst= spt=1232";
@@ -221,7 +211,6 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testLeadingWhitespace() {
         String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10| src=10.0.0.192 dst=12.121.122.82 spt=1232";
@@ -243,10 +232,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
         assertThat(ingestDocument.getFieldValue("destination.ip", String.class), equalTo("12.121.122.82"));
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEscapedPipeInExtension() {
         String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this\\|has an escaped pipe";
@@ -266,10 +253,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("10"));
 
         assertThat(cef.get("extensions.moo"), equalTo("this\\|has an escaped pipe"));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testPipeInMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this|has an pipe";
@@ -289,10 +274,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("10"));
 
         assertThat(cef.get("extensions.moo"), equalTo("this|has an pipe"));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEqualsInMessage() {
         String message =
@@ -316,10 +299,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
 
         assertThat(cef.get("extensions.moo"), equalTo("this =has = equals="));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEscapesInExtension() {
         String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|msg=a+b\\=c x=c\\\\d\\=z";
@@ -341,10 +322,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("a+b=c"));
 
         assertThat(cef.get("extensions.x"), equalTo("c\\d=z"));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testMalformedExtensionEscape() {
         String message = "CEF:0|FooBar|Web Gateway|1.2.3.45.67|200|Success|2|rt=Sep 07 2018 14:50:39 cat=Access Log dst=1.1.1.1 "
@@ -379,10 +358,8 @@ public class CefProcessorTests extends ESTestCase {
 
         assertThat(cef.get("extensions.cat"), equalTo("Access Log"));
         assertThat(cef.get("extensions.cs1Label"), equalTo("Foo Bar"));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testMultipleMalformedExtensionValues() {
         String message = "CEF:0|vendor|product|version|event_id|name|Very-High| "
@@ -408,10 +385,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("extensions.id"), equalTo("=old_id"));
         assertThat(cef.get("extensions.user"), equalTo("root"));
         assertThat(cef.get("extensions.angle"), equalTo("106.7<=180"));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testPaddedMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|spt=1232 "
@@ -434,10 +409,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
         assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("Trailing space in non-final extensions is  preserved"));
         assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("10.0.0.192"));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testCrlfMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|"
@@ -460,10 +433,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
         assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("Trailing space in final extensions is not preserved"));
         assertThat(ingestDocument.getFieldValue("destination.port", Long.class), equalTo(1234L));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testTabMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|message is padded|10|"
@@ -486,10 +457,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
         assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("Tabs\tand\rcontrol\ncharacters are preserved"));
         assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("127.0.0.1"));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testTabNoSepMessage() {
         String message = "CEF:0|security|threatmanager|1.0|100|message has tabs|10|spt=1232 msg=Tab is not a separator\tsrc=127.0.0.1";
@@ -511,10 +480,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("source.port", Long.class), equalTo(1232L));
         assertThat(ingestDocument.getFieldValue("message", String.class), equalTo("Tab is not a separator"));
         assertThat(ingestDocument.getFieldValue("source.ip", String.class), equalTo("127.0.0.1"));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testEscapedMessage() {
         String message = "CEF:0|security\\compliance|threat\\|->manager|1.0|100|message contains escapes|10|"
@@ -540,10 +507,8 @@ public class CefProcessorTests extends ESTestCase {
             equalTo("Newlines in messages\nare allowed.\r\nAnd so are carriage feeds\\newlines\\=.")
         );
         assertThat(ingestDocument.getFieldValue("destination.port", Long.class), equalTo(4432L));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testTruncatedHeader() {
         String message = "CEF:0|SentinelOne|Mgmt|activityID=1111111111111111111 activityType=3505 "
@@ -574,7 +539,6 @@ public class CefProcessorTests extends ESTestCase {
         );
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testRemoveEmptyValueInExtension() {
         String message = "CEF:26|security|threat=manager|1.0|100|trojan successfully stopped|10|src= dst=12.121.122.82 spt=";
@@ -598,10 +562,8 @@ public class CefProcessorTests extends ESTestCase {
         // Empty src fields are not mapped into the ingestDocument
         assertThat(ingestDocument.hasField("source.port"), equalTo(false));
         assertThat(ingestDocument.hasField("source.ip"), equalTo(false));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testHyphenInExtensionKey() {
         String message = "CEF:26|security|threatmanager|1.0|100|trojan successfully stopped|10|Some-Key=123456";
@@ -621,10 +583,8 @@ public class CefProcessorTests extends ESTestCase {
         assertThat(cef.get("severity"), equalTo("10"));
 
         assertThat(cef.get("extensions.Some-Key"), equalTo("123456"));
-
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testAllFieldsInExtension() {
         String message = "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|app=HTTP in=1234 out=5678 dst=192.168.0.1 "

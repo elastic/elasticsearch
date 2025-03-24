@@ -191,7 +191,7 @@ final class CefParser {
 
             ingestDocument.setFieldValue(targetField, event.toObject());
             // Add ECS translations to the root of the document
-            if (!translatedFields.isEmpty()) {
+            if (translatedFields.isEmpty() == false) {
                 translatedFields.forEach(ingestDocument::setFieldValue);
             }
         } else {

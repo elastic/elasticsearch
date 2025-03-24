@@ -912,7 +912,12 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
-        METRICS_COMMAND(Build.current().isSnapshot());
+        METRICS_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Full text functions in STATS ... WHERE
+         */
+        FULL_TEXT_FUNCTIONS_IN_STATS_WHERE;
 
         private final boolean enabled;
 

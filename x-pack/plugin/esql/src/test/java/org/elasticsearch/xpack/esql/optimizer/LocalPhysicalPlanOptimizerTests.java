@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -1784,6 +1786,64 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         BoolQueryBuilder expected = new BoolQueryBuilder().should(new MatchQueryBuilder("last_name", "Smith").lenient(true))
             .should(wrapWithSingleQuery(query, unscore(rangeQuery("emp_no").gt(10)), "emp_no", source));
         assertThat(esQuery.query().toString(), equalTo(expected.toString()));
+    }
+
+    public void testMatchFunctionWithStatsWherePushable() {
+        String query = """
+            from test
+            | stats c = count(*) where match(last_name, "Smith")
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var stats = as(exchange.child(), EsStatsQueryExec.class);
+        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith").lenient(true);
+        assertThat(stats.query().toString(), equalTo(expected.toString()));
+    }
+
+    public void testMatchFunctionWithStatsPushableAndNonPushableCondition() {
+        String query = """
+            from test
+            | where length(first_name) > 10
+            | stats c = count(*) where match(last_name, "Smith")
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var aggExec = as(exchange.child(), AggregateExec.class);
+        var filter = as(aggExec.child(), FilterExec.class);
+        assertTrue(filter.condition() instanceof GreaterThan);
+        var fieldExtract = as(filter.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        QueryBuilder expected = new MatchQueryBuilder("last_name", "Smith").lenient(true);
+        assertThat(esQuery.query().toString(), equalTo(expected.toString()));
+    }
+
+    public void testMatchFunctionStatisWithNonPushableCondition() {
+        String query = """
+            from test
+            | stats c = count(*) where match(last_name, "Smith"), d = count(*) where match(first_name, "Anna")
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var agg = as(limit.child(), AggregateExec.class);
+        var aggregates = agg.aggregates();
+        assertThat(aggregates.size(), is(2));
+        for (NamedExpression aggregate : aggregates) {
+            var alias = as(aggregate, Alias.class);
+            var count = as(alias.child(), Count.class);
+            var match = as(count.filter(), Match.class);
+        }
+        var exchange = as(agg.child(), ExchangeExec.class);
+        var aggExec = as(exchange.child(), AggregateExec.class);
+        var fieldExtract = as(aggExec.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        assertNull(esQuery.query());
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

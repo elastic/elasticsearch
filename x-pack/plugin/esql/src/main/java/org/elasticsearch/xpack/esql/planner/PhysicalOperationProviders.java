@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
 
+import java.util.List;
+
 interface PhysicalOperationProviders {
     PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source);
 
@@ -21,6 +23,7 @@ interface PhysicalOperationProviders {
     PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         PhysicalOperation source,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts
     );
 }

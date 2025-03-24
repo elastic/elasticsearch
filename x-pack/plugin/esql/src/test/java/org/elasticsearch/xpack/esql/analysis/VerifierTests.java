@@ -1208,7 +1208,7 @@ public class VerifierTests extends ESTestCase {
     public void testMatchInsideEval() throws Exception {
         assumeTrue("Match operator is available just for snapshots", Build.current().isSnapshot());
         assertEquals(
-            "1:36: [:] operator is only supported in WHERE commands\n"
+            "1:36: [:] operator is only supported in WHERE and STATS ... WHERE commands\n"
                 + "line 1:36: [:] operator cannot operate on [title], which is not a field from an index mapping",
             error("row title = \"brown fox\" | eval x = title:\"fox\" ")
         );
@@ -1368,12 +1368,12 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
+        assertEquals("1:9: [QSTR] function is only supported in WHERE and STATS ... WHERE commands", error("row a = qstr(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
     }
 
     public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
-        assertEquals("1:9: [KQL] function is only supported in WHERE commands", error("row a = kql(\"Anna\")"));
+        assertEquals("1:9: [KQL] function is only supported in WHERE and STATS ... WHERE commands", error("row a = kql(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
     }
 
@@ -1393,23 +1393,15 @@ public class VerifierTests extends ESTestCase {
     private void checkFullTextFunctionsOnlyAllowedInWhere(String functionName, String functionInvocation, String functionType)
         throws Exception {
         assertEquals(
-            "1:22: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            "1:22: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS ... WHERE commands",
             error("from test | eval y = " + functionInvocation)
         );
         assertEquals(
-            "1:18: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            "1:18: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS ... WHERE commands",
             error("from test | sort " + functionInvocation + " asc")
         );
         assertEquals(
-            "1:23: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
-            error("from test | STATS c = " + functionInvocation + " BY first_name")
-        );
-        assertEquals(
-            "1:50: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
-            error("from test | stats max_salary = max(salary) where " + functionInvocation)
-        );
-        assertEquals(
-            "1:47: [" + functionName + "] " + functionType + " is only supported in WHERE commands",
+            "1:47: [" + functionName + "] " + functionType + " is only supported in WHERE and STATS ... WHERE commands",
             error("from test | stats max_salary = max(salary) by " + functionInvocation)
         );
     }

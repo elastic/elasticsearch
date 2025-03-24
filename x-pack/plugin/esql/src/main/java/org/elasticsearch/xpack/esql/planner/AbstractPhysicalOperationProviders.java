@@ -60,7 +60,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     public final PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
         PhysicalOperation source,
-        LocalExecutionPlannerContext context
+        LocalExecutionPlannerContext context,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts
     ) {
         // The layout this operation will produce.
         Layout.Builder layout = new Layout.Builder();
@@ -95,7 +96,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 false, // non-grouping
-                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels))
+                s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode, s.channels)),
+                shardContexts
             );
 
             if (aggregatorFactories.isEmpty() == false) {
@@ -169,7 +171,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode,
                 sourceLayout,
                 true, // grouping
-                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels))
+                s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode, s.channels)),
+                shardContexts
             );
 
             if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
@@ -259,7 +262,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         AggregatorMode mode,
         Layout layout,
         boolean grouping,
-        Consumer<AggFunctionSupplierContext> consumer
+        Consumer<AggFunctionSupplierContext> consumer,
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts
     ) {
         // extract filtering channels - and wrap the aggregation with the new evaluator expression only during the init phase
         for (NamedExpression ne : aggregates) {
@@ -319,7 +323,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         EvalOperator.ExpressionEvaluator.Factory evalFactory = EvalMapper.toEvaluator(
                             foldContext,
                             aggregateFunction.filter(),
-                            layout
+                            layout,
+                            shardContexts
                         );
                         aggSupplier = new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
                     }

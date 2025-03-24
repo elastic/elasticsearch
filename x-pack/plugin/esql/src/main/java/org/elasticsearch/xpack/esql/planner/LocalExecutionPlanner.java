@@ -308,7 +308,7 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planAggregation(AggregateExec aggregate, LocalExecutionPlannerContext context) {
         var source = plan(aggregate.child(), context);
-        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context);
+        return physicalOperationProviders.groupingPhysicalOperation(aggregate, source, context, shardContexts);
     }
 
     private PhysicalOperation planEsQueryNode(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {

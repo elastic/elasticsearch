@@ -210,3 +210,45 @@ book_no:keyword | title:text
 7480            | The Hobbit                                     
 // end::qstr-with-options-result[]
 ;
+
+
+from books 
+| where (match(title, "lord") and ratings > 4.5) or (match(author, "dostoevsky") and length(title) > 50)
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675
+2924
+4023
+1937
+7140
+2714
+;
+
+testQstrInStatsNonPushable
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where qstr("title:Lord")
+;
+
+c:long
+3
+;
+
+testQstrInStatsPushable
+required_capability: qstr_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where qstr("author:tolkien")
+;
+
+c:long
+22
+;
+

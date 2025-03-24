@@ -755,3 +755,29 @@ book_no:keyword
 7140
 2714
 ;
+
+testMatchInStatsNonPushable
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| where length(title) > 40 
+| stats c = count(*) where match(title, "Lord")
+;
+
+c:long
+3
+;
+
+testMatchInStatsPushable
+required_capability: match_function
+required_capability: full_text_functions_in_stats_where
+
+from books 
+| stats c = count(*) where match(author, "tolkien")
+;
+
+c:long
+22
+;
+

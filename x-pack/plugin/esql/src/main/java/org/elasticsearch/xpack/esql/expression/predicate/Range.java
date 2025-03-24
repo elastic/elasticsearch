@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.expression.predicate;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -47,6 +49,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToS
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends ScalarFunction implements TranslationAware.SingleValueTranslationAware {
+    private static final Logger logger = LogManager.getLogger(Range.class);
 
     private final Expression value, lower, upper;
     private final boolean includeLower, includeUpper;
@@ -214,6 +217,9 @@ public class Range extends ScalarFunction implements TranslationAware.SingleValu
         String format = null;
 
         DataType dataType = value.dataType();
+        logger.warn("dataType is [" + dataType + "]");
+        logger.warn("upper is [" + upper + "]");
+        logger.warn("lower is [" + lower + "]");
         if (dataType == DataType.DATETIME && lower.dataType() == DATETIME && upper.dataType() == DATETIME) {
             l = dateTimeToString((Long) l);
             u = dateTimeToString((Long) u);

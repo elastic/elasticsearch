@@ -40,6 +40,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -76,6 +78,7 @@ import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
+    private static final Logger logger = LogManager.getLogger(EsPhysicalOperationProviders.class);
     /**
      * Context of each shard we're operating against.
      */
@@ -180,6 +183,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     @Override
     public final PhysicalOperation sourcePhysicalOperation(EsQueryExec esQueryExec, LocalExecutionPlannerContext context) {
         final LuceneOperator.Factory luceneFactory;
+        logger.warn("Query Exec is " + esQueryExec);
 
         List<Sort> sorts = esQueryExec.sorts();
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";

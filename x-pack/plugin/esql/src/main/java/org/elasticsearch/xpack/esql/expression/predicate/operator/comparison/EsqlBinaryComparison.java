@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -61,6 +63,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DA
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
@@ -69,6 +72,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     implements
         EvaluatorMapper,
         TranslationAware.SingleValueTranslationAware {
+
+    private static final Logger logger = LogManager.getLogger(EsqlBinaryComparison.class);
 
     private final Map<DataType, EsqlArithmeticOperation.BinaryEvaluator> evaluatorMap;
 
@@ -379,6 +384,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         String format = null;
         boolean isDateLiteralComparison = false;
 
+        logger.warn("right: [" + right() + "<" + right().dataType() + ">] left: [" + left() + "<" + left().dataType() + ">] attribute: [" + attribute + "<"  + attribute.dataType() + ">]");
+
         // TODO: This type coersion layer is copied directly from the QL counterpart code. It's probably not necessary or desireable
         // in the ESQL version. We should instead do the type conversions using our casting functions.
         // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
@@ -386,7 +393,8 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         if (value instanceof ZonedDateTime || value instanceof OffsetTime) {
             DateFormatter formatter;
             if (value instanceof ZonedDateTime) {
-                formatter = switch (attribute.dataType()) {
+                // NB: we check the data type of right here because value is the RHS value
+                formatter = switch (right().dataType()) {
                     case DATETIME -> DEFAULT_DATE_TIME_FORMATTER;
                     case DATE_NANOS -> DEFAULT_DATE_NANOS_FORMATTER;
                     default -> throw new EsqlIllegalArgumentException("Found date value in non-date type comparison");
@@ -418,11 +426,11 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         ZoneId zoneId = null;
         if (attribute.dataType() == DATETIME) {
             zoneId = zoneId();
-            value = dateTimeToString((Long) value);
+            value = dateWithTypeToString((Long) value, right().dataType());
             format = DEFAULT_DATE_TIME_FORMATTER.pattern();
         } else if (attribute.dataType() == DATE_NANOS) {
             zoneId = zoneId();
-            value = nanoTimeToString((Long) value);
+            value = dateWithTypeToString((Long) value, right().dataType());
             format = DEFAULT_DATE_NANOS_FORMATTER.pattern();
         }
         if (this instanceof GreaterThan) {

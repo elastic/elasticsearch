@@ -3426,7 +3426,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Executes an operation while preventing the shard's engine instance to be reset during the execution (see {@link #resetEngine()}.
+     * Executes an operation while preventing the shard's engine instance to be reset during the execution
+     * (see {@link #resetEngine(Consumer<Engine>)}.
      * NOTE: It does not prevent the engine to be closed by {@link #close(String, boolean, Executor, ActionListener)} though.
      * The parameter {@code allowNoEngine} is used to allow the operation to be executed when the current engine instance is {@code null}.
      * When {@code allowNoEngine} is set to {@code `false`} the method will throw an {@link AlreadyClosedException} if the current engine

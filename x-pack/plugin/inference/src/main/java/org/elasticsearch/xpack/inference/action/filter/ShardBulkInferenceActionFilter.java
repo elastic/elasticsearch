@@ -631,12 +631,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
                 indexRequest.source(newDocMap, indexRequest.getContentType());
             } else {
-                var newDocMap = indexRequest.sourceAsMap();
-                newDocMap.put(InferenceMetadataFieldsMapper.NAME, inferenceFieldsMap);
-                // try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
-                // appendSourceAndInferenceMetadata(builder, indexRequest.source(), indexRequest.getContentType(), inferenceFieldsMap);
-                // indexRequest.source(builder);
-                // }
+                try (XContentBuilder builder = XContentBuilder.builder(indexRequest.getContentType().xContent())) {
+                    appendSourceAndInferenceMetadata(builder, indexRequest.source(), indexRequest.getContentType(), inferenceFieldsMap);
+                    indexRequest.source(builder);
+                }
             }
         }
     }

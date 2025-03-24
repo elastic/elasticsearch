@@ -806,7 +806,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     private static Map<List<DataType>, DataType> signatures;
 
-    static Map<List<DataType>, DataType> signatures(Class<?> testClass) {
+    public static Map<List<DataType>, DataType> signatures(Class<?> testClass) {
         if (signatures != null && classGeneratingSignatures == testClass) {
             return signatures;
         }

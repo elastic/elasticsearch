@@ -97,7 +97,7 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         ensureDownsamplingStatus(
             targetIndex,
             Set.of(IndexMetadata.DownsampleTaskStatus.STARTED, IndexMetadata.DownsampleTaskStatus.SUCCESS),
-            TimeValue.timeValueMillis(4500)
+            TimeValue.timeValueSeconds(6)
         );
 
         logger.info("-> Starting the disruption.");

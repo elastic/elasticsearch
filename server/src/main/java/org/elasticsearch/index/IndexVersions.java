@@ -12,7 +12,6 @@ package org.elasticsearch.index;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -48,7 +47,6 @@ public class IndexVersions {
         return new IndexVersion(id, luceneVersion);
     }
 
-    @UpdateForV9 // remove the index versions with which v9 will not need to interact
     public static final IndexVersion ZERO = def(0, Version.LATEST);
     public static final IndexVersion V_7_0_0 = def(7_00_00_99, Version.LUCENE_8_0_0);
 
@@ -128,6 +126,7 @@ public class IndexVersions {
     public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT = def(8_525_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT = def(8_526_0_00, Version.LUCENE_9_12_1);
     public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD = def(8_527_0_00, Version.LUCENE_9_12_1);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_NUMBER = def(8_528_0_00, Version.LUCENE_9_12_1);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

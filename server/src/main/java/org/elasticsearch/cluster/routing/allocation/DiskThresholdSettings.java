@@ -19,7 +19,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -160,7 +159,6 @@ public class DiskThresholdSettings implements Writeable {
         checkAutoReleaseIndexEnabled();
     }
 
-    @UpdateForV9 // this check is unnecessary in v9
     private static void checkAutoReleaseIndexEnabled() {
         final String AUTO_RELEASE_INDEX_ENABLED_KEY = "es.disk.auto_release_flood_stage_block";
         final String property = System.getProperty(AUTO_RELEASE_INDEX_ENABLED_KEY);

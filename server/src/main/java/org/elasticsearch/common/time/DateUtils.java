@@ -13,7 +13,6 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Predicates;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -431,7 +430,6 @@ public class DateUtils {
         ? Pattern.compile("[YWw]").asPredicate()
         : Predicates.never();
 
-    @UpdateForV9    // this can be removed, we will only use CLDR on v9
     static void checkTextualDateFormats(String format) {
         if (CONTAINS_CHANGING_TEXT_SPECIFIERS.test(format)) {
             deprecationLogger.warn(

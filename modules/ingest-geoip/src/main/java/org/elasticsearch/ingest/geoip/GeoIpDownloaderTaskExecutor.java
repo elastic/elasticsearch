@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -361,7 +360,6 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             && hasAtLeastOneGeoipProcessor((Map<String, Object>) processorConfig.get("processor"), downloadDatabaseOnPipelineCreation);
     }
 
-    @UpdateForV9 // use MINUS_ONE once that means no timeout
     private static final TimeValue MASTER_TIMEOUT = TimeValue.MAX_VALUE;
 
     private void startTask(Runnable onFailure) {

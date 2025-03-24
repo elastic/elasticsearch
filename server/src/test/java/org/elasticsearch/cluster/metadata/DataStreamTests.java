@@ -139,7 +139,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 : randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 9 -> lifecycle = randomBoolean() && lifecycle != null
                 ? null
-                : DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+                : DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).build();
             case 10 -> failureIndices = randomValueOtherThan(failureIndices, DataStreamTestHelper::randomIndexInstances);
             case 11 -> dataStreamOptions = dataStreamOptions.isEmpty() ? new DataStreamOptions(new DataStreamFailureStore(randomBoolean()))
                 : randomBoolean() ? DataStreamOptions.EMPTY
@@ -1454,7 +1454,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueSeconds(2500)).build()
+                DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueSeconds(2500)).build()
             );
             Metadata metadata = builder.build();
 
@@ -1472,7 +1472,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(0).build()
+                DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
             );
             Metadata metadata = builder.build();
 
@@ -1493,7 +1493,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueSeconds(6000)).build()
+                DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueSeconds(6000)).build()
             );
             Metadata metadata = builder.build();
 
@@ -1511,7 +1511,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 Settings.builder()
                     .put(IndexMetadata.LIFECYCLE_NAME, "ILM_policy")
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()),
-                DataStreamLifecycle.newBuilder().dataRetention(0).build()
+                DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
             );
             Metadata metadata = builder.build();
 
@@ -1541,7 +1541,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
             new DataStreamLifecycle() {
-                public TimeValue getDataStreamRetention() {
+                public TimeValue dataRetention() {
                     return testRetentionReference.get();
                 }
             }
@@ -1605,22 +1605,21 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.newBuilder()
+                DataStreamLifecycle.builder()
                     .downsampling(
-                        new DataStreamLifecycle.Downsampling(
-                            List.of(
-                                new DataStreamLifecycle.Downsampling.Round(
-                                    TimeValue.timeValueMillis(2000),
-                                    new DownsampleConfig(new DateHistogramInterval("10m"))
-                                ),
-                                new DataStreamLifecycle.Downsampling.Round(
-                                    TimeValue.timeValueMillis(3200),
-                                    new DownsampleConfig(new DateHistogramInterval("100m"))
-                                ),
-                                new DataStreamLifecycle.Downsampling.Round(
-                                    TimeValue.timeValueMillis(3500),
-                                    new DownsampleConfig(new DateHistogramInterval("1000m"))
-                                )
+                        List.of(
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(2000),
+                                new DownsampleConfig(new DateHistogramInterval("10m"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(3200),
+                                new DownsampleConfig(new DateHistogramInterval("100m"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(3500),
+                                new DownsampleConfig(new DateHistogramInterval("1000m"))
+
                             )
                         )
                     )
@@ -1631,7 +1630,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // generation time is now - 2000
             String thirdGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
             Index thirdIndex = metadata.index(thirdGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForThirdIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForThirdIndex = dataStream.getDownsamplingRoundsFor(
                 thirdIndex,
                 metadata::index,
                 () -> now
@@ -1643,7 +1642,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             Index firstIndex = metadata.index(firstGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata::index,
                 () -> now
@@ -1652,7 +1651,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             assertThat(roundsForFirstIndex.size(), is(3));
             // assert the order is maintained
             assertThat(
-                roundsForFirstIndex.stream().map(DataStreamLifecycle.Downsampling.Round::after).toList(),
+                roundsForFirstIndex.stream().map(DataStreamLifecycle.DownsamplingRound::after).toList(),
                 is(List.of(TimeValue.timeValueMillis(2000), TimeValue.timeValueMillis(3200), TimeValue.timeValueMillis(3500)))
             );
         }
@@ -1666,24 +1665,23 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 // no TSDB settings
                 settings(IndexVersion.current()),
-                DataStreamLifecycle.newBuilder()
+                DataStreamLifecycle.builder()
                     .downsampling(
-                        new DataStreamLifecycle.Downsampling(
-                            List.of(
-                                new DataStreamLifecycle.Downsampling.Round(
-                                    TimeValue.timeValueMillis(2000),
-                                    new DownsampleConfig(new DateHistogramInterval("10m"))
-                                ),
-                                new DataStreamLifecycle.Downsampling.Round(
-                                    TimeValue.timeValueMillis(3200),
-                                    new DownsampleConfig(new DateHistogramInterval("100m"))
-                                ),
-                                new DataStreamLifecycle.Downsampling.Round(
-                                    TimeValue.timeValueMillis(3500),
-                                    new DownsampleConfig(new DateHistogramInterval("1000m"))
-                                )
+                        List.of(
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(2000),
+                                new DownsampleConfig(new DateHistogramInterval("10m"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(3200),
+                                new DownsampleConfig(new DateHistogramInterval("100m"))
+                            ),
+                            new DataStreamLifecycle.DownsamplingRound(
+                                TimeValue.timeValueMillis(3500),
+                                new DownsampleConfig(new DateHistogramInterval("1000m"))
                             )
                         )
+
                     )
                     .build()
             );
@@ -1692,7 +1690,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             Index firstIndex = metadata.index(firstGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata::index,
                 () -> now
@@ -1716,7 +1714,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             Index firstIndex = metadata.index(firstGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata::index,
                 () -> now
@@ -1733,13 +1731,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 creationAndRolloverTimes,
                 settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .put("index.routing_path", "@timestamp"),
-                DataStreamLifecycle.newBuilder().build()
+                DataStreamLifecycle.builder().build()
             );
             Metadata metadata = builder.build();
 
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             Index firstIndex = metadata.index(firstGeneration).getIndex();
-            List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
+            List<DataStreamLifecycle.DownsamplingRound> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
                 metadata::index,
                 () -> now
@@ -1765,7 +1763,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.newBuilder().dataRetention(0).build()
+            DataStreamLifecycle.builder().dataRetention(TimeValue.ZERO).build()
         );
         Metadata metadata = builder.build();
 

@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.io.IOException;
 
@@ -39,7 +38,6 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.nodeId = nodeId;
         }
 
-        @UpdateForV9 // inline when bwc no longer needed
         public static Request readFrom(StreamInput in) throws IOException {
             if (serializesWithParentTaskAndTimeouts(in.getTransportVersion())) {
                 return new Request(in);
@@ -54,7 +52,6 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.nodeId = in.readString();
         }
 
-        @UpdateForV9 // remove when bwc no longer needed
         private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
             this(masterNodeTimeout, ackTimeout, in.readString());
             assert serializesWithParentTaskAndTimeouts(in.getTransportVersion()) == false;

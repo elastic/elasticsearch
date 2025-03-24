@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -112,7 +111,6 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.gracePeriod = gracePeriod;
         }
 
-        @UpdateForV9 // inline when bwc no longer needed
         public static Request readFrom(StreamInput in) throws IOException {
             if (serializesWithParentTaskAndTimeouts(in.getTransportVersion())) {
                 return new Request(in);
@@ -132,7 +130,6 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.gracePeriod = in.readOptionalTimeValue();
         }
 
-        @UpdateForV9 // remove when bwc no longer needed
         private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
             super(masterNodeTimeout, ackTimeout);
             assert serializesWithParentTaskAndTimeouts(in.getTransportVersion()) == false;

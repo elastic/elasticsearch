@@ -31,6 +31,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
 import org.elasticsearch.xpack.inference.external.action.amazonbedrock.AmazonBedrockActionCreator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -459,7 +460,7 @@ public class AmazonBedrockService extends SenderService {
                         .build()
                 );
 
-                configurationMap.putAll(AmazonBedrockSecretSettings.Configuration.get());
+                configurationMap.putAll(AwsSecretSettings.Configuration.get());
                 configurationMap.putAll(
                     RateLimitSettings.toSettingsConfigurationWithDescription(
                         "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",

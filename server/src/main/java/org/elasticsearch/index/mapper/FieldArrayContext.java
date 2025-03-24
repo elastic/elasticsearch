@@ -14,7 +14,6 @@ import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,16 +88,18 @@ public class FieldArrayContext {
         boolean hasDocValues,
         boolean isStored,
         FieldMapper.Builder fieldMapperBuilder,
-        IndexVersion indexCreatedVersion
+        IndexVersion indexCreatedVersion,
+        IndexVersion minSupportedVersion
     ) {
         var sourceKeepMode = fieldMapperBuilder.sourceKeepMode.orElse(indexSourceKeepMode);
         if (context.isSourceSynthetic()
             && sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
             && hasDocValues
             && isStored == false
+            && context.isInNestedContext() == false
             && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
             && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
-            && indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD)) {
+            && indexCreatedVersion.onOrAfter(minSupportedVersion)) {
             // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
             // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
             // logging use cases

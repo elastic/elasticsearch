@@ -1372,7 +1372,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
-        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build();
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder().dataRetention(randomPositiveTimeValue()).buildTemplate();
         putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null, null, lifecycle, false);
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
@@ -1388,7 +1388,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(metricsFooDataStream.getDataStreamStatus(), is(ClusterHealthStatus.YELLOW));
         assertThat(metricsFooDataStream.getIndexTemplate(), is("template_for_foo"));
         assertThat(metricsFooDataStream.getIlmPolicy(), is(nullValue()));
-        assertThat(dataStream.getLifecycle(), is(lifecycle));
+        assertThat(dataStream.getLifecycle(), is(lifecycle.toDataStreamLifecycle()));
         assertThat(metricsFooDataStream.templatePreferIlmValue(), is(true));
         GetDataStreamAction.Response.IndexProperties indexProperties = metricsFooDataStream.getIndexSettingsValues()
             .get(dataStream.getWriteIndex());
@@ -2435,7 +2435,7 @@ public class DataStreamIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
         @Nullable Map<String, AliasMetadata> aliases,
-        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamLifecycle.Template lifecycle,
         boolean withFailureStore
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);

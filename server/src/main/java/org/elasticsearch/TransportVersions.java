@@ -10,7 +10,6 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
-import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
@@ -50,7 +49,6 @@ public class TransportVersions {
         return new TransportVersion(id);
     }
 
-    @UpdateForV9 // remove the transport versions with which v9 will not need to interact
     public static final TransportVersion ZERO = def(0);
     public static final TransportVersion V_7_0_0 = def(7_00_00_99);
     public static final TransportVersion V_7_0_1 = def(7_00_01_99);
@@ -196,6 +194,9 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_DEEPSEEK_8_19 = def(8_841_0_09);
     public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = def(8_841_0_10);
     public static final TransportVersion ESQL_FAILURE_FROM_REMOTE = def(8_841_0_11);
+    public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL = def(8_841_0_12);
+    public static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA_8_19 = def(8_841_0_13);
+    public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE_8_19 = def(8_841_0_14);
 
     /*
      * STOP! READ THIS FIRST! No, really,

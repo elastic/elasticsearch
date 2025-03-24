@@ -675,6 +675,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     }
                     assertEquals(shouldBeCached, context.isCacheable());
                     List<InternalAggregation> internalAggregations = List.of(a.buildTopLevel());
+                    aggTestConfig.checkAggregator().accept(a);
                     assertRoundTrip(internalAggregations);
                     internalAggs.add(InternalAggregations.from(internalAggregations));
                 } finally {
@@ -1687,11 +1688,23 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         boolean useLogDocMergePolicy,
         boolean testReductionCancellation,
+        Consumer<Aggregator> checkAggregator,
         MappedFieldType... fieldTypes
     ) {
 
         public AggTestConfig(AggregationBuilder builder, MappedFieldType... fieldTypes) {
-            this(new MatchAllDocsQuery(), builder, DEFAULT_MAX_BUCKETS, randomBoolean(), true, randomBoolean(), false, true, fieldTypes);
+            this(
+                new MatchAllDocsQuery(),
+                builder,
+                DEFAULT_MAX_BUCKETS,
+                randomBoolean(),
+                true,
+                randomBoolean(),
+                false,
+                true,
+                a -> {},
+                fieldTypes
+            );
         }
 
         public AggTestConfig withQuery(Query query) {
@@ -1704,6 +1717,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1718,6 +1732,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1732,6 +1747,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1746,6 +1762,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1760,6 +1777,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1774,6 +1792,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 true,
                 testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }
@@ -1788,6 +1807,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 incrementalReduce,
                 useLogDocMergePolicy,
                 false,
+                checkAggregator,
+                fieldTypes
+            );
+        }
+
+        public AggTestConfig withCheckAggregator(Consumer<Aggregator> checkAggregator) {
+            return new AggTestConfig(
+                query,
+                builder,
+                maxBuckets,
+                splitLeavesIntoSeparateAggregators,
+                shouldBeCached,
+                incrementalReduce,
+                useLogDocMergePolicy,
+                testReductionCancellation,
+                checkAggregator,
                 fieldTypes
             );
         }

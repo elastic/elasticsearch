@@ -11,7 +11,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -38,7 +41,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -280,22 +282,23 @@ public interface AuthorizationEngine {
     }
 
     /**
-     * Used to retrieve index-like resources that the user has access to, for a specific access action type,
+     * Used to retrieve index-like resources that the user has access to, for a specific access action type and selector,
      * at a specific point in time (for a fixed cluster state view).
      * It can also be used to check if a specific resource name is authorized (access to the resource name
      * can be authorized even if it doesn't exist).
      */
     interface AuthorizedIndices {
         /**
-         * Returns all the index-like resource names that are available and accessible for an action type by a user,
+         * Returns all the index-like resource names that are available and accessible for an action type and selector by a user,
          * at a fixed point in time (for a single cluster state view).
+         * The result is cached and subsequent calls to this method are idempotent.
          */
-        Supplier<Set<String>> all();
+        Set<String> all(IndexComponentSelector selector);
 
         /**
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
          */
-        boolean check(String name);
+        boolean check(String name, IndexComponentSelector selector);
     }
 
     /**
@@ -364,6 +367,31 @@ public interface AuthorizationEngine {
                 && application != null
                 && application.length == 0) {
                 validationException = addValidationError("must specify at least one privilege", validationException);
+            }
+            if (index != null) {
+                // no need to validate failure-store related constraints if it's not enabled
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                    for (RoleDescriptor.IndicesPrivileges indexPrivilege : index) {
+                        if (indexPrivilege.getIndices() != null
+                            && Arrays.stream(indexPrivilege.getIndices())
+                                // best effort prevent users from attempting to check failure selectors
+                                .anyMatch(idx -> IndexNameExpressionResolver.hasSelector(idx, IndexComponentSelector.FAILURES))) {
+                            validationException = addValidationError(
+                                // TODO adjust message once HasPrivileges check supports checking failure store privileges
+                                "failures selector is not supported in index patterns",
+                                validationException
+                            );
+                        }
+                        if (indexPrivilege.getPrivileges() != null
+                            && Arrays.stream(indexPrivilege.getPrivileges())
+                                .anyMatch(p -> "read_failure_store".equals(p) || "manage_failure_store".equals(p))) {
+                            validationException = addValidationError(
+                                "checking failure store privileges is not supported",
+                                validationException
+                            );
+                        }
+                    }
+                }
             }
             return validationException;
         }

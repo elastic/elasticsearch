@@ -9,11 +9,13 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
@@ -51,6 +53,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
@@ -59,7 +62,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.search.SearchService.maybeWrapListenerForStackTrace;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.not;
 
@@ -125,6 +130,18 @@ public class SearchServiceTests extends IndexShardTestCase {
     }
 
     public void testMaybeWrapListenerForStackTrace() {
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(false).source(new SearchSourceBuilder().query(new MatchAllQueryBuilder())),
+            new ShardId("index", "index", 0),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            0,
+            null
+        );
+
         // Tests that the same listener has stack trace if is not wrapped or does not have stack trace if it is wrapped.
         AtomicBoolean isWrapped = new AtomicBoolean(false);
         ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
@@ -146,9 +163,60 @@ public class SearchServiceTests extends IndexShardTestCase {
         e.fillInStackTrace();
         assertThat(e.getStackTrace().length, is(not(0)));
         listener.onFailure(e);
-        listener = maybeWrapListenerForStackTrace(listener, TransportVersion.current(), threadPool);
+        listener = maybeWrapListenerForStackTrace(listener, shardRequest, threadPool, createClusterService(threadPool));
         isWrapped.set(true);
         listener.onFailure(e);
+    }
+
+    public void testMaybeWrapListenerForStackTraceLogs() {
+        final String index = "index";
+        final int shardId = 0;
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(false).source(new SearchSourceBuilder().query(new MatchAllQueryBuilder())),
+            new ShardId(index, index, shardId),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            0,
+            null
+        );
+
+        final String loggerName = "org.elasticsearch.search.SearchService";
+        Level originalLogLevel = LogManager.getLogger(loggerName).getLevel();
+        try (var mockLog = MockLog.capture(SearchService.class)) {
+            Configurator.setLevel(loggerName, Level.DEBUG);
+            final String exceptionMessage = "test exception message";
+            mockLog.addExpectation(
+                new MockLog.PatternAndExceptionSeenEventExpectation(
+                    format("Tracking information ([node][%s][%d]) and exception logged before stack trace cleared", index, shardId),
+                    SearchService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    format("\\[node\\]\\[%s\\]\\[%d\\] Clearing stack trace before transport:", index, shardId),
+                    Exception.class,
+                    exceptionMessage
+                )
+            );
+
+            // Tests the listener has logged if it is wrapped
+            ActionListener<SearchPhaseResult> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(SearchPhaseResult searchPhaseResult) {
+                    // noop - we only care about failure scenarios
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    mockLog.assertAllExpectationsMatched();
+                }
+            };
+            Exception e = new Exception(exceptionMessage);
+            listener = maybeWrapListenerForStackTrace(listener, shardRequest, threadPool, createClusterService(threadPool));
+            listener.onFailure(e);
+        } finally {
+            Configurator.setLevel(loggerName, originalLogLevel);
+        }
     }
 
     private void doTestCanMatch(

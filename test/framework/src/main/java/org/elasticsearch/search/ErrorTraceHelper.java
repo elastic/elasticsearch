@@ -9,16 +9,25 @@
 
 package org.elasticsearch.search;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportMessageListener;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.test.ESIntegTestCase.getNodeId;
+import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
 import static org.elasticsearch.test.ESTestCase.asInstanceOf;
 
 /**
@@ -44,5 +53,64 @@ public enum ErrorTraceHelper {
                 }
             }));
         return transportMessageHasStackTrace::get;
+    }
+
+    /**
+     * Adds expectations for debug logging of a message and exception on each shard of the given index.
+     *
+     * @param numShards                 the number of shards in the index (an expectation will be added for each shard)
+     * @param mockLog                   the mock log
+     * @param errorTriggeringIndex      the name of the index that will trigger the error
+     */
+    public static void addSeenLoggingExpectations(int numShards, MockLog mockLog, String errorTriggeringIndex) {
+        String nodesDisjunction = format(
+            "(%s)",
+            Arrays.stream(internalCluster().getNodeNames()).map(ESIntegTestCase::getNodeId).collect(Collectors.joining("|"))
+        );
+        for (int shard = 0; shard < numShards; shard++) {
+            mockLog.addExpectation(
+                new MockLog.PatternAndExceptionSeenEventExpectation(
+                    format(
+                        "Tracking information ([%s][%s][%d]) and exception logged before stack trace cleared",
+                        nodesDisjunction,
+                        errorTriggeringIndex,
+                        shard
+                    ),
+                    SearchService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    format(
+                        "\\[%s\\]\\[%s\\]\\[%d\\] Clearing stack trace before transport:",
+                        nodesDisjunction,
+                        errorTriggeringIndex,
+                        shard
+                    ),
+                    QueryShardException.class,
+                    "failed to create query: For input string: \"foo\""
+                )
+            );
+        }
+    }
+
+    /**
+     * Adds expectations for the _absence_ of debug logging of a message. An unseen expectation is added for each
+     * combination of node in the internal cluster and shard in the index.
+     *
+     * @param numShards                 the number of shards in the index (an expectation will be added for each shard)
+     * @param mockLog                   the mock log
+     * @param errorTriggeringIndex      the name of the index that will trigger the error
+     */
+    public static void addUnseenLoggingExpectations(int numShards, MockLog mockLog, String errorTriggeringIndex) {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            for (int shard = 0; shard < numShards; shard++) {
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
+                        "Tracking information ([nodeId][indexName][shard]) and exception logged before stack trace cleared",
+                        SearchService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        format("[%s][%s][%d] Clearing stack trace before transport:", getNodeId(nodeName), errorTriggeringIndex, shard)
+                    )
+                );
+            }
+        }
     }
 }

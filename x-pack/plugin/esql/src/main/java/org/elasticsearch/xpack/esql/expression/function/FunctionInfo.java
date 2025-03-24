@@ -40,6 +40,11 @@ public @interface FunctionInfo {
     boolean preview() default false;
 
     /**
+     * Whether this function applies to particular versions of Elasticsearch.
+     */
+    FunctionAppliesTo[] appliesTo() default {};
+
+    /**
      * The description of the function rendered in the docs and kibana's
      * json files that drive their IDE-like experience. These should be
      * complete sentences but can contain asciidoc syntax. It is rendered

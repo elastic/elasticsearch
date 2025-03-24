@@ -81,7 +81,7 @@ public class LicenseGenerationToolTests extends CommandTestCase {
         TestUtils.LicenseSpec inputLicenseSpec = TestUtils.generateRandomLicenseSpec(License.VERSION_CURRENT);
         String licenseSpecString = TestUtils.generateLicenseSpecString(inputLicenseSpec);
         Path licenseSpecFile = createTempFile();
-        Files.write(licenseSpecFile, licenseSpecString.getBytes(StandardCharsets.UTF_8));
+        Files.writeString(licenseSpecFile, licenseSpecString);
         String output = execute(
             "--publicKeyPath",
             pubKeyPath.toString(),

@@ -150,6 +150,9 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_DEEPSEEK_8_19 = def(8_841_0_09);
     public static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE_8_19 = def(8_841_0_10);
     public static final TransportVersion ESQL_FAILURE_FROM_REMOTE_8_19 = def(8_841_0_11);
+    public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL_8_19 = def(8_841_0_12);
+    public static final TransportVersion INFERENCE_MODEL_REGISTRY_METADATA_8_19 = def(8_841_0_13);
+    public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE_8_19 = def(8_841_0_14);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -195,7 +198,8 @@ public class TransportVersions {
     public static final TransportVersion INTRODUCE_LIFECYCLE_TEMPLATE = def(9_033_0_00);
     public static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = def(9_034_0_00);
     public static final TransportVersion ESQL_AGGREGATE_METRIC_DOUBLE_LITERAL = def(9_035_0_00);
-    public static final TransportVersion REMOTE_COMPUTE_EXCEPTION = def(9_036_0_00);
+    public static final TransportVersion INDEX_METADATA_INCLUDES_RECENT_WRITE_LOAD = def(9_036_0_00);
+    public static final TransportVersion REMOTE_COMPUTE_EXCEPTION = def(9_037_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

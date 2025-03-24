@@ -16,13 +16,11 @@ import org.apache.lucene.codecs.lucene90.IndexedDISI;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -50,7 +48,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
-import static org.elasticsearch.index.codec.tsdb.DocValuesConsumerUtil.mergeSortedNumericValues;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -234,34 +231,11 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 return null;
             }
         });
-        if (result.supported() == false) {
+        if (result.supported()) {
+            addNumericField(mergeFieldInfo, DocValuesConsumerUtil.mergeNumericProducer(result, mergeFieldInfo, mergeState));
+        } else {
             super.mergeNumericField(mergeFieldInfo, mergeState);
-            return;
         }
-        addNumericField(mergeFieldInfo, new DocValuesConsumerUtil.TsdbDocValuesProducer(result) {
-
-            @Override
-            public NumericDocValues getNumeric(FieldInfo field) throws IOException {
-                List<DocValuesConsumerUtil.NumericDocValuesSub> subs = new ArrayList<>();
-                assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
-                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
-                    NumericDocValues values = null;
-                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
-                    if (docValuesProducer != null) {
-                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
-                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.NUMERIC) {
-                            values = docValuesProducer.getNumeric(readerFieldInfo);
-                        }
-                    }
-                    if (values != null) {
-                        subs.add(new DocValuesConsumerUtil.NumericDocValuesSub(mergeState.docMaps[i], values));
-                    }
-                }
-
-                return DocValuesConsumerUtil.mergeNumericValues(subs, mergeState.needsIndexSort);
-            }
-
-        });
     }
 
     @Override
@@ -350,45 +324,11 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 return null;
             }
         });
-        if (result.supported() == false) {
+        if (result.supported()) {
+            addSortedField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedProducer(result, mergeFieldInfo, mergeState));
+        } else {
             super.mergeSortedField(mergeFieldInfo, mergeState);
-            return;
         }
-        addSortedField(mergeFieldInfo, new DocValuesConsumerUtil.TsdbDocValuesProducer(result) {
-
-            @Override
-            public SortedDocValues getSorted(FieldInfo field) throws IOException {
-                List<DocValuesConsumerUtil.SortedDocValuesSub> subs = new ArrayList<>();
-                assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
-
-                TermsEnum[] liveTerms = new TermsEnum[mergeState.docValuesProducers.length];
-                long[] weights = new long[liveTerms.length];
-                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
-                    SortedDocValues values = null;
-                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
-                    if (docValuesProducer != null) {
-                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
-                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.SORTED) {
-                            values = docValuesProducer.getSorted(readerFieldInfo);
-                        }
-                    }
-                    if (values == null) {
-                        values = DocValues.emptySorted();
-                    }
-
-                    liveTerms[i] = values.termsEnum();
-                    weights[i] = values.getValueCount();
-                    subs.add(new DocValuesConsumerUtil.SortedDocValuesSub(mergeState.docMaps[i], values));
-                }
-
-                final OrdinalMap map = OrdinalMap.build(null, liveTerms, weights, PackedInts.COMPACT);
-                for (int i = 0; i < subs.size(); i++) {
-                    subs.get(i).map = map.getGlobalOrds(i);
-                }
-                return DocValuesConsumerUtil.mergeSortedValues(subs, mergeState.needsIndexSort, map);
-            }
-
-        });
     }
 
     private void doAddSortedField(FieldInfo field, DocValuesProducer valuesProducer, boolean addTypeByte) throws IOException {
@@ -637,34 +577,11 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 return null;
             }
         });
-        if (result.supported() == false) {
+        if (result.supported()) {
+            addSortedNumericField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedNumericProducer(result, mergeFieldInfo, mergeState));
+        } else {
             super.mergeSortedNumericField(mergeFieldInfo, mergeState);
-            return;
         }
-        addSortedNumericField(mergeFieldInfo, new DocValuesConsumerUtil.TsdbDocValuesProducer(result) {
-
-            @Override
-            public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
-                List<DocValuesConsumerUtil.SortedNumericDocValuesSub> subs = new ArrayList<>();
-                assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
-                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
-                    SortedNumericDocValues values = null;
-                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
-                    if (docValuesProducer != null) {
-                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
-                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.SORTED_NUMERIC) {
-                            values = docValuesProducer.getSortedNumeric(readerFieldInfo);
-                        }
-                    }
-                    if (values != null) {
-                        subs.add(new DocValuesConsumerUtil.SortedNumericDocValuesSub(mergeState.docMaps[i], values));
-                    }
-                }
-
-                return mergeSortedNumericValues(subs, mergeState.needsIndexSort);
-            }
-
-        });
     }
 
     private static boolean isSingleValued(SortedSetDocValues values) throws IOException {
@@ -705,45 +622,11 @@ final class ES87TSDBDocValuesConsumer extends DocValuesConsumer {
                 return null;
             }
         });
-        if (result.supported() == false) {
+        if (result.supported()) {
+            addSortedSetField(mergeFieldInfo, DocValuesConsumerUtil.mergeSortedSetProducer(result, mergeFieldInfo, mergeState));
+        } else {
             super.mergeSortedSetField(mergeFieldInfo, mergeState);
-            return;
         }
-        addSortedSetField(mergeFieldInfo, new DocValuesConsumerUtil.TsdbDocValuesProducer(result) {
-
-            @Override
-            public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
-                List<DocValuesConsumerUtil.SortedSetDocValuesSub> subs = new ArrayList<>();
-                assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
-
-                TermsEnum[] liveTerms = new TermsEnum[mergeState.docValuesProducers.length];
-                long[] weights = new long[liveTerms.length];
-                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
-                    SortedSetDocValues values = null;
-                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
-                    if (docValuesProducer != null) {
-                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
-                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.SORTED_SET) {
-                            values = docValuesProducer.getSortedSet(readerFieldInfo);
-                        }
-                    }
-                    if (values == null) {
-                        values = DocValues.emptySortedSet();
-                    }
-                    liveTerms[i] = values.termsEnum();
-                    weights[i] = values.getValueCount();
-                    subs.add(new DocValuesConsumerUtil.SortedSetDocValuesSub(mergeState.docMaps[i], values));
-                }
-
-                final OrdinalMap map = OrdinalMap.build(null, liveTerms, weights, PackedInts.COMPACT);
-                for (int i = 0; i < subs.size(); i++) {
-                    subs.get(i).map = map.getGlobalOrds(i);
-                }
-
-                return DocValuesConsumerUtil.mergeSortedSetValues(subs, mergeState.needsIndexSort, map);
-            }
-
-        });
     }
 
     @Override

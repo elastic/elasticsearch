@@ -12,7 +12,9 @@ package org.elasticsearch.index.codec.tsdb;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.DocIDMerger;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.EmptyDocValuesProducer;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.ImpactsEnum;
@@ -28,9 +30,11 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.CheckedFunction;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -88,6 +92,126 @@ class DocValuesConsumerUtil {
         }
 
         return new MergeStats(true, sumNumValues, sumNumDocsWithField);
+    }
+
+    static DocValuesProducer mergeNumericProducer(MergeStats mergeStats, FieldInfo mergeFieldInfo, MergeState mergeState) {
+        return new TsdbDocValuesProducer(mergeStats) {
+
+            @Override
+            public NumericDocValues getNumeric(FieldInfo field) throws IOException {
+                List<NumericDocValuesSub> subs = new ArrayList<>();
+                assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
+                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+                    NumericDocValues values = null;
+                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+                    if (docValuesProducer != null) {
+                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
+                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.NUMERIC) {
+                            values = docValuesProducer.getNumeric(readerFieldInfo);
+                        }
+                    }
+                    if (values != null) {
+                        subs.add(new NumericDocValuesSub(mergeState.docMaps[i], values));
+                    }
+                }
+
+                return mergeNumericValues(subs, mergeState.needsIndexSort);
+            }
+        };
+    }
+
+    static NumericDocValues mergeNumericValues(List<NumericDocValuesSub> subs, boolean indexIsSorted) throws IOException {
+        long cost = 0;
+        for (NumericDocValuesSub sub : subs) {
+            cost += sub.values.cost();
+        }
+        final long finalCost = cost;
+
+        final DocIDMerger<NumericDocValuesSub> docIDMerger = DocIDMerger.of(subs, indexIsSorted);
+
+        return new NumericDocValues() {
+            private int docID = -1;
+            private NumericDocValuesSub current;
+
+            @Override
+            public int docID() {
+                return docID;
+            }
+
+            @Override
+            public int nextDoc() throws IOException {
+                current = docIDMerger.next();
+                if (current == null) {
+                    docID = NO_MORE_DOCS;
+                } else {
+                    docID = current.mappedDocID;
+                }
+                return docID;
+            }
+
+            @Override
+            public int advance(int target) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean advanceExact(int target) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                return finalCost;
+            }
+
+            @Override
+            public long longValue() throws IOException {
+                return current.values.longValue();
+            }
+
+        };
+    }
+
+    static class NumericDocValuesSub extends DocIDMerger.Sub {
+
+        final NumericDocValues values;
+        int docID = -1;
+
+        NumericDocValuesSub(MergeState.DocMap docMap, NumericDocValues values) {
+            super(docMap);
+            this.values = values;
+            assert values.docID() == -1;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return docID = values.nextDoc();
+        }
+    }
+
+    static DocValuesProducer mergeSortedNumericProducer(MergeStats mergeStats, FieldInfo mergeFieldInfo, MergeState mergeState) {
+        return new TsdbDocValuesProducer(mergeStats) {
+
+            @Override
+            public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
+                List<DocValuesConsumerUtil.SortedNumericDocValuesSub> subs = new ArrayList<>();
+                assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
+                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+                    SortedNumericDocValues values = null;
+                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+                    if (docValuesProducer != null) {
+                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
+                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.SORTED_NUMERIC) {
+                            values = docValuesProducer.getSortedNumeric(readerFieldInfo);
+                        }
+                    }
+                    if (values != null) {
+                        subs.add(new SortedNumericDocValuesSub(mergeState.docMaps[i], values));
+                    }
+                }
+                return mergeSortedNumericValues(subs, mergeState.needsIndexSort);
+            }
+        };
     }
 
     static SortedNumericDocValues mergeSortedNumericValues(List<SortedNumericDocValuesSub> subs, boolean indexIsSorted) throws IOException {
@@ -164,73 +288,41 @@ class DocValuesConsumerUtil {
         }
     }
 
-    static NumericDocValues mergeNumericValues(List<NumericDocValuesSub> subs, boolean indexIsSorted) throws IOException {
-        long cost = 0;
-        for (NumericDocValuesSub sub : subs) {
-            cost += sub.values.cost();
-        }
-        final long finalCost = cost;
-
-        final DocIDMerger<NumericDocValuesSub> docIDMerger = DocIDMerger.of(subs, indexIsSorted);
-
-        return new NumericDocValues() {
-            private int docID = -1;
-            private NumericDocValuesSub current;
+    static DocValuesProducer mergeSortedProducer(MergeStats mergeStats, FieldInfo mergeFieldInfo, MergeState mergeState) {
+        return new TsdbDocValuesProducer(mergeStats) {
 
             @Override
-            public int docID() {
-                return docID;
-            }
+            public SortedDocValues getSorted(FieldInfo field) throws IOException {
+                List<SortedDocValuesSub> subs = new ArrayList<>();
+                assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
 
-            @Override
-            public int nextDoc() throws IOException {
-                current = docIDMerger.next();
-                if (current == null) {
-                    docID = NO_MORE_DOCS;
-                } else {
-                    docID = current.mappedDocID;
+                TermsEnum[] liveTerms = new TermsEnum[mergeState.docValuesProducers.length];
+                long[] weights = new long[liveTerms.length];
+                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+                    SortedDocValues values = null;
+                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+                    if (docValuesProducer != null) {
+                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
+                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.SORTED) {
+                            values = docValuesProducer.getSorted(readerFieldInfo);
+                        }
+                    }
+                    if (values == null) {
+                        values = DocValues.emptySorted();
+                    }
+
+                    liveTerms[i] = values.termsEnum();
+                    weights[i] = values.getValueCount();
+                    subs.add(new SortedDocValuesSub(mergeState.docMaps[i], values));
                 }
-                return docID;
-            }
 
-            @Override
-            public int advance(int target) throws IOException {
-                throw new UnsupportedOperationException();
+                final OrdinalMap map = OrdinalMap.build(null, liveTerms, weights, PackedInts.COMPACT);
+                for (int i = 0; i < subs.size(); i++) {
+                    subs.get(i).map = map.getGlobalOrds(i);
+                }
+                return mergeSortedValues(subs, mergeState.needsIndexSort, map);
             }
-
-            @Override
-            public boolean advanceExact(int target) throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public long cost() {
-                return finalCost;
-            }
-
-            @Override
-            public long longValue() throws IOException {
-                return current.values.longValue();
-            }
-
         };
-    }
-
-    static class NumericDocValuesSub extends DocIDMerger.Sub {
-
-        final NumericDocValues values;
-        int docID = -1;
-
-        NumericDocValuesSub(MergeState.DocMap docMap, NumericDocValues values) {
-            super(docMap);
-            this.values = values;
-            assert values.docID() == -1;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return docID = values.nextDoc();
-        }
     }
 
     static SortedDocValues mergeSortedValues(List<SortedDocValuesSub> subs, boolean indexIsSorted, OrdinalMap map) throws IOException {
@@ -322,6 +414,42 @@ class DocValuesConsumerUtil {
         public int nextDoc() throws IOException {
             return values.nextDoc();
         }
+    }
+
+    static DocValuesProducer mergeSortedSetProducer(MergeStats mergeStats, FieldInfo mergeFieldInfo, MergeState mergeState) {
+        return new TsdbDocValuesProducer(mergeStats) {
+
+            @Override
+            public SortedSetDocValues getSortedSet(FieldInfo field) throws IOException {
+                List<SortedSetDocValuesSub> subs = new ArrayList<>();
+                assert mergeState.docMaps.length == mergeState.docValuesProducers.length;
+
+                TermsEnum[] liveTerms = new TermsEnum[mergeState.docValuesProducers.length];
+                long[] weights = new long[liveTerms.length];
+                for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
+                    SortedSetDocValues values = null;
+                    DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
+                    if (docValuesProducer != null) {
+                        FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(mergeFieldInfo.name);
+                        if (readerFieldInfo != null && readerFieldInfo.getDocValuesType() == DocValuesType.SORTED_SET) {
+                            values = docValuesProducer.getSortedSet(readerFieldInfo);
+                        }
+                    }
+                    if (values == null) {
+                        values = DocValues.emptySortedSet();
+                    }
+                    liveTerms[i] = values.termsEnum();
+                    weights[i] = values.getValueCount();
+                    subs.add(new SortedSetDocValuesSub(mergeState.docMaps[i], values));
+                }
+
+                final OrdinalMap map = OrdinalMap.build(null, liveTerms, weights, PackedInts.COMPACT);
+                for (int i = 0; i < subs.size(); i++) {
+                    subs.get(i).map = map.getGlobalOrds(i);
+                }
+                return mergeSortedSetValues(subs, mergeState.needsIndexSort, map);
+            }
+        };
     }
 
     static SortedSetDocValues mergeSortedSetValues(List<SortedSetDocValuesSub> subs, boolean indexIsSorted, OrdinalMap map)

@@ -1,4 +1,5 @@
 toc:
+  - file: index.md
   - toc: elasticsearch
   - toc: community-contributed
   - toc: enrich-processor

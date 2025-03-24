@@ -1,4 +1,5 @@
 project: 'Elasticsearch'
+max_toc_depth: 3
 exclude:
   - README.md
   - internal/*
@@ -22,15 +23,7 @@ cross_links:
   - kibana
   - logstash
 toc:
-  - toc: reference/elasticsearch
-  - toc: reference/community-contributed
-  - toc: reference/enrich-processor
-  - toc: reference/search-connectors
-  - toc: reference/elasticsearch-plugins
-  - toc: reference/query-languages
-  - toc: reference/scripting-languages
-  - toc: reference/text-analysis
-  - toc: reference/aggregations
+  - toc: reference
   - toc: release-notes
   - toc: extend
 subs:

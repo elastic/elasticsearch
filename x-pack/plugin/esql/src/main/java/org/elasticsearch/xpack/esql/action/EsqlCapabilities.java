@@ -912,7 +912,12 @@ public class EsqlCapabilities {
         /**
          * The metrics command
          */
-        METRICS_COMMAND(Build.current().isSnapshot());
+        METRICS_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Create null alias with new id in ReplaceMissingFieldWithNull when there is lookup join with multiple batches.
+         */
+        REPLACE_MISSING_FIELD_WITH_NULL_NEW_ALIAS_ID_FOR_JOIN_AND_MULTIPLE_BATCHES;
 
         private final boolean enabled;
 

@@ -1456,9 +1456,10 @@ emp_no:integer | language_code:integer | language_name:keyword
 multipleBatches
 required_capability: join_lookup_v12
 required_capability: remove_redundant_sort
+required_capability: replace_missing_field_with_null_new_alias_id_for_join_and_multiple_batches
 
 from *
-| rename city.country.continent.planet.name as message 
+| rename city.country.continent.planet.name as message
 | lookup join message_types_lookup on message
 | sort language_code, birth_date
 | keep birth_date

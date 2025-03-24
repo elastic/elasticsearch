@@ -987,6 +987,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testMultipleBatchesWithLookupJoin() throws IOException {
+        assumeTrue(
+            "Requires new null alias ids for join with multiple batches",
+            EsqlCapabilities.Cap.REPLACE_MISSING_FIELD_WITH_NULL_NEW_ALIAS_ID_FOR_JOIN_AND_MULTIPLE_BATCHES.isEnabled()
+        );
         // Create more than 10 indices to trigger multiple batches of data node execution.
         // The sort field should be missing on some indices to reproduce NullPointerException caused by duplicated items in layout
         for (int i = 1; i <= 20; i++) {
